@@ -217,9 +217,6 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     input.sizes = eggshell_ui::contract::Keyed::new(
         eggshell_ui::contract::Size::DEFAULT,
         eggshell_ui::contract::InputMetrics {
-            radius: 7,
-            padding: vec2(9.0, 5.0),
-            height: 41.0,
             text: None,
             icon_size: 15.0,
             icon_gap: 7.0,
@@ -236,6 +233,10 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
                 .border(3.0)
                 .border_color(c(20))
                 .text(c(30))
+                .rounded_px(7.0)
+                .h_px(41.0)
+                .px_px(9.0)
+                .py(1.25)
                 .hover(|p| p.border_color(c(21)))
                 .focus(|p| p.border_color(c(23)))
         });
@@ -262,7 +263,11 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
         egui::Stroke::new(3.0, c(23)),
         "the focus border is the focused one, whatever the selected text's colour"
     );
-    assert_eq!(egui_style.spacing.button_padding, vec2(9.0, 5.0));
+    assert_eq!(
+        egui_style.spacing.button_padding,
+        vec2(9.0, 5.0),
+        "`py-1.25` at 4 points a unit"
+    );
     assert_eq!(egui_style.spacing.interact_size.y, 41.0);
 }
 

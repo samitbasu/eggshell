@@ -6,7 +6,8 @@ use eggshell_ui::contract::{
     SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::owned::{FieldPart, TablePart};
+use eggshell_ui::owned::{FieldPart, InputGroupPart, InputPart, TablePart};
+use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
@@ -14,6 +15,35 @@ use crate::styles::{HoverSurface, ShadcnStyle};
 #[cfg(feature = "extras")]
 use crate::variant;
 use crate::{ContrastPair, FontSet, Palette, Tokens, size};
+
+/// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
+/// field a unit shorter than the preset's controls and a `xs` one three, each
+/// with its own inline padding, over the generated look.
+fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
+    let own = t.own_input_padding_x;
+    for (size, height, padding_x) in [
+        (size::SM, t.control_units - 1.0, own),
+        (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
+    ] {
+        let when = When::always().size(size);
+        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
+        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
+        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-start"),
+            move |c, _| c.pl(padding_x),
+        );
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-end"),
+            move |c, _| c.pr(padding_x),
+        );
+    }
+    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
+        c.py(0.5)
+    });
+}
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -230,7 +260,7 @@ impl Shadcn {
             flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
         );
         let control = Metrics {
-            height: t.control_height,
+            height: t.control_height(),
             min_width: 0.0,
             padding_x: t.button_padding.x,
             gap: t.control_gap,
@@ -265,12 +295,12 @@ impl Shadcn {
             ..m
         };
         let toggle_metrics = Metrics {
-            min_width: t.control_height,
+            min_width: t.control_height(),
             padding_x: t.toggle_padding_x,
             ..control
         };
         let square = |metrics: Metrics| Metrics {
-            min_width: t.control_height,
+            min_width: t.control_height(),
             padding_x: 0.0,
             ..metrics
         };
@@ -412,12 +442,12 @@ impl Shadcn {
             };
             segmented.sizes = Keyed::new(
                 Size::DEFAULT,
-                track_at(t.control_height, t.cell_padding.x, t.icon_size, None),
+                track_at(t.control_height(), t.cell_padding.x, t.icon_size, None),
             )
             .with(
                 size::SM,
                 track_at(
-                    t.control_height - u(1.0),
+                    t.control_height() - u(1.0),
                     t.cell_padding.x,
                     t.icon_size,
                     None,
@@ -426,7 +456,7 @@ impl Shadcn {
             .with(
                 size::XS,
                 track_at(
-                    t.control_height - u(3.0),
+                    t.control_height() - u(3.0),
                     (t.cell_padding.x - u(1.0)).max(0.0),
                     u(3.0),
                     xs_text,
@@ -624,15 +654,19 @@ impl Shadcn {
             let own = u(t.own_input_padding_x);
             stepper.sizes = Keyed::new(
                 Size::DEFAULT,
-                group_at(t.control_height, (t.input_padding.x, u(6.0), u(3.0)), None),
+                group_at(
+                    t.control_height(),
+                    (t.input_padding.x, u(6.0), u(3.0)),
+                    None,
+                ),
             )
             .with(
                 size::SM,
-                group_at(t.control_height - u(1.0), (own, u(5.0), u(3.0)), None),
+                group_at(t.control_height() - u(1.0), (own, u(5.0), u(3.0)), None),
             )
             .with(
                 size::XS,
-                group_at(t.control_height - u(3.0), (own, u(4.0), u(2.5)), xs_text),
+                group_at(t.control_height() - u(3.0), (own, u(4.0), u(2.5)), xs_text),
             );
             stepper.button = ghost_button;
             stepper.divider = t.input;
@@ -641,42 +675,14 @@ impl Shadcn {
         };
         let input = {
             let mut input = style.input().clone();
-            let field_at =
-                |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
-                    InputMetrics {
-                        radius: t.radius_md(),
-                        padding,
-                        height,
-                        text,
-                        icon_size,
-                        icon_gap,
-                    }
-                };
-            input.sizes = Keyed::new(
-                Size::DEFAULT,
-                field_at(t.control_height, t.input_padding, None, (16.0, 8.0)),
-            )
-            .with(
-                size::SM,
-                field_at(
-                    t.control_height - u(1.0),
-                    vec2(u(t.own_input_padding_x), t.input_padding.y),
-                    None,
-                    (u(3.5), u(1.5)),
-                ),
-            )
-            .with(
-                size::XS,
-                field_at(
-                    t.control_height - u(3.0),
-                    vec2(
-                        u((t.own_input_padding_x - 1.0).max(0.0)),
-                        t.input_padding.y.min(u(0.5)),
-                    ),
-                    xs_text,
-                    (u(3.0), u(1.5)),
-                ),
-            );
+            let field_at = |text, (icon_size, icon_gap): (f32, f32)| InputMetrics {
+                text,
+                icon_size,
+                icon_gap,
+            };
+            input.sizes = Keyed::new(Size::DEFAULT, field_at(None, (16.0, 8.0)))
+                .with(size::SM, field_at(None, (u(3.5), u(1.5))))
+                .with(size::XS, field_at(xs_text, (u(3.0), u(1.5))));
             // input.tsx: `placeholder:text-muted-foreground`.
             input.hint = Some(t.muted_foreground);
             input.icon = t.muted_foreground;
@@ -779,6 +785,7 @@ impl Shadcn {
             .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
             .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
+        write_field_sizes(&mut style.sheet, t);
         style.write_exceptions();
         #[cfg(feature = "extras")]
         {
@@ -814,7 +821,7 @@ impl Shadcn {
         core.spacing = t.spacing;
         core.radius = t.radius;
         core.text = t.text;
-        core.control_height = t.control_height;
+        core.control_height = t.control_height();
         core.button_padding = t.button_padding;
         core.text_size = t.control_text_size().size;
         core.switch_thumb = t.switch_thumb;
@@ -1167,7 +1174,7 @@ impl Shadcn {
         form.title_color = t.foreground;
         form.title_gap = if vega { 12.0 } else { 10.0 };
         form.row_gap = if vega { 12.0 } else { 8.0 };
-        form.row_min_height = t.control_height;
+        form.row_min_height = t.control_height();
         form.label_color = t.foreground;
         form.value_color = t.muted_foreground;
         form.section_gap = if vega { 24.0 } else { 16.0 };

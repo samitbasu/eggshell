@@ -2820,7 +2820,7 @@ fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, r
 
 /// The points `side` is, when it is a length; a percentage or `auto` counts
 /// as none.
-fn length_px(side: taffy::CompactLength) -> f32 {
+pub(crate) fn length_px(side: taffy::CompactLength) -> f32 {
     match side {
         side if side.tag() == taffy::CompactLength::LENGTH_TAG => side.value(),
         _ => 0.0,

@@ -1009,3 +1009,29 @@ pub fn input_border(style: &eggshell_ui::Style) -> (f32, Color32) {
         color.unwrap_or(Color32::TRANSPARENT),
     )
 }
+
+/// What `style`'s sheet gives a text field of `size`: its height, padding
+/// and radius.
+pub struct FieldBox {
+    pub height: f32,
+    pub padding: Vec2,
+    pub radius: u8,
+}
+
+/// The [`FieldBox`] `style`'s sheet gives a text field of `size`.
+pub fn field_box(style: &eggshell_ui::Style, size: eggshell_ui::contract::Size) -> FieldBox {
+    let classes = part_at(
+        style,
+        eggshell_ui::owned::InputPart::Root,
+        &[eggshell_ui::sheet::Key::Size(size)],
+    );
+    let layout = classes.style_at(style.tokens.spacing);
+    FieldBox {
+        height: layout.size.height.into_raw().value(),
+        padding: Vec2::new(
+            layout.padding.left.into_raw().value(),
+            layout.padding.top.into_raw().value(),
+        ),
+        radius: classes.paint_classes().radius.nw,
+    }
+}

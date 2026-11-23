@@ -138,7 +138,7 @@ fn every_token_can_be_overridden() {
     let mut preset = Shadcn::light();
     preset.tokens.primary = rgb(0x12, 0x34, 0x56);
     preset.tokens.radius = eggshell_ui::contract::Radius::new(6.0);
-    preset.tokens.control_height = 40.0;
+    preset.tokens.control_units = 10.0;
     preset.apply(&ctx);
     let style = ctx.style_of(Theme::Light);
     assert_eq!(

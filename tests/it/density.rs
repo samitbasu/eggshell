@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Radius, Spacing, TextSize, Themed};
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Match, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
+use eggshell_ui::{Builder, Icon, Match, TextStyle, icons, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::epaint::Shape;
 use egui::{Rect, vec2};
 
@@ -53,6 +53,15 @@ fn controls(b: &mut Builder<'_, '_, ()>, _: &()) {
         s.switch("air", "Airplane mode", false).on_change(|_, _| {});
         s.text_field("field", "Typed")
             .named("Field")
+            .on_change(|_, _| {});
+        s.text_field("small", "Small")
+            .named("Small")
+            .size(size::SM)
+            .on_change(|_, _| {});
+        s.text_field("found", "Found")
+            .named("Found")
+            .size(size::SM)
+            .leading(Icon::new(icons::SEARCH))
             .on_change(|_, _| {});
     });
 }
@@ -107,10 +116,20 @@ fn a_dense_vega_input_has_6_point_corners_and_draws_13_point_text() {
         13.0,
         "the TextEdit's own glyphs"
     );
+    assert_eq!(field.height(), 31.5, "h-9 at 3.5 points a unit");
+}
+
+#[test]
+fn a_dense_small_field_is_a_unit_shorter_and_padded_in_units() {
+    let d = driver(ShadcnStyle::Vega, dense);
+    assert_eq!(rect(&d, "/\"small\"").height(), 28.0, "h-8 at 3.5 a unit");
+    let (boxed, icon) = (rect(&d, "/\"found\""), rect(&d, "/\"found\"/Leading"));
+    assert_eq!(boxed.height(), 28.0, "the box is the field's height");
+    let border = 1.0;
     assert_eq!(
-        field.height(),
-        36.0,
-        "TODO(#482): egui's field is `control_height` tall, not h-9 at 3.5 a unit"
+        icon.left() - boxed.left(),
+        border + 3.0 * 3.5,
+        "own_input_padding_x, 3 units at 3.5"
     );
 }
 

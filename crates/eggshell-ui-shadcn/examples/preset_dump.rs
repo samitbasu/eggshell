@@ -5,6 +5,8 @@
 //! `#RR_GG_BB_AA`.
 
 use eggshell_ui::contract::{Colors, Look};
+use eggshell_ui::owned::InputPart;
+use eggshell_ui::sheet::Key;
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::Theme;
 
@@ -53,10 +55,18 @@ fn main() {
                     badge.variants.get(variant),
                 );
             }
-            let input = core.input().sizes.get(core.input().sizes.default_key());
+            let input = core.sheet.resolve(
+                InputPart::Root,
+                &[Key::Size(core.input().sizes.default_key())],
+                &core.tokens,
+            );
+            let layout = input.style_at(core.tokens.spacing);
             println!(
                 "part {at} part=input height={} padding_x={} padding_y={} radius={}",
-                input.height, input.padding.x, input.padding.y, input.radius
+                layout.size.height.into_raw().value(),
+                layout.padding.left.into_raw().value(),
+                layout.padding.top.into_raw().value(),
+                input.paint_classes().radius.nw
             );
             let menu = core.menu();
             println!(

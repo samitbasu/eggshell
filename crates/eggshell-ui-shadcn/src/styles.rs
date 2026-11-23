@@ -41,7 +41,7 @@ impl ShadcnStyle {
             Self::Vega => {
                 t.radius = Radius::new(10.0);
                 t.control_text = TextStep::Sm;
-                t.control_height = 36.0;
+                t.control_units = 9.0;
                 t.button_padding = vec2(16.0, 8.0);
                 t.input_padding = vec2(10.0, 4.0);
                 t.own_input_padding_x = 3.0;
@@ -66,7 +66,7 @@ impl ShadcnStyle {
             Self::Lyra => {
                 t.radius = Radius::new(0.0);
                 t.control_text = TextStep::Xs;
-                t.control_height = 32.0;
+                t.control_units = 8.0;
                 t.button_padding = vec2(10.0, 6.0);
                 t.input_padding = vec2(10.0, 4.0);
                 t.own_input_padding_x = 2.5;

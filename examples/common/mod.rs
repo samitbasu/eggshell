@@ -645,7 +645,7 @@ pub fn text_box<S, K>(
         tw().flex()
             .items_center()
             .w_full()
-            .min_h_px(t.control_height)
+            .min_h(t.control_units)
             .px_px(t.input_padding.x)
             .py_px(t.input_padding.y)
             .border(1.0)
@@ -660,7 +660,7 @@ pub fn text_box<S, K>(
         |b| {
             b.text_field_with("field", field)
                 .invalid(error)
-                .classes(tw().w_full().min_h_px(t.control_height))
+                .classes(tw().w_full().min_h(t.control_units))
                 .on_response(move |_, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
                 })

@@ -34,12 +34,28 @@ fn box_of(style: &Style, size: Size) -> (Option<f32>, u8) {
     )
 }
 
+/// The height, padding and radius the sheet gives a text field of `size`.
+fn field_of(style: &Style, size: Size) -> (f32, egui::Vec2, u8) {
+    let classes = style
+        .sheet
+        .resolve(InputPart::Root, &[Key::Size(size)], &style.tokens);
+    let layout = classes.style_at(style.tokens.spacing);
+    (
+        layout.size.height.into_raw().value(),
+        vec2(
+            layout.padding.left.into_raw().value(),
+            layout.padding.top.into_raw().value(),
+        ),
+        classes.paint_classes().radius.nw,
+    )
+}
+
 #[test]
 fn vega_is_the_default_and_the_tokens_of_before() {
     assert_eq!(ShadcnStyle::default(), ShadcnStyle::Vega);
     let t = Tokens::light();
     assert_eq!(t.style, ShadcnStyle::Vega);
-    assert_eq!((t.radius.lg(), t.control_height), (10.0, 36.0));
+    assert_eq!((t.radius.lg(), t.control_height()), (10.0, 36.0));
     assert_eq!(t.control_text, TextStep::Sm, "text-sm");
     assert_eq!(
         t.input_padding,
@@ -56,7 +72,7 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!(t.radius_md(), 0, "rounded-none");
         assert_eq!(t.radius_sm(), 0);
         assert_eq!(t.control_text, TextStep::Xs, "text-xs");
-        assert_eq!(t.control_height, 32.0, "h-8");
+        assert_eq!(t.control_height(), 32.0, "h-8");
         assert_eq!(t.button_padding.x, 10.0, "px-2.5");
         assert_eq!(t.control_gap, 6.0, "gap-1.5");
         assert_eq!(t.ring_width, 1.0, "ring-1");
@@ -72,11 +88,10 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!(style.text.size, 12.0);
         assert_eq!(style.checkbox().sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(style.slider.sizes.get(Size::DEFAULT).radius, 0);
-        assert_eq!(style.input().sizes.get(Size::DEFAULT).height, 32.0);
-        assert_eq!(style.input().sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(
-            style.input().sizes.get(Size::DEFAULT).padding,
-            vec2(10.0, 4.0)
+            field_of(&style, Size::DEFAULT),
+            (32.0, vec2(10.0, 4.0), 0),
+            "h-8 px-2.5 py-1 rounded-none"
         );
         assert!(
             button(&style, variant::OUTLINE, Size::DEFAULT)
@@ -128,7 +143,7 @@ fn style_light_dark_and_theme_colour_vary_independently() {
             let s = preset.style();
             (
                 box_of(&s, Size::DEFAULT),
-                s.input().sizes.get(Size::DEFAULT).height,
+                field_of(&s, Size::DEFAULT).0,
                 s.tokens.focus.width,
             )
         };

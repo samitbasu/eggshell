@@ -113,7 +113,8 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         let lyra_tokens = Tokens::for_theme(theme).in_style(ShadcnStyle::Lyra);
 
         assert_ne!(
-            vega_tokens.control_height, lyra_tokens.control_height,
+            vega_tokens.control_height(),
+            lyra_tokens.control_height(),
             "precondition"
         );
         for (name, path) in [
@@ -126,7 +127,7 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
             {
                 let height = height_of(placed, path);
                 assert!(
-                    (height - tokens.control_height).abs() < 0.01,
+                    (height - tokens.control_height()).abs() < 0.01,
                     "{theme:?} {style} {name}: {height}"
                 );
             }
@@ -140,30 +141,10 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         assert!(radius(&vega_style) > 0, "precondition: Vega is rounded");
         assert_eq!(vega_style.tokens.focus.width, 3.0);
         assert_eq!(lyra_style.tokens.focus.width, 1.0);
-        assert_eq!(
-            vega_style
-                .input()
-                .sizes
-                .get(eggshell_ui::contract::Size::DEFAULT)
-                .height,
-            36.0
-        );
-        assert_eq!(
-            lyra_style
-                .input()
-                .sizes
-                .get(eggshell_ui::contract::Size::DEFAULT)
-                .height,
-            32.0
-        );
-        assert_eq!(
-            lyra_style
-                .input()
-                .sizes
-                .get(eggshell_ui::contract::Size::DEFAULT)
-                .radius,
-            0
-        );
+        let field = |style| crate::support::field_box(style, eggshell_ui::contract::Size::DEFAULT);
+        assert_eq!(field(&vega_style).height, 36.0);
+        assert_eq!(field(&lyra_style).height, 32.0);
+        assert_eq!(field(&lyra_style).radius, 0);
 
         common::set_style(&ctx, ShadcnStyle::Vega);
         common::use_preset(&ctx);

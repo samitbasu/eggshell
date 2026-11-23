@@ -1005,12 +1005,6 @@ pub struct StepperStyle {
 /// A text field's dimensions at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InputMetrics {
-    /// Corner radius.
-    pub radius: u8,
-    /// Space between the border and the text.
-    pub padding: Vec2,
-    /// Height of a one-line field; a taller field's text sets its height.
-    pub height: f32,
     /// The text's size, or `None` for the text role's own.
     pub text: Option<TextSize>,
     /// Side of a leading or trailing icon.
@@ -1033,7 +1027,7 @@ pub struct InputMetrics {
 /// | the part's other states and variants | not drawn: egui has one fill and one text colour |
 /// | the part's focused border | approximated: egui draws the focus border in the colour of selected text, so [`Selection::text`] wins when set |
 /// | the part's shadow and focus ring | not drawn: egui's frame has no shadow and its ring is the 1 pt border |
-/// | the part's radius; `sizes`: padding, height | exact |
+/// | the part's radius, padding and height | exact |
 /// | `hint` | exact when set; otherwise egui's own grey-out of the text colour |
 /// | [`Style::selection`] fill | exact |
 ///
@@ -1041,7 +1035,7 @@ pub struct InputMetrics {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct InputStyle {
-    /// Radius, padding and height per size.
+    /// TODO(prose): the text and icons per size; the sheet gives the radius, padding and height.
     pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
     pub hint: Option<Color32>,
@@ -1843,6 +1837,9 @@ impl Style {
                     .faded_over(faded, surface),
                 })
                 .bordered(border_width),
+                radius,
+                padding: s.button_padding,
+                height: s.interact_size.y,
             },
         );
         crate::owned::tabs_defaults(
@@ -2210,9 +2207,6 @@ impl Style {
                 sizes: Keyed::new(
                     Size::DEFAULT,
                     InputMetrics {
-                        radius,
-                        padding: s.button_padding,
-                        height: s.interact_size.y,
                         text: None,
                         icon_size: 16.0,
                         icon_gap: 8.0,
@@ -2286,11 +2280,10 @@ impl Style {
         use crate::owned::{Frame, InputPart, input_keys};
         let input = &self.input;
         let size = input.sizes.key_for(size);
-        let metrics = input.sizes.get(size);
         let mut keys = input_keys(size, false);
         keys.extend(aria.map(crate::sheet::Key::Aria));
         let classes = self.sheet.resolve(InputPart::Root, &keys, &self.tokens);
-        let frame = Frame::of(&classes);
+        let frame = Frame::of(&classes, self.tokens.spacing);
         let v = &mut egui.visuals;
         v.text_edit_bg_color = frame.fill;
         v.weak_text_color = input.hint;
@@ -2311,8 +2304,8 @@ impl Style {
         }
         v.selection.bg_fill = self.selection.fill;
         v.selection.stroke = egui::Stroke::new(width.max(1.0), frame.focused.unwrap_or(clear));
-        egui.spacing.interact_size.y = metrics.height;
-        egui.spacing.button_padding = metrics.padding;
+        egui.spacing.interact_size.y = frame.height;
+        egui.spacing.button_padding = frame.padding;
     }
 
     /// Selects: the trigger, and the list it opens.

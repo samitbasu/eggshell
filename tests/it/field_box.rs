@@ -111,18 +111,20 @@ fn spacing(size: Size) -> (f32, f32) {
     if size == Size::DEFAULT {
         (8.0, 6.0)
     } else {
-        let metrics = *input().sizes.get(size);
-        (metrics.padding.x, metrics.icon_gap)
+        let style = Shadcn::for_theme(Theme::Light).style();
+        (
+            support::field_box(&style, size).padding.x,
+            input().sizes.get(size).icon_gap,
+        )
     }
 }
 
 #[test]
 fn a_field_box_is_the_inputs_box_at_its_size() {
     let d = driver(Size::DEFAULT);
-    let input = input();
-    let metrics = *input.sizes.get(size::SM);
+    let field = support::field_box(&Shadcn::for_theme(Theme::Light).style(), size::SM);
     let rect = d.rect(Target::suffix(CUSTOM));
-    assert_eq!(rect.height(), metrics.height);
+    assert_eq!(rect.height(), field.height);
     assert_eq!(rect.width(), 200.0);
     let shape = box_at(&d, rect);
     assert_eq!(
@@ -134,10 +136,7 @@ fn a_field_box_is_the_inputs_box_at_its_size() {
         shape.stroke.color,
         support::input_border(&Shadcn::for_theme(Theme::Light).style()).1
     );
-    assert_eq!(
-        shape.corner_radius,
-        egui::CornerRadius::same(metrics.radius)
-    );
+    assert_eq!(shape.corner_radius, egui::CornerRadius::same(field.radius));
 }
 
 #[test]
@@ -226,7 +225,11 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
             d.rect(Target::suffix(&format!("{SEARCH}/Field"))),
         );
         let (edge, gap) = spacing(size);
-        assert_eq!(boxed.height(), metrics.height, "{label}");
+        assert_eq!(
+            boxed.height(),
+            support::field_box(&Shadcn::for_theme(Theme::Light).style(), size).height,
+            "{label}"
+        );
         assert_eq!(
             icon.size(),
             vec2(metrics.icon_size, metrics.icon_size),

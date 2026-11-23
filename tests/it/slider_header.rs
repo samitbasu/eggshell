@@ -173,8 +173,7 @@ fn the_readout_being_edited_is_drawn_in_the_inputs_box_with_its_ring() {
     assert!(ring_at(&d, before).is_none());
     open(&mut d);
     let rect = d.rect(Target::suffix(READOUT));
-    let input = d.shell().style().input().clone();
-    let height = input.sizes.get(Size::DEFAULT).height;
+    let height = support::field_box(&d.shell().style(), Size::DEFAULT).height;
     assert!((rect.height() - height).abs() < 0.6, "{rect:?} {height}");
     assert_eq!(
         box_at(&d, rect).fill,
@@ -240,7 +239,7 @@ fn on_the_last_digit(d: &Driver<App>) -> egui::Pos2 {
         .expect("precondition: the part is on one row");
     let at = egui::pos2(digit.right() - 1.0, digit.center().y);
     let readout = d.rect(Target::suffix(TINY));
-    let padding = d.shell().style().input().sizes.get(size::XS).padding.x;
+    let padding = support::field_box(&d.shell().style(), size::XS).padding.x;
     assert!(
         readout.contains(at),
         "precondition: {at:?} is on the readout {readout:?}"
@@ -269,7 +268,7 @@ fn the_field_spans_its_box_and_its_text_keeps_the_inputs_padding() {
     let style = d.shell().style();
     let (border, padding) = (
         support::input_border(&style).0,
-        style.input().sizes.get(Size::DEFAULT).padding.x,
+        support::field_box(&style, Size::DEFAULT).padding.x,
     );
     assert!(
         (boxed.right() - field.right() - border).abs() < 0.6,

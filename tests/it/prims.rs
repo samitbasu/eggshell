@@ -557,13 +557,8 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
     )
     .build();
     let leaf = d.rect(Target::suffix("/\"box\"/\"bare\""));
-    let input_height = d
-        .shell()
-        .style()
-        .input()
-        .sizes
-        .get(eggshell_ui::contract::Size::DEFAULT)
-        .height;
+    let input_height =
+        support::field_box(&d.shell().style(), eggshell_ui::contract::Size::DEFAULT).height;
     assert!(
         leaf.height() < input_height,
         "precondition: the leaf ({}) is shorter than input.height ({input_height})",

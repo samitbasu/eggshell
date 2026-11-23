@@ -114,10 +114,11 @@ pub(crate) use select::{
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
-/// The border width `style` gives a text field of `size`.
-pub(crate) fn input_border_width(style: &Style, size: Size) -> f32 {
+/// What `style` draws a text field of `size` with.
+pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
     let keys = input_keys(style.input().sizes.key_for(size), false);
-    Frame::of(&style.sheet.resolve(InputPart::Root, &keys, &style.tokens)).border_width
+    let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
+    Frame::of(&classes, style.tokens.spacing)
 }
 
 /// Writes `text`, the style's text role, as the role of the controls that

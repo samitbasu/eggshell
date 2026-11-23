@@ -90,8 +90,8 @@ pub struct Tokens {
     pub text: TextScale,
     /// TODO(prose): the step of `text` every control's text is: `text-sm`, or `text-xs`.
     pub control_text: TextStep,
-    /// The height of buttons, inputs and selects (`h-9`).
-    pub control_height: f32,
+    /// TODO(prose): the height of buttons, inputs and selects in spacing units (`h-9`).
+    pub control_units: f32,
     /// A button's padding (`px-4 py-2`).
     pub button_padding: Vec2,
     /// An input's and a select's padding (`px-3 py-1`).
@@ -246,7 +246,7 @@ impl Tokens {
             radius: Radius::new(0.0),
             text: TextScale::default(),
             control_text: TextStep::Sm,
-            control_height: 0.0,
+            control_units: 0.0,
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
             own_input_padding_x: 0.0,
@@ -309,6 +309,11 @@ impl Tokens {
     pub fn in_style(mut self, style: ShadcnStyle) -> Self {
         style.shape(&mut self);
         self
+    }
+
+    /// TODO(prose): the height of buttons, inputs and selects in points at the tokens' spacing.
+    pub fn control_height(&self) -> f32 {
+        self.spacing.points(self.control_units)
     }
 
     /// `rounded-md`: the radius of buttons, inputs and selects.
