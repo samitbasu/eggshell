@@ -206,42 +206,15 @@ fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
     assert!((i32::from(fill.r()) - 100).abs() <= 8, "{fill:?}");
 }
 
-/// The input section maps onto the node's egui style: a deliberately unusual
-/// one, every field distinct, so a field that is not mapped shows.
+/// The input section and the field's rule map onto the node's egui style: a
+/// deliberately unusual one, every value distinct, so one that is not mapped
+/// shows.
 #[test]
 fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
-    use eggshell_ui::contract::{InputStyle, Look};
+    use eggshell_ui::contract::InputStyle;
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
     let mut input = style.input().clone();
-    input.look = Look::new(eggshell_ui::contract::States {
-        rest: eggshell_ui::contract::Colors {
-            fill: c(10),
-            border: c(20),
-            text: c(30),
-        },
-        hover: eggshell_ui::contract::Colors {
-            fill: c(11),
-            border: c(21),
-            text: c(31),
-        },
-        pressed: eggshell_ui::contract::Colors {
-            fill: c(12),
-            border: c(22),
-            text: c(32),
-        },
-        focused: eggshell_ui::contract::Colors {
-            fill: c(13),
-            border: c(23),
-            text: c(33),
-        },
-        disabled: eggshell_ui::contract::Colors {
-            fill: c(14),
-            border: c(24),
-            text: c(34),
-        },
-    })
-    .bordered(3.0);
     input.sizes = eggshell_ui::contract::Keyed::new(
         eggshell_ui::contract::Size::DEFAULT,
         eggshell_ui::contract::InputMetrics {
@@ -256,6 +229,17 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     input.hint = Some(c(99));
     input.icon = c(55);
     style.set_input(input);
+    style
+        .sheet
+        .as_app()
+        .rule(eggshell_ui::owned::InputPart::Root, move |t, _| {
+            t.bg(c(10))
+                .border(3.0)
+                .border_color(c(20))
+                .text(c(30))
+                .hover(|p| p.border_color(c(21)))
+                .focus(|p| p.border_color(c(23)))
+        });
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
     let _: &InputStyle = style.input();

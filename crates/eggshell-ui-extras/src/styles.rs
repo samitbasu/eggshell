@@ -21,3 +21,15 @@ pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
     }
     keyed.get(key)
 }
+
+#[cfg(any(feature = "command", feature = "markdown"))]
+/// The border colour `style`'s sheet gives a text field at rest.
+pub(crate) fn input_border(style: &eggshell_ui::Style) -> egui::Color32 {
+    style
+        .sheet
+        .resolve(eggshell_ui::owned::InputPart::Root, &[], &style.tokens)
+        .paint_classes()
+        .border_colors
+        .top
+        .unwrap_or(egui::Color32::TRANSPARENT)
+}

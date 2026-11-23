@@ -252,7 +252,7 @@ fn a_steppers_value_and_chevrons_keep_its_own_metrics_and_colour_at_every_size()
         for size in [Size::DEFAULT, SM, XS] {
             let d = themed_at(size, theme);
             let group = d.rect(Target::suffix("/\"stepper\"/Box"));
-            let border = style.input().look.border_width;
+            let border = support::input_border(&style).0;
             let padding = stepper.sizes.get(size).padding_x;
             assert_eq!(
                 support::text_left(&d, group, "3") - group.left(),

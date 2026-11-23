@@ -134,7 +134,7 @@ impl Readout {
             return;
         }
         let input = *style.input().sizes.lookup(b.ctx(), size);
-        let border = style.input().look.border_width;
+        let border = super::input_border_width(&style, size);
         let field = Field::singleline("").sized(size).inset();
         let measured = field.clone();
         let slot = b.slot(&Part::Readout);

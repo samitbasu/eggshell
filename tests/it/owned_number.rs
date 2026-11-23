@@ -878,9 +878,11 @@ fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     select.sizes.default_entry_mut().height = 44.0;
     style.set_select(select);
     // The stepper's group is an input group: it follows the input section.
-    let mut input = style.input().clone();
-    input.look.paint.states.rest.fill = red;
-    style.set_input(input);
+    style
+        .sheet
+        .rule(eggshell_ui::owned::InputGroupPart::Root, move |t, _| {
+            t.bg(red)
+        });
     style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));

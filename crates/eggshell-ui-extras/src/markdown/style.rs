@@ -267,7 +267,7 @@ pub struct UnsupportedStyle {
 impl MarkdownStyle {
     /// TODO(prose)
     pub fn from_style(style: &Style) -> Self {
-        let border = style.input().look.paint.states.rest.border;
+        let border = crate::styles::input_border(style);
         let muted = style.input().hint.unwrap_or(style.label().disabled.text);
         let body = &style.text;
         let mono = |scale: f32| TextSpec {

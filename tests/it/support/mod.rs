@@ -998,3 +998,14 @@ pub fn part_at<P: eggshell_ui::sheet::Part>(
 ) -> eggshell_ui::Tw {
     style.sheet.resolve(part, keys, &style.tokens)
 }
+
+/// The border width and rest colour `style`'s sheet gives a text field.
+pub fn input_border(style: &eggshell_ui::Style) -> (f32, Color32) {
+    let classes = part(style, eggshell_ui::owned::InputPart::Root);
+    let width = classes.style_at(style.tokens.spacing).border.left;
+    let color = classes.paint_classes().border_colors.top;
+    (
+        width.into_raw().value(),
+        color.unwrap_or(Color32::TRANSPARENT),
+    )
+}

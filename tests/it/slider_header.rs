@@ -266,10 +266,10 @@ fn the_field_spans_its_box_and_its_text_keeps_the_inputs_padding() {
     open(&mut d);
     let boxed = d.rect(Target::suffix(READOUT));
     let field = d.rect(Target::suffix(&format!("{READOUT}/Field")));
-    let input = d.shell().style().input().clone();
+    let style = d.shell().style();
     let (border, padding) = (
-        input.look.border_width,
-        input.sizes.get(Size::DEFAULT).padding.x,
+        support::input_border(&style).0,
+        style.input().sizes.get(Size::DEFAULT).padding.x,
     );
     assert!(
         (boxed.right() - field.right() - border).abs() < 0.6,

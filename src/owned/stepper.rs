@@ -306,7 +306,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         control_keys.extend(invalid);
         let control = b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
-        let inner_radius = f32::from(metrics.radius) - style.input().look.border_width;
+        let inner_radius =
+            f32::from(metrics.radius) - super::input_border_width(&style, b.size_of(size));
         let button = |b: &mut Builder<'_, '_, A>, at_end: bool, corner: fn(Tw, f32) -> Tw| {
             let enablement = if at_end {
                 Enablement::Disabled

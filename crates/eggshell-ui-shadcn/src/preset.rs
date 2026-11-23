@@ -306,15 +306,6 @@ impl Shadcn {
             .bordered(1.0),
             t.shadow_xs,
         );
-        let field_rest = Colors {
-            text: t.secondary_foreground,
-            ..input_rest
-        };
-        let field_look = BoxLook::new(States {
-            focused: focused(field_rest),
-            ..States::new(field_rest, field_rest, t.background)
-        })
-        .bordered(1.0);
         let thumb_colors = Colors {
             fill: Color32::WHITE,
             border: t.primary,
@@ -652,7 +643,6 @@ impl Shadcn {
         };
         let input = {
             let mut input = style.input().clone();
-            input.look = field_look;
             let field_at =
                 |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
                     InputMetrics {

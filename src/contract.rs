@@ -1025,20 +1025,21 @@ pub struct InputMetrics {
     pub icon_gap: f32,
 }
 
-/// Text fields, which are egui's `TextEdit` wrapped: egui paints them from
-/// fixed widget slots, so [`Style::map_input`] approximates this section on
-/// the field's own `Ui` and the library's size estimate reads the same
+/// TODO(prose): Text fields, which are egui's `TextEdit` wrapped: egui paints them from
+/// fixed widget slots, so [`Style::map_input`] approximates the sheet's
+/// [`InputPart::Root`](crate::owned::InputPart::Root) and this section on
+/// the field's own `Ui`, and the library's size estimate reads the same
 /// values.
 ///
-/// | Field | On the `TextEdit` |
+/// | From | On the `TextEdit` |
 /// |---|---|
-/// | `look` rest `fill` | exact: the field's background in every state |
-/// | `look` rest and hover `border`, `border_width` | exact; the focus border is at least 1 pt wide so that focus always shows |
-/// | `look` rest `text` | exact: the colour of typed text in every state |
-/// | `look` hover `fill`, `pressed`, disabled colours | not drawn: egui has one fill and one text colour |
-/// | `look` focused `border` | approximated: egui draws the focus border in the colour of selected text, so [`Selection::text`] wins when set |
-/// | `look` shadow and focus ring | not drawn: egui's frame has no shadow and its ring is the 1 pt border |
-/// | `sizes`: radius, padding, height | exact |
+/// | the part's fill | exact: the field's background in every state |
+/// | the part's border colour, at rest and hovered, and its width | exact; the focus border is at least 1 pt wide so that focus always shows |
+/// | the part's text colour | exact: the colour of typed text in every state |
+/// | the part's other states and variants | not drawn: egui has one fill and one text colour |
+/// | the part's focused border | approximated: egui draws the focus border in the colour of selected text, so [`Selection::text`] wins when set |
+/// | the part's shadow and focus ring | not drawn: egui's frame has no shadow and its ring is the 1 pt border |
+/// | the part's radius; `sizes`: padding, height | exact |
 /// | `hint` | exact when set; otherwise egui's own grey-out of the text colour |
 /// | [`Style::selection`] fill | exact |
 ///
@@ -1046,8 +1047,6 @@ pub struct InputMetrics {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct InputStyle {
-    /// Colours per state and the border width.
-    pub look: Look,
     /// Radius, padding and height per size.
     pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
@@ -1810,6 +1809,40 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::input_defaults(
+            &mut sheet,
+            crate::owned::InputDefaults {
+                look: Look::new(States {
+                    rest: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.inactive.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    hover: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.hovered.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    pressed: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: focus_border,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    focused: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: focus_border,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    disabled: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.inactive.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    }
+                    .faded_over(faded, surface),
+                })
+                .bordered(border_width),
+            },
+        );
         crate::owned::tabs_defaults(
             &mut sheet,
             crate::owned::TabsDefaults {
@@ -2175,35 +2208,6 @@ impl Style {
                 transition,
             },
             input: InputStyle {
-                look: Look::new(States {
-                    rest: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.inactive.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    hover: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.hovered.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    pressed: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: focus_border,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    focused: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: focus_border,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    disabled: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.inactive.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    }
-                    .faded_over(faded, surface),
-                })
-                .bordered(border_width),
                 sizes: Keyed::new(
                     Size::DEFAULT,
                     InputMetrics {

@@ -678,14 +678,7 @@ fn search_field<A: 'static>(
 ) -> Id {
     let menu = style.menu();
     let rest = menu.popup.paint.states.rest;
-    let tint = style
-        .input()
-        .look
-        .paint
-        .states
-        .rest
-        .border
-        .gamma_multiply(0.3);
+    let tint = crate::styles::input_border(style).gamma_multiply(0.3);
     let wrapper = s.part_over(
         CommandPart::InputWrapper,
         &[],
