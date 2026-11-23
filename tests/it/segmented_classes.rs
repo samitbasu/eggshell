@@ -37,9 +37,9 @@ struct App {
 }
 
 fn edit(style: &mut Style, ambient: Ambient) {
-    // The disabled token reaches the section's look, not the preset's.
+    // The disabled token reaches the widgets' own look, not the preset's.
     if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
-        *style = support::sections_of(style.clone());
+        *style = Style::from_egui(&egui::Context::default().style_of(egui::Theme::Light));
     }
     if ambient == Ambient::InertFaded {
         style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));

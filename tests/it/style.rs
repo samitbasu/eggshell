@@ -675,21 +675,44 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 
 #[test]
 fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varies() {
+    use eggshell_ui::contract::Size;
+    use eggshell_ui::owned::{Cell, Enablement, SegmentedRows, TabsPart};
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
-        let seg = style.segmented();
         let tokens = Tokens::for_theme(theme);
-        assert_eq!(seg.cell_border_width, 1.0, "border, {theme:?}");
-        assert_eq!(
-            seg.unselected.states.rest.border,
-            Color32::TRANSPARENT,
-            "border-transparent, {theme:?}"
-        );
+        let trigger = |cell| {
+            crate::support::part_at(
+                &style,
+                TabsPart::Trigger,
+                &TabsPart::trigger_keys(
+                    Size::DEFAULT,
+                    SegmentedRows::One,
+                    cell,
+                    Enablement::Enabled,
+                ),
+            )
+        };
+        let border = |cell| {
+            let classes = trigger(cell);
+            let width = classes
+                .style_at(style.tokens.spacing)
+                .border
+                .top
+                .into_raw()
+                .value();
+            let color = classes.paint_classes().border_colors.top;
+            (width, color.unwrap_or(Color32::TRANSPARENT))
+        };
         let selected = match theme {
             Theme::Dark => tokens.input,
             Theme::Light => Color32::TRANSPARENT,
         };
-        assert_eq!(seg.selected.states.rest.border, selected, "{theme:?}");
+        assert_eq!(
+            border(Cell::Released),
+            (1.0, Color32::TRANSPARENT),
+            "border-transparent, {theme:?}"
+        );
+        assert_eq!(border(Cell::Pressed), (1.0, selected), "{theme:?}");
     }
 }
 

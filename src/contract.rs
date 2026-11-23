@@ -722,7 +722,7 @@ pub struct SegmentedMetrics {
     pub cell_trim: f32,
 }
 
-/// Segmented controls: a track of cells, one of them selected.
+/// TODO(prose): Segmented controls and the tabs' list: the track's fill and each size's metrics. The cells' look is the sheet's [`TabsPart`](crate::owned::TabsPart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SegmentedStyle {
@@ -730,21 +730,6 @@ pub struct SegmentedStyle {
     pub track_fill: Color32,
     /// Track and cell dimensions per size.
     pub sizes: Keyed<Size, SegmentedMetrics>,
-    /// The text role of the cells, or `None` for [`Style::text`].
-    pub text: Option<TextSpec>,
-    /// The weight of the chosen cell's text, or `None` for the text role's
-    /// own. A face of another weight has other widths, so when this differs
-    /// from the cells' weight, choosing a cell resizes it and shifts the
-    /// cells after it, and a fit-width track with them.
-    pub selected_weight: Option<Weight>,
-    /// Border width of a cell, chosen or not.
-    pub cell_border_width: f32,
-    /// The chosen cell.
-    pub selected: Paint,
-    /// Any other cell.
-    pub unselected: Paint,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// A slider's dimensions at one size.
@@ -1825,6 +1810,33 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::tabs_defaults(
+            &mut sheet,
+            crate::owned::TabsDefaults {
+                selected: Paint::new(States::still(
+                    Colors {
+                        fill: w.active.weak_bg_fill,
+                        border: clear,
+                        text: v.strong_text_color(),
+                    },
+                    surface,
+                )),
+                unselected: Paint::new(States::new(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.weak_text_color(),
+                    },
+                    hovered,
+                    surface,
+                )),
+                cell_border_width: 0.0,
+                cell_radius: radius,
+                transition,
+                selected_text: text.clone(),
+                unselected_text: text.clone(),
+            },
+        );
         crate::owned::choice_defaults(
             &mut sheet,
             crate::owned::ChoiceDefaults {
@@ -1963,27 +1975,6 @@ impl Style {
                         cell_trim: 0.0,
                     },
                 ),
-                text: None,
-                selected_weight: None,
-                cell_border_width: 0.0,
-                selected: Paint::new(States::still(
-                    Colors {
-                        fill: w.active.weak_bg_fill,
-                        border: clear,
-                        text: v.strong_text_color(),
-                    },
-                    surface,
-                )),
-                unselected: Paint::new(States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.weak_text_color(),
-                    },
-                    hovered,
-                    surface,
-                )),
-                transition,
             },
             progress: ProgressStyle {
                 height: s.slider_rail_height,
@@ -2465,34 +2456,14 @@ impl Style {
         crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
     }
 
-    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    /// TODO(prose): sets the segmented section, and writes the rules its track fill and sizes give the tabs' list and triggers at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
         self.segmented = segmented;
         self.restyle(Self::write_segmented_rules);
     }
 
     fn write_segmented_rules(&mut self) {
-        let seg = &self.segmented;
-        let roles = seg
-            .sizes
-            .keys()
-            .map(|size| {
-                let unselected = self.role_sized(&seg.text, seg.sizes.get(size).text);
-                let selected = match seg.selected_weight {
-                    Some(weight) => TextSpec {
-                        weight,
-                        ..unselected.clone()
-                    },
-                    None => unselected.clone(),
-                };
-                crate::owned::TabsRoles {
-                    size,
-                    unselected,
-                    selected,
-                }
-            })
-            .collect();
-        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented, roles);
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented);
     }
 }
 

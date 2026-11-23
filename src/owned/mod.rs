@@ -143,7 +143,8 @@ pub(crate) use table_sheet::{
 };
 pub use tabs_sheet::TabsPart;
 pub(crate) use tabs_sheet::{
-    Roles as TabsRoles, write_exceptions as write_tabs_exceptions, write_rules as write_tabs_rules,
+    TabsDefaults, tabs_defaults, write_exceptions as write_tabs_exceptions,
+    write_rules as write_tabs_rules,
 };
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};

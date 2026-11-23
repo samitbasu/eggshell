@@ -286,29 +286,6 @@ impl Shadcn {
         let transition = Duration::from_millis(150);
 
         let thumb = t.switch_thumb;
-        let (selected_cell, released_cell) = (
-            if dark {
-                Colors {
-                    fill: t.input_30(),
-                    border: t.input,
-                    text: t.foreground,
-                }
-            } else {
-                Colors {
-                    fill: t.background,
-                    border: clear,
-                    text: t.foreground,
-                }
-            },
-            flat(
-                clear,
-                if dark {
-                    t.muted_foreground
-                } else {
-                    t.foreground.gamma_multiply(0.6)
-                },
-            ),
-        );
         let input_rest = Colors {
             fill: self.input_fill(),
             border: t.input,
@@ -419,7 +396,6 @@ impl Shadcn {
         let segmented = {
             const CELL_TRIM: f32 = 1.0;
             let mut segmented = style.segmented().clone();
-            segmented.text = Some(t.text_role_at(t.control_weight));
             // The one exception to tabs.tsx, whose list is `bg-muted`: on a
             // `muted` panel that fill is the panel's own colour and the track
             // disappears, so the list keeps `input` (the user's pick, #346).
@@ -465,22 +441,6 @@ impl Shadcn {
                     xs_text,
                 ),
             );
-            segmented.cell_border_width = 1.0;
-            segmented.selected = raised(
-                Paint::new(States::still(selected_cell, t.muted)),
-                t.shadow_sm,
-            );
-            // tabs.tsx, trigger: `text-foreground/60 hover:text-foreground`,
-            // `dark:text-muted-foreground dark:hover:text-foreground`.
-            segmented.unselected = Paint::new(States::new(
-                released_cell,
-                Colors {
-                    text: t.foreground,
-                    ..released_cell
-                },
-                t.muted,
-            ));
-            segmented.transition = transition;
             segmented
         };
         style.set_segmented(segmented);

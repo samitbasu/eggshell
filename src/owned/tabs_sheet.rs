@@ -5,8 +5,10 @@
 //! as the step that moves the mechanism onto the sheet; the generated rules of
 //! shadcn's `cn-tabs*` replace them.
 
+use std::time::Duration;
+
 use crate::TextSpec;
-use crate::contract::{Disabled, SegmentedStyle, Size, Variant};
+use crate::contract::{Disabled, Paint, SegmentedStyle, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Builder, Match};
 
@@ -114,19 +116,60 @@ impl TabsPart {
     }
 }
 
-/// The text roles of a size's triggers: unselected, and selected.
-pub(crate) struct Roles {
-    pub(crate) size: Size,
-    pub(crate) unselected: TextSpec,
-    pub(crate) selected: TextSpec,
+/// What a style without a preset draws a segmented control and the tabs'
+/// list with: the triggers' looks, chosen or not, and their text.
+pub(crate) struct TabsDefaults {
+    pub selected: Paint,
+    pub unselected: Paint,
+    pub cell_border_width: f32,
+    pub cell_radius: u8,
+    pub transition: Duration,
+    pub selected_text: TextSpec,
+    pub unselected_text: TextSpec,
 }
 
-/// Writes the rules that draw `segmented`'s look at the sheet's current layer.
-pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: Vec<Roles>) {
+/// Writes `defaults` as the tabs' rules in `sheet`.
+pub(crate) fn tabs_defaults(sheet: &mut Sheet, defaults: TabsDefaults) {
+    let TabsDefaults {
+        selected,
+        unselected,
+        cell_border_width: width,
+        cell_radius: radius,
+        transition,
+        selected_text,
+        unselected_text,
+    } = defaults;
+    for (chosen, paint, role) in [
+        (true, selected, selected_text),
+        (false, unselected, unselected_text),
+    ] {
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            let when = match chosen {
+                true => When::always().aria(Aria::Selected),
+                false => When::always().not_aria(Aria::Selected),
+            };
+            let when = match enablement {
+                Enablement::Enabled => when.not_aria(Aria::Disabled),
+                Enablement::Disabled => when.aria(Aria::Disabled),
+            };
+            let role = role.clone();
+            sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+                let look =
+                    paint.classes_in(width, (k.focus, k.disabled), radius, enablement, transition);
+                t.merge(look).role(role.clone())
+            });
+        }
+    }
+}
+
+/// Writes the tabs' layout and the rules `segmented`'s track fill and sizes
+/// give at the sheet's current layer.
+pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle) {
     let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
     let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
     sheet.rule(TabsPart::Root, |t, _| t.flex().flex_col().gap(2.0));
     sheet.rule(TabsPart::Content, |t, _| t.flex_1());
+    sheet.rule(TabsPart::Trigger, |t, _| centered(t).grow().text_center());
     sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
     sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto());
     sheet.rule_when(
@@ -137,20 +180,13 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
             Disabled::Colors => t,
         },
     );
+    sheet.rule(TabsPart::List, |t, _| t.flex().items_center().w_fit());
     let fill = segmented.track_fill;
-    let (width, transition) = (segmented.cell_border_width, segmented.transition);
-    for Roles {
-        size,
-        unselected,
-        selected,
-    } in roles
-    {
+    for size in segmented.sizes.keys() {
         let metrics = *segmented.sizes.get(size);
-        sheet.rule_when(TabsPart::List, When::always().size(size), move |t, _| {
-            t.flex()
-                .items_center()
-                .w_fit()
-                .px_px(metrics.track_padding)
+        let when = When::always().size(size);
+        sheet.rule_when(TabsPart::List, when, move |t, _| {
+            t.px_px(metrics.track_padding)
                 .py_px(metrics.track_padding + metrics.cell_trim / 2.0)
                 .rounded_px(f32::from(metrics.track_radius))
                 .bg(fill)
@@ -161,40 +197,18 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
         sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
             t.flex_wrap().h_auto().gap_px(metrics.row_gap)
         });
-        for (chosen, paint, role) in [
-            (true, segmented.selected, selected),
-            (false, segmented.unselected, unselected),
-        ] {
-            for enablement in [Enablement::Enabled, Enablement::Disabled] {
-                let when = When::always().size(size);
-                let when = match chosen {
-                    true => when.aria(Aria::Selected),
-                    false => when.not_aria(Aria::Selected),
-                };
-                let when = match enablement {
-                    Enablement::Enabled => when.not_aria(Aria::Disabled),
-                    Enablement::Disabled => when.aria(Aria::Disabled),
-                };
-                let role = role.clone();
-                sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
-                    let look = paint.classes_in(
-                        width,
-                        (k.focus, k.disabled),
-                        metrics.cell_radius,
-                        enablement,
-                        transition,
-                    );
-                    centered(t.merge(look))
-                        .grow()
-                        .text_center()
-                        .px_px(metrics.cell_padding.x)
-                        .py_px(metrics.cell_padding.y)
-                        .gap_px(metrics.icon_gap)
-                        .role(role.clone())
-                        .descendants(Match::glyph(), |g| g.size_px(metrics.icon_size).shrink_0())
-                });
+        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+            let t = t
+                .rounded_px(f32::from(metrics.cell_radius))
+                .px_px(metrics.cell_padding.x)
+                .py_px(metrics.cell_padding.y)
+                .gap_px(metrics.icon_gap)
+                .descendants(Match::glyph(), |g| g.size_px(metrics.icon_size).shrink_0());
+            match metrics.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
             }
-        }
+        });
     }
 }
 

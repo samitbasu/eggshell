@@ -145,8 +145,6 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     for key in style.toggle.on.keys() {
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
-    look("segmented selected", &style.segmented().selected);
-    look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
     look("select trigger", &style.select().trigger.paint);
     look("menu popup", &style.menu().popup.paint);
@@ -172,7 +170,7 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 12,
+            all.len() >= 10,
             "precondition: the walk reaches every look (a button's is the sheet's)"
         );
         for (name, colors) in all {

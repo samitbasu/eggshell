@@ -244,8 +244,8 @@ pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshel
     })
 }
 
-/// `style` without its preset's generated looks: its sections, drawn by the
-/// widgets' own rules, which is what a change to a section restyles.
+/// `style` without its preset's generated looks: only the rules its sections
+/// give, which is what a change to a section restyles.
 pub fn sections_of(mut style: eggshell_ui::Style) -> eggshell_ui::Style {
     style.sheet = eggshell_ui::sheet::Sheet::defaults();
     style.rewrite_rules();

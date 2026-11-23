@@ -6,7 +6,7 @@ use core::time::Duration;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Focus, Size, Themed};
-use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
+use eggshell_ui::owned::{Cell, Enablement, Mark, SegmentedRows, SwitchPart, TabsPart};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
@@ -425,12 +425,26 @@ fn segmented_track_and_cells_are_the_styles() {
             metrics.track_padding + metrics.cell_trim / 2.0
         );
         let selected = box_at(&d, metric);
-        assert_eq!(selected.fill, seg.selected.states.rest.fill, "{theme:?}");
+        let trigger = support::part_at(
+            &style(theme),
+            TabsPart::Trigger,
+            &TabsPart::trigger_keys(
+                Size::DEFAULT,
+                SegmentedRows::One,
+                Cell::Pressed,
+                Enablement::Enabled,
+            ),
+        );
+        assert_eq!(
+            Some(selected.fill),
+            trigger.paint_classes().background,
+            "{theme:?}"
+        );
         assert_eq!(
             selected.corner_radius,
             egui::CornerRadius::same(seg.sizes.get(Size::DEFAULT).cell_radius)
         );
-        assert_eq!(selected.stroke.width, seg.cell_border_width);
+        assert_eq!(selected.stroke.width, 1.0, "shadcn's `border`");
         let imperial = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
         assert!(
             !shapes(&d).iter().any(|shape| matches!(
@@ -627,6 +641,24 @@ fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
         assert_eq!(drawn.stroke.width, ring.width, "{path}");
         assert_eq!(drawn.stroke.color, ring.color, "{path}");
     }
+}
+
+#[test]
+fn the_neutral_style_draws_the_chosen_cell_in_egui_s_active_fill() {
+    let egui_style = egui::Context::default().style_of(Theme::Light);
+    let mut d = harness(Theme::Light);
+    d.set_style(Themed::both(Arc::new(Style::from_egui(&egui_style))));
+    d.frames(4);
+    let chosen = box_at(&d, d.rect(Target::suffix(&cell_path(Unit::Metric))));
+    assert_eq!(chosen.fill, egui_style.visuals.widgets.active.weak_bg_fill);
+    let other = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
+    assert!(
+        !shapes(&d).iter().any(|shape| matches!(
+            shape,
+            Shape::Rect(r) if support::same(r.rect, other) && r.fill != egui::Color32::TRANSPARENT
+        )),
+        "another cell has no fill"
+    );
 }
 
 #[test]
