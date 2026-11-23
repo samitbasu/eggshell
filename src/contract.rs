@@ -640,16 +640,8 @@ pub struct CheckboxMetrics {
 pub struct CheckboxStyle {
     /// The box and its label's gap and text per size.
     pub sizes: Keyed<Size, CheckboxMetrics>,
-    /// Border width of the box, ticked or not.
-    pub border_width: f32,
     /// The text role of the label, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// Unticked. The glyph takes the `text` colour of the ticked paint.
-    pub off: Paint,
-    /// Ticked.
-    pub on: Paint,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// A radio button's circle at one size.
@@ -671,16 +663,8 @@ pub struct RadioMetrics {
 pub struct RadioStyle {
     /// The circle and its label's gap and text per size.
     pub sizes: Keyed<Size, RadioMetrics>,
-    /// Border width of the circle, chosen or not.
-    pub border_width: f32,
     /// The text role of the label, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// Unchosen.
-    pub off: Paint,
-    /// Chosen. The dot takes the `text` colour.
-    pub on: Paint,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// A switch's track and thumb at one size.
@@ -704,18 +688,10 @@ pub struct SwitchStyle {
     pub sizes: Keyed<Size, SwitchMetrics>,
     /// Gap between the track and its label.
     pub gap: f32,
-    /// Border width of the track, off or on.
-    pub border_width: f32,
     /// The text role of the label, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// Off.
-    pub off: Paint,
-    /// On.
-    pub on: Paint,
     /// How long the thumb takes to slide.
     pub slide: Duration,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// A segmented control's dimensions at one size.
@@ -1849,6 +1825,30 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::choice_defaults(
+            &mut sheet,
+            crate::owned::ChoiceDefaults {
+                checkbox: crate::owned::ChoicePaint {
+                    off: choice_off,
+                    on: choice_on,
+                    border_width: choice_border,
+                    transition,
+                },
+                checkbox_radius: 2,
+                radio: crate::owned::ChoicePaint {
+                    off: choice_off,
+                    on: choice_on,
+                    border_width: choice_border,
+                    transition,
+                },
+                switch: crate::owned::ChoicePaint {
+                    off: choice_off,
+                    on: choice_on,
+                    border_width: choice_border,
+                    transition,
+                },
+            },
+        );
         crate::owned::table_defaults(&mut sheet, crate::owned::TableDefaults::from_egui(egui));
         crate::owned::tooltip_defaults(
             &mut sheet,
@@ -1917,11 +1917,7 @@ impl Style {
                         text: None,
                     },
                 ),
-                border_width: choice_border,
                 text: None,
-                off: choice_off,
-                on: choice_on,
-                transition,
             },
             radio: RadioStyle {
                 sizes: Keyed::new(
@@ -1933,11 +1929,7 @@ impl Style {
                         text: None,
                     },
                 ),
-                border_width: choice_border,
                 text: None,
-                off: choice_off,
-                on: choice_on,
-                transition,
             },
             switch: SwitchStyle {
                 sizes: Keyed::new(
@@ -1950,12 +1942,8 @@ impl Style {
                     },
                 ),
                 gap: s.icon_spacing,
-                border_width: choice_border,
                 text: None,
-                off: choice_off,
-                on: choice_on,
                 slide: Duration::from_millis(150),
-                transition,
             },
             segmented: SegmentedStyle {
                 track_fill: v.faint_bg_color,

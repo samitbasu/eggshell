@@ -285,30 +285,6 @@ impl Shadcn {
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
 
-        let box_rest = Colors {
-            fill: self.input_fill(),
-            border: t.input,
-            text: t.primary_foreground,
-        };
-        let box_on = Colors {
-            fill: t.primary,
-            border: t.primary,
-            text: t.primary_foreground,
-        };
-        let boxed = |colors| raised(Paint::new(states(colors, colors)), t.shadow_xs);
-        let radio_colors = Colors {
-            text: t.primary,
-            ..box_rest
-        };
-
-        let switch_paint = |track, thumb| {
-            let colors = Colors {
-                fill: track,
-                border: clear,
-                text: thumb,
-            };
-            Paint::new(states(colors, colors))
-        };
         let thumb = t.switch_thumb;
         let (selected_cell, released_cell) = (
             if dark {
@@ -406,10 +382,6 @@ impl Shadcn {
             checkbox.sizes = Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
                 .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
                 .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text));
-            checkbox.border_width = 1.0;
-            checkbox.off = boxed(box_rest);
-            checkbox.on = boxed(box_on);
-            checkbox.transition = transition;
             checkbox
         };
         style.set_checkbox(checkbox);
@@ -425,10 +397,6 @@ impl Shadcn {
             radio.sizes = Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
                 .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
                 .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text));
-            radio.border_width = 1.0;
-            radio.off = boxed(radio_colors);
-            radio.on = boxed(radio_colors);
-            radio.transition = transition;
             radio
         };
         style.set_radio(radio);
@@ -445,10 +413,6 @@ impl Shadcn {
                 .with(size::SM, switch_at(0.75, None))
                 .with(size::XS, switch_at(0.625, xs_text));
             switch.gap = 8.0;
-            switch.border_width = 0.0;
-            switch.off = switch_paint(t.switch_track_off, t.switch_thumb_off);
-            switch.on = switch_paint(t.switch_track_on, t.switch_thumb_on);
-            switch.transition = transition;
             switch
         };
         style.set_switch(switch);

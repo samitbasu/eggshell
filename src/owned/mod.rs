@@ -82,8 +82,9 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
 pub(crate) use choices_sheet::{
-    write_checkbox_rules, write_exceptions as write_choice_exceptions, write_field_rules,
-    write_radio_rules, write_switch_rules,
+    ChoiceDefaults, Painted as ChoicePaint, choice_defaults, write_checkbox_rules,
+    write_exceptions as write_choice_exceptions, write_field_rules, write_radio_rules,
+    write_switch_rules,
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
@@ -542,7 +543,8 @@ impl Paint {
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let paint = style.checkbox().off;
+    ///     let toggles = &style.toggle.off;
+    ///     let paint = *toggles.get(toggles.default_key());
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
     /// }

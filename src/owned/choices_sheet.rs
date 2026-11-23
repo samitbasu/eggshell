@@ -233,12 +233,11 @@ fn choice_keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
     keys
 }
 
-/// The condition of a control of `size`, `mark`ed and `enablement`.
-fn when(size: Size, mark: Mark, enablement: Enablement) -> When {
-    let when = When::always().size(size);
+/// While the control is `mark`ed and `enablement`.
+fn state(mark: Mark, enablement: Enablement) -> When {
     let when = match mark {
-        Mark::On => when.aria(Aria::Checked),
-        Mark::Off => when.not_aria(Aria::Checked),
+        Mark::On => When::always().aria(Aria::Checked),
+        Mark::Off => When::always().not_aria(Aria::Checked),
     };
     match enablement {
         Enablement::Enabled => when.not_aria(Aria::Disabled),
@@ -246,7 +245,7 @@ fn when(size: Size, mark: Mark, enablement: Enablement) -> When {
     }
 }
 
-/// Every combination [`when`] tells apart, but the size.
+/// Every combination [`state`] tells apart.
 const STATES: [(Mark, Enablement); 4] = [
     (Mark::Off, Enablement::Enabled),
     (Mark::Off, Enablement::Disabled),
@@ -255,11 +254,11 @@ const STATES: [(Mark, Enablement); 4] = [
 ];
 
 /// What a control's box is painted with, `mark`ed.
-struct Painted {
-    off: Paint,
-    on: Paint,
-    border_width: f32,
-    transition: Duration,
+pub(crate) struct Painted {
+    pub off: Paint,
+    pub on: Paint,
+    pub border_width: f32,
+    pub transition: Duration,
 }
 
 impl Painted {
@@ -374,48 +373,33 @@ fn write_card_rules(sheet: &mut Sheet) {
     });
 }
 
-/// Writes the rules that draw `checkbox`'s look at the sheet's current layer.
-pub(crate) fn write_checkbox_rules(sheet: &mut Sheet, checkbox: &CheckboxStyle) {
-    let painted = Painted {
-        off: checkbox.off,
-        on: checkbox.on,
-        border_width: checkbox.border_width,
-        transition: checkbox.transition,
-    };
-    let painted = std::sync::Arc::new(painted);
-    for size in checkbox.sizes.keys() {
-        let metrics = *checkbox.sizes.get(size);
-        sheet.rule_when(
-            CheckboxPart::Indicator,
-            When::always().size(size),
-            move |t, _| {
-                centered(t.size_full()).children(Match::glyph(), |g| g.size_px(metrics.glyph))
-            },
-        );
-        for (mark, enablement) in STATES {
-            let painted = painted.clone();
-            sheet.rule_when(
-                CheckboxPart::Root,
-                when(size, mark, enablement),
-                move |t, k| {
-                    let look = painted.classes(mark, metrics.radius, enablement, k);
-                    centered(t.merge(look)).shrink_0().size_px(metrics.size)
-                },
-            );
-        }
-    }
+/// What a style without a preset paints a checkbox, a radio button and a
+/// switch with.
+pub(crate) struct ChoiceDefaults {
+    pub checkbox: Painted,
+    pub checkbox_radius: u8,
+    pub radio: Painted,
+    pub switch: Painted,
 }
 
-/// Writes the rules that draw `radio`'s look at the sheet's current layer.
-pub(crate) fn write_radio_rules(sheet: &mut Sheet, radio: &RadioStyle) {
-    let painted = std::sync::Arc::new(Painted {
-        off: radio.off,
-        on: radio.on,
-        border_width: radio.border_width,
-        transition: radio.transition,
-    });
+/// Writes `defaults` as the choice controls' rules in `sheet`: each look,
+/// checked or not, enabled or not.
+pub(crate) fn choice_defaults(sheet: &mut Sheet, defaults: ChoiceDefaults) {
+    let ChoiceDefaults {
+        checkbox,
+        checkbox_radius,
+        radio,
+        switch,
+    } = defaults;
+    let (checkbox, radio, switch) = (
+        std::sync::Arc::new(checkbox),
+        std::sync::Arc::new(radio),
+        std::sync::Arc::new(switch),
+    );
+    sheet.rule(CheckboxPart::Indicator, |t, _| centered(t.size_full()));
     sheet.rule(RadioGroupPart::Root, |t, _| t.flex().flex_col().gap(3.0));
     sheet.rule(RadioGroupPart::Indicator, |t, _| centered(t.size_full()));
+    sheet.rule(RadioGroupPart::IndicatorIcon, |t, _| t.rounded_full());
     for enablement in [Enablement::Enabled, Enablement::Disabled] {
         let when = match enablement {
             Enablement::Enabled => When::always().not_aria(Aria::Disabled),
@@ -426,60 +410,79 @@ pub(crate) fn write_radio_rules(sheet: &mut Sheet, radio: &RadioStyle) {
             t.bg(enablement.colors_in(on, k.disabled).text)
         });
     }
-    for size in radio.sizes.keys() {
-        let metrics = *radio.sizes.get(size);
-        sheet.rule_when(
-            RadioGroupPart::IndicatorIcon,
-            When::always().size(size),
-            move |t, _| t.size_px(metrics.dot).rounded_full(),
-        );
-        for (mark, enablement) in STATES {
-            let painted = painted.clone();
-            sheet.rule_when(
-                RadioGroupPart::Item,
-                when(size, mark, enablement),
-                move |t, k| {
-                    let look = painted.classes(mark, u8::MAX, enablement, k);
-                    centered(t.merge(look)).shrink_0().size_px(metrics.size)
-                },
-            );
-        }
+    for (mark, enablement) in STATES {
+        let when = state(mark, enablement);
+        let painted = checkbox.clone();
+        sheet.rule_when(CheckboxPart::Root, when, move |t, k| {
+            let look = painted.classes(mark, checkbox_radius, enablement, k);
+            centered(t.merge(look)).shrink_0()
+        });
+        let painted = radio.clone();
+        sheet.rule_when(RadioGroupPart::Item, when, move |t, k| {
+            let look = painted.classes(mark, u8::MAX, enablement, k);
+            centered(t.merge(look)).shrink_0()
+        });
+        let painted = switch.clone();
+        sheet.rule_when(SwitchPart::Root, when, move |t, k| {
+            t.merge(painted.classes(mark, u8::MAX, enablement, k))
+                .flex()
+                .items_center()
+                .shrink_0()
+        });
+        let thumb = switch.clone();
+        sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
+            let paint = match mark {
+                Mark::Off => &thumb.off,
+                Mark::On => &thumb.on,
+            };
+            t.bg(enablement.colors_in(paint.states, k.disabled).text)
+        });
     }
 }
 
-/// Writes the rules that draw `switch`'s look at the sheet's current layer.
+/// Writes the rules `checkbox`'s sizes give at the sheet's current layer.
+pub(crate) fn write_checkbox_rules(sheet: &mut Sheet, checkbox: &CheckboxStyle) {
+    for size in checkbox.sizes.keys() {
+        let metrics = *checkbox.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(CheckboxPart::Indicator, when, move |t, _| {
+            t.children(Match::glyph(), |g| g.size_px(metrics.glyph))
+        });
+        sheet.rule_when(CheckboxPart::Root, when, move |t, _| {
+            t.size_px(metrics.size)
+                .rounded_px(f32::from(metrics.radius))
+        });
+    }
+}
+
+/// Writes the rules `radio`'s sizes give at the sheet's current layer.
+pub(crate) fn write_radio_rules(sheet: &mut Sheet, radio: &RadioStyle) {
+    for size in radio.sizes.keys() {
+        let metrics = *radio.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, _| {
+            t.size_px(metrics.dot)
+        });
+        sheet.rule_when(RadioGroupPart::Item, when, move |t, _| {
+            t.size_px(metrics.size)
+        });
+    }
+}
+
+/// Writes the rules `switch`'s sizes give at the sheet's current layer.
 pub(crate) fn write_switch_rules(sheet: &mut Sheet, switch: &SwitchStyle) {
-    let painted = std::sync::Arc::new(Painted {
-        off: switch.off,
-        on: switch.on,
-        border_width: switch.border_width,
-        transition: switch.transition,
-    });
     for size in switch.sizes.keys() {
         let metrics = *switch.sizes.get(size);
-        for (mark, enablement) in STATES {
-            let (painted, thumb) = (painted.clone(), painted.clone());
-            let when = when(size, mark, enablement);
-            sheet.rule_when(SwitchPart::Root, when, move |t, k| {
-                t.merge(painted.classes(mark, u8::MAX, enablement, k))
-                    .flex()
-                    .items_center()
-                    .shrink_0()
-                    .w_px(metrics.track.x)
-                    .h_px(metrics.track.y)
-            });
-            let diameter = match mark {
-                Mark::Off => metrics.thumb_off,
-                Mark::On => metrics.thumb_on,
+        let when = When::always().size(size);
+        sheet.rule_when(SwitchPart::Root, when, move |t, _| {
+            t.w_px(metrics.track.x).h_px(metrics.track.y)
+        });
+        for (mark, diameter) in [(Mark::Off, metrics.thumb_off), (Mark::On, metrics.thumb_on)] {
+            let when = match mark {
+                Mark::On => when.aria(Aria::Checked),
+                Mark::Off => when.not_aria(Aria::Checked),
             };
-            sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
-                let paint = match mark {
-                    Mark::Off => &thumb.off,
-                    Mark::On => &thumb.on,
-                };
-                t.size_px(diameter)
-                    .bg(enablement.colors_in(paint.states, k.disabled).text)
-            });
+            sheet.rule_when(SwitchPart::Thumb, when, move |t, _| t.size_px(diameter));
         }
     }
 }

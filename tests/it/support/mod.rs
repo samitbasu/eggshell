@@ -989,3 +989,12 @@ pub fn ink(style: &eggshell_ui::Style, classes: &eggshell_ui::Tw) -> Color32 {
         .over(&TextStyle::new(style.text.clone(), Color32::PLACEHOLDER))
         .color
 }
+
+/// The classes `style`'s sheet gives `part` under `keys`.
+pub fn part_at<P: eggshell_ui::sheet::Part>(
+    style: &eggshell_ui::Style,
+    part: P,
+    keys: &[eggshell_ui::sheet::Key],
+) -> eggshell_ui::Tw {
+    style.sheet.resolve(part, keys, &style.tokens)
+}
