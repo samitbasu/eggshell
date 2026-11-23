@@ -1833,8 +1833,6 @@ impl Style {
                 cell_border_width: 0.0,
                 cell_radius: radius,
                 transition,
-                selected_text: text.clone(),
-                unselected_text: text.clone(),
             },
         );
         crate::owned::choice_defaults(
@@ -1877,7 +1875,6 @@ impl Style {
                 .shadowed(v.popup_shadow),
                 radius,
                 padding: vec2(f32::from(s.menu_margin.left), f32::from(s.menu_margin.top)),
-                text: text.clone(),
                 max_width: s.tooltip_width,
             },
         );
@@ -1886,7 +1883,6 @@ impl Style {
             crate::owned::ButtonDefaults {
                 look: Look::new(button_states).bordered(border_width),
                 sizes: Keyed::new(Size::DEFAULT, metrics),
-                text: text.clone(),
                 transition,
                 press_shift: 0.0,
             },
@@ -2243,6 +2239,7 @@ impl Style {
     /// TODO(prose): writes every family's rules from its section, at the widgets' defaults layer, and the recorded exceptions again over a preset's look. A preset writes its own rules over them.
     pub fn rewrite_rules(&mut self) {
         self.restyle(|style| {
+            crate::owned::write_text_roles(&mut style.sheet, &style.text);
             style.write_input_rules();
             style.write_segmented_rules();
             style.write_menu_rules();

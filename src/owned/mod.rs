@@ -112,6 +112,23 @@ pub(crate) use select::{write_select_exceptions, write_select_rules};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
+/// Writes `text`, the style's text role, as the role of the controls that
+/// take it by default: an enabled button, a tooltip's box and a tab's
+/// trigger, at the sheet's current layer.
+pub(crate) fn write_text_roles(sheet: &mut crate::sheet::Sheet, text: &crate::TextSpec) {
+    use crate::sheet::When;
+    let role = text.clone();
+    sheet.rule_when(
+        ButtonPart::Root,
+        When::always().not_aria(crate::Aria::Disabled),
+        move |t, _| t.role(role.clone()),
+    );
+    let role = text.clone();
+    sheet.rule(TooltipPart::Content, move |t, _| t.role(role.clone()));
+    let role = text.clone();
+    sheet.rule(TabsPart::Trigger, move |t, _| t.role(role.clone()));
+}
+
 /// Writes the recorded exception of the tracks over a preset's look (#132):
 /// a slider's and a progress bar's track are the style's fill (the input
 /// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the

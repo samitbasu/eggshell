@@ -7,7 +7,6 @@
 
 use std::time::Duration;
 
-use crate::TextSpec;
 use crate::contract::{Disabled, Paint, SegmentedStyle, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Builder, Match};
@@ -124,8 +123,6 @@ pub(crate) struct TabsDefaults {
     pub cell_border_width: f32,
     pub cell_radius: u8,
     pub transition: Duration,
-    pub selected_text: TextSpec,
-    pub unselected_text: TextSpec,
 }
 
 /// Writes `defaults` as the tabs' rules in `sheet`.
@@ -136,13 +133,8 @@ pub(crate) fn tabs_defaults(sheet: &mut Sheet, defaults: TabsDefaults) {
         cell_border_width: width,
         cell_radius: radius,
         transition,
-        selected_text,
-        unselected_text,
     } = defaults;
-    for (chosen, paint, role) in [
-        (true, selected, selected_text),
-        (false, unselected, unselected_text),
-    ] {
+    for (chosen, paint) in [(true, selected), (false, unselected)] {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             let when = match chosen {
                 true => When::always().aria(Aria::Selected),
@@ -152,11 +144,10 @@ pub(crate) fn tabs_defaults(sheet: &mut Sheet, defaults: TabsDefaults) {
                 Enablement::Enabled => when.not_aria(Aria::Disabled),
                 Enablement::Disabled => when.aria(Aria::Disabled),
             };
-            let role = role.clone();
             sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
                 let look =
                     paint.classes_in(width, (k.focus, k.disabled), radius, enablement, transition);
-                t.merge(look).role(role.clone())
+                t.merge(look)
             });
         }
     }

@@ -1,6 +1,5 @@
 //! The tooltip's part, and the look a style without a preset draws it with.
 
-use crate::TextSpec;
 use crate::contract::Look;
 use crate::sheet::{Part, Sheet};
 use egui::Vec2;
@@ -25,7 +24,6 @@ pub(crate) struct TooltipDefaults {
     pub popup: Look,
     pub radius: u8,
     pub padding: Vec2,
-    pub text: TextSpec,
     pub max_width: f32,
 }
 
@@ -43,8 +41,7 @@ pub(crate) fn tooltip_defaults(sheet: &mut Sheet, tooltip: TooltipDefaults) {
             .border_color(colors.border)
             .bg(colors.fill)
             .text(colors.text)
-            .rounded_px(f32::from(tooltip.radius))
-            .role(tooltip.text.clone());
+            .rounded_px(f32::from(tooltip.radius));
         match tooltip.popup.paint.shadow {
             Some(shadow) => classes.shadow(shadow),
             None => classes,

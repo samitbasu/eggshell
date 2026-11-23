@@ -12,7 +12,6 @@ use crate::builder::Slot;
 use crate::contract::{Disabled, Keyed, Look, Metrics, Size, Variant};
 use crate::focus::{Autofocus, Select};
 use crate::sheet::{Key, Part, Sheet, When};
-use crate::text::TextSpec;
 use crate::tw::Match;
 use crate::{Builder, Icon, Scope, Tw, tw};
 
@@ -41,7 +40,6 @@ impl Part for ButtonPart {
 pub(crate) struct ButtonDefaults {
     pub look: Look,
     pub sizes: Keyed<Size, Metrics>,
-    pub text: TextSpec,
     pub transition: std::time::Duration,
     pub press_shift: f32,
 }
@@ -52,7 +50,6 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
     let ButtonDefaults {
         look,
         sizes,
-        text,
         transition,
         press_shift,
     } = defaults;
@@ -68,7 +65,7 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
                 Enablement::Enabled,
                 transition,
             ));
-            centered(classes).role(text.clone()).whitespace_nowrap()
+            centered(classes).whitespace_nowrap()
         },
     );
     sheet.rule_when(

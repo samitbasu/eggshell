@@ -779,3 +779,28 @@ fn a_section_metric_an_exception_reads_lands_after_the_preset() {
     style.set_segmented(segmented);
     assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
 }
+
+/// With no preset, a changed text role reaches the controls that take it by
+/// default once the rules are written again: an enabled button, a tooltip's
+/// box and a tab's trigger.
+#[test]
+fn a_new_text_role_reaches_the_widgets_own_looks() {
+    use eggshell_ui::owned::{ButtonPart, TabsPart, TooltipPart};
+    let mut style = eggshell_ui::Style::default();
+    let size = |style: &eggshell_ui::Style, classes: eggshell_ui::Tw| {
+        let page = eggshell_ui::TextStyle::new(style.text.clone(), Color32::PLACEHOLDER);
+        classes.text_classes().over(&page).spec.size
+    };
+    let sizes = |style: &eggshell_ui::Style| {
+        [
+            size(style, crate::support::part(style, ButtonPart::Root)),
+            size(style, crate::support::part(style, TooltipPart::Content)),
+            size(style, crate::support::part(style, TabsPart::Trigger)),
+        ]
+    };
+    assert_ne!(style.text.size, 31.0, "precondition");
+    style.text.size = 31.0;
+    assert_ne!(sizes(&style), [31.0; 3], "precondition: not yet written");
+    style.rewrite_rules();
+    assert_eq!(sizes(&style), [31.0; 3]);
+}
