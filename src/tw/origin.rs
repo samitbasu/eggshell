@@ -414,8 +414,8 @@ mod tests {
         assert_eq!(why.winner.origin.layer, Layer::CallSite);
         let beaten: Vec<Layer> = why.beaten.iter().map(|s| s.origin.layer).collect();
         assert_eq!(beaten, [Layer::Preset, Layer::App]);
-        assert_eq!(why.winner.value, "24px");
-        assert_eq!(why.beaten[0].value, "8px");
+        assert_eq!(why.winner.value, "6 units");
+        assert_eq!(why.beaten[0].value, "2 units");
     }
 
     #[test]

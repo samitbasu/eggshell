@@ -147,7 +147,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
         let mut own = tw()
             .flex()
             .flex_col()
-            .py(style.padding_y / 4.0)
+            .py_px(style.padding_y)
             // A form's choice fields are shadcn's `Field`, `w-full`.
             .descendants(Match::slot(FieldPart::Root.slot()), |t| t.w_full());
         if rules == Rules::Between {
@@ -159,7 +159,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
                 b.text(
                     tw().role(style.title.clone())
                         .text(style.title_color)
-                        .mb(style.title_gap / 4.0),
+                        .mb_px(style.title_gap),
                     title.clone(),
                 );
             }
@@ -217,15 +217,14 @@ fn row<'f, A: 'static>(
     let (classes, padding_y) = match depth(b.ctx()) {
         0 => (tw(), 0.0),
         _ => (
-            tw().px(style.row_padding_x / 4.0)
-                .py(style.row_padding_y / 4.0),
+            tw().px_px(style.row_padding_x).py_px(style.row_padding_y),
             style.row_padding_y,
         ),
     };
     let classes = classes
         .flex()
         .items_center()
-        .gap(style.row_gap / 4.0)
+        .gap_px(style.row_gap)
         .min_h_px(style.row_min_height + 2.0 * padding_y)
         .sense_hover();
     let key = ("eggshell-labeled", next_row(b));

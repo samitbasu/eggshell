@@ -114,7 +114,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
         }
     }
     let indicator = menu.indicator;
-    let inset = (menu.item_padding.x + indicator + menu.item_gap) / 4.0;
+    let inset = menu.item_padding.x + indicator + menu.item_gap;
     for part in [
         MenuPart::Item,
         MenuPart::CheckboxItem,
@@ -125,7 +125,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
             t.descendants(Match::glyph(), |g| g.size_px(indicator).shrink_0())
         });
         sheet.rule_when(part, When::always().attr(INSET.0, INSET.1), move |t, _| {
-            t.pl(inset)
+            t.pl_px(inset)
         });
     }
     sheet.replace(MenuPart::ItemIndicator, move |t, _| {
@@ -134,8 +134,8 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
     let (padding, margin, separator) = (menu.padding, menu.separator_margin, menu.separator);
     sheet.replace(MenuPart::Separator, move |t, _| {
         t.h_px(1.0)
-            .mx(-padding / 4.0)
-            .my(margin / 4.0)
+            .mx_px(-padding)
+            .my_px(margin)
             .shrink_0()
             .bg(separator)
     });
@@ -143,7 +143,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
     sheet.replace(MenuPart::Label, move |t, _| {
         t.flex()
             .items_center()
-            .px(menu_label.item_padding.x / 4.0)
+            .px_px(menu_label.item_padding.x)
             .h_px(menu_label.row_height(&text_label))
             .text(menu_label.heading)
             .font_weight(menu_label.heading_weight)

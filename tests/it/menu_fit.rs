@@ -103,3 +103,31 @@ fn a_menu_is_measured_unseen_for_a_frame_before_it_shows() {
     d.frames(1);
     assert!(d.painted().shows("Item 0"), "it shows on the next frame");
 }
+
+#[test]
+fn a_dense_menu_cut_short_still_fits_its_room() {
+    let dense = support::shadcn_with(|style| {
+        style.tokens.spacing = eggshell_ui::contract::Spacing::new(3.5);
+    });
+    let mut d = support::driver(vec2(300.0, 300.0), base_text(), (), view)
+        .style(dense)
+        .build();
+    d.frames(4);
+    d.click(Target::suffix(r#"/"file""#)).frames(6);
+    let window = d.ctx().content_rect();
+    let menu = d.rect(Target::suffix(MENU));
+    let rows = d.rect(Target::suffix(ROWS));
+    assert!(
+        menu.contains_rect(rows),
+        "precondition: the rows scroll inside the menu's box"
+    );
+    assert!(
+        window.contains_rect(menu),
+        "{menu:?} is cut off by {window:?}"
+    );
+    assert_eq!(
+        menu.max.y - rows.max.y,
+        rows.min.y - menu.min.y,
+        "the box's p-1 at 3.5 points, as much below the rows as above"
+    );
+}

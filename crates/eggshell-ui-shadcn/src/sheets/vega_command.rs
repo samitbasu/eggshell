@@ -31,7 +31,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 1398, "h-9")
             .h(9.0)
             .from(VEGA, 1398, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 1398, "border")
             .border(1.0)
             .from(VEGA, 1398, "shadow-xs")
@@ -62,7 +62,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 370, "h-8!")
             .h(8.0)
             .from(VEGA, 370, "rounded-lg!")
-            .rounded_px(10.0)
+            .rounded_px(k.radius.lg())
             .from(VEGA, 370, "shadow-none!")
             .shadow(Shadow::NONE)
             .from(VEGA, 370, "*:data-[slot=input-group-addon]:pl-2!")
@@ -75,7 +75,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 358, "text-popover-foreground")
             .text(k.popover_foreground)
             .from(VEGA, 358, "rounded-xl!")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(VEGA, 358, "p-1")
             .p(1.0)
             .from(COMMAND, 28, "flex")
@@ -87,10 +87,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(COMMAND, 28, "overflow-hidden")
             .overflow_hidden()
     });
-    s.rule(Dialog, |t, _| {
+    s.rule(Dialog, |t, k| {
         t
             .from(VEGA, 362, "rounded-xl!")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(COMMAND, 57, "overflow-hidden")
             .overflow_hidden()
             .from(COMMAND, 57, "p-0")
@@ -103,12 +103,12 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 366, "pb-0")
             .pb(0.0)
     });
-    s.replace(Input, |t, _| {
+    s.replace(Input, |t, k| {
         t
             .from(VEGA, 378, "w-full")
             .w_full()
             .from(VEGA, 378, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
         // registry/bases/radix/ui/command.tsx:78  outline-hidden: nothing to do
     });
     s.rule_when(Input, When::always().aria(Aria::Disabled), |t, _| {
@@ -150,18 +150,18 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:font-medium")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.font_medium())
     });
-    s.replace(Empty, |t, _| {
+    s.replace(Empty, |t, k| {
         t
             .from(VEGA, 386, "py-6")
             .py(6.0)
             .from(VEGA, 386, "text-center")
             .text_center()
             .from(VEGA, 386, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     s.replace(Group, |t, k| {
         t
@@ -178,7 +178,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:font-medium")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.font_medium())
     });
@@ -208,13 +208,13 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 398, "gap-2")
             .gap(2.0)
             .from(VEGA, 398, "rounded-sm")
-            .rounded_px(6.0)
+            .rounded_px(k.radius.sm())
             .from(VEGA, 398, "px-2")
             .px(2.0)
             .from(VEGA, 398, "py-1.5")
             .py(1.5)
             .from(VEGA, 398, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
         // registry/styles/style-vega.css:398  outline-hidden: nothing to do
             .from(VEGA, 398, "select-none")
             .select_none()
@@ -251,7 +251,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 406, "ml-auto")
             .ml_auto()
             .from(VEGA, 406, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(VEGA, 406, "tracking-widest")
             .tracking(Tracking::em(0.1))
     });
@@ -294,7 +294,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 1398, "h-9")
             .h(9.0)
             .from(VEGA, 1398, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 1398, "border")
             .border(1.0)
             .from(VEGA, 1398, "shadow-xs")
@@ -325,7 +325,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 370, "h-8!")
             .h(8.0)
             .from(VEGA, 370, "rounded-lg!")
-            .rounded_px(10.0)
+            .rounded_px(k.radius.lg())
             .from(VEGA, 370, "shadow-none!")
             .shadow(Shadow::NONE)
             .from(VEGA, 370, "*:data-[slot=input-group-addon]:pl-2!")
@@ -340,7 +340,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 358, "text-popover-foreground")
             .text(k.popover_foreground)
             .from(VEGA, 358, "rounded-xl!")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(VEGA, 358, "p-1")
             .p(1.0)
             .from(COMMAND, 28, "flex")
@@ -352,10 +352,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(COMMAND, 28, "overflow-hidden")
             .overflow_hidden()
     });
-    s.rule(Dialog, |t, _| {
+    s.rule(Dialog, |t, k| {
         t
             .from(VEGA, 362, "rounded-xl!")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(COMMAND, 57, "overflow-hidden")
             .overflow_hidden()
             .from(COMMAND, 57, "p-0")
@@ -368,12 +368,12 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 366, "pb-0")
             .pb(0.0)
     });
-    s.replace(Input, |t, _| {
+    s.replace(Input, |t, k| {
         t
             .from(VEGA, 378, "w-full")
             .w_full()
             .from(VEGA, 378, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
         // registry/bases/radix/ui/command.tsx:78  outline-hidden: nothing to do
     });
     s.rule_when(Input, When::always().aria(Aria::Disabled), |t, _| {
@@ -415,18 +415,18 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:font-medium")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.font_medium())
     });
-    s.replace(Empty, |t, _| {
+    s.replace(Empty, |t, k| {
         t
             .from(VEGA, 386, "py-6")
             .py(6.0)
             .from(VEGA, 386, "text-center")
             .text_center()
             .from(VEGA, 386, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     s.replace(Group, |t, k| {
         t
@@ -443,7 +443,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
             .from(VEGA, 390, "**:[[cmdk-group-heading]]:font-medium")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.font_medium())
     });
@@ -473,13 +473,13 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 398, "gap-2")
             .gap(2.0)
             .from(VEGA, 398, "rounded-sm")
-            .rounded_px(6.0)
+            .rounded_px(k.radius.sm())
             .from(VEGA, 398, "px-2")
             .px(2.0)
             .from(VEGA, 398, "py-1.5")
             .py(1.5)
             .from(VEGA, 398, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
         // registry/styles/style-vega.css:398  outline-hidden: nothing to do
             .from(VEGA, 398, "select-none")
             .select_none()
@@ -516,7 +516,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 406, "ml-auto")
             .ml_auto()
             .from(VEGA, 406, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(VEGA, 406, "tracking-widest")
             .tracking(Tracking::em(0.1))
     });

@@ -382,6 +382,164 @@ pub struct TextSize {
     pub line_height: f32,
 }
 
+/// TODO(prose): the points one spacing unit is, Tailwind's `--spacing`: `p-4` is four of them.
+///
+/// Construction clamps to zero and above; NaN becomes [`Spacing::DEFAULT`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spacing(f32);
+
+impl Spacing {
+    /// TODO(prose): Tailwind's, 4 points.
+    pub const DEFAULT: Self = Self(4.0);
+
+    /// TODO(prose): `points` to a unit, clamped to zero and above; NaN is [`Spacing::DEFAULT`].
+    pub fn new(points: f32) -> Self {
+        if points.is_nan() {
+            Self::DEFAULT
+        } else {
+            Self(crate::finite::clamp(points, 0.0, f32::MAX))
+        }
+    }
+
+    /// TODO(prose): `units` of spacing, in points.
+    pub fn points(self, units: f32) -> f32 {
+        units * self.0
+    }
+}
+
+impl Default for Spacing {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl From<Spacing> for f32 {
+    fn from(spacing: Spacing) -> f32 {
+        spacing.0
+    }
+}
+
+/// TODO(prose): a theme's corner radii, shadcn's `--radius` and the steps its `globals.css` derives from it.
+///
+/// Construction clamps to zero and above; NaN becomes [`Radius::DEFAULT`].
+/// Every step is floored at zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Radius(f32);
+
+impl Radius {
+    /// TODO(prose): shadcn's, `0.625rem`.
+    pub const DEFAULT: Self = Self(10.0);
+
+    /// TODO(prose): a scale whose `--radius` is `base` points.
+    pub fn new(base: f32) -> Self {
+        if base.is_nan() {
+            Self::DEFAULT
+        } else {
+            Self(crate::finite::clamp(base, 0.0, f32::MAX))
+        }
+    }
+
+    fn step(self, offset: f32) -> f32 {
+        (self.0 + offset).max(0.0)
+    }
+
+    /// TODO(prose): `--radius-sm`, four points less than the base.
+    pub fn sm(self) -> f32 {
+        self.step(-4.0)
+    }
+
+    /// TODO(prose): `--radius-md`, two points less.
+    pub fn md(self) -> f32 {
+        self.step(-2.0)
+    }
+
+    /// TODO(prose): `--radius-lg`, the base.
+    pub fn lg(self) -> f32 {
+        self.step(0.0)
+    }
+
+    /// TODO(prose): `--radius-xl`, four points more.
+    pub fn xl(self) -> f32 {
+        self.step(4.0)
+    }
+
+    /// TODO(prose): `--radius-2xl`, eight points more.
+    pub fn xl2(self) -> f32 {
+        self.step(8.0)
+    }
+
+    /// TODO(prose): `--radius-3xl`, twelve points more.
+    pub fn xl3(self) -> f32 {
+        self.step(12.0)
+    }
+
+    /// TODO(prose): `--radius-4xl`, sixteen points more.
+    pub fn xl4(self) -> f32 {
+        self.step(16.0)
+    }
+}
+
+/// TODO(prose): `points` as one of egui's corner radii: whole points, at most 255.
+pub fn corner(points: f32) -> u8 {
+    crate::finite::clamp(points.round(), 0.0, 255.0) as u8
+}
+
+impl Default for Radius {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+/// TODO(prose): Tailwind's text sizes, each with the line height that goes with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextScale {
+    /// TODO(prose): `text-xs`.
+    pub xs: TextSize,
+    /// TODO(prose): `text-sm`.
+    pub sm: TextSize,
+    /// TODO(prose): `text-base`.
+    pub base: TextSize,
+    /// TODO(prose): `text-lg`.
+    pub lg: TextSize,
+}
+
+/// TODO(prose): a step of the text scale, as a class names it: `text-sm` is [`TextStep::Sm`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextStep {
+    /// `text-xs`.
+    Xs,
+    /// `text-sm`.
+    Sm,
+    /// `text-base`.
+    Base,
+    /// `text-lg`.
+    Lg,
+}
+
+impl TextScale {
+    /// TODO(prose): the size and line height of `step`.
+    pub fn step(&self, step: TextStep) -> TextSize {
+        match step {
+            TextStep::Xs => self.xs,
+            TextStep::Sm => self.sm,
+            TextStep::Base => self.base,
+            TextStep::Lg => self.lg,
+        }
+    }
+}
+
+impl Default for TextScale {
+    fn default() -> Self {
+        let at = |size, line_height| TextSize { size, line_height };
+        Self {
+            xs: at(12.0, 16.0),
+            sm: at(14.0, 20.0),
+            base: at(16.0, 24.0),
+            lg: at(18.0, 28.0),
+        }
+    }
+}
+
 /// Sizes of a button, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Metrics {
@@ -1447,8 +1605,12 @@ pub struct Tokens {
     pub focus: Focus,
     /// TODO(prose): how disabled controls are drawn.
     pub disabled: Disabled,
-    /// TODO(prose): the base corner radius.
-    pub radius: u8,
+    /// TODO(prose): the points one spacing unit is.
+    pub spacing: Spacing,
+    /// TODO(prose): the corner radii.
+    pub radius: Radius,
+    /// TODO(prose): the text sizes.
+    pub text: TextScale,
     /// TODO(prose): a control's height.
     pub control_height: f32,
     /// TODO(prose): a button's padding.
@@ -1497,7 +1659,9 @@ impl Tokens {
                 color: v.selection.bg_fill,
             },
             disabled: Disabled::Colors,
-            radius: w.inactive.corner_radius.nw,
+            spacing: Spacing::DEFAULT,
+            radius: Radius::new(f32::from(w.inactive.corner_radius.nw)),
+            text: TextScale::default(),
             control_height: egui.spacing.interact_size.y,
             button_padding: egui.spacing.button_padding,
             text_size: egui
@@ -2440,5 +2604,37 @@ impl Style {
 impl Default for Style {
     fn default() -> Self {
         Self::from_egui(&egui::Style::default())
+    }
+}
+
+#[cfg(test)]
+mod metric_tokens {
+    use super::{Radius, Spacing, TextScale};
+
+    #[test]
+    fn spacing_clamps_to_zero_and_takes_nan_as_the_default() {
+        assert_eq!(Spacing::new(-1.0).points(4.0), 0.0);
+        assert_eq!(Spacing::new(f32::NAN), Spacing::DEFAULT);
+        assert_eq!(Spacing::new(3.5).points(9.0), 31.5);
+    }
+
+    #[test]
+    fn the_radius_steps_are_shadcns_offsets_floored_at_zero() {
+        let r = Radius::new(10.0);
+        let steps = [r.sm(), r.md(), r.lg(), r.xl(), r.xl2(), r.xl3(), r.xl4()];
+        assert_eq!(steps, [6.0, 8.0, 10.0, 14.0, 18.0, 22.0, 26.0]);
+        assert_eq!((Radius::new(3.0).sm(), Radius::new(3.0).md()), (0.0, 1.0));
+        assert_eq!(Radius::new(f32::NAN), Radius::DEFAULT);
+        assert_eq!(Radius::new(-5.0).lg(), 0.0);
+    }
+
+    #[test]
+    fn the_text_scale_is_tailwinds() {
+        let t = TextScale::default();
+        let pairs = [t.xs, t.sm, t.base, t.lg].map(|s| (s.size, s.line_height));
+        assert_eq!(
+            pairs,
+            [(12.0, 16.0), (14.0, 20.0), (16.0, 24.0), (18.0, 28.0)]
+        );
     }
 }

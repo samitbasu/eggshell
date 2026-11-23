@@ -591,7 +591,7 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
             .p(2.0)
             .border(1.0)
             .border_color(t.border)
-            .rounded_px(f32::from(t.radius))
+            .rounded_px(t.radius.lg())
             .bg(t.card)
             .text(t.card_foreground),
         |b| {

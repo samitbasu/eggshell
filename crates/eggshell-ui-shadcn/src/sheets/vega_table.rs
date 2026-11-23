@@ -14,13 +14,13 @@ const VEGA: &str = "registry/styles/style-vega.css";
 /// TODO(prose): shadcn's `table` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
     use TablePart::*;
-    s.replace(Root, |t, _| {
+    s.replace(Root, |t, k| {
         t
             .from(VEGA, 1272, "w-full")
             .w_full()
         // registry/styles/style-vega.css:1272  caption-bottom: nothing to do
             .from(VEGA, 1272, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     s.replace(Footer, |t, k| {
         t
@@ -100,13 +100,13 @@ pub(crate) fn light(s: &mut Sheet) {
 /// TODO(prose): shadcn's `table` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
     use TablePart::*;
-    s.replace(Root, |t, _| {
+    s.replace(Root, |t, k| {
         t
             .from(VEGA, 1272, "w-full")
             .w_full()
         // registry/styles/style-vega.css:1272  caption-bottom: nothing to do
             .from(VEGA, 1272, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     s.replace(Footer, |t, k| {
         t

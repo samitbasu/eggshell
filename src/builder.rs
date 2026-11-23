@@ -1159,7 +1159,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 ..Parts::anonymous(NodeKind::Window, path)
             },
         );
-        let style = self.resolved_style(classes, &node);
+        let style = self.resolved_style(&classes, &node);
         let text = node.text.clone();
         let root = self.st.tree.new_node(style, &[], node);
         let at = self.frame.roots.len();
@@ -1305,7 +1305,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             Parts::anonymous(NodeKind::ScrollContent, content_path),
         );
         content_node.text = leaf.text.clone();
-        let mut style = classes.style.clone();
+        let mut style = self.resolved_style(&classes, &leaf);
         let content_style = crate::scroll::take_content_layout(&mut style);
         let content = self.st.tree.new_node(content_style, &kids, content_node);
         let tab = TabRule::of(focusable, &classes, &self.st.tree, &kids);
@@ -1319,7 +1319,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 bars,
                 tab,
                 description,
-                padding: classes.scroll_padding,
+                padding: classes.scroll_padding_points(self.style.tokens.spacing),
                 content,
                 size: egui::Vec2::ZERO,
             }),
@@ -1491,7 +1491,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .shrink_0()
             .h_px(kbd.height)
             .min_w_px(kbd.height)
-            .px(kbd.padding_x / 4.0)
+            .px_px(kbd.padding_x)
             .border(kbd.border_width)
             .border_color(colors.border)
             .rounded_px(f32::from(kbd.radius))
@@ -1689,11 +1689,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
+    /// `tw`'s layout style in points, at the style's spacing.
+    pub(crate) fn layout_of(&self, tw: &Tw) -> taffy::Style {
+        tw.style_at(self.style.tokens.spacing)
+    }
+
     /// The node's layout style, its widths in `ch` and its reservation
     /// measured in its resolved text style.
-    fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+    fn resolved_style(&self, tw: &Tw, node: &Node) -> taffy::Style {
         let ctx = self.frame.ctx;
-        let mut style = tw.style;
+        let mut style = self.layout_of(tw);
         let font = node.text.spec.font_id(ctx);
         let mut reserved = None;
         tw.ch.resolve(
@@ -1724,7 +1729,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.apply_rules(&mut tw, parts.kind);
         let observed = self.observation(&tw, &parts);
         let node = self.node(&tw, parts);
-        let style = self.resolved_style(tw, &node);
+        let style = self.resolved_style(&tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
         self.observe(id, observed, Vec::new());
@@ -1953,7 +1958,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             (&text, ambient, self.style),
         ));
         let (tw, below) = self.closed(tw, &mut node, &kids);
-        let style = self.resolved_style(tw, &node);
+        let style = self.resolved_style(&tw, &node);
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
         self.observe(id, observed, below);

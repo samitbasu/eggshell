@@ -120,7 +120,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 1077, "text-foreground")
             .text(k.foreground)
             .from(LYRA, 1077, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(LYRA, 1077, "font-medium")
             .font_medium()
     });
@@ -261,7 +261,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 1077, "text-foreground")
             .text(k.foreground)
             .from(LYRA, 1077, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(LYRA, 1077, "font-medium")
             .font_medium()
     });

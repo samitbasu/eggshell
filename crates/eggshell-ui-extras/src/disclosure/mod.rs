@@ -87,9 +87,9 @@ impl eggshell_ui::sheet::Part for AccordionPart {
 /// its nudge down to the title's line.
 pub fn write_exceptions(sheet: &mut eggshell_ui::sheet::Sheet, style: &DisclosureStyle) {
     let (gap, nudge) = (style.header.gap, style.nudge);
-    sheet.rule(AccordionPart::Trigger, move |t, _| t.gap(gap / 4.0));
+    sheet.rule(AccordionPart::Trigger, move |t, _| t.gap_px(gap));
     sheet.rule(AccordionPart::TriggerIcon, move |t, _| {
-        t.mt(nudge / 4.0).mb(-nudge / 4.0)
+        t.mt_px(nudge).mb_px(-nudge)
     });
 }
 

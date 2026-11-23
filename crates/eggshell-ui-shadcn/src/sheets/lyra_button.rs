@@ -31,7 +31,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 146, "border-transparent")
             .border_color(Color32::TRANSPARENT)
             .from(LYRA, 146, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 146, "font-medium")
             .font_medium()
             .from(LYRA, 146, "[&_svg:not([class*='size-'])]:size-4")
@@ -181,7 +181,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 182, "has-data-[icon=inline-start]:pl-2")
             .has(Match::any().attr("icon", "inline-start"), |b| b.pl(2.0))
     });
-    s.rule_when(Root, When::always().size(Size("xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("xs")), |t, k| {
         t
             .from(LYRA, 174, "h-6")
             .h(6.0)
@@ -192,7 +192,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 174, "px-2")
             .px(2.0)
             .from(LYRA, 174, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 174, "has-data-[icon=inline-end]:pr-1.5")
             .has(Match::any().attr("icon", "inline-end"), |b| b.pr(1.5))
             .from(LYRA, 174, "has-data-[icon=inline-start]:pl-1.5")
@@ -278,7 +278,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 146, "border-transparent")
             .border_color(Color32::TRANSPARENT)
             .from(LYRA, 146, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 146, "font-medium")
             .font_medium()
             .from(LYRA, 146, "[&_svg:not([class*='size-'])]:size-4")
@@ -442,7 +442,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 182, "has-data-[icon=inline-start]:pl-2")
             .has(Match::any().attr("icon", "inline-start"), |b| b.pl(2.0))
     });
-    s.rule_when(Root, When::always().size(Size("xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("xs")), |t, k| {
         t
             .from(LYRA, 174, "h-6")
             .h(6.0)
@@ -453,7 +453,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 174, "px-2")
             .px(2.0)
             .from(LYRA, 174, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 174, "has-data-[icon=inline-end]:pr-1.5")
             .has(Match::any().attr("icon", "inline-end"), |b| b.pr(1.5))
             .from(LYRA, 174, "has-data-[icon=inline-start]:pl-1.5")

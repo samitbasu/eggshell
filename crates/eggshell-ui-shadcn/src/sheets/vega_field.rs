@@ -91,7 +91,7 @@ pub(crate) fn light(s: &mut Sheet) {
     s.rule_when(Label, When::always().attr("card", "true"), |t, k| {
         t
             .from(VEGA, 640, "has-[>[data-slot=field]]:rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 640, "has-[>[data-slot=field]]:border")
             .border(1.0)
             .from(VEGA, 640, "has-[>[data-slot=field]]:has-[:focus-visible]:border-ring")
@@ -108,14 +108,14 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 640, "has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-muted/50")
             .hover(|p| p.bg(k.muted.gamma_multiply(0.5)))
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(VEGA, 648, "gap-2")
             .gap(2.0)
             .from(VEGA, 648, "leading-snug")
             .leading_snug()
             .from(VEGA, 648, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 648, "font-medium")
             .font_medium()
             .from(FIELD, 114, "flex")
@@ -137,7 +137,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 652, "text-left")
             .text_left()
             .from(VEGA, 652, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(FIELD, 125, "leading-normal")
             .leading_normal()
             .from(FIELD, 125, "font-normal")
@@ -248,7 +248,7 @@ pub(crate) fn dark(s: &mut Sheet) {
     s.rule_when(Label, When::always().attr("card", "true"), |t, k| {
         t
             .from(VEGA, 640, "has-[>[data-slot=field]]:rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 640, "has-[>[data-slot=field]]:border")
             .border(1.0)
             .from(VEGA, 640, "has-[>[data-slot=field]]:has-[:focus-visible]:border-ring")
@@ -265,14 +265,14 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 640, "has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-muted/50")
             .hover(|p| p.bg(k.muted.gamma_multiply(0.5)))
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(VEGA, 648, "gap-2")
             .gap(2.0)
             .from(VEGA, 648, "leading-snug")
             .leading_snug()
             .from(VEGA, 648, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 648, "font-medium")
             .font_medium()
             .from(FIELD, 114, "flex")
@@ -294,7 +294,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 652, "text-left")
             .text_left()
             .from(VEGA, 652, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(FIELD, 125, "leading-normal")
             .leading_normal()
             .from(FIELD, 125, "font-normal")

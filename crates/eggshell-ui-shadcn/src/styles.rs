@@ -1,6 +1,7 @@
 //! shadcn's styles: parameter sets that differ in a handful of values.
 
 use eggshell_ui::Weight;
+use eggshell_ui::contract::{Radius, TextStep};
 use egui::vec2;
 
 use crate::Tokens;
@@ -38,13 +39,12 @@ impl ShadcnStyle {
         t.style = self;
         match self {
             Self::Vega => {
-                t.radius = 10;
-                t.text_size = 14.0;
-                t.text_line_height = 20.0;
+                t.radius = Radius::new(10.0);
+                t.control_text = TextStep::Sm;
                 t.control_height = 36.0;
                 t.button_padding = vec2(16.0, 8.0);
                 t.input_padding = vec2(10.0, 4.0);
-                t.own_input_padding_x = 12.0;
+                t.own_input_padding_x = 3.0;
                 t.control_gap = 8.0;
                 t.icon_size = 16.0;
                 t.toggle_padding_x = 8.0;
@@ -64,13 +64,12 @@ impl ShadcnStyle {
                 t.label_weight = Weight::Medium;
             }
             Self::Lyra => {
-                t.radius = 0;
-                t.text_size = 12.0;
-                t.text_line_height = 16.0;
+                t.radius = Radius::new(0.0);
+                t.control_text = TextStep::Xs;
                 t.control_height = 32.0;
                 t.button_padding = vec2(10.0, 6.0);
                 t.input_padding = vec2(10.0, 4.0);
-                t.own_input_padding_x = 10.0;
+                t.own_input_padding_x = 2.5;
                 t.control_gap = 6.0;
                 t.icon_size = 14.0;
                 t.toggle_padding_x = 10.0;

@@ -22,7 +22,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 25, "gap-6")
             .gap(6.0)
             .from(VEGA, 25, "rounded-xl")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(VEGA, 25, "p-6")
             .p(6.0)
             .from(VEGA, 25, "data-[size=default]:max-w-xs")
@@ -63,10 +63,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(ALERT_DIALOG, 88, "sm:justify-end")
             .justify_end()
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(VEGA, 37, "text-lg")
-            .text_size(18.0, 28.0)
+            .text_step(k.text.lg)
             .from(VEGA, 37, "font-medium")
             .font_medium()
     });
@@ -75,7 +75,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 41, "text-muted-foreground")
             .text(k.muted_foreground)
             .from(VEGA, 41, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     // unmapped: registry/bases/radix/ui/alert-dialog.tsx:58  -translate-x-1/2 (no `Tw` method for `-translate-x-1/2`)
     // unmapped: registry/bases/radix/ui/alert-dialog.tsx:58  -translate-y-1/2 (no `Tw` method for `-translate-y-1/2`)
@@ -116,7 +116,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 25, "gap-6")
             .gap(6.0)
             .from(VEGA, 25, "rounded-xl")
-            .rounded_px(14.0)
+            .rounded_px(k.radius.xl())
             .from(VEGA, 25, "p-6")
             .p(6.0)
             .from(VEGA, 25, "data-[size=default]:max-w-xs")
@@ -157,10 +157,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(ALERT_DIALOG, 88, "sm:justify-end")
             .justify_end()
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(VEGA, 37, "text-lg")
-            .text_size(18.0, 28.0)
+            .text_step(k.text.lg)
             .from(VEGA, 37, "font-medium")
             .font_medium()
     });
@@ -169,7 +169,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 41, "text-muted-foreground")
             .text(k.muted_foreground)
             .from(VEGA, 41, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
     });
     // unmapped: registry/bases/radix/ui/alert-dialog.tsx:58  -translate-x-1/2 (no `Tw` method for `-translate-x-1/2`)
     // unmapped: registry/bases/radix/ui/alert-dialog.tsx:58  -translate-y-1/2 (no `Tw` method for `-translate-y-1/2`)

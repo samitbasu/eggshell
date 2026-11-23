@@ -41,7 +41,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 8, "text-left")
             .text_left()
             .from(LYRA, 8, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 8, "font-medium")
             .font_medium()
             .from(LYRA, 8, "hover:underline")
@@ -82,10 +82,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(ACCORDION, 58, "shrink-0")
             .shrink_0()
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(LYRA, 12, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(ACCORDION, 82, "overflow-hidden")
             .overflow_hidden()
     });
@@ -136,7 +136,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 8, "text-left")
             .text_left()
             .from(LYRA, 8, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 8, "font-medium")
             .font_medium()
             .from(LYRA, 8, "hover:underline")
@@ -177,10 +177,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(ACCORDION, 58, "shrink-0")
             .shrink_0()
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(LYRA, 12, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(ACCORDION, 82, "overflow-hidden")
             .overflow_hidden()
     });

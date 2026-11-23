@@ -35,6 +35,8 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 
 ## 3. Settled decisions
 
+<!-- TODO(prose): D13 and D14 predate #487. A spacing unit is now the theme's `Spacing` (4 points by default), and `Tw` keeps unit-written lengths in units until layout. -->
+
 | # | Decision | Rationale |
 |---|---|---|
 | D1 | Rebuild the taffy tree every frame. | No reconciliation. taffy is fast enough. Allocations are reused. |

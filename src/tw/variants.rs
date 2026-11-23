@@ -846,13 +846,12 @@ impl Tw {
         self.scroll_padding_by(units, |sides, points| sides.left = points)
     }
 
-    /// Sets the scroll padding as `set` says, to `units` of space as points;
-    /// a length that is not finite is ignored and noted, as the layout
+    /// Sets the scroll padding as `set` says, to `units` of space; a length that is not finite is ignored and noted, as the layout
     /// classes' are.
     fn scroll_padding_by(mut self, units: f32, set: impl FnOnce(&mut Sides<f32>, f32)) -> Self {
         let before = self.scroll_padding;
         let mut after = before;
-        set(&mut after, (units * super::SPACE_UNIT).max(0.0));
+        set(&mut after, units.max(0.0));
         let finite = |sides: &Sides<f32>| {
             [sides.top, sides.right, sides.bottom, sides.left]
                 .iter()

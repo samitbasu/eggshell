@@ -14,13 +14,13 @@ const TABLE: &str = "registry/bases/radix/ui/table.tsx";
 /// TODO(prose): shadcn's `table` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
     use TablePart::*;
-    s.replace(Root, |t, _| {
+    s.replace(Root, |t, k| {
         t
             .from(LYRA, 1247, "w-full")
             .w_full()
         // registry/styles/style-lyra.css:1247  caption-bottom: nothing to do
             .from(LYRA, 1247, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Footer, |t, k| {
         t
@@ -100,13 +100,13 @@ pub(crate) fn light(s: &mut Sheet) {
 /// TODO(prose): shadcn's `table` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
     use TablePart::*;
-    s.replace(Root, |t, _| {
+    s.replace(Root, |t, k| {
         t
             .from(LYRA, 1247, "w-full")
             .w_full()
         // registry/styles/style-lyra.css:1247  caption-bottom: nothing to do
             .from(LYRA, 1247, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Footer, |t, k| {
         t

@@ -250,6 +250,7 @@ pub fn ci_steps() -> Vec<Step> {
     vec![
         fmt(FmtMode::Check),
         Step::internal("clock", clock::check_library),
+        Step::internal("spacing-units", crate::units::check_sources),
         Step::cargo(
             "clippy",
             &[
@@ -364,6 +365,7 @@ mod tests {
             [
                 "cargo fmt --all --check",
                 "built-in clock check",
+                "built-in spacing-units check",
                 "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
                 "cargo clippy -p eggshell-ui-shadcn -p eggshell-ui-extras --no-default-features -- -D warnings",
                 "built-in shadcn-sheets check",
@@ -403,6 +405,7 @@ mod tests {
             [
                 "fmt",
                 "clock",
+                "spacing-units",
                 "clippy",
                 "features",
                 "shadcn-sheets",

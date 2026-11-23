@@ -1086,9 +1086,8 @@ pub fn check() -> Result<()> {
     })
 }
 
-pub fn run(plan: &Plan) -> Result<()> {
-    let root = crate::process::workspace_root();
-    let registry = root.join(&plan.reference).join("apps/v4/registry");
+/// The `Tw` classes and methods, as `src/tw/*.rs` documents them.
+fn tw_table(root: &Path) -> Result<TwTable> {
     let tw_sources = fs::read_dir(root.join("src/tw"))?
         .map(|entry| Ok(entry?.path()))
         .collect::<Result<Vec<_>>>()?
@@ -1096,7 +1095,18 @@ pub fn run(plan: &Plan) -> Result<()> {
         .filter(|p| p.extension().is_some_and(|e| e == "rs"))
         .map(|p| read(&p))
         .collect::<Result<Vec<_>>>()?;
-    let tw = TwTable::read(&tw_sources);
+    Ok(TwTable::read(&tw_sources))
+}
+
+/// The `Tw` methods that take spacing units.
+pub fn unit_methods(root: &Path) -> Result<BTreeSet<String>> {
+    Ok(tw_table(root)?.units)
+}
+
+pub fn run(plan: &Plan) -> Result<()> {
+    let root = crate::process::workspace_root();
+    let registry = root.join(&plan.reference).join("apps/v4/registry");
+    let tw = tw_table(&root)?;
     let tokens = classes::token_names(&read(&root.join("src/contract.rs"))?);
     let radius = theme_radius(&read(&registry.join("themes.ts"))?)
         .context("no `radius` in registry/themes.ts")?;

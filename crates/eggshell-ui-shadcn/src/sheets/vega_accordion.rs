@@ -35,13 +35,13 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 8, "**:data-[slot=accordion-trigger-icon]:text-muted-foreground")
             .descendants(Match::any().with_slot("accordion-trigger-icon"), |t| t.text(k.muted_foreground))
             .from(VEGA, 8, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 8, "py-4")
             .py(4.0)
             .from(VEGA, 8, "text-left")
             .text_left()
             .from(VEGA, 8, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 8, "font-medium")
             .font_medium()
             .from(VEGA, 8, "hover:underline")
@@ -82,10 +82,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(ACCORDION, 58, "shrink-0")
             .shrink_0()
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(VEGA, 12, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(ACCORDION, 82, "overflow-hidden")
             .overflow_hidden()
     });
@@ -130,13 +130,13 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 8, "**:data-[slot=accordion-trigger-icon]:text-muted-foreground")
             .descendants(Match::any().with_slot("accordion-trigger-icon"), |t| t.text(k.muted_foreground))
             .from(VEGA, 8, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 8, "py-4")
             .py(4.0)
             .from(VEGA, 8, "text-left")
             .text_left()
             .from(VEGA, 8, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 8, "font-medium")
             .font_medium()
             .from(VEGA, 8, "hover:underline")
@@ -177,10 +177,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(ACCORDION, 58, "shrink-0")
             .shrink_0()
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(VEGA, 12, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(ACCORDION, 82, "overflow-hidden")
             .overflow_hidden()
     });

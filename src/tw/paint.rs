@@ -1,6 +1,5 @@
 //! Box paint classes. Stored on the node; drawn by the library.
 
-use crate::finite::clamp;
 use egui::{Color32, CornerRadius, Shadow};
 
 #[cfg(debug_assertions)]
@@ -211,35 +210,35 @@ macro_rules! paint_methods {
             /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_px(self, points: f32) -> Self {
-                self.shaped(|p| p.set_radius(radius(clamp(points.round(), 0.0, 255.0) as u8)))
+                self.shaped(|p| p.set_radius(radius(crate::contract::corner(points))))
             }
 
             /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_tr_px(self, points: f32) -> Self {
-                self.shaped(|p| *p.radius_ne() = clamp(points.round(), 0.0, 255.0) as u8)
+                self.shaped(|p| *p.radius_ne() = crate::contract::corner(points))
             }
 
             /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_br_px(self, points: f32) -> Self {
-                self.shaped(|p| *p.radius_se() = clamp(points.round(), 0.0, 255.0) as u8)
+                self.shaped(|p| *p.radius_se() = crate::contract::corner(points))
             }
 
             /// `rounded-tl-[<r>px]`: top-left corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_tl_px(self, points: f32) -> Self {
-                self.shaped(|p| *p.radius_nw() = clamp(points.round(), 0.0, 255.0) as u8)
+                self.shaped(|p| *p.radius_nw() = crate::contract::corner(points))
             }
 
             /// `rounded-bl-[<r>px]`: bottom-left corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_bl_px(self, points: f32) -> Self {
-                self.shaped(|p| *p.radius_sw() = clamp(points.round(), 0.0, 255.0) as u8)
+                self.shaped(|p| *p.radius_sw() = crate::contract::corner(points))
             }
 
             /// `ring-<width>`: a ring outside the border box. It takes no space, like

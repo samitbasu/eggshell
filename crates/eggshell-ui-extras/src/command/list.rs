@@ -421,7 +421,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
     let classes = tw()
         .flex()
         .items_center()
-        .pl(metrics.padding_x / 4.0)
+        .pl_px(metrics.padding_x)
         .pr(1.0)
         .h_px(metrics.height)
         .rounded_px(f32::from(metrics.radius))
@@ -548,7 +548,7 @@ pub(crate) fn show<'f, A: 'static>(
         let list_classes = looks.part(
             s,
             (ListPart::List, &[]),
-            tw().p(style.menu().padding / 4.0)
+            tw().p_px(style.menu().padding)
                 .scroll_py(1.0)
                 .scrollbar_none(),
             match looks {
@@ -771,7 +771,7 @@ fn note_classes(style: &Style) -> Tw {
 fn heading_classes(style: &Style, place: Place) -> Tw {
     let menu = style.menu();
     let classes = tw()
-        .px(menu.item_padding.x / 4.0)
+        .px_px(menu.item_padding.x)
         .py(1.5)
         .role(style.role(&Some(menu.shortcut_text.clone())).clone())
         .font_weight(menu.heading_weight)
@@ -878,8 +878,8 @@ fn item_look(style: &Style, enablement: Enablement) -> Tw {
     let base = tw()
         .flex()
         .items_center()
-        .gap(menu.item_gap / 4.0)
-        .px(menu.item_padding.x / 4.0)
+        .gap_px(menu.item_gap)
+        .px_px(menu.item_padding.x)
         .h_px(menu.row_height(text))
         .rounded_px(f32::from(menu.item_radius))
         .whitespace_nowrap();
@@ -906,8 +906,8 @@ fn item<A: 'static>(
     let base = tw()
         .flex()
         .items_center()
-        .gap(menu.item_gap / 4.0)
-        .px(menu.item_padding.x / 4.0)
+        .gap_px(menu.item_gap)
+        .px_px(menu.item_padding.x)
         .h_px(menu.row_height(text))
         .rounded_px(f32::from(menu.item_radius))
         .whitespace_nowrap();

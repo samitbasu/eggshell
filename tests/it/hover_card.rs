@@ -81,7 +81,7 @@ fn the_shadcn_preset_gives_shadcns_hover_card() {
     assert_eq!(*given, preset.hover_card());
     assert_eq!(given.width, 256.0, "w-64");
     assert_eq!(given.padding, 16.0, "p-4");
-    assert_eq!(given.radius, preset.tokens.radius, "rounded-lg");
+    assert_eq!(given.radius, preset.tokens.radius_lg(), "rounded-lg");
     assert_eq!(given.transition, Duration::from_millis(100), "duration-100");
     assert_eq!(given.open_delay, Duration::from_millis(700));
     assert_eq!(given.close_delay, Duration::from_millis(300));

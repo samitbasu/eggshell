@@ -648,7 +648,7 @@ fn a_word_stays_on_one_row_where_snapping_narrows_its_box() {
 
     let shapes = shapes(&mut (), SCALE, |b| {
         b.div(tw().flex(), |b| {
-            b.div(tw().ml(offset / 4.0), |b| b.text(tw(), "Blog"));
+            b.div(tw().ml_px(offset), |b| b.text(tw(), "Blog"));
         });
     });
     let (shape, _) = text_of(&shapes, "Blog");
@@ -1009,7 +1009,7 @@ fn text_taller_than_its_box_overflows_evenly_when_centred() {
         "control: centred when it fits"
     );
     for padding in [2.0_f32, 4.0] {
-        let (node, text) = label_and_text(centred().py(padding / 4.0));
+        let (node, text) = label_and_text(centred().py_px(padding));
         let content = node.height() - 2.0 * padding;
         assert!(
             text.height() > content,

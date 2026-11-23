@@ -152,16 +152,16 @@ pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
     );
 
     let t = table.clone();
-    let cell_y = table.cell_padding_y.unwrap_or(table.cell_padding) / 4.0;
-    let cell = move |b: crate::Tw| b.flex().items_center().px(t.cell_padding / 4.0);
+    let cell_y = table.cell_padding_y.unwrap_or(table.cell_padding);
+    let cell = move |b: crate::Tw| b.flex().items_center().px_px(t.cell_padding);
     let cell_of = cell;
-    sheet.replace(TablePart::Cell, move |b, _| cell_of(b).py(cell_y));
+    sheet.replace(TablePart::Cell, move |b, _| cell_of(b).py_px(cell_y));
     let cell_of = cell;
     let weight = table.group_weight;
     let color = table.group_text;
     sheet.replace(TablePart::GroupCell, move |b, _| {
         let b = cell_of(b)
-            .py(cell_y)
+            .py_px(cell_y)
             .font_weight(weight)
             .whitespace_nowrap();
         match color {
@@ -172,7 +172,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
     let cell_of = cell;
     let weight = table.footer_weight;
     sheet.replace(TablePart::FooterCell, move |b, _| {
-        cell_of(b).py(cell_y).font_weight(weight)
+        cell_of(b).py_px(cell_y).font_weight(weight)
     });
     let (padding_y, height, weight) = (
         table.header_padding_y,
@@ -182,7 +182,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
     sheet.replace(TablePart::Head, move |b, _| {
         let b = cell(b).font_weight(weight);
         match padding_y {
-            Some(padding) => b.py(padding / 4.0),
+            Some(padding) => b.py_px(padding),
             None => b.h_px(height),
         }
     });
@@ -194,7 +194,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
             TablePart::GroupCell,
             TablePart::FooterCell,
         ] {
-            sheet.rule_when(part, first, move |b, _| b.pl(inset / 4.0));
+            sheet.rule_when(part, first, move |b, _| b.pl_px(inset));
         }
     }
 }
@@ -229,7 +229,7 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, table: &TableStyle) {
     if let Some(inset) = table.first_column_inset {
         let first = When::always().attr(COLUMN.0, COLUMN.1);
         for part in [TablePart::Head, TablePart::Cell, TablePart::FooterCell] {
-            sheet.rule_when(part, first, move |t, _| t.pl(inset / 4.0));
+            sheet.rule_when(part, first, move |t, _| t.pl_px(inset));
         }
     }
 }

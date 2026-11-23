@@ -1,3 +1,4 @@
+use eggshell_ui::contract::{Radius, Spacing, TextScale, TextSize, TextStep, corner};
 use eggshell_ui::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
@@ -80,13 +81,15 @@ pub struct Tokens {
     pub chart_5: Color32,
     /// The shadcn style these sizes belong to.
     pub style: ShadcnStyle,
-    /// `--radius`, in whole points. `rounded-lg` is this, `rounded-md` two
-    /// less and `rounded-sm` four less.
-    pub radius: u8,
-    /// The size of every control's text (`text-sm`, or `text-xs`).
-    pub text_size: f32,
-    /// The line height that goes with `text_size`.
-    pub text_line_height: f32,
+    /// TODO(prose): `--spacing`, the points of one spacing unit.
+    pub spacing: Spacing,
+    /// `--radius` and the steps derived from it: `rounded-lg` is the base,
+    /// `rounded-md` two less and `rounded-sm` four less.
+    pub radius: Radius,
+    /// TODO(prose): Tailwind's text sizes, `text-xs` to `text-lg`.
+    pub text: TextScale,
+    /// TODO(prose): the step of `text` every control's text is: `text-sm`, or `text-xs`.
+    pub control_text: TextStep,
     /// The height of buttons, inputs and selects (`h-9`).
     pub control_height: f32,
     /// A button's padding (`px-4 py-2`).
@@ -94,8 +97,8 @@ pub struct Tokens {
     /// An input's and a select's padding (`px-3 py-1`).
     pub input_padding: Vec2,
     /// TODO(prose): the inline padding of eggshell's own smaller fields, which
-    /// shadcn does not name: a `sm` field's and a stepper's value's, and 4
-    /// points more than an `xs` field's.
+    /// shadcn does not name, in spacing units: a `sm` field's and a stepper's
+    /// value's, and one unit more than an `xs` field's.
     pub own_input_padding_x: f32,
     /// The gap between a control's children (`gap-2`).
     pub control_gap: f32,
@@ -239,9 +242,10 @@ impl Tokens {
             chart_4: none,
             chart_5: none,
             style: ShadcnStyle::Vega,
-            radius: 0,
-            text_size: 0.0,
-            text_line_height: 0.0,
+            spacing: Spacing::DEFAULT,
+            radius: Radius::new(0.0),
+            text: TextScale::default(),
+            control_text: TextStep::Sm,
             control_height: 0.0,
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
@@ -309,12 +313,17 @@ impl Tokens {
 
     /// `rounded-md`: the radius of buttons, inputs and selects.
     pub fn radius_md(&self) -> u8 {
-        self.radius.saturating_sub(2)
+        corner(self.radius.md())
     }
 
     /// `rounded-sm`.
     pub fn radius_sm(&self) -> u8 {
-        self.radius.saturating_sub(4)
+        corner(self.radius.sm())
+    }
+
+    /// `rounded-lg`: the base radius.
+    pub fn radius_lg(&self) -> u8 {
+        corner(self.radius.lg())
     }
 
     /// `accent/50`: the hover fill of a row on the page background, a step
@@ -456,11 +465,17 @@ impl Tokens {
         }
     }
 
+    /// TODO(prose): the size and line height of every control's text.
+    pub fn control_text_size(&self) -> TextSize {
+        self.text.step(self.control_text)
+    }
+
     /// The text role of controls: the token's size on its line height.
     pub fn text_role(&self) -> TextSpec {
+        let TextSize { size, line_height } = self.control_text_size();
         TextSpec {
-            size: self.text_size,
-            line_height: self.text_line_height,
+            size,
+            line_height,
             family: egui::FontFamily::Proportional,
             weight: Weight::Normal,
         }

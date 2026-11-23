@@ -19,7 +19,7 @@ pub(crate) fn light(s: &mut Sheet) {
     s.replace(List, |t, k| {
         t
             .from(VEGA, 1321, "rounded-lg")
-            .rounded_px(10.0)
+            .rounded_px(k.radius.lg())
             .from(VEGA, 1321, "p-[3px]")
             .p(0.75)
             .from(VEGA, 1321, "group-data-horizontal/tabs:h-9")
@@ -56,7 +56,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 1325, "gap-1.5")
             .gap(1.5)
             .from(VEGA, 1325, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 1325, "border")
             .border(1.0)
             .from(VEGA, 1325, "border-transparent")
@@ -66,7 +66,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 1325, "py-1")
             .py(1.0)
             .from(VEGA, 1325, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 1325, "font-medium")
             .font_medium()
             .from(VEGA, 1325, "[&_svg:not([class*='size-'])]:size-4")
@@ -118,10 +118,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(TABS, 65, "disabled:opacity-50")
             .opacity(Opacity::new(0.5))
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(VEGA, 1333, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(TABS, 83, "flex-1")
             .flex_1()
         // registry/bases/radix/ui/tabs.tsx:83  outline-none: nothing to do
@@ -144,7 +144,7 @@ pub(crate) fn dark(s: &mut Sheet) {
     s.replace(List, |t, k| {
         t
             .from(VEGA, 1321, "rounded-lg")
-            .rounded_px(10.0)
+            .rounded_px(k.radius.lg())
             .from(VEGA, 1321, "p-[3px]")
             .p(0.75)
             .from(VEGA, 1321, "group-data-horizontal/tabs:h-9")
@@ -181,7 +181,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 1325, "gap-1.5")
             .gap(1.5)
             .from(VEGA, 1325, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 1325, "border")
             .border(1.0)
             .from(VEGA, 1325, "border-transparent")
@@ -191,7 +191,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 1325, "py-1")
             .py(1.0)
             .from(VEGA, 1325, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 1325, "font-medium")
             .font_medium()
             .from(VEGA, 1325, "[&_svg:not([class*='size-'])]:size-4")
@@ -253,10 +253,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(TABS, 65, "disabled:opacity-50")
             .opacity(Opacity::new(0.5))
     });
-    s.replace(Content, |t, _| {
+    s.replace(Content, |t, k| {
         t
             .from(VEGA, 1333, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(TABS, 83, "flex-1")
             .flex_1()
         // registry/bases/radix/ui/tabs.tsx:83  outline-none: nothing to do

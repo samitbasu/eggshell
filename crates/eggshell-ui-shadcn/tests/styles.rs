@@ -2,8 +2,8 @@
 //! `style-lyra.css`, and both fill the same contract.
 
 use eggshell_ui::Tw;
-use eggshell_ui::contract::{Fonts, Size, Style, Variant};
-use eggshell_ui::owned::ButtonPart;
+use eggshell_ui::contract::{Fonts, Size, Style, TextScale, TextSize, TextStep, Variant};
+use eggshell_ui::owned::{ButtonPart, InputPart};
 use eggshell_ui::sheet::Key;
 use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Theme, vec2};
@@ -25,7 +25,11 @@ fn button(style: &Style, variant: Variant, size: Size) -> Tw {
 fn box_of(style: &Style, size: Size) -> (Option<f32>, u8) {
     let classes = button(style, Variant::DEFAULT, size);
     (
-        classes.style().size.height.into_option(),
+        classes
+            .style_at(style.tokens.spacing)
+            .size
+            .height
+            .into_option(),
         classes.paint_classes().radius.nw,
     )
 }
@@ -35,7 +39,8 @@ fn vega_is_the_default_and_the_tokens_of_before() {
     assert_eq!(ShadcnStyle::default(), ShadcnStyle::Vega);
     let t = Tokens::light();
     assert_eq!(t.style, ShadcnStyle::Vega);
-    assert_eq!((t.radius, t.text_size, t.control_height), (10, 14.0, 36.0));
+    assert_eq!((t.radius.lg(), t.control_height), (10.0, 36.0));
+    assert_eq!(t.control_text, TextStep::Sm, "text-sm");
     assert_eq!(
         t.input_padding,
         vec2(10.0, 4.0),
@@ -50,7 +55,7 @@ fn lyra_values_are_style_lyra_css() {
         let t = Tokens::for_theme(theme).in_style(ShadcnStyle::Lyra);
         assert_eq!(t.radius_md(), 0, "rounded-none");
         assert_eq!(t.radius_sm(), 0);
-        assert_eq!((t.text_size, t.text_line_height), (12.0, 16.0), "text-xs");
+        assert_eq!(t.control_text, TextStep::Xs, "text-xs");
         assert_eq!(t.control_height, 32.0, "h-8");
         assert_eq!(t.button_padding.x, 10.0, "px-2.5");
         assert_eq!(t.control_gap, 6.0, "gap-1.5");
@@ -221,6 +226,43 @@ fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
             assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
             assert!(!fonts.0.is_empty(), "{at}");
             assert!(fonts.0.iter().all(|font| !font.families.is_empty()), "{at}");
+        }
+    }
+}
+
+#[test]
+fn a_presets_control_text_is_the_step_its_generated_classes_name() {
+    let at = |size, line_height| TextSize { size, line_height };
+    let distinct = TextScale {
+        xs: at(11.0, 15.0),
+        sm: at(13.0, 17.0),
+        base: at(17.0, 23.0),
+        lg: at(19.0, 27.0),
+    };
+    for shadcn in [ShadcnStyle::Vega, ShadcnStyle::Lyra] {
+        let mut preset = Shadcn::light().with_style(shadcn);
+        preset.tokens.text = distinct;
+        let style = preset.style();
+        let want = preset.tokens.control_text_size().size;
+        let page = eggshell_ui::TextStyle::new(
+            eggshell_ui::TextSpec {
+                size: 99.0,
+                ..preset.tokens.text_role()
+            },
+            egui::Color32::BLACK,
+        );
+        let input =
+            style
+                .sheet
+                .resolve(InputPart::Root, &[Key::Size(Size::DEFAULT)], &style.tokens);
+        let button = button(&style, Variant::DEFAULT, Size::DEFAULT);
+        for (part, classes) in [("input", input), ("button", button)] {
+            assert_eq!(
+                classes.text_classes().over(&page).spec.size,
+                want,
+                "{shadcn:?} {part}: control_text {:?}",
+                preset.tokens.control_text
+            );
         }
     }
 }

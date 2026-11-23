@@ -63,10 +63,10 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(ALERT_DIALOG, 88, "sm:justify-end")
             .justify_end()
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(LYRA, 62, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(LYRA, 62, "font-medium")
             .font_medium()
     });
@@ -156,10 +156,10 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(ALERT_DIALOG, 88, "sm:justify-end")
             .justify_end()
     });
-    s.replace(Title, |t, _| {
+    s.replace(Title, |t, k| {
         t
             .from(LYRA, 62, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(LYRA, 62, "font-medium")
             .font_medium()
     });

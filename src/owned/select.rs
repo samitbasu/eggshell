@@ -131,8 +131,8 @@ pub(crate) fn write_select_rules(style: &mut Style) {
             When::always().size(size),
             move |t, _| {
                 t.h_px(m.height)
-                    .px(m.padding_x / 4.0)
-                    .gap(m.gap / 4.0)
+                    .px_px(m.padding_x)
+                    .gap_px(m.gap)
                     .rounded_px(f32::from(m.radius))
                     .role(text.clone())
             },
@@ -170,8 +170,8 @@ pub(crate) fn write_select_exceptions(sheet: &mut Sheet, select: &SelectStyle) {
             move |t, _| {
                 let t = t
                     .h_px(m.height)
-                    .px(m.padding_x / 4.0)
-                    .gap(m.gap / 4.0)
+                    .px_px(m.padding_x)
+                    .gap_px(m.gap)
                     .rounded_px(f32::from(m.radius));
                 match m.text {
                     Some(text) => t.text_size(text.size, text.line_height),

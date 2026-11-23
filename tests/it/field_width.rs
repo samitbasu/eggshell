@@ -28,7 +28,7 @@ fn base_text() -> TextStyle {
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "Surface",
-        tw().flex().flex_col().w_px(SURFACE).p(PADDING / 4.0),
+        tw().flex().flex_col().w_px(SURFACE).p_px(PADDING),
         |b| {
             b.div_id("Row", tw().flex().items_center().gap(4.0), |b| {
                 b.text(tw().w_px(64.0), "Width");
