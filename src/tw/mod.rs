@@ -3,8 +3,9 @@
 //! A [`Tw`] holds fully resolved values: points, [`egui::Color32`] and
 //! [`TextSpec`](crate::TextSpec). Theming is the application's concern.
 //!
-//! Layout classes write a [`taffy::Style`]. One spacing unit is 4 points, so
-//! `.p(1.5)` is `p-1.5` is 6 points. Methods suffixed `_px` take points
+//! Layout classes write a [`taffy::Style`]. TODO(prose): one spacing unit is
+//! the theme's [`Spacing`](crate::contract::Spacing), 4 points by default, so
+//! `.p(1.5)` is `p-1.5` is 6 points; the build turns units into points. Methods suffixed `_px` take points
 //! directly, `_frac(n, d)` is the fraction `n/d`, `_full` is 100%, and `_auto`
 //! is the `auto` keyword, and `w_ch`, `min_w_ch` and `max_w_ch` take widths in
 //! `ch`, resolved when the builder knows the node's font. Layout methods take bare floats because the method
@@ -35,7 +36,7 @@ pub use easing::Easing;
 pub use grid::Track;
 #[cfg(debug_assertions)]
 pub use merge::Property;
-use merge::{Layout, Touched};
+use merge::{Given, Layout, Touched};
 pub use origin::{Origin, Source};
 #[cfg(debug_assertions)]
 pub(crate) use origin::{Origins, trace, tracing};
@@ -50,9 +51,6 @@ pub(crate) use variants::{
     Focusability, Grouping, Look, PointerEvents, Presence, Scrollbar, Sensing, State, Variants,
     Visibility,
 };
-
-/// One Tailwind space unit, in points.
-const SPACE_UNIT: f32 = 4.0;
 
 /// A node's classes: layout, box paint, inherited text and behaviour.
 #[derive(Clone, Debug)]
@@ -70,7 +68,8 @@ pub struct Tw {
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
     pub(crate) scrollbar: Scrollbar,
-    /// How far scrolling a node into view keeps it from the edges.
+    /// How far scrolling a node into view keeps it from the edges, in
+    /// spacing units.
     pub(crate) scroll_padding: Sides<f32>,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
@@ -79,6 +78,8 @@ pub struct Tw {
     /// most nodes, which keeps a `Tw` small.
     pub(crate) rules: Option<Box<Ruled>>,
     touched: Touched,
+    /// The layout properties holding spacing units, not points.
+    spaced: Touched,
     /// The class that set each property, in debug builds.
     #[cfg(debug_assertions)]
     pub(crate) origins: Option<Box<Origins>>,
@@ -133,6 +134,7 @@ pub fn tw() -> Tw {
         lengths: Lengths::Finite,
         rules: None,
         touched: Touched::default(),
+        spaced: Touched::default(),
         #[cfg(debug_assertions)]
         origins: None,
     }
@@ -144,7 +146,8 @@ impl Tw {
         tw()
     }
 
-    /// The layout style the classes have produced so far.
+    /// The layout style the classes have produced so far, its lengths given
+    /// in spacing units still in units: TODO(prose), see [`style_at`](Self::style_at).
     pub fn style(&self) -> &Style {
         &self.style
     }
@@ -239,9 +242,40 @@ impl Tw {
         self
     }
 
+    /// TODO(prose): the layout style in points, its lengths given in spacing
+    /// units turned into points at `spacing`. [`style`](Self::style) keeps
+    /// them in units.
+    pub fn style_at(&self, spacing: crate::contract::Spacing) -> Style {
+        let mut style = self.style.clone();
+        merge::in_points(&mut style, self.spaced, spacing.into());
+        style
+    }
+
+    /// The scroll padding in points at `spacing`.
+    pub(crate) fn scroll_padding_points(&self, spacing: crate::contract::Spacing) -> Sides<f32> {
+        let Sides {
+            top,
+            right,
+            bottom,
+            left,
+        } = self.scroll_padding;
+        Sides {
+            top: spacing.points(top),
+            right: spacing.points(right),
+            bottom: spacing.points(bottom),
+            left: spacing.points(left),
+        }
+    }
+
     #[cfg_attr(debug_assertions, track_caller)]
     fn styled(mut self, set: impl FnOnce(&mut Layout<'_>)) -> Self {
-        self.write_layout(set);
+        self.write_layout(Given::Points, set);
+        self
+    }
+
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn spaced(mut self, set: impl FnOnce(&mut Layout<'_>)) -> Self {
+        self.write_layout(Given::Units, set);
         self
     }
 }

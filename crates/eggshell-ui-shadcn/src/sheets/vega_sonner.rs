@@ -9,19 +9,19 @@ const VEGA: &str = "registry/styles/style-vega.css";
 /// TODO(prose): shadcn's `sonner` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
     use NotifyPart::*;
-    s.rule(Toast, |t, _| {
+    s.rule(Toast, |t, k| {
         t
             .from(VEGA, 1246, "rounded-2xl")
-            .rounded_px(18.0)
+            .rounded_px(k.radius.xl2())
     });
 }
 
 /// TODO(prose): shadcn's `sonner` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
     use NotifyPart::*;
-    s.rule(Toast, |t, _| {
+    s.rule(Toast, |t, k| {
         t
             .from(VEGA, 1246, "rounded-2xl")
-            .rounded_px(18.0)
+            .rounded_px(k.radius.xl2())
     });
 }

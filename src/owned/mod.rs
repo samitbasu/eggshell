@@ -675,6 +675,15 @@ pub(crate) fn text_field_classes<A: 'static>(
     keys.extend(aria.map(crate::sheet::Key::Aria));
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
+    let own_text = style
+        .input()
+        .sizes
+        .get(style.input().sizes.key_for(size))
+        .text;
+    let leaf = match (own_text, root.text.size, root.text.line_height) {
+        (None, Some(size), Some(line_height)) => leaf.text_size(size, line_height),
+        _ => leaf,
+    };
     let leaf = match aria {
         Some(aria) => leaf.aria(aria),
         None => leaf,
@@ -722,7 +731,7 @@ fn choice_row<A>(
     (enablement, validity): (Enablement, &Validity),
     gap: f32,
 ) -> Tw {
-    let own = tw().gap(gap / 4.0).role(TextSpec {
+    let own = tw().gap_px(gap).role(TextSpec {
         line_height: text.size,
         ..text.clone()
     });
@@ -1056,7 +1065,7 @@ pub(crate) fn fitted_box<'f, A: 'static>(
     use crate::scroll::{Axis, Focusable};
     match fit {
         Fit::Short { natural } => {
-            let height = natural.y - crate::builder::block_insets(classes.style());
+            let height = natural.y - crate::builder::block_insets(&s.layout_of(&classes));
             s.div_id(key, classes.flex().flex_col().min_h_0(), |s| {
                 let viewport = tw()
                     .flex()

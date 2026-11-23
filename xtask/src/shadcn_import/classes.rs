@@ -31,6 +31,8 @@ pub struct TwTable {
     utilities: Vec<Pattern>,
     /// `hover:` → `hover`.
     pub variants: BTreeMap<String, String>,
+    /// The methods that take spacing units: `p`, `h`, `gap`.
+    pub units: BTreeSet<String>,
 }
 
 fn pattern(doc: &str, method: &str) -> Option<Pattern> {
@@ -76,16 +78,32 @@ impl TwTable {
     pub fn read(sources: &[String]) -> Self {
         let mut utilities = Vec::new();
         let mut variants = BTreeMap::new();
+        let mut units = BTreeSet::new();
         for text in sources {
             let mut doc: Option<String> = None;
             for line in text.lines() {
                 let t = line.trim();
-                // A macro entry: `name, "`class`: ...", ...`.
-                if let Some((name, rest)) = t.split_once(", \"")
-                    && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+                // A macro entry: `name, "`class`: ...", ...`, or a `spacing!`
+                // entry, `name, name_px, "`class-<units>`: ...", ...`.
+                if let Some((names, rest)) = t.split_once(", \"")
+                    && names
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '_' || c == ',' || c == ' ')
                     && let Some(class) = backticked(rest)
                 {
-                    utilities.extend(pattern(class, name));
+                    let name = names.split_once(", ").map_or(names, |(name, _)| name);
+                    if class.contains("<units>") {
+                        units.insert(name.to_owned());
+                    }
+                    match names.split_once(", ") {
+                        Some((name, px)) => {
+                            utilities.extend(pattern(class, name));
+                            if let Some(prefix) = class.strip_suffix("<units>") {
+                                utilities.extend(pattern(&format!("{prefix}[<n>px]"), px));
+                            }
+                        }
+                        None => utilities.extend(pattern(class, names)),
+                    }
                     continue;
                 }
                 // A `lengths!` entry: five method names, then "the …".
@@ -96,6 +114,7 @@ impl TwTable {
                         .iter()
                         .all(|w| w.chars().all(|c| c.is_alphanumeric() || c == '_'))
                 {
+                    units.insert(words[0].to_owned());
                     let class = words[0].replace('_', "-");
                     let spellings = [
                         (format!("{class}-<units>"), words[0]),
@@ -128,7 +147,12 @@ impl TwTable {
                         Some(variant) => {
                             variants.insert(variant.to_owned(), name);
                         }
-                        None => utilities.extend(pattern(&class, &name)),
+                        None => {
+                            if class.contains("<units>") {
+                                units.insert(name.clone());
+                            }
+                            utilities.extend(pattern(&class, &name));
+                        }
                     }
                     continue;
                 }
@@ -140,6 +164,7 @@ impl TwTable {
         Self {
             utilities,
             variants,
+            units,
         }
     }
 
@@ -331,25 +356,57 @@ impl Radius {
 
     /// `rounded-md`, `rounded-[min(var(--radius-md),8px)]`, `rounded-full`.
     pub fn rounded(&self, utility: &str) -> Option<f32> {
-        let value = utility.strip_prefix("rounded-")?;
-        if let Some(points) = Self::of(value, self.base) {
-            return Some(points);
-        }
-        let inner = value.strip_prefix("[min(")?.strip_suffix(")]")?;
-        let (var, cap) = inner.split_once(',')?;
-        let name = var.strip_prefix("var(--radius-")?.strip_suffix(')')?;
-        Some(Self::of(name, self.base)?.min(length_points(cap)?))
+        let (step, cap) = radius_step(utility)?;
+        let points = Self::of(step, self.base)?;
+        Some(cap.map_or(points, |cap| points.min(cap)))
     }
+}
+
+/// The step of the radius scale a `rounded-*` class names, and the cap a
+/// `min()` puts on it.
+fn radius_step(utility: &str) -> Option<(&str, Option<f32>)> {
+    let value = utility.strip_prefix("rounded-")?;
+    if Radius::of(value, 0.0).is_some() {
+        return Some((value, None));
+    }
+    let inner = value.strip_prefix("[min(")?.strip_suffix(")]")?;
+    let (var, cap) = inner.split_once(',')?;
+    let name = var.strip_prefix("var(--radius-")?.strip_suffix(')')?;
+    Radius::of(name, 0.0)?;
+    Some((name, Some(length_points(cap)?)))
+}
+
+/// The points of a `rounded-*` class as read from the tokens `k`:
+/// `k.radius.md()`, with a `min()`'s cap kept as written.
+pub fn rounded_expr(utility: &str) -> Option<String> {
+    let (step, cap) = radius_step(utility)?;
+    let method = match step {
+        "none" => return Some("0.0".to_owned()),
+        "2xl" => "xl2",
+        "3xl" => "xl3",
+        "4xl" => "xl4",
+        step => step,
+    };
+    let read = format!("k.radius.{method}()");
+    Some(match cap {
+        Some(cap) => format!("{read}.min({cap:?})"),
+        None => read,
+    })
+}
+
+/// The step of Tailwind's text scale a `text-*` class names.
+pub fn text_step(utility: &str) -> Option<&str> {
+    let step = utility.strip_prefix("text-")?;
+    matches!(step, "xs" | "sm" | "base" | "lg").then_some(step)
 }
 
 /// The text sizes of Tailwind's scale, size and line height in points.
 pub fn text_size(utility: &str) -> Option<(f32, f32)> {
-    Some(match utility {
-        "text-xs" => (12.0, 16.0),
-        "text-sm" => (14.0, 20.0),
-        "text-base" => (16.0, 24.0),
-        "text-lg" => (18.0, 28.0),
-        _ => return None,
+    Some(match text_step(utility)? {
+        "xs" => (12.0, 16.0),
+        "sm" => (14.0, 20.0),
+        "base" => (16.0, 24.0),
+        _ => (18.0, 28.0),
     })
 }
 
@@ -524,7 +581,7 @@ mod tests {
     fn table() -> TwTable {
         TwTable::read(&[r#"
     spacing! {
-        px, "`px-<units>`: left and right padding.", |s, v| {};
+        px, px_px, "`px-<units>`: left and right padding.", |s, v| {};
     }
     keywords! {
         flex, "`flex`: a flex container.", |s| {};

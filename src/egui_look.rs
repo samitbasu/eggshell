@@ -8,14 +8,9 @@ use egui::{
 };
 
 use crate::Style;
-use crate::contract::Tokens;
+use crate::contract::{Tokens, corner};
 
 impl Tokens {
-    /// `rounded-md`: two points under the radius.
-    fn radius_md(&self) -> u8 {
-        self.radius.saturating_sub(2)
-    }
-
     fn widget(
         &self,
         weak_bg_fill: Color32,
@@ -27,7 +22,7 @@ impl Tokens {
             weak_bg_fill,
             bg_fill,
             bg_stroke,
-            corner_radius: CornerRadius::same(self.radius_md()),
+            corner_radius: CornerRadius::same(corner(self.radius.md())),
             fg_stroke: Stroke::new(1.0, fg),
             expansion: 0.0,
         }
@@ -96,8 +91,8 @@ impl Style {
         v.panel_fill = t.background;
         v.window_fill = t.popover;
         v.window_stroke = Stroke::new(1.0, t.border);
-        v.window_corner_radius = CornerRadius::same(t.radius);
-        v.menu_corner_radius = CornerRadius::same(t.radius_md());
+        v.window_corner_radius = CornerRadius::same(corner(t.radius.lg()));
+        v.menu_corner_radius = CornerRadius::same(corner(t.radius.md()));
         v.text_cursor.stroke = Stroke::new(2.0, t.foreground);
         v.disabled_alpha = 0.5;
         let overlay = Shadow {

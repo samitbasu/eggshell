@@ -264,7 +264,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 SwitchPart::Thumb,
                 &form.keys(SwitchPart::keys(size, mark, enablement)),
             );
-            let diameter = classes.style().size.width.into_raw().value() * thumb_scale;
+            let diameter = b.layout_of(&classes).size.width.into_raw().value() * thumb_scale;
             let fill = classes
                 .paint
                 .background

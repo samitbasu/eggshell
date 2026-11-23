@@ -548,17 +548,17 @@ impl Classifier<'_> {
                 }
             }
             Fate::Token { value, paint: None } => {
-                if let Some(points) = self.radius.rounded(utility) {
+                if let Some(points) = super::classes::rounded_expr(utility) {
                     kinds.insert(if utility.contains('[') {
                         Kind::Constant
                     } else {
                         Kind::Token
                     });
-                    return Ok(Leaf::Call(format!(".rounded_px({points:?})")));
+                    return Ok(Leaf::Call(format!(".rounded_px({points})")));
                 }
-                if let Some((size, line)) = super::classes::text_size(utility) {
+                if let Some(step) = super::classes::text_step(utility) {
                     kinds.insert(Kind::Token);
-                    return Ok(Leaf::Call(format!(".text_size({size:?}, {line:?})")));
+                    return Ok(Leaf::Call(format!(".text_step(k.text.{step})")));
                 }
                 Err(format!("token `{value}`"))
             }
@@ -1414,10 +1414,10 @@ mod tests {
     fn table() -> TwTable {
         TwTable::read(&[r#"
     spacing! {
-        px, "`px-<units>`: left and right padding.", |s, v| {};
-        pl, "`pl-<units>`: left padding.", |s, v| {};
-        p, "`p-<units>`: padding on every side.", |s, v| {};
-        mx, "`mx-<units>`: left and right margin.", |s, v| {};
+        px, px_px, "`px-<units>`: left and right padding.", |s, v| {};
+        pl, pl_px, "`pl-<units>`: left padding.", |s, v| {};
+        p, p_px, "`p-<units>`: padding on every side.", |s, v| {};
+        mx, mx_px, "`mx-<units>`: left and right margin.", |s, v| {};
     }
     lengths! {
         h, h_px, h_frac, h_full, h_auto, "the height", |s, l| {};
@@ -1478,12 +1478,14 @@ mod tests {
                 one(c, "border-transparent"),
                 ".border_color(Color32::TRANSPARENT)"
             );
-            assert_eq!(one(c, "rounded-md"), ".rounded_px(8.0)");
+            assert_eq!(one(c, "rounded-md"), ".rounded_px(k.radius.md())");
+            assert_eq!(one(c, "rounded-2xl"), ".rounded_px(k.radius.xl2())");
+            assert_eq!(one(c, "rounded-none"), ".rounded_px(0.0)");
             assert_eq!(
                 one(c, "rounded-[min(var(--radius-md),8px)]"),
-                ".rounded_px(8.0)"
+                ".rounded_px(k.radius.md().min(8.0))"
             );
-            assert_eq!(one(c, "text-sm"), ".text_size(14.0, 20.0)");
+            assert_eq!(one(c, "text-sm"), ".text_step(k.text.sm)");
             assert_eq!(one(c, "border"), ".border(1.0)");
             assert_eq!(one(c, "shadow-xs"), ".shadow(k.shadow_xs)");
             assert!(c.translate("shadow-2xl").is_err());

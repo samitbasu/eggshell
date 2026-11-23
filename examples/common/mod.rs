@@ -646,8 +646,8 @@ pub fn text_box<S, K>(
             .items_center()
             .w_full()
             .min_h_px(t.control_height)
-            .px(t.input_padding.x / 4.0)
-            .py(t.input_padding.y / 4.0)
+            .px_px(t.input_padding.x)
+            .py_px(t.input_padding.y)
             .border(1.0)
             .border_color(t.input)
             .rounded_px(f32::from(t.radius_md()))
@@ -681,7 +681,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
         .border(menu.popup.border_width)
         .border_color(colors.border)
         .rounded_px(f32::from(menu.radius))
-        .p(menu.padding / 4.0)
+        .p_px(menu.padding)
         .text(colors.text);
     match menu.popup.paint.shadow {
         Some(shadow) => classes.shadow(shadow),
@@ -693,8 +693,8 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
     let menu = b.style().menu();
     let hover = menu.item.paint.states.hover;
-    tw().px(menu.item_padding.x / 4.0)
-        .py(menu.item_padding.y / 4.0)
+    tw().px_px(menu.item_padding.x)
+        .py_px(menu.item_padding.y)
         .rounded_px(f32::from(menu.item_radius))
         .sense_click()
         .hover(move |p| p.bg(hover.fill).text(hover.text))

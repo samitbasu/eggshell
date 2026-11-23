@@ -107,8 +107,8 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
             t.rounded_px(radius)
                 .h_px(metrics.height)
                 .items_center()
-                .gap(metrics.icon_gap / 4.0)
-                .px(metrics.padding.x / 4.0)
+                .gap_px(metrics.icon_gap)
+                .px_px(metrics.padding.x)
         });
     }
     let shadowed = move |classes: Tw| match shadow {
@@ -195,7 +195,7 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
             t.h_px(m.height).rounded_px(radius)
         });
         sheet.rule_when(InputGroupPart::Input, when, move |t, _| {
-            let t = t.px(m.padding.x / 4.0);
+            let t = t.px_px(m.padding.x);
             match m.text {
                 Some(text) => t.text_size(text.size, text.line_height),
                 None => t,
@@ -204,10 +204,10 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
         sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
             t.children(Match::glyph(), |g| g.size_px(m.icon_size))
         });
-        let (edge, gap) = (m.padding.x / 4.0, m.icon_gap / 4.0);
+        let (edge, gap) = (m.padding.x, m.icon_gap);
         for (side, pad) in [
-            (INLINE_START, Tw::pl as fn(Tw, f32) -> Tw),
-            (INLINE_END, Tw::pr),
+            (INLINE_START, Tw::pl_px as fn(Tw, f32) -> Tw),
+            (INLINE_END, Tw::pr_px),
         ] {
             sheet.rule_when(
                 InputGroupPart::Addon,

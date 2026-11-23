@@ -238,31 +238,29 @@ impl Shadcn {
             glyph: t.icon_size,
             text: None,
         };
-        let xs_text = Some(TextSize {
-            size: 12.0,
-            line_height: 16.0,
-        });
+        let xs_text = Some(t.text.xs);
+        let u = |units: f32| t.spacing.points(units);
         let small = |m: Metrics| Metrics {
-            height: m.height - 4.0,
+            height: m.height - u(1.0),
             min_width: if m.min_width == 0.0 {
                 0.0
             } else {
-                m.height - 4.0
+                m.height - u(1.0)
             },
-            padding_x: (m.padding_x - 4.0).max(0.0),
-            gap: m.gap.min(6.0),
+            padding_x: (m.padding_x - u(1.0)).max(0.0),
+            gap: m.gap.min(u(1.5)),
             ..m
         };
         let tiny = |m: Metrics| Metrics {
-            height: m.height - 12.0,
+            height: m.height - u(3.0),
             min_width: if m.min_width == 0.0 {
                 0.0
             } else {
-                m.height - 12.0
+                m.height - u(3.0)
             },
-            padding_x: (m.padding_x - 8.0).max(0.0),
-            gap: m.gap.min(4.0),
-            glyph: 12.0,
+            padding_x: (m.padding_x - u(2.0)).max(0.0),
+            gap: m.gap.min(u(1.0)),
+            glyph: u(3.0),
             text: xs_text,
             ..m
         };
@@ -406,8 +404,8 @@ impl Shadcn {
                 text,
             };
             checkbox.sizes = Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
-                .with(size::SM, box_at(14.0, 12.0, 6.0, None))
-                .with(size::XS, box_at(12.0, 10.0, 6.0, xs_text));
+                .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
+                .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text));
             checkbox.border_width = 1.0;
             checkbox.off = boxed(box_rest);
             checkbox.on = boxed(box_on);
@@ -425,8 +423,8 @@ impl Shadcn {
                 text,
             };
             radio.sizes = Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
-                .with(size::SM, circle(14.0, 7.0, 6.0, None))
-                .with(size::XS, circle(12.0, 6.0, 6.0, xs_text));
+                .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
+                .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text));
             radio.border_width = 1.0;
             radio.off = boxed(radio_colors);
             radio.on = boxed(radio_colors);
@@ -465,7 +463,7 @@ impl Shadcn {
             // own fill (#443).
             segmented.track_fill = t.input;
             let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
-                track_radius: t.radius,
+                track_radius: t.radius_lg(),
                 track_padding: t.list_padding,
                 height,
                 cell_radius: t.radius_md(),
@@ -487,14 +485,19 @@ impl Shadcn {
             )
             .with(
                 size::SM,
-                track_at(t.control_height - 4.0, t.cell_padding.x, t.icon_size, None),
+                track_at(
+                    t.control_height - u(1.0),
+                    t.cell_padding.x,
+                    t.icon_size,
+                    None,
+                ),
             )
             .with(
                 size::XS,
                 track_at(
-                    t.control_height - 12.0,
-                    (t.cell_padding.x - 4.0).max(0.0),
-                    12.0,
+                    t.control_height - u(3.0),
+                    (t.cell_padding.x - u(1.0)).max(0.0),
+                    u(3.0),
                     xs_text,
                 ),
             );
@@ -535,11 +538,21 @@ impl Shadcn {
             )
             .with(
                 size::SM,
-                slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0, None, 6.0),
+                slider_at(
+                    t.slider_track.min(u(1.0)),
+                    t.slider_thumb - u(0.5),
+                    None,
+                    u(1.5),
+                ),
             )
             .with(
                 size::XS,
-                slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0, xs_text, 4.0),
+                slider_at(
+                    t.slider_track.min(u(0.75)),
+                    t.slider_thumb - u(1.0),
+                    xs_text,
+                    u(1.0),
+                ),
             );
             slider.label = States::still(flat(clear, t.foreground), t.background);
             slider.readout = States::still(flat(clear, t.muted_foreground), t.background);
@@ -709,18 +722,18 @@ impl Shadcn {
                         text,
                     }
                 };
-            let own = t.own_input_padding_x;
+            let own = u(t.own_input_padding_x);
             stepper.sizes = Keyed::new(
                 Size::DEFAULT,
-                group_at(t.control_height, (t.input_padding.x, 24.0, 12.0), None),
+                group_at(t.control_height, (t.input_padding.x, u(6.0), u(3.0)), None),
             )
             .with(
                 size::SM,
-                group_at(t.control_height - 4.0, (own, 20.0, 12.0), None),
+                group_at(t.control_height - u(1.0), (own, u(5.0), u(3.0)), None),
             )
             .with(
                 size::XS,
-                group_at(t.control_height - 12.0, (own, 16.0, 10.0), xs_text),
+                group_at(t.control_height - u(3.0), (own, u(4.0), u(2.5)), xs_text),
             );
             stepper.button = ghost_button;
             stepper.divider = t.input;
@@ -748,22 +761,22 @@ impl Shadcn {
             .with(
                 size::SM,
                 field_at(
-                    t.control_height - 4.0,
-                    vec2(t.own_input_padding_x, t.input_padding.y),
+                    t.control_height - u(1.0),
+                    vec2(u(t.own_input_padding_x), t.input_padding.y),
                     None,
-                    (14.0, 6.0),
+                    (u(3.5), u(1.5)),
                 ),
             )
             .with(
                 size::XS,
                 field_at(
-                    t.control_height - 12.0,
+                    t.control_height - u(3.0),
                     vec2(
-                        (t.own_input_padding_x - 4.0).max(0.0),
-                        t.input_padding.y.min(2.0),
+                        u((t.own_input_padding_x - 1.0).max(0.0)),
+                        t.input_padding.y.min(u(0.5)),
                     ),
                     xs_text,
-                    (12.0, 6.0),
+                    (u(3.0), u(1.5)),
                 ),
             );
             // input.tsx: `placeholder:text-muted-foreground`.
@@ -908,10 +921,12 @@ impl Shadcn {
         core.border = t.border;
         core.input = t.input;
         core.ring = t.ring;
+        core.spacing = t.spacing;
         core.radius = t.radius;
+        core.text = t.text;
         core.control_height = t.control_height;
         core.button_padding = t.button_padding;
-        core.text_size = t.text_size;
+        core.text_size = t.control_text_size().size;
         core.switch_thumb = t.switch_thumb;
         core.shadow_xs = t.shadow_xs;
         core.shadow_sm = t.shadow_sm;
@@ -986,7 +1001,7 @@ impl Shadcn {
         notify.text = t.popover_foreground;
         notify.border_width = 1.0;
         notify.radius = match t.style {
-            ShadcnStyle::Vega => (f32::from(t.radius) * 1.8).round() as u8,
+            ShadcnStyle::Vega => contract::corner(t.radius.lg() * 1.8),
             ShadcnStyle::Lyra => 0,
         };
         notify.shadow = Some(Shadow {
@@ -1244,7 +1259,11 @@ impl Shadcn {
         form.fill = t.card;
         form.border = t.border;
         form.border_width = 1.0;
-        form.radius = if vega { t.radius.saturating_add(4) } else { 0 };
+        form.radius = if vega {
+            contract::corner(t.radius.xl())
+        } else {
+            0
+        };
         form.padding_y = 8.0;
         form.row_padding_x = 16.0;
         form.row_padding_y = 8.0;
@@ -1271,7 +1290,7 @@ impl Shadcn {
     #[cfg(feature = "extras")]
     pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
         let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
-        card.radius = self.tokens.radius;
+        card.radius = self.tokens.radius_lg();
         card.transition = Duration::from_millis(100);
         card
     }
@@ -1292,7 +1311,7 @@ impl Shadcn {
         let t = &self.tokens;
         let mut dialog = DialogStyle::from_style(style);
         dialog.surface = Surface::new(t.background, t.foreground, t.border)
-            .rounded(t.radius)
+            .rounded(t.radius_lg())
             .shadow(shadow_lg());
         dialog.description_color = t.muted_foreground;
         dialog.cancel = variant::OUTLINE;
@@ -1315,7 +1334,7 @@ impl Shadcn {
             muted: t.muted_foreground,
             rule: t.border,
             code_fill: t.muted,
-            radius: f32::from(t.radius),
+            radius: t.radius.lg(),
         }
     }
 }

@@ -25,13 +25,13 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 146, "focus-visible:ring-ring/50 focus-visible:ring-3")
             .focus(|p| p.ring(3.0, k.ring.gamma_multiply(0.5)))
             .from(VEGA, 146, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 146, "border")
             .border(1.0)
             .from(VEGA, 146, "border-transparent")
             .border_color(Color32::TRANSPARENT)
             .from(VEGA, 146, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 146, "font-medium")
             .font_medium()
             .from(VEGA, 146, "[&_svg:not([class*='size-'])]:size-4")
@@ -183,18 +183,18 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 182, "has-data-[icon=inline-start]:pl-2")
             .has(Match::any().attr("icon", "inline-start"), |b| b.pl(2.0))
     });
-    s.rule_when(Root, When::always().size(Size("xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("xs")), |t, k| {
         t
             .from(VEGA, 174, "h-6")
             .h(6.0)
             .from(VEGA, 174, "gap-1")
             .gap(1.0)
             .from(VEGA, 174, "rounded-[min(var(--radius-md),8px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(8.0))
             .from(VEGA, 174, "px-2")
             .px(2.0)
             .from(VEGA, 174, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(VEGA, 174, "has-data-[icon=inline-end]:pr-1.5")
             .has(Match::any().attr("icon", "inline-end"), |b| b.pr(1.5))
             .from(VEGA, 174, "has-data-[icon=inline-start]:pl-1.5")
@@ -202,14 +202,14 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 174, "[&_svg:not([class*='size-'])]:size-3")
             .descendants(Match::glyph(), |t| t.size(3.0))
     });
-    s.rule_when(Root, When::always().size(Size("sm")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("sm")), |t, k| {
         t
             .from(VEGA, 178, "h-8")
             .h(8.0)
             .from(VEGA, 178, "gap-1")
             .gap(1.0)
             .from(VEGA, 178, "rounded-[min(var(--radius-md),10px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(10.0))
             .from(VEGA, 178, "px-2.5")
             .px(2.5)
             .from(VEGA, 178, "has-data-[icon=inline-end]:pr-1.5")
@@ -235,21 +235,21 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 198, "size-9")
             .size(9.0)
     });
-    s.rule_when(Root, When::always().size(Size("icon-xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("icon-xs")), |t, k| {
         t
             .from(VEGA, 190, "size-6")
             .size(6.0)
             .from(VEGA, 190, "rounded-[min(var(--radius-md),8px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(8.0))
             .from(VEGA, 190, "[&_svg:not([class*='size-'])]:size-3")
             .descendants(Match::glyph(), |t| t.size(3.0))
     });
-    s.rule_when(Root, When::always().size(Size("icon-sm")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("icon-sm")), |t, k| {
         t
             .from(VEGA, 194, "size-8")
             .size(8.0)
             .from(VEGA, 194, "rounded-[min(var(--radius-md),10px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(10.0))
     });
     s.rule_when(Root, When::always().size(Size("icon-lg")), |t, _| {
         t
@@ -277,13 +277,13 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 146, "focus-visible:ring-ring/50 focus-visible:ring-3")
             .focus(|p| p.ring(3.0, k.ring.gamma_multiply(0.5)))
             .from(VEGA, 146, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
             .from(VEGA, 146, "border")
             .border(1.0)
             .from(VEGA, 146, "border-transparent")
             .border_color(Color32::TRANSPARENT)
             .from(VEGA, 146, "text-sm")
-            .text_size(14.0, 20.0)
+            .text_step(k.text.sm)
             .from(VEGA, 146, "font-medium")
             .font_medium()
             .from(VEGA, 146, "[&_svg:not([class*='size-'])]:size-4")
@@ -449,18 +449,18 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 182, "has-data-[icon=inline-start]:pl-2")
             .has(Match::any().attr("icon", "inline-start"), |b| b.pl(2.0))
     });
-    s.rule_when(Root, When::always().size(Size("xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("xs")), |t, k| {
         t
             .from(VEGA, 174, "h-6")
             .h(6.0)
             .from(VEGA, 174, "gap-1")
             .gap(1.0)
             .from(VEGA, 174, "rounded-[min(var(--radius-md),8px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(8.0))
             .from(VEGA, 174, "px-2")
             .px(2.0)
             .from(VEGA, 174, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(VEGA, 174, "has-data-[icon=inline-end]:pr-1.5")
             .has(Match::any().attr("icon", "inline-end"), |b| b.pr(1.5))
             .from(VEGA, 174, "has-data-[icon=inline-start]:pl-1.5")
@@ -468,14 +468,14 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 174, "[&_svg:not([class*='size-'])]:size-3")
             .descendants(Match::glyph(), |t| t.size(3.0))
     });
-    s.rule_when(Root, When::always().size(Size("sm")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("sm")), |t, k| {
         t
             .from(VEGA, 178, "h-8")
             .h(8.0)
             .from(VEGA, 178, "gap-1")
             .gap(1.0)
             .from(VEGA, 178, "rounded-[min(var(--radius-md),10px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(10.0))
             .from(VEGA, 178, "px-2.5")
             .px(2.5)
             .from(VEGA, 178, "has-data-[icon=inline-end]:pr-1.5")
@@ -501,21 +501,21 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 198, "size-9")
             .size(9.0)
     });
-    s.rule_when(Root, When::always().size(Size("icon-xs")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("icon-xs")), |t, k| {
         t
             .from(VEGA, 190, "size-6")
             .size(6.0)
             .from(VEGA, 190, "rounded-[min(var(--radius-md),8px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(8.0))
             .from(VEGA, 190, "[&_svg:not([class*='size-'])]:size-3")
             .descendants(Match::glyph(), |t| t.size(3.0))
     });
-    s.rule_when(Root, When::always().size(Size("icon-sm")), |t, _| {
+    s.rule_when(Root, When::always().size(Size("icon-sm")), |t, k| {
         t
             .from(VEGA, 194, "size-8")
             .size(8.0)
             .from(VEGA, 194, "rounded-[min(var(--radius-md),10px)]")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md().min(10.0))
     });
     s.rule_when(Root, When::always().size(Size("icon-lg")), |t, _| {
         t

@@ -19,7 +19,7 @@ impl Look {
     pub(super) fn stack(&self) -> Tw {
         tw().flex()
             .flex_col()
-            .gap(self.style.stack_gap / 4.0)
+            .gap_px(self.style.stack_gap)
             .sense_hover()
     }
 
@@ -29,9 +29,9 @@ impl Look {
             .relative()
             .flex()
             .items_center()
-            .gap(style.gap / 4.0)
+            .gap_px(style.gap)
             .w_px(style.width)
-            .p(style.padding / 4.0)
+            .p_px(style.padding)
             .border(style.border_width)
             .border_color(style.border)
             .bg(style.fill)
@@ -51,7 +51,7 @@ impl Look {
             .items_center()
             .shrink_0()
             .h_px(action.height)
-            .px(action.padding_x / 4.0)
+            .px_px(action.padding_x)
             .rounded_px(f32::from(action.radius))
             .bg(action.fill)
             .text(action.text)

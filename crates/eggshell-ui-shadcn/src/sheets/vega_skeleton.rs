@@ -14,7 +14,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 1224, "bg-muted")
             .bg(k.muted)
             .from(VEGA, 1224, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
     });
     // unmapped: registry/bases/radix/ui/skeleton.tsx:7  animate-pulse (no `Tw` method for `animate-pulse`)
 }
@@ -27,7 +27,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(VEGA, 1224, "bg-muted")
             .bg(k.muted)
             .from(VEGA, 1224, "rounded-md")
-            .rounded_px(8.0)
+            .rounded_px(k.radius.md())
     });
     // unmapped: registry/bases/radix/ui/skeleton.tsx:7  animate-pulse (no `Tw` method for `animate-pulse`)
 }

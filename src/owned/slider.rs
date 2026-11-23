@@ -477,10 +477,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let boxed = caller.map(|caller| {
             enablement
                 .fade(
-                    tw().flex()
-                        .flex_col()
-                        .gap(metrics.header_gap / 4.0)
-                        .w_full(),
+                    tw().flex().flex_col().gap_px(metrics.header_gap).w_full(),
                     &style,
                 )
                 .merge(caller)

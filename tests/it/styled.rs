@@ -199,7 +199,7 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
                 style
                     .sheet
                     .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
-                        t.px(TIP_PADDING.x / 4.0).py(TIP_PADDING.y / 4.0)
+                        t.px_px(TIP_PADDING.x).py_px(TIP_PADDING.y)
                     });
             },
             |b| {

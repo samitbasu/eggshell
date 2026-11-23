@@ -268,7 +268,12 @@ fn a_trailing_icon_sits_inside_the_box_after_the_field() {
         &style.tokens,
     );
     assert_eq!(
-        beside.style().padding.right.into_raw().value(),
+        beside
+            .style_at(style.tokens.spacing)
+            .padding
+            .right
+            .into_raw()
+            .value(),
         gap,
         "the field's own padding beside it, pr-1.5"
     );

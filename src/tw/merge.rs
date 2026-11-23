@@ -98,6 +98,19 @@ impl Touched {
     fn mark(&mut self, property: Property) {
         self.0 |= 1 << property as u32;
     }
+
+    fn clear(&mut self, property: Property) {
+        self.0 &= !(1 << property as u32);
+    }
+}
+
+/// How a class gives the lengths it writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Given {
+    /// In points, a fraction, or a keyword.
+    Points,
+    /// In spacing units, which become points with the theme's spacing.
+    Units,
 }
 
 /// Declares the layout properties: the bit each has in [`Touched`], the
@@ -184,6 +197,10 @@ macro_rules! layout_properties {
                 pub(super) fn $name(&mut self) -> &mut $ty {
                     self.touched.mark(Property::$name);
                     self.ch.supersede(Property::$name);
+                    match self.given {
+                        Given::Points => self.spaced.clear(Property::$name),
+                        Given::Units => self.spaced.mark(Property::$name),
+                    }
                     &mut self.style.$($field).+
                 }
             )+
@@ -198,7 +215,13 @@ macro_rules! layout_properties {
                 $(
                     let mut style = Style::default();
                     let mut touched = Touched::default();
-                    Layout { style: &mut style, ch: &mut TextWidths::default(), touched: &mut touched }.$name();
+                    Layout {
+                        style: &mut style,
+                        ch: &mut TextWidths::default(),
+                        touched: &mut touched,
+                        spaced: &mut Touched::default(),
+                        given: Given::Points,
+                    }.$name();
                     assert_eq!(
                         touched.0,
                         1 << Property::$name as u32,
@@ -268,12 +291,74 @@ layout_properties! {
     grid_column: grid_column => Line<GridPlacement<String>>,
 }
 
+/// A length a class may give in spacing units.
+trait Spaceable: Copy {
+    fn scaled(self, points_per_unit: f32) -> Self;
+}
+
+macro_rules! spaceable_types {
+    ($($ty:ty),+) => {$(
+        impl Spaceable for $ty {
+            fn scaled(self, points_per_unit: f32) -> Self {
+                let raw = self.into_raw();
+                match raw.tag() == taffy::CompactLength::LENGTH_TAG {
+                    true => <$ty>::length(raw.value() * points_per_unit),
+                    false => self,
+                }
+            }
+        }
+    )+};
+}
+
+spaceable_types!(Dimension, LengthPercentage, LengthPercentageAuto);
+
+/// The properties a class may give in spacing units: each takes a length.
+macro_rules! spaceable_properties {
+    ($($name:ident: $($field:ident).+),+ $(,)?) => {
+        /// `style` with the lengths `spaced` marks turned from spacing units
+        /// into points.
+        pub(super) fn in_points(style: &mut Style, spaced: Touched, points_per_unit: f32) {
+            $(
+                if spaced.has(Property::$name) {
+                    style.$($field).+ = style.$($field).+.scaled(points_per_unit);
+                }
+            )+
+        }
+    };
+}
+
+spaceable_properties! {
+    inset_left: inset.left,
+    inset_right: inset.right,
+    inset_top: inset.top,
+    inset_bottom: inset.bottom,
+    width: size.width,
+    height: size.height,
+    min_width: min_size.width,
+    min_height: min_size.height,
+    max_width: max_size.width,
+    max_height: max_size.height,
+    margin_left: margin.left,
+    margin_right: margin.right,
+    margin_top: margin.top,
+    margin_bottom: margin.bottom,
+    padding_left: padding.left,
+    padding_right: padding.right,
+    padding_top: padding.top,
+    padding_bottom: padding.bottom,
+    gap_width: gap.width,
+    gap_height: gap.height,
+    flex_basis: flex_basis,
+}
+
 /// The layout a class writes. Every property it writes is reached through
 /// the accessor named for it, which records the write for [`Tw::merge`].
 pub(super) struct Layout<'a> {
     style: &'a mut Style,
     pub(super) ch: &'a mut TextWidths,
     touched: &'a mut Touched,
+    spaced: &'a mut Touched,
+    given: Given,
 }
 
 impl TextWidths {
@@ -371,7 +456,10 @@ impl Tw {
     /// The value the classes have for `property`, written out.
     pub(super) fn value_of(&self, property: Property) -> String {
         if let Some(value) = property.layout_value(&self.style) {
-            return value;
+            return match self.spaced.has(property) {
+                true => value.replace("px", " units"),
+                false => value,
+            };
         }
         let paint = &self.paint;
         let text = &self.text;
@@ -424,13 +512,15 @@ impl Tw {
 impl Tw {
     /// Writes layout with `set`, which records each property it writes.
     #[cfg_attr(debug_assertions, track_caller)]
-    pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
-        let (style, ch) = (self.style.clone(), self.ch.clone());
+    pub(super) fn write_layout(&mut self, given: Given, set: impl FnOnce(&mut Layout<'_>)) {
+        let (style, ch, spaced) = (self.style.clone(), self.ch.clone(), self.spaced);
         let mut written = Touched::default();
         set(&mut Layout {
             style: &mut self.style,
             ch: &mut self.ch,
             touched: &mut written,
+            spaced: &mut self.spaced,
+            given,
         });
         if super::layout::is_finite(&self.style, &self.ch) {
             self.touched = self.touched | written;
@@ -442,7 +532,7 @@ impl Tw {
                     .filter(|&p| written.has(p)),
             );
         } else {
-            (self.style, self.ch) = (style, ch);
+            (self.style, self.ch, self.spaced) = (style, ch, spaced);
             self.lengths = super::Lengths::Rejected;
         }
     }
@@ -554,6 +644,7 @@ impl Tw {
         };
         self.grouping = self.grouping.merge(other.grouping);
         self.variants = self.variants.merge(other.variants);
+        self.spaced = Touched(self.spaced.0 & !other.touched.0 | other.spaced.0);
         self.touched = self.touched | other.touched;
         self.lengths = self.lengths.or(other.lengths);
         #[cfg(debug_assertions)]
@@ -754,5 +845,91 @@ mod tests {
         assert_eq!(merged.text.color, Some(Color32::BLUE));
         assert!(merged.text.font_style.is_some());
         assert!(merged.text.align.is_some());
+    }
+}
+
+#[cfg(test)]
+mod spacing {
+    use crate::contract::Spacing;
+    use crate::tw;
+    use taffy::style::{CompactLength, Dimension, LengthPercentage};
+
+    fn left_padding(classes: &super::Tw, points_per_unit: f32) -> f32 {
+        classes
+            .style_at(Spacing::new(points_per_unit))
+            .padding
+            .left
+            .into_raw()
+            .value()
+    }
+
+    #[test]
+    fn a_class_in_units_holds_the_units_until_resolved() {
+        let classes = tw().p(4.0);
+        assert_eq!(classes.style().padding.left, LengthPercentage::length(4.0));
+        assert_eq!(left_padding(&classes, 3.5), 14.0);
+        assert_eq!(left_padding(&classes, 4.0), 16.0);
+    }
+
+    #[test]
+    fn a_class_in_points_never_scales() {
+        assert_eq!(left_padding(&tw().p_px(4.0), 3.5), 4.0);
+        assert_eq!(left_padding(&tw().w_full().p_px(4.0), 3.5), 4.0);
+    }
+
+    #[test]
+    fn the_later_class_decides_whether_a_property_scales() {
+        assert_eq!(left_padding(&tw().p(4.0).p_px(3.0), 3.5), 3.0);
+        assert_eq!(left_padding(&tw().p_px(3.0).p(4.0), 3.5), 14.0);
+        assert_eq!(left_padding(&tw().p(4.0).merge(tw().p_px(3.0)), 3.5), 3.0);
+        assert_eq!(left_padding(&tw().p_px(3.0).merge(tw().p(4.0)), 3.5), 14.0);
+        assert_eq!(
+            left_padding(&tw().p(4.0).merge(tw().pt(1.0)), 3.5),
+            14.0,
+            "a merge that leaves a side alone keeps its units"
+        );
+        assert_eq!(
+            left_padding(&tw().p(4.0).merge(tw().gap_px(1.0)), 3.5),
+            14.0
+        );
+    }
+
+    #[test]
+    fn a_fraction_or_keyword_over_units_does_not_scale() {
+        let width = |classes: super::Tw| classes.style_at(Spacing::new(3.5)).size.width;
+        assert_eq!(width(tw().w(4.0).w_full()), Dimension::percent(1.0));
+        assert_eq!(width(tw().w(4.0).w_auto()), Dimension::auto());
+        assert_eq!(width(tw().w_full().w(4.0)), Dimension::length(14.0));
+    }
+
+    #[test]
+    fn a_rejected_class_keeps_the_units_it_replaced() {
+        let classes = tw().p(4.0).p_px(f32::NAN);
+        assert_eq!(left_padding(&classes, 3.5), 14.0);
+    }
+
+    #[test]
+    fn every_spacing_method_scales_what_it_writes() {
+        let style = tw()
+            .m(1.0)
+            .gap(2.0)
+            .inset(3.0)
+            .min_w(4.0)
+            .max_h(5.0)
+            .basis(6.0)
+            .style_at(Spacing::new(0.5));
+        let raw = |length: CompactLength| length.value();
+        assert_eq!(raw(style.margin.top.into_raw()), 0.5);
+        assert_eq!(raw(style.gap.width.into_raw()), 1.0);
+        assert_eq!(raw(style.inset.bottom.into_raw()), 1.5);
+        assert_eq!(raw(style.min_size.width.into_raw()), 2.0);
+        assert_eq!(raw(style.max_size.height.into_raw()), 2.5);
+        assert_eq!(raw(style.flex_basis.into_raw()), 3.0);
+    }
+
+    #[test]
+    fn scroll_padding_is_in_units() {
+        let padding = tw().scroll_py(2.0).scroll_padding_points(Spacing::new(3.5));
+        assert_eq!((padding.top, padding.bottom, padding.left), (7.0, 7.0, 0.0));
     }
 }

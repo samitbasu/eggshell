@@ -28,4 +28,8 @@ impl BoxTw {
     pub(super) fn styled(self, set: impl FnOnce(&mut super::Layout<'_>)) -> Self {
         Self(self.0.styled(set))
     }
+
+    pub(super) fn spaced(self, set: impl FnOnce(&mut super::Layout<'_>)) -> Self {
+        Self(self.0.spaced(set))
+    }
 }

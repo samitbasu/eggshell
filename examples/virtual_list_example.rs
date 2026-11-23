@@ -55,7 +55,7 @@ fn item(s: &mut Scope<'_, '_, State>, item: Item) {
     s.div(
         tw().mb(1.0)
             .px(4.0)
-            .py((8.0 + extra(item) / 2.0) / 4.0)
+            .py_px(8.0 + extra(item) / 2.0)
             .rounded_md()
             .border(1.0)
             .border_color(t.border)

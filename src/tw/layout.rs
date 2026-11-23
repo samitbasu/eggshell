@@ -8,7 +8,7 @@ use taffy::style::{
 };
 use taffy::style_helpers::{FromLength, FromPercent, TaffyAuto, TaffyZero as _};
 
-use super::{BoxTw, MinWidth, Reserve, SPACE_UNIT, TextWidths, Tw};
+use super::{BoxTw, MinWidth, Reserve, TextWidths, Tw};
 
 /// How far an inexact fraction is taken short: a millionth, under a
 /// thousandth of a point across any realistic container.
@@ -17,16 +17,13 @@ const FRACTION_MARGIN: f64 = 1e-6;
 /// A length as written in a class: `p-4`, `w-px`, `w-1/2`, `w-auto`.
 #[derive(Clone, Copy)]
 enum Len {
-    Points(f32),
+    /// Points, or spacing units when the class writes through [`Tw::spaced`].
+    Length(f32),
     Fraction(f32),
     Auto,
 }
 
 impl Len {
-    fn space(units: f32) -> Self {
-        Self::Points(units * SPACE_UNIT)
-    }
-
     /// A fraction that `f32` can't hold exactly (`1/3`) is taken a hair
     /// short, as a browser's fixed-point layout units round it, so that `n`
     /// items of `w-1/n` never add up to more than their container and wrap.
@@ -42,7 +39,7 @@ impl Len {
 
     fn to<T: FromLength + FromPercent + TaffyAuto>(self) -> T {
         match self {
-            Self::Points(points) => T::from_length(points),
+            Self::Length(length) => T::from_length(length),
             Self::Fraction(fraction) => T::from_percent(fraction),
             Self::Auto => T::AUTO,
         }
@@ -85,16 +82,23 @@ pub(super) fn is_finite(style: &Style, ch: &TextWidths) -> bool {
 }
 
 fn space(units: f32) -> LengthPercentage {
-    LengthPercentage::length(units * SPACE_UNIT)
+    LengthPercentage::length(units)
 }
 
-/// Methods taking spacing units; `$v` is the length in points.
+/// Methods taking spacing units, each with a `_px` twin taking points; `$v`
+/// is the length as given.
 macro_rules! spacing {
-    ($($name:ident, $doc:literal, |$s:ident, $v:ident| $set:expr;)*) => {$(
+    ($($name:ident, $px:ident, $doc:literal, |$s:ident, $v:ident| $set:expr;)*) => {$(
         #[doc = $doc]
         #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self, units: f32) -> Self {
-            self.styled(|$s| { let $v = units * SPACE_UNIT; $set })
+            self.spaced(|$s| { let $v = units; $set })
+        }
+
+        #[doc = concat!("[`", stringify!($name), "`](Self::", stringify!($name), ") in points.")]
+        #[cfg_attr(debug_assertions, track_caller)]
+        pub fn $px(self, points: f32) -> Self {
+            self.styled(|$s| { let $v = points; $set })
         }
     )*};
 }
@@ -116,13 +120,13 @@ macro_rules! lengths {
         #[doc = concat!("Sets ", $what, " in spacing units.")]
         #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self, units: f32) -> Self {
-            self.styled(|$s| { let $l = Len::space(units); $set })
+            self.spaced(|$s| { let $l = Len::Length(units); $set })
         }
 
         #[doc = concat!("Sets ", $what, " in points.")]
         #[cfg_attr(debug_assertions, track_caller)]
         pub fn $px(self, points: f32) -> Self {
-            self.styled(|$s| { let $l = Len::Points(points); $set })
+            self.styled(|$s| { let $l = Len::Length(points); $set })
         }
 
         #[doc = concat!("Sets ", $what, " to the fraction `numerator / denominator` of the parent.")]
@@ -314,22 +318,43 @@ macro_rules! layout_methods {
             /// `gap-<units>`: spacing between children on both axes.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap(self, units: f32) -> Self {
-                self.styled(|s| {
+                self.spaced(|s| {
                     *s.gap_width() = space(units);
                     *s.gap_height() = space(units);
                 })
             }
 
+            /// [`gap`](Self::gap) in points.
+            #[cfg_attr(debug_assertions, track_caller)]
+            pub fn gap_px(self, points: f32) -> Self {
+                self.styled(|s| {
+                    *s.gap_width() = LengthPercentage::length(points);
+                    *s.gap_height() = LengthPercentage::length(points);
+                })
+            }
+
+            /// [`gap_x`](Self::gap_x) in points.
+            #[cfg_attr(debug_assertions, track_caller)]
+            pub fn gap_x_px(self, points: f32) -> Self {
+                self.styled(|s| *s.gap_width() = LengthPercentage::length(points))
+            }
+
+            /// [`gap_y`](Self::gap_y) in points.
+            #[cfg_attr(debug_assertions, track_caller)]
+            pub fn gap_y_px(self, points: f32) -> Self {
+                self.styled(|s| *s.gap_height() = LengthPercentage::length(points))
+            }
+
             /// `gap-x-<units>`: spacing between columns.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap_x(self, units: f32) -> Self {
-                self.styled(|s| *s.gap_width() = space(units))
+                self.spaced(|s| *s.gap_width() = space(units))
             }
 
             /// `gap-y-<units>`: spacing between rows.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap_y(self, units: f32) -> Self {
-                self.styled(|s| *s.gap_height() = space(units))
+                self.spaced(|s| *s.gap_height() = space(units))
             }
 
             /// `grow-<factor>`.
@@ -395,13 +420,13 @@ macro_rules! layout_methods {
             /// `basis-<units>`: flex basis in spacing units.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis(self, units: f32) -> Self {
-                self.styled(|s| *s.flex_basis() = Len::space(units).to())
+                self.spaced(|s| *s.flex_basis() = Len::Length(units).to())
             }
 
             /// `basis-px`: flex basis in points.
             #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis_px(self, points: f32) -> Self {
-                self.styled(|s| *s.flex_basis() = Len::Points(points).to())
+                self.styled(|s| *s.flex_basis() = Len::Length(points).to())
             }
 
             /// `basis-1/2`: flex basis as a fraction of the container.
@@ -423,33 +448,33 @@ macro_rules! layout_methods {
             }
 
             spacing! {
-                p, "`p-<units>`: padding on every side.", |s, v| s.set_padding(taffy::Rect::length(v));
-                px, "`px-<units>`: left and right padding.", |s, v| {
+                p, p_px, "`p-<units>`: padding on every side.", |s, v| s.set_padding(taffy::Rect::length(v));
+                px, px_px, "`px-<units>`: left and right padding.", |s, v| {
                     *s.padding_left() = LengthPercentage::length(v);
                     *s.padding_right() = LengthPercentage::length(v);
                 };
-                py, "`py-<units>`: top and bottom padding.", |s, v| {
+                py, py_px, "`py-<units>`: top and bottom padding.", |s, v| {
                     *s.padding_top() = LengthPercentage::length(v);
                     *s.padding_bottom() = LengthPercentage::length(v);
                 };
-                pt, "`pt-<units>`: top padding.", |s, v| *s.padding_top() = LengthPercentage::length(v);
-                pr, "`pr-<units>`: right padding.", |s, v| *s.padding_right() = LengthPercentage::length(v);
-                pb, "`pb-<units>`: bottom padding.", |s, v| *s.padding_bottom() = LengthPercentage::length(v);
-                pl, "`pl-<units>`: left padding.", |s, v| *s.padding_left() = LengthPercentage::length(v);
+                pt, pt_px, "`pt-<units>`: top padding.", |s, v| *s.padding_top() = LengthPercentage::length(v);
+                pr, pr_px, "`pr-<units>`: right padding.", |s, v| *s.padding_right() = LengthPercentage::length(v);
+                pb, pb_px, "`pb-<units>`: bottom padding.", |s, v| *s.padding_bottom() = LengthPercentage::length(v);
+                pl, pl_px, "`pl-<units>`: left padding.", |s, v| *s.padding_left() = LengthPercentage::length(v);
 
-                m, "`m-<units>`: margin on every side; negative values pull outward.", |s, v| s.set_margin(taffy::Rect::length(v));
-                mx, "`mx-<units>`: left and right margin.", |s, v| {
+                m, m_px, "`m-<units>`: margin on every side; negative values pull outward.", |s, v| s.set_margin(taffy::Rect::length(v));
+                mx, mx_px, "`mx-<units>`: left and right margin.", |s, v| {
                     *s.margin_left() = LengthPercentageAuto::length(v);
                     *s.margin_right() = LengthPercentageAuto::length(v);
                 };
-                my, "`my-<units>`: top and bottom margin.", |s, v| {
+                my, my_px, "`my-<units>`: top and bottom margin.", |s, v| {
                     *s.margin_top() = LengthPercentageAuto::length(v);
                     *s.margin_bottom() = LengthPercentageAuto::length(v);
                 };
-                mt, "`mt-<units>`: top margin.", |s, v| *s.margin_top() = LengthPercentageAuto::length(v);
-                mr, "`mr-<units>`: right margin.", |s, v| *s.margin_right() = LengthPercentageAuto::length(v);
-                mb, "`mb-<units>`: bottom margin.", |s, v| *s.margin_bottom() = LengthPercentageAuto::length(v);
-                ml, "`ml-<units>`: left margin.", |s, v| *s.margin_left() = LengthPercentageAuto::length(v);
+                mt, mt_px, "`mt-<units>`: top margin.", |s, v| *s.margin_top() = LengthPercentageAuto::length(v);
+                mr, mr_px, "`mr-<units>`: right margin.", |s, v| *s.margin_right() = LengthPercentageAuto::length(v);
+                mb, mb_px, "`mb-<units>`: bottom margin.", |s, v| *s.margin_bottom() = LengthPercentageAuto::length(v);
+                ml, ml_px, "`ml-<units>`: left margin.", |s, v| *s.margin_left() = LengthPercentageAuto::length(v);
             }
 
             auto_margins! {
@@ -495,12 +520,13 @@ pub(crate) mod tests {
     use crate::tw::tw;
     use taffy::{Rect, Size, Style};
 
-    /// Asserts that `tw` produces the base style with exactly `change` applied.
+    /// Asserts that `tw` produces the base style with exactly `change`
+    /// applied, its spacing units at Tailwind's 4 points.
     #[track_caller]
     pub(crate) fn expect(tw: Tw, change: impl FnOnce(&mut Style)) {
         let mut want = super::super::tw().style;
         change(&mut want);
-        assert_eq!(tw.style, want);
+        assert_eq!(tw.style_at(crate::contract::Spacing::DEFAULT), want);
     }
 
     fn px(points: f32) -> Dimension {

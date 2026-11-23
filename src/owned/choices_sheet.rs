@@ -317,7 +317,7 @@ pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
 fn write_card_rules(sheet: &mut Sheet) {
     let field = Match::slot(FieldPart::Root.slot());
     sheet.rule(FieldPart::Label, move |t, k| {
-        let radius = f32::from(k.radius.saturating_sub(2));
+        let radius = k.radius.md();
         let mut card = t
             .has_child(field, |b| {
                 b.flex()

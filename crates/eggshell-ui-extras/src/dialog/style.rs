@@ -120,7 +120,7 @@ impl DialogStyle {
         };
         Self {
             surface: Surface::new(k.background, k.foreground, k.border)
-                .rounded(k.radius)
+                .rounded(eggshell_ui::contract::corner(k.radius.lg()))
                 .shadow(shadow_lg()),
             popover: Surface {
                 fill: colors.fill,

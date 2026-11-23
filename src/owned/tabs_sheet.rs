@@ -150,16 +150,16 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
             t.flex()
                 .items_center()
                 .w_fit()
-                .px(metrics.track_padding / 4.0)
-                .py((metrics.track_padding + metrics.cell_trim / 2.0) / 4.0)
+                .px_px(metrics.track_padding)
+                .py_px(metrics.track_padding + metrics.cell_trim / 2.0)
                 .rounded_px(f32::from(metrics.track_radius))
                 .bg(fill)
         });
         sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
-            t.h_px(metrics.height).gap_x(metrics.column_gap / 4.0)
+            t.h_px(metrics.height).gap_x_px(metrics.column_gap)
         });
         sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
-            t.flex_wrap().h_auto().gap(metrics.row_gap / 4.0)
+            t.flex_wrap().h_auto().gap_px(metrics.row_gap)
         });
         for (chosen, paint, role) in [
             (true, segmented.selected, selected),
@@ -187,9 +187,9 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
                     centered(t.merge(look))
                         .grow()
                         .text_center()
-                        .px(metrics.cell_padding.x / 4.0)
-                        .py(metrics.cell_padding.y / 4.0)
-                        .gap(metrics.icon_gap / 4.0)
+                        .px_px(metrics.cell_padding.x)
+                        .py_px(metrics.cell_padding.y)
+                        .gap_px(metrics.icon_gap)
                         .role(role.clone())
                         .descendants(Match::glyph(), |g| g.size_px(metrics.icon_size).shrink_0())
                 });
@@ -215,13 +215,13 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
         let m = *segmented.sizes.get(size);
         let when = When::always().size(size);
         sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
-            t.py(m.cell_padding.y / 4.0)
+            t.py_px(m.cell_padding.y)
         });
         sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
-            t.py((m.track_padding + m.cell_trim / 2.0) / 4.0)
+            t.py_px(m.track_padding + m.cell_trim / 2.0)
         });
         sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
-            t.flex_wrap().h_auto().gap(m.row_gap / 4.0)
+            t.flex_wrap().h_auto().gap_px(m.row_gap)
         });
         if size == default {
             sheet.rule_when(TabsPart::List, when, |t, _| t);
@@ -232,7 +232,7 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
         });
         sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
             let t = t
-                .px(m.cell_padding.x / 4.0)
+                .px_px(m.cell_padding.x)
                 .descendants(Match::glyph(), |g| g.size_px(m.icon_size));
             match m.text {
                 Some(text) => t.text_size(text.size, text.line_height),

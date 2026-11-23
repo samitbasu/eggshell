@@ -180,7 +180,7 @@ fn each_token_lands_where_egui_reads_it() {
     ] {
         *colour = next();
     }
-    t.radius = 9;
+    t.radius = eggshell_ui::contract::Radius::new(9.0);
     t.control_height = 41.0;
     t.text_size = 17.0;
     let t = style.tokens;

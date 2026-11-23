@@ -278,7 +278,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         }
         // The group's look is the input group's; the dividers are the
         // stepper's own.
-        let look = tw().gap(1.0 / 4.0).divide_x(1.0, stepper.divider);
+        let look = tw().gap_px(1.0).divide_x(1.0, stepper.divider);
         let own = tw().items_stretch().w_px(112.0);
         let own = match enablement {
             Enablement::Enabled => own,
@@ -369,7 +369,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         SheetKey::Attr("align", "inline-end"),
                         SheetKey::Attr(STEPPER.0, STEPPER.1),
                     ],
-                    Defaults(tw().gap(1.0 / 4.0).divide_y(1.0, stepper.divider)),
+                    Defaults(tw().gap_px(1.0).divide_y(1.0, stepper.divider)),
                     tw().flex()
                         .flex_col()
                         .items_stretch()
@@ -422,18 +422,15 @@ pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &Steppe
     let chevrons = stepper.button.paint.states.rest.text;
     let marked = || When::always().attr(STEPPER.0, STEPPER.1);
     sheet.rule_when(InputGroupPart::Root, marked(), move |t, _| {
-        t.gap(1.0 / 4.0).divide_x(1.0, divider)
+        t.gap_px(1.0).divide_x(1.0, divider)
     });
     sheet.rule_when(InputGroupPart::Addon, marked(), move |t, _| {
-        t.p(0.0)
-            .gap(1.0 / 4.0)
-            .divide_y(1.0, divider)
-            .text(chevrons)
+        t.p(0.0).gap_px(1.0).divide_y(1.0, divider).text(chevrons)
     });
     for size in stepper.sizes.keys() {
-        let inset = stepper.sizes.get(size).padding_x / 4.0;
+        let inset = stepper.sizes.get(size).padding_x;
         sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, _| {
-            t.pl(inset)
+            t.pl_px(inset)
         });
     }
 }

@@ -116,7 +116,7 @@ impl HoverCardStyle {
         let colors = self.look.paint.states.rest;
         let classes = tw()
             .w_px(self.width)
-            .p(self.padding / 4.0)
+            .p_px(self.padding)
             .border(self.look.border_width)
             .border_color(colors.border)
             .bg(colors.fill)

@@ -138,7 +138,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 288, "pl-2")
             .pl(2.0)
             .from(LYRA, 288, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 288, "[&_svg:not([class*='size-'])]:size-4")
             .descendants(Match::glyph(), |t| t.size(4.0))
             .from(COMBOBOX, 162, "relative")
@@ -195,7 +195,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 284, "py-2")
             .py(2.0)
             .from(LYRA, 284, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Empty, |t, k| {
         t
@@ -212,7 +212,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 300, "text-center")
             .text_center()
             .from(LYRA, 300, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 300, "group-data-empty/combobox-content:flex")
             .flex()
     });
@@ -380,7 +380,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 288, "pl-2")
             .pl(2.0)
             .from(LYRA, 288, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 288, "[&_svg:not([class*='size-'])]:size-4")
             .descendants(Match::glyph(), |t| t.size(4.0))
             .from(COMBOBOX, 162, "relative")
@@ -437,7 +437,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 284, "py-2")
             .py(2.0)
             .from(LYRA, 284, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Empty, |t, k| {
         t
@@ -454,7 +454,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 300, "text-center")
             .text_center()
             .from(LYRA, 300, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 300, "group-data-empty/combobox-content:flex")
             .flex()
     });

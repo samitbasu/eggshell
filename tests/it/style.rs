@@ -137,7 +137,7 @@ fn every_token_can_be_overridden() {
     let ctx = context(Theme::Light);
     let mut preset = Shadcn::light();
     preset.tokens.primary = rgb(0x12, 0x34, 0x56);
-    preset.tokens.radius = 6;
+    preset.tokens.radius = eggshell_ui::contract::Radius::new(6.0);
     preset.tokens.control_height = 40.0;
     preset.apply(&ctx);
     let style = ctx.style_of(Theme::Light);
@@ -768,7 +768,10 @@ fn sections_set_at_the_current_layer_restyle_over_the_preset() {
             .sheet
             .resolve(TooltipPart::Content, &[], &style.tokens);
         let cell = style.sheet.resolve(TablePart::Cell, &[], &style.tokens);
-        (tip.style().padding.left, cell.style().padding.left)
+        (
+            tip.style_at(style.tokens.spacing).padding.left,
+            cell.style_at(style.tokens.spacing).padding.left,
+        )
     };
     let preset = Shadcn::for_theme(Theme::Light).style();
     let mut tooltip = preset.tooltip().clone();
@@ -776,8 +779,8 @@ fn sections_set_at_the_current_layer_restyle_over_the_preset() {
     let mut table = preset.table().clone();
     table.cell_padding = 36.0;
     let want = (
-        tw().px(10.0).style().padding.left,
-        tw().px(9.0).style().padding.left,
+        tw().px_px(40.0).style().padding.left,
+        tw().px_px(36.0).style().padding.left,
     );
     let mut plain = preset.clone();
     plain.set_tooltip(tooltip.clone());

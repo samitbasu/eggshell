@@ -103,8 +103,8 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
         sheet.rule_when(ButtonPart::Root, When::always().size(size), move |t, _| {
             t.h_px(m.height)
                 .min_w_px(m.min_width)
-                .px(m.padding_x / 4.0)
-                .gap(m.gap / 4.0)
+                .px_px(m.padding_x)
+                .gap_px(m.gap)
                 .rounded_px(f32::from(m.radius))
                 .descendants(Match::glyph(), |g| g.size_px(m.glyph).shrink_0())
         });
@@ -781,8 +781,8 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     .relative()
                     .h_px(metrics.height)
                     .min_w_px(metrics.min_width)
-                    .px(metrics.padding_x / 4.0)
-                    .gap(metrics.gap / 4.0)
+                    .px_px(metrics.padding_x)
+                    .gap_px(metrics.gap)
                     .role(style.role(&toggles.text).clone())
                     .whitespace_nowrap();
                 (

@@ -107,12 +107,12 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 345, "pb-0")
             .pb(0.0)
     });
-    s.replace(Input, |t, _| {
+    s.replace(Input, |t, k| {
         t
             .from(LYRA, 357, "w-full")
             .w_full()
             .from(LYRA, 357, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
         // registry/bases/radix/ui/command.tsx:78  outline-hidden: nothing to do
     });
     s.rule_when(Input, When::always().aria(Aria::Disabled), |t, _| {
@@ -152,16 +152,16 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
     });
-    s.replace(Empty, |t, _| {
+    s.replace(Empty, |t, k| {
         t
             .from(LYRA, 365, "py-6")
             .py(6.0)
             .from(LYRA, 365, "text-center")
             .text_center()
             .from(LYRA, 365, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Group, |t, k| {
         t
@@ -176,7 +176,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
     });
     s.replace(Separator, |t, k| {
         t
@@ -208,7 +208,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 377, "py-2")
             .py(2.0)
             .from(LYRA, 377, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
         // registry/styles/style-lyra.css:377  outline-hidden: nothing to do
             .from(LYRA, 377, "select-none")
             .select_none()
@@ -245,7 +245,7 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 385, "ml-auto")
             .ml_auto()
             .from(LYRA, 385, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 385, "tracking-widest")
             .tracking(Tracking::em(0.1))
     });
@@ -366,12 +366,12 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 345, "pb-0")
             .pb(0.0)
     });
-    s.replace(Input, |t, _| {
+    s.replace(Input, |t, k| {
         t
             .from(LYRA, 357, "w-full")
             .w_full()
             .from(LYRA, 357, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
         // registry/bases/radix/ui/command.tsx:78  outline-hidden: nothing to do
     });
     s.rule_when(Input, When::always().aria(Aria::Disabled), |t, _| {
@@ -411,16 +411,16 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
     });
-    s.replace(Empty, |t, _| {
+    s.replace(Empty, |t, k| {
         t
             .from(LYRA, 365, "py-6")
             .py(6.0)
             .from(LYRA, 365, "text-center")
             .text_center()
             .from(LYRA, 365, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
     });
     s.replace(Group, |t, k| {
         t
@@ -435,7 +435,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:py-1.5")
             .descendants(Match::any().with_slot("command-group-heading"), |t| t.py(1.5))
             .from(LYRA, 369, "**:[[cmdk-group-heading]]:text-xs")
-            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_size(12.0, 16.0))
+            .descendants(Match::any().with_slot("command-group-heading"), |t| t.text_step(k.text.xs))
     });
     s.replace(Separator, |t, k| {
         t
@@ -467,7 +467,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 377, "py-2")
             .py(2.0)
             .from(LYRA, 377, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
         // registry/styles/style-lyra.css:377  outline-hidden: nothing to do
             .from(LYRA, 377, "select-none")
             .select_none()
@@ -504,7 +504,7 @@ pub(crate) fn dark(s: &mut Sheet) {
             .from(LYRA, 385, "ml-auto")
             .ml_auto()
             .from(LYRA, 385, "text-xs")
-            .text_size(12.0, 16.0)
+            .text_step(k.text.xs)
             .from(LYRA, 385, "tracking-widest")
             .tracking(Tracking::em(0.1))
     });

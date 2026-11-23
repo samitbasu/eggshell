@@ -182,7 +182,10 @@ fn kaolin_direction_and_alignment() {
     };
 
     assert_eq!(
-        layouts::direction_and_alignment().style().gap.width,
+        layouts::direction_and_alignment()
+            .style_at(eggshell_ui::contract::Spacing::DEFAULT)
+            .gap
+            .width,
         taffy::LengthPercentage::length(10.0)
     );
 

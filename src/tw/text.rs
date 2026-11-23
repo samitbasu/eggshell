@@ -105,6 +105,12 @@ impl Tw {
         })
     }
 
+    /// TODO(prose): a step of the theme's text scale, its size and line height:
+    /// `text-sm` is `text_step(k.text.sm)`.
+    pub fn text_step(self, step: crate::contract::TextSize) -> Self {
+        self.text_size(step.size, step.line_height)
+    }
+
     /// `font-normal`, `font-medium`, `font-semibold` or `font-bold`.
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn font_weight(self, weight: Weight) -> Self {

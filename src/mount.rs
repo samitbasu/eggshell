@@ -112,11 +112,11 @@ where
             .min_h_0()
             .rounded_px(f32::from(look.radius));
         let frame = match caption {
-            None => frame.p(look.bare_padding / 4.0),
+            None => frame.p_px(look.bare_padding),
             Some(_) => frame
                 .border(look.border_width)
                 .border_color(look.border)
-                .p(look.padding / 4.0),
+                .p_px(look.padding),
         };
         let frame = match selected {
             Selected::Yes => frame.ring(style.tokens.focus.width, look.selected_ring),
@@ -131,7 +131,7 @@ where
         let outer = crate::tw()
             .flex()
             .flex_col()
-            .gap(look.gap / 4.0)
+            .gap_px(look.gap)
             .merge(classes);
         let node = b
             .div_id_with(&slot, outer, |s| {

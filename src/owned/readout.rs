@@ -149,7 +149,7 @@ impl Readout {
             .size(size)
             .classes(
                 tw().w_px(width)
-                    .mr(-outset / 4.0)
+                    .mr_px(-outset)
                     .px(0.0)
                     .shrink_0()
                     .tabular_nums(),

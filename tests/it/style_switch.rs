@@ -292,7 +292,10 @@ fn a_harness_switched_to_lyra_draws_lyra() {
     d.frames(4);
     let style = d.shell().style();
     assert_eq!(
-        default_button(&style).style().size.height,
+        default_button(&style)
+            .style_at(style.tokens.spacing)
+            .size
+            .height,
         taffy::Dimension::length(32.0),
         "Lyra's h-8"
     );

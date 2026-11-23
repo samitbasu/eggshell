@@ -200,7 +200,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
         let content = b.part_over(
             AccordionPart::ContentInner,
             &[],
-            Defaults(tw().pb(style.content_padding_bottom / 4.0)),
+            Defaults(tw().pb_px(style.content_padding_bottom)),
             content,
         );
         let item = b.part_over(
@@ -259,8 +259,8 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             .flex()
             .items_start()
             .justify_between()
-            .gap(header.gap / 4.0)
-            .py(header.padding_y / 4.0)
+            .gap_px(header.gap)
+            .py_px(header.padding_y)
             .role(header.text.clone());
         if enablement == Enablement::Enabled {
             look = match header.hover {
@@ -282,8 +282,8 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             keys,
             Defaults(
                 chevron_classes(style, &style.section)
-                    .mt(style.nudge / 4.0)
-                    .mb(-style.nudge / 4.0),
+                    .mt_px(style.nudge)
+                    .mb_px(-style.nudge),
             ),
             tw(),
         );

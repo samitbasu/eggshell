@@ -40,6 +40,7 @@ mod contract_gaps;
 mod control_size;
 mod controls;
 mod debug;
+mod density;
 mod dialog_surface;
 mod disclosure;
 mod dnd_gallery;

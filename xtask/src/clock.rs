@@ -61,7 +61,7 @@ pub fn violations(source: &str) -> Vec<Violation> {
     found
 }
 
-fn rust_files(dir: &Path, into: &mut Vec<std::path::PathBuf>) -> Result<()> {
+pub(crate) fn rust_files(dir: &Path, into: &mut Vec<std::path::PathBuf>) -> Result<()> {
     for entry in fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
         let path = entry?.path();
         if path.is_dir() {

@@ -101,7 +101,7 @@ pub fn classes(
 /// The height `style`'s sheet gives a button of `size`.
 pub fn height(style: &eggshell_ui::Style, size: eggshell_ui::contract::Size) -> f32 {
     classes(style, Variant::DEFAULT, size)
-        .style()
+        .style_at(style.tokens.spacing)
         .size
         .height
         .into_option()
