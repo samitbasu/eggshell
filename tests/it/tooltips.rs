@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::{Choice, Enablement, Face};
+use eggshell_ui::owned::{Choice, Enablement, Face, TooltipPart};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -12,6 +12,17 @@ use egui::{Key, KeyboardShortcut, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support;
+
+/// The widest `style` draws a tooltip's box.
+fn max_width(style: &Style) -> f32 {
+    let width = support::part(style, TooltipPart::Content)
+        .style_at(style.tokens.spacing)
+        .max_size
+        .width
+        .into_raw();
+    assert_eq!(width.tag(), taffy::CompactLength::LENGTH_TAG, "a length");
+    width.value()
+}
 
 const DELAY: Duration = Duration::from_millis(500);
 const GRACE: Duration = Duration::from_millis(300);
@@ -385,7 +396,7 @@ fn long_text_wraps_at_the_maximum_width() {
     d.hover(Target::suffix("/\"long\""));
     d.advance(DELAY + GRACE);
     let tip = tip_box(&d).expect("shown");
-    let max = d.shell().style().tooltip().max_width;
+    let max = max_width(&d.shell().style());
     assert!(tip.width() <= max + 0.5, "{} is within {max}", tip.width());
     assert!(
         tip.width() >= max - 40.0,
@@ -427,7 +438,7 @@ fn the_neutral_style_takes_its_timing_and_width_from_egui() {
     let style = Style::from_egui(&egui_style);
     assert_eq!(style.tooltip().delay, Duration::from_millis(250));
     assert_eq!(style.tooltip().grace, Duration::from_millis(750));
-    assert!((style.tooltip().max_width - egui_style.spacing.tooltip_width).abs() < f32::EPSILON);
+    assert_eq!(max_width(&style), egui_style.spacing.tooltip_width);
     assert!(style.tooltip().arrow.is_none());
 }
 
@@ -436,9 +447,12 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
     for theme in [Theme::Light, Theme::Dark] {
         let preset = eggshell_ui_shadcn::Shadcn::for_theme(theme);
         let style = preset.style();
-        let rest = style.tooltip().popup.paint.states.rest;
-        assert_eq!(rest.fill, preset.tokens.foreground);
-        assert_eq!(rest.text, preset.tokens.background);
+        let content = support::part(&style, TooltipPart::Content);
+        assert_eq!(
+            content.paint_classes().background,
+            Some(preset.tokens.foreground)
+        );
+        assert_eq!(support::ink(&style, &content), preset.tokens.background);
         assert_eq!(style.tooltip().arrow.map(|arrow| arrow.size), Some(10.0));
         assert_eq!(
             style.motion.tooltip.entry,
@@ -532,7 +546,8 @@ fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
 }
 
 fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {
-    d.shell().style().tooltip().popup.paint.states.rest.text
+    let style = d.shell().style();
+    support::ink(&style, &support::part(&style, TooltipPart::Content))
 }
 
 #[test]
@@ -942,7 +957,10 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
         .arrow
         .expect("precondition: the shadcn style has an arrow")
         .size;
-    let fill = style.tooltip().popup.paint.states.rest.fill;
+    let fill = support::part(&style, TooltipPart::Content)
+        .paint_classes()
+        .background
+        .expect("precondition: the box is filled");
     let arrows = diamonds(&d, fill);
     assert_eq!(arrows.len(), 1, "one arrow in the box's fill: {arrows:?}");
     let arrow = arrows[0];

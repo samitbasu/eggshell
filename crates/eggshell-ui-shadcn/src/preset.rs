@@ -628,23 +628,9 @@ impl Shadcn {
             menu.indicator = 16.0;
             menu
         });
-        // shadcn's TooltipContent: `bg-foreground text-background rounded-md
-        // px-3 py-1.5 text-xs` with a 10 pt arrow.
+        // shadcn's TooltipContent: a 10 pt arrow, flush with the trigger.
         style.set_tooltip({
             let mut tooltip = style.tooltip().clone();
-            tooltip.popup = BoxLook::new(States::still(
-                flat(t.foreground, t.background),
-                t.foreground,
-            ));
-            tooltip.radius = t.radius_md();
-            tooltip.padding = vec2(12.0, 6.0);
-            tooltip.text = Some(TextSpec {
-                size: 12.0,
-                line_height: 16.0,
-                family: egui::FontFamily::Proportional,
-                weight: Weight::Normal,
-            });
-            tooltip.max_width = 320.0;
             tooltip.arrow = Some(Arrow { size: 10.0 });
             tooltip.offset = Distance::new(0.0);
             // Radix's default delay, deliberately not shadcn's 0 ms, which

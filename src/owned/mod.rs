@@ -146,7 +146,7 @@ pub(crate) use tabs_sheet::{
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 pub use tooltip_sheet::TooltipPart;
-pub(crate) use tooltip_sheet::write_rules as write_tooltip_rules;
+pub(crate) use tooltip_sheet::{TooltipDefaults, tooltip_defaults};
 
 use crate::contract::{Colors, Disabled, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};

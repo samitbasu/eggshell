@@ -2228,18 +2228,22 @@ mod tooltip_candidates {
 
     /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
     fn popover(tokens: &Tokens, style: &mut Style) {
-        let colors = eggshell_ui::contract::Colors {
-            fill: tokens.popover,
-            border: tokens.border,
-            text: tokens.popover_foreground,
-        };
-        let mut tooltip = style.tooltip().clone();
-        tooltip.popup = eggshell_ui::contract::Look::new(eggshell_ui::contract::States::still(
-            colors,
+        let (fill, border, text, shadow) = (
             tokens.popover,
-        ))
-        .bordered(1.0)
-        .shadowed(tokens.shadow_md);
+            tokens.border,
+            tokens.popover_foreground,
+            tokens.shadow_md,
+        );
+        style
+            .sheet
+            .rule(eggshell_ui::owned::TooltipPart::Content, move |t, _| {
+                t.bg(fill)
+                    .border(1.0)
+                    .border_color(border)
+                    .text(text)
+                    .shadow(shadow)
+            });
+        let mut tooltip = style.tooltip().clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
         style.set_tooltip(tooltip);

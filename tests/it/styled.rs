@@ -178,13 +178,14 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
+const TIP_OFFSET: f32 = 9.0;
 
 fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     fn tip(b: &mut Builder<'_, '_, ()>) {
         b.span("tip", tw(), "Tip").draw(|_, ui| {
-            let padding = ui.node_style().tooltip().padding;
+            let offset = f32::from(ui.node_style().tooltip().offset);
             ui.ctx()
-                .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), padding));
+                .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), offset));
         });
     }
     b.div(tw().flex().gap(16.0).p(16.0).pt(24.0), |b| {
@@ -192,10 +193,8 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
         b.styled(
             |style| {
                 let mut tooltip = style.tooltip().clone();
-                tooltip.padding = TIP_PADDING;
+                tooltip.offset = eggshell_ui::overlay::Distance::new(TIP_OFFSET);
                 style.set_tooltip(tooltip);
-                // Under the preset, the section's padding is the widgets'
-                // default; the scope's rule restyles the box.
                 style
                     .sheet
                     .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
@@ -210,8 +209,8 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 /// The box of the one tooltip open after resting on `trigger`, the tooltip
-/// padding its content was drawn with, and the context's.
-fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
+/// offset its content was drawn with, and the context's offset and padding.
+fn tooltip_of(trigger: &str) -> (egui::Rect, Option<f32>, (f32, Vec2)) {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut d = support::driver(
         WINDOW,
@@ -231,19 +230,28 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
     assert_eq!(boxes.len(), 1, "precondition: one tooltip is open");
     let seen = d
         .ctx()
-        .data(|data| data.get_temp::<Vec2>(egui::Id::NULL.with("tip")));
-    (boxes[0], seen, d.shell().style().tooltip().padding)
+        .data(|data| data.get_temp::<f32>(egui::Id::NULL.with("tip")));
+    let style = d.shell().style();
+    let padding = support::part(&style, eggshell_ui::owned::TooltipPart::Content)
+        .style_at(style.tokens.spacing)
+        .padding;
+    let padding = vec2(
+        padding.left.into_raw().value(),
+        padding.top.into_raw().value(),
+    );
+    (boxes[0], seen, (f32::from(style.tooltip().offset), padding))
 }
 
 #[test]
 fn a_tooltip_inside_styled_draws_with_the_override_and_one_outside_does_not() {
-    let (outside, outside_seen, global) = tooltip_of("outside");
+    let (outside, outside_seen, (offset, padding)) = tooltip_of("outside");
     let (inside, inside_seen, _) = tooltip_of("inside");
-    assert_eq!(outside_seen, Some(global), "the content outside");
-    assert_ne!(global, TIP_PADDING, "precondition: the override differs");
-    assert_eq!(inside_seen, Some(TIP_PADDING), "the content inside");
+    assert_eq!(outside_seen, Some(offset), "the content outside");
+    assert_ne!(offset, TIP_OFFSET, "precondition: the override differs");
+    assert_ne!(padding, TIP_PADDING, "precondition: the override differs");
+    assert_eq!(inside_seen, Some(TIP_OFFSET), "the content inside");
     let grown = inside.size() - outside.size();
-    let expected = 2.0 * (TIP_PADDING - global);
+    let expected = 2.0 * (TIP_PADDING - padding);
     assert!(
         (grown - expected).length() < 0.6,
         "the box grows by the padding: {grown:?} against {expected:?}"

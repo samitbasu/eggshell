@@ -976,3 +976,16 @@ pub fn recorded<A: 'static>(builder: DriverBuilder<A>) -> Driver<A> {
     eggshell_ui::testing::record(d.ctx());
     d
 }
+
+/// The classes `style`'s sheet gives `part` with no keys.
+pub fn part<P: eggshell_ui::sheet::Part>(style: &eggshell_ui::Style, part: P) -> eggshell_ui::Tw {
+    style.sheet.resolve(part, &[], &style.tokens)
+}
+
+/// The text colour `classes` give text in `style`.
+pub fn ink(style: &eggshell_ui::Style, classes: &eggshell_ui::Tw) -> Color32 {
+    classes
+        .text_classes()
+        .over(&TextStyle::new(style.text.clone(), Color32::PLACEHOLDER))
+        .color
+}

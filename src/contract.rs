@@ -897,22 +897,10 @@ pub struct Arrow {
     pub size: f32,
 }
 
-/// Tooltips: the box, the text it wraps, the optional arrow and the timing.
-/// How one enters and leaves is [`MotionStyle::tooltip`].
+/// TODO(prose): Tooltips: the optional arrow, where the box sits and the timing. The box's look is the sheet's [`TooltipPart::Content`](crate::owned::TooltipPart::Content); how one enters and leaves is [`MotionStyle::tooltip`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TooltipStyle {
-    /// The box: its `rest` colours, border and shadow.
-    pub popup: Look,
-    /// Corner radius of the box.
-    pub radius: u8,
-    /// Left-right and top-bottom padding of the box.
-    pub padding: Vec2,
-    /// The text role, or `None` for [`Style::text`].
-    pub text: Option<TextSpec>,
-    /// The widest the box gets; longer text wraps. A pointed arrow needs a
-    /// borderless box.
-    pub max_width: f32,
     /// The arrow, if there is one.
     pub arrow: Option<Arrow>,
     /// The space between the trigger and the box (or its arrow).
@@ -1915,6 +1903,25 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::tooltip_defaults(
+            &mut sheet,
+            crate::owned::TooltipDefaults {
+                popup: Look::new(States::still(
+                    Colors {
+                        fill: v.window_fill,
+                        border: v.window_stroke.color,
+                        text: v.text_color(),
+                    },
+                    v.window_fill,
+                ))
+                .bordered(v.window_stroke.width.max(1.0))
+                .shadowed(v.popup_shadow),
+                radius,
+                padding: vec2(f32::from(s.menu_margin.left), f32::from(s.menu_margin.top)),
+                text: text.clone(),
+                max_width: s.tooltip_width,
+            },
+        );
         crate::owned::button_defaults(
             &mut sheet,
             crate::owned::ButtonDefaults {
@@ -2183,20 +2190,6 @@ impl Style {
                 indicator: s.icon_width,
             },
             tooltip: TooltipStyle {
-                popup: Look::new(States::still(
-                    Colors {
-                        fill: v.window_fill,
-                        border: v.window_stroke.color,
-                        text: v.text_color(),
-                    },
-                    v.window_fill,
-                ))
-                .bordered(v.window_stroke.width.max(1.0))
-                .shadowed(v.popup_shadow),
-                radius,
-                padding: vec2(f32::from(s.menu_margin.left), f32::from(s.menu_margin.top)),
-                text: None,
-                max_width: s.tooltip_width,
                 arrow: None,
                 offset: Distance::new(4.0),
                 delay: seconds(egui.interaction.tooltip_delay),
@@ -2328,7 +2321,6 @@ impl Style {
             style.write_input_rules();
             style.write_segmented_rules();
             style.write_menu_rules();
-            style.write_tooltip_rules();
             style.write_table_rules();
             style.write_choice_rules();
             crate::owned::write_select_rules(style);
@@ -2466,15 +2458,9 @@ impl Style {
         &self.tooltip
     }
 
-    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    /// TODO(prose): sets the tooltip section: its arrow, offset and timing.
     pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
         self.tooltip = tooltip;
-        self.restyle(Self::write_tooltip_rules);
-    }
-
-    fn write_tooltip_rules(&mut self) {
-        let text = self.role(&self.tooltip.text).clone();
-        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
     }
 
     /// Tables.
