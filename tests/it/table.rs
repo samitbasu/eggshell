@@ -2,7 +2,7 @@
 //! columns line up across rows, a band per row for its rule, hover and
 //! selection, and the accessibility tree.
 
-use eggshell_ui::owned::{Align, Column, Stripes};
+use eggshell_ui::owned::{Align, Column, Stripes, TablePart};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -158,6 +158,32 @@ fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
     d.shell().style().table().clone()
 }
 
+/// The padding beside a body cell's content in `style`.
+fn cell_padding(style: &Style) -> f32 {
+    let padding = support::part(style, TablePart::Cell)
+        .style_at(style.tokens.spacing)
+        .padding;
+    padding.left.into_raw().value()
+}
+
+/// The height of a header cell in `style`.
+fn header_height(style: &Style) -> f32 {
+    let size = support::part(style, TablePart::Head)
+        .style_at(style.tokens.spacing)
+        .size;
+    size.height.into_raw().value()
+}
+
+/// shadcn's `hover:bg-muted/50` and `data-[state=selected]:bg-muted`, in
+/// the theme `d` draws.
+fn hover(d: &Driver<App>) -> Color32 {
+    d.shell().style().tokens.muted.gamma_multiply(0.5)
+}
+
+fn selected(d: &Driver<App>) -> Color32 {
+    d.shell().style().tokens.muted
+}
+
 fn press<A>(d: &mut Driver<A>, key: Key) {
     d.harness().key_press_modifiers(Modifiers::NONE, key);
     d.frames(3);
@@ -215,7 +241,7 @@ mod layout {
             })
             .expect("INV-7 is drawn");
         assert!(
-            header.width() > narrow + 2.0 * style(&d).cell_padding,
+            header.width() > narrow + 2.0 * cell_padding(&d.shell().style()),
             "the column is as wide as its widest cell"
         );
     }
@@ -225,7 +251,7 @@ mod layout {
         let d = harness(Selection::Off);
         let table = d.rect(Target::suffix(TABLE));
         let header = d.rect(Target::suffix(&band("Header")));
-        assert!((header.height() - style(&d).header_height).abs() < 0.6);
+        assert!((header.height() - header_height(&d.shell().style())).abs() < 0.6);
         for name in ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"] {
             let band = d.rect(Target::suffix(&band(name)));
             assert_eq!(
@@ -242,7 +268,7 @@ mod layout {
     #[test]
     fn an_end_column_aligns_header_and_body_text_to_its_end() {
         let d = harness(Selection::Off);
-        let padding = style(&d).cell_padding;
+        let padding = cell_padding(&d.shell().style());
         for (band, text) in [
             ("Header", "Amount"),
             ("Row(7)", "$250.00"),
@@ -332,7 +358,7 @@ mod hover {
     #[test]
     fn hovering_a_cell_fills_its_row() {
         let mut d = harness(Selection::Off);
-        let hover = style(&d).hover;
+        let hover = hover(&d);
         assert_ne!(fill_of(&d, "Row(1024)"), Some(hover));
         let at = d.rect(Target::suffix(&cell("Row(1024)", 0))).center();
         d.hover(at);
@@ -344,7 +370,7 @@ mod hover {
     #[test]
     fn a_button_in_a_cell_keeps_its_row_hovered() {
         let mut d = harness(Selection::Off);
-        let hover = style(&d).hover;
+        let hover = hover(&d);
         let button = d.rect(Target::suffix(&format!("{TABLE}/(Row(1024), 1)/Archive")));
         assert!(
             d.rect(Target::suffix(&band("Row(1024)")))
@@ -378,7 +404,7 @@ mod selection {
         d.click(Target::suffix(&cell("Row(31)", 0)));
         d.frames(12);
         assert_eq!(d.app().selected, Some(31));
-        let selected = style(&d).selected;
+        let selected = selected(&d);
         assert_eq!(fill_of(&d, "Row(31)"), Some(selected));
     }
 
@@ -606,16 +632,17 @@ mod preset {
     fn shadcn_draws_its_table() {
         let preset = Shadcn::for_theme(Theme::Light);
         let t = &preset.tokens;
-        let table = preset.style().table().clone();
-        assert_eq!(table.header_fill, Color32::TRANSPARENT);
-        assert_eq!(table.header_height, 40.0);
-        assert_eq!(table.cell_padding, 8.0);
+        let style = preset.style();
+        let table = style.table().clone();
+        assert_eq!(header_height(&style), 40.0);
+        assert_eq!(cell_padding(&style), 8.0);
         assert_eq!((table.rule, table.rule_width), (t.border, 1.0));
         assert_ne!(table.stripe, Color32::TRANSPARENT);
-        assert_ne!(table.stripe, table.hover, "a hovered stripe still changes");
-        assert_eq!(table.hover, t.muted.gamma_multiply(0.5));
-        assert_eq!(table.selected, t.muted);
-        assert_eq!(table.footer_fill, t.muted.gamma_multiply(0.5));
+        assert_ne!(
+            table.stripe,
+            t.muted.gamma_multiply(0.5),
+            "a hovered stripe still changes"
+        );
     }
 }
 
@@ -799,41 +826,13 @@ mod spacing {
     }
 
     #[test]
-    fn cell_padding_y_sets_a_body_cells_top_and_bottom_only() {
-        let d = harness(|style| {
-            let mut table = style.table().clone();
-            table.cell_padding_y = Some(3.0);
-            style.at_current_layer(|style| style.set_table(table));
-        });
-        let padding = table(&d).cell_padding;
-        assert_ne!(padding, 3.0, "precondition");
-        let body = cell(&d, "Row(1)", 1);
-        assert!((body.height() - (LINE + 6.0)).abs() < 0.6, "{body:?}");
-        let at = d.painted().expect("beta").pos();
-        let inset = at.x - body.left();
-        assert!((inset - padding).abs() < 0.6, "beside: {inset}");
-    }
-
-    #[test]
-    fn header_padding_y_sizes_the_header_by_its_text() {
-        let d = harness(|style| {
-            let mut table = style.table().clone();
-            table.header_padding_y = Some(5.0);
-            style.at_current_layer(|style| style.set_table(table));
-        });
-        assert_ne!(table(&d).header_height, LINE + 10.0, "precondition");
-        let header = cell(&d, "Header", 0);
-        assert!((header.height() - (LINE + 10.0)).abs() < 0.6, "{header:?}");
-    }
-
-    #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.first_column_inset = Some(0.0);
-            style.at_current_layer(|style| style.set_table(table));
+            style.set_table(table);
         });
-        let padding = table(&d).cell_padding;
+        let padding = cell_padding(&d.shell().style());
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
         let alpha = d.painted().expect("alpha").pos();
         let beta = d.painted().expect("beta").pos();
@@ -870,7 +869,7 @@ mod spacing {
         assert!(rule(&harness(|style| {
             let mut table = style.table().clone();
             table.rule_below_last = true;
-            style.at_current_layer(|style| style.set_table(table));
+            style.set_table(table);
         })));
     }
 }
@@ -931,9 +930,7 @@ mod groups {
     const GROUP: Color32 = Color32::from_rgb(220, 240, 200);
 
     fn group_filled(style: &mut Style) {
-        let mut table = style.table().clone();
-        table.group_fill = GROUP;
-        style.set_table(table);
+        style.sheet.rule(TablePart::Group, |t, _| t.bg(GROUP));
     }
 
     fn harness_of(app: App) -> Driver<App> {

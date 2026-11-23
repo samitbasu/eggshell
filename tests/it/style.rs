@@ -756,29 +756,3 @@ fn a_section_metric_an_exception_reads_lands_after_the_preset() {
     style.set_segmented(segmented);
     assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
 }
-
-/// A section set inside `at_current_layer` writes its look at the sheet's
-/// layer, over the preset's, where a plain setter keeps the preset's look.
-#[test]
-fn sections_set_at_the_current_layer_restyle_over_the_preset() {
-    use eggshell_ui::owned::TablePart;
-    let padding = |style: &eggshell_ui::Style| {
-        let cell = style.sheet.resolve(TablePart::Cell, &[], &style.tokens);
-        cell.style_at(style.tokens.spacing).padding.left
-    };
-    let preset = Shadcn::for_theme(Theme::Light).style();
-    let mut table = preset.table().clone();
-    table.cell_padding = 36.0;
-    let want = tw().px_px(36.0).style().padding.left;
-    let mut plain = preset.clone();
-    plain.set_table(table.clone());
-    assert_ne!(
-        padding(&plain),
-        want,
-        "precondition: a plain setter keeps the preset's"
-    );
-    let mut over = preset.clone();
-    over.sheet.as_app();
-    over.at_current_layer(|style| style.set_table(table));
-    assert_eq!(padding(&over), want);
-}

@@ -6,7 +6,7 @@ use eggshell_ui::contract::{
     SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::owned::FieldPart;
+use eggshell_ui::owned::{FieldPart, TablePart};
 use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
@@ -802,30 +802,17 @@ impl Shadcn {
         };
         style.splitter.grip = None;
         style.splitter.transition = Duration::from_millis(150);
-        // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
-        // `border-b` rows (none under the last), `hover:bg-muted/50`,
-        // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
-        // and `transition-colors`.
+        // shadcn's Table: `border-b` rows, none under the last; the stripes
+        // and groups are eggshell's own.
         let mut table = style.table().clone();
-        table.header_fill = clear;
-        table.header_weight = Weight::Medium;
-        table.header_height = 40.0;
-        table.cell_padding = 8.0;
         table.rule = t.border;
         table.rule_width = 1.0;
         table.stripe = t.muted.gamma_multiply(0.3);
-        table.group_fill = t.muted.gamma_multiply(0.5);
-        table.group_text = Some(t.muted_foreground);
         table.group_text_size = Some(TextSize {
             size: 12.0,
             line_height: 16.0,
         });
         table.group_weight = Weight::Medium;
-        table.hover = t.muted.gamma_multiply(0.5);
-        table.selected = t.muted;
-        table.footer_fill = t.muted.gamma_multiply(0.5);
-        table.footer_weight = Weight::Medium;
-        table.transition = Duration::from_millis(150);
         table.group_end = GroupEnd::Gap(12.0);
         style.set_table(table);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
@@ -874,6 +861,11 @@ impl Shadcn {
                 })
             });
         }
+        // A table's group rows are eggshell's own: shadcn's footer band.
+        style
+            .sheet
+            .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
+            .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style.write_exceptions();
         #[cfg(feature = "extras")]

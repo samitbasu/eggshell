@@ -363,14 +363,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// context's, so a scope cannot change which faces exist.
     ///
     /// ```
+    /// use eggshell_ui::owned::TablePart;
     /// use eggshell_ui::{Builder, tw};
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.styled(
     ///         |style| {
-    ///             let mut table = style.table().clone();
-    ///             table.cell_padding = 16.0;
-    ///             style.set_table(table);
+    ///             style.sheet.rule(TablePart::Cell, |t, _| t.p(4.0));
     ///         },
     ///         |b| {
     ///             b.text(tw(), "Tables built here are roomier.");

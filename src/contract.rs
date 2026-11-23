@@ -1276,25 +1276,10 @@ pub enum GroupEnd {
     },
 }
 
-/// Tables: the header, the rule between rows, and a row's fills.
+/// TODO(prose): Tables: the rules between rows, stripes, the first column's inset and a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::TablePart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableStyle {
-    /// Behind the header row.
-    pub header_fill: Color32,
-    /// The weight of the header's text.
-    pub header_weight: Weight,
-    /// The height of the header row.
-    pub header_height: f32,
-    /// Padding around a body or footer cell's content, and beside a header
-    /// cell's.
-    pub cell_padding: f32,
-    /// TODO(prose): padding above and below a body or footer cell's content,
-    /// in place of `cell_padding`.
-    pub cell_padding_y: Option<f32>,
-    /// TODO(prose): padding above and below a header cell's content, which
-    /// then sizes the header row in place of `header_height`.
-    pub header_padding_y: Option<f32>,
     /// TODO(prose): padding before the first column's content, in place of
     /// `cell_padding`; zero sets it flush with the table's edge.
     pub first_column_inset: Option<f32>,
@@ -1309,11 +1294,6 @@ pub struct TableStyle {
     /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), starting
     /// with the second, and again after each group row.
     pub stripe: Color32,
-    /// TODO(prose): behind a group row.
-    pub group_fill: Color32,
-    /// TODO(prose): the colour of a group row's title; `None` keeps the
-    /// table's.
-    pub group_text: Option<Color32>,
     /// TODO(prose): the size of a group row's title; `None` keeps the
     /// table's.
     pub group_text_size: Option<TextSize>,
@@ -1321,45 +1301,21 @@ pub struct TableStyle {
     pub group_weight: Weight,
     /// TODO(prose): what shows where a group ends before rows in no group.
     pub group_end: GroupEnd,
-    /// Behind a hovered body row.
-    pub hover: Color32,
-    /// Behind the selected row.
-    pub selected: Color32,
-    /// Behind the footer row.
-    pub footer_fill: Color32,
-    /// The weight of the footer's text.
-    pub footer_weight: Weight,
-    /// How long a row's fill takes to change.
-    pub transition: Duration,
 }
 
 impl TableStyle {
-    /// Rows ruled in egui's separator colour, hovered and selected in its
-    /// widget and selection fills.
+    /// Rows ruled in egui's separator colour.
     pub fn from_egui(egui: &egui::Style) -> Self {
         let (v, s) = (&egui.visuals, &egui.spacing);
         Self {
-            header_fill: Color32::TRANSPARENT,
-            header_weight: Weight::Normal,
-            header_height: s.interact_size.y + 2.0 * s.button_padding.y,
-            cell_padding: s.button_padding.x,
-            cell_padding_y: None,
-            header_padding_y: None,
             first_column_inset: None,
             rule_below_last: false,
             rule: v.widgets.noninteractive.bg_stroke.color,
             rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
             stripe: v.faint_bg_color,
-            group_fill: v.faint_bg_color,
-            group_text: None,
             group_text_size: None,
             group_weight: Weight::Normal,
             group_end: GroupEnd::Gap(s.item_spacing.y * 3.0),
-            hover: v.widgets.hovered.weak_bg_fill,
-            selected: v.selection.bg_fill,
-            footer_fill: v.faint_bg_color,
-            footer_weight: Weight::Normal,
-            transition: Duration::from_millis(100),
         }
     }
 }
@@ -1523,12 +1479,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table().cell_padding)
+///         Gap(style.table().rule_width)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table().cell_padding);
+/// assert_eq!(style.extension::<Gap>().0, style.table().rule_width);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1675,14 +1631,6 @@ impl Extension for Fonts {
     }
 }
 
-/// Where a section's setter writes its look: the widgets' defaults layer,
-/// or, inside [`Style::at_current_layer`], the sheet's current one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Writes {
-    Defaults,
-    CurrentLayer,
-}
-
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -1745,8 +1693,6 @@ pub struct Style {
     pub sheet: crate::sheet::Sheet,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
-    /// Where a section's setter writes its look.
-    writes: Writes,
 }
 
 #[derive(Clone)]
@@ -1903,6 +1849,7 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::table_defaults(&mut sheet, crate::owned::TableDefaults::from_egui(egui));
         crate::owned::tooltip_defaults(
             &mut sheet,
             crate::owned::TooltipDefaults {
@@ -2309,7 +2256,6 @@ impl Style {
             tokens,
             sheet,
             extensions: Extensions::default(),
-            writes: Writes::Defaults,
         };
         style.rewrite_rules();
         style
@@ -2332,10 +2278,6 @@ impl Style {
     /// preset's look, if a preset wrote one, so a changed section reaches
     /// them. The sheet's layer is as it was after.
     fn restyle(&mut self, write: impl FnOnce(&mut Self)) {
-        if self.writes == Writes::CurrentLayer {
-            write(self);
-            return;
-        }
         let layer = self.sheet.layer();
         self.sheet.set_layer(crate::sheet::Layer::Defaults);
         write(self);
@@ -2468,31 +2410,10 @@ impl Style {
         &self.table
     }
 
-    /// TODO(prose): sets the table section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    /// TODO(prose): sets the table section, and writes its rules (between rows, stripes, the first column's inset) at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_table(&mut self, table: TableStyle) {
         self.table = table;
         self.restyle(Self::write_table_rules);
-    }
-
-    /// TODO(prose): runs `set`, whose section setters write the sections'
-    /// looks at the sheet's current layer, a scope's or the application's,
-    /// over a preset's look, where they would write the widgets' defaults,
-    /// under it: how a scope restyles its widgets from their sections, as a
-    /// document's typesetting does its tables.
-    ///
-    /// ```
-    /// use eggshell_ui::Style;
-    ///
-    /// let mut style = Style::default();
-    /// style.sheet.as_app();
-    /// let mut table = style.table().clone();
-    /// table.cell_padding = 12.0;
-    /// style.at_current_layer(|style| style.set_table(table));
-    /// ```
-    pub fn at_current_layer(&mut self, set: impl FnOnce(&mut Self)) {
-        let writes = std::mem::replace(&mut self.writes, Writes::CurrentLayer);
-        set(self);
-        self.writes = writes;
     }
 
     fn write_table_rules(&mut self) {

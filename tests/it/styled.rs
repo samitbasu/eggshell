@@ -2,7 +2,7 @@
 //! builds a style edited from their parent's, read at build, measure and
 //! draw, and leaves every node outside it alone.
 
-use eggshell_ui::owned::Column;
+use eggshell_ui::owned::{Column, TablePart};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -35,9 +35,9 @@ fn spans() -> Spans {
     .collect()
 }
 
-/// Notes the table padding a draw closure's node is drawn with.
+/// Notes the table rule width a draw closure's node is drawn with.
 fn seen(ui: &egui::Ui, at: &'static str) {
-    let padding = ui.node_style().table().cell_padding;
+    let padding = ui.node_style().table().rule_width;
     ui.ctx()
         .data_mut(|data| data.insert_temp(egui::Id::NULL.with(at), padding));
 }
@@ -47,17 +47,16 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
         table(b, "plain");
         b.styled(
             |style| {
-                let mut table = style.table().clone();
-                table.cell_padding = PADDING;
-                style.at_current_layer(|style| style.set_table(table));
+                style.sheet.rule(TablePart::Cell, |t, _| t.py_px(PADDING));
             },
             |b| {
                 table(b, "styled");
                 b.styled(
                     |style| {
-                        let mut table = style.table().clone();
-                        table.cell_padding += MORE;
-                        style.at_current_layer(|style| style.set_table(table));
+                        // Only the bottom: the top is the scope around's.
+                        style
+                            .sheet
+                            .rule(TablePart::Cell, |t, _| t.pb_px(PADDING + 2.0 * MORE));
                     },
                     |b| table(b, "nested"),
                 );
@@ -68,8 +67,8 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
         b.styled(
             |style| {
                 let mut table = style.table().clone();
-                table.cell_padding = PADDING;
-                style.at_current_layer(|style| style.set_table(table));
+                table.rule_width = PADDING;
+                style.set_table(table);
             },
             |b| {
                 b.span("scoped probe", tw(), "probe")
@@ -102,6 +101,16 @@ fn harness() -> Driver<()> {
     d
 }
 
+/// The padding above a body cell in `style`.
+fn cell_padding(style: &eggshell_ui::Style) -> f32 {
+    support::part(style, TablePart::Cell)
+        .style_at(style.tokens.spacing)
+        .padding
+        .top
+        .into_raw()
+        .value()
+}
+
 /// The height of the body cell of the table `key`.
 fn body_cell(d: &Driver<()>, key: &str) -> f32 {
     d.rect(Target::suffix(&format!("/\"{key}\"/(Row(1), 0)")))
@@ -111,7 +120,7 @@ fn body_cell(d: &Driver<()>, key: &str) -> f32 {
 #[test]
 fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
     let d = harness();
-    let global = d.shell().style().table().cell_padding;
+    let global = cell_padding(&d.shell().style());
     assert_ne!(global, PADDING, "precondition: the override differs");
     let (plain, styled) = (body_cell(&d, "plain"), body_cell(&d, "styled"));
     assert!(
@@ -119,7 +128,7 @@ fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
         "{styled} is {plain} with {PADDING} for {global} padding"
     );
     assert_eq!(
-        d.shell().style().table().cell_padding,
+        cell_padding(&d.shell().style()),
         global,
         "the context's style is untouched"
     );
@@ -171,10 +180,7 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
             .data(|data| data.get_temp::<f32>(egui::Id::NULL.with(at)))
     };
     assert_eq!(seen("inside"), Some(PADDING));
-    assert_eq!(
-        seen("outside"),
-        Some(d.shell().style().table().cell_padding)
-    );
+    assert_eq!(seen("outside"), Some(d.shell().style().table().rule_width));
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);

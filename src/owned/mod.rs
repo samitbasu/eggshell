@@ -137,7 +137,8 @@ pub use table::{
 };
 pub use table_sheet::TablePart;
 pub(crate) use table_sheet::{
-    write_exceptions as write_table_exceptions, write_rules as write_table_rules,
+    TableDefaults, table_defaults, write_exceptions as write_table_exceptions,
+    write_rules as write_table_rules,
 };
 pub use tabs_sheet::TabsPart;
 pub(crate) use tabs_sheet::{

@@ -19,7 +19,7 @@ const DARK: f32 = 22.0;
 fn padded(padding: f32) -> Arc<Style> {
     let mut style = Style::default();
     let mut table = style.table().clone();
-    table.cell_padding = padding;
+    table.rule_width = padding;
     style.set_table(table);
     Arc::new(style)
 }
@@ -40,9 +40,9 @@ struct Scene {
 }
 
 fn view(b: &mut Builder<'_, '_, ()>, built: &mut Option<f32>) {
-    *built = Some(b.style().table().cell_padding);
+    *built = Some(b.style().table().rule_width);
     b.span("probe", tw(), "probe").draw(|_, ui| {
-        let padding = ui.node_style().table().cell_padding;
+        let padding = ui.node_style().table().rule_width;
         ui.ctx()
             .data_mut(|data| data.insert_temp(egui::Id::NULL.with("drawn"), padding));
     });
@@ -75,9 +75,9 @@ fn harness(layout: LayoutState) -> Harness<'static, Scene> {
     harness
 }
 
-/// The cell padding of the style derived from egui's.
+/// The table rule width of the style derived from egui's.
 fn derived() -> f32 {
-    Style::default().table().cell_padding
+    Style::default().table().rule_width
 }
 
 #[test]
@@ -120,10 +120,10 @@ fn set_style_swaps_the_style_from_the_next_build() {
 fn the_shell_reads_the_layout_s_style() {
     let harness = harness(LayoutState::new().with_style(pair()));
     let shell = harness.state().layout.shell(&harness.ctx);
-    assert_eq!(shell.style().table().cell_padding, LIGHT);
+    assert_eq!(shell.style().table().rule_width, LIGHT);
     let plain = LayoutState::new();
     assert_eq!(
-        plain.shell(&harness.ctx).style().table().cell_padding,
+        plain.shell(&harness.ctx).style().table().rule_width,
         derived(),
         "without a style of its own, the derived one"
     );
