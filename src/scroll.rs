@@ -424,11 +424,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         if let Some(fade) = fade {
             style.fade = fade;
         }
-        let visibility = classes.scrollbar;
-        if visibility == Scrollbar::None {
-            style.width = 0.0;
-        }
-        let bars = Bars::new(style, axis, visibility);
+        let bars = Bars::new(style, axis, classes.scrollbar);
         let options = ScrollOptions {
             axis,
             edge,
@@ -790,6 +786,17 @@ impl Bars {
             visibility,
             gutter,
         }
+    }
+
+    /// These bars as the node's settled classes say: a `scrollbar-none` a
+    /// style's sheet gives the node is known only once the sheet is applied.
+    pub(crate) fn settled(mut self, visibility: Scrollbar) -> Self {
+        if visibility == Scrollbar::None {
+            self.style.width = 0.0;
+            self.gutter = Vec2::ZERO;
+        }
+        self.visibility = visibility;
+        self
     }
 
     /// egui's scroll style for these bars beside a viewport of `viewport`:

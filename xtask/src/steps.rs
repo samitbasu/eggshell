@@ -225,6 +225,25 @@ pub fn screenshots() -> Step {
     })
 }
 
+/// The crates with optional features, built with none of them: what is
+/// gated on a feature must build, and lint, without it.
+pub fn features() -> Step {
+    Step::cargo(
+        "features",
+        &[
+            "clippy",
+            "-p",
+            "eggshell-ui-shadcn",
+            "-p",
+            "eggshell-ui-extras",
+            "--no-default-features",
+            "--",
+            "-D",
+            "warnings",
+        ],
+    )
+}
+
 /// What CI runs, in order. The test step carries the golden check, which needs
 /// Mesa lavapipe, locally and on the runner alike.
 pub fn ci_steps() -> Vec<Step> {
@@ -244,6 +263,8 @@ pub fn ci_steps() -> Vec<Step> {
                 "warnings",
             ],
         ),
+        features(),
+        Step::internal("shadcn-sheets", crate::shadcn_import::check),
         Step::internal("test", snapshots::test_with_goldens),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
@@ -253,6 +274,18 @@ pub fn ci_steps() -> Vec<Step> {
         release(),
         fuzz(FUZZ_CASES),
     ]
+}
+
+/// CI's steps an integration leaves to CI, for their time.
+const LEFT_TO_CI: [&str; 2] = ["wasm", "fuzz"];
+
+/// What `cargo xtask integrate` runs: CI's steps but the slowest, in CI's
+/// order, so an item is checked as CI checks it.
+pub fn integrate_steps() -> Vec<Step> {
+    ci_steps()
+        .into_iter()
+        .filter(|step| !LEFT_TO_CI.contains(&step.name))
+        .collect()
 }
 
 /// The CI steps without those named in `skip`, so a runner can split them
@@ -298,7 +331,7 @@ pub fn coverage(format: ReportFormat) -> Result<()> {
     let (args, report): (&[&str], PathBuf) = match format {
         ReportFormat::Html => (
             &["llvm-cov", "--workspace", "--html"],
-            root.join("target/llvm-cov/html/index.html"),
+            process::target_dir().join("llvm-cov/html/index.html"),
         ),
         ReportFormat::Lcov => (
             &[
@@ -332,6 +365,8 @@ mod tests {
                 "cargo fmt --all --check",
                 "built-in clock check",
                 "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
+                "cargo clippy -p eggshell-ui-shadcn -p eggshell-ui-extras --no-default-features -- -D warnings",
+                "built-in shadcn-sheets check",
                 "built-in test check",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
@@ -369,6 +404,8 @@ mod tests {
                 "fmt",
                 "clock",
                 "clippy",
+                "features",
+                "shadcn-sheets",
                 "test",
                 "doctest",
                 "rustdoc",
@@ -383,6 +420,19 @@ mod tests {
     fn the_release_and_fuzz_steps_fail_when_their_filters_match_no_test() {
         assert_eq!(release().expect, Expect::SomeTestPassed);
         assert_eq!(fuzz(FUZZ_CASES).expect, Expect::SomeTestPassed);
+    }
+
+    #[test]
+    fn integrate_runs_cis_steps_but_the_slowest_in_cis_order() {
+        let skip = LEFT_TO_CI.map(str::to_owned);
+        assert_eq!(
+            commands(&integrate_steps()),
+            commands(&ci_steps_skipping(&skip).unwrap())
+        );
+        assert!(
+            integrate_steps().iter().any(|step| step.name == "release"),
+            "the release gates are built"
+        );
     }
 
     #[test]

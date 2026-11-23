@@ -44,11 +44,17 @@ struct Mounted {
 static INSIDE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 fn timed(style: &mut Style) {
-    style.tooltip.delay = DELAY;
-    style.tooltip.grace = GRACE;
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = DELAY;
+    tooltip.grace = GRACE;
+    style.set_tooltip(tooltip);
 }
 
 fn harness_of(view: support::View<App>) -> Driver<App> {
+    harness_styled(view, timed)
+}
+
+fn harness_styled(view: support::View<App>, edit: fn(&mut Style)) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut d = support::driver(
         vec2(400.0, 600.0),
@@ -56,7 +62,7 @@ fn harness_of(view: support::View<App>) -> Driver<App> {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(timed))
+    .style(support::shadcn_with(edit))
     .build();
     d.frames(12);
     d
@@ -379,7 +385,7 @@ fn long_text_wraps_at_the_maximum_width() {
     d.hover(Target::suffix("/\"long\""));
     d.advance(DELAY + GRACE);
     let tip = tip_box(&d).expect("shown");
-    let max = d.shell().style().tooltip.max_width;
+    let max = d.shell().style().tooltip().max_width;
     assert!(tip.width() <= max + 0.5, "{} is within {max}", tip.width());
     assert!(
         tip.width() >= max - 40.0,
@@ -419,10 +425,10 @@ fn the_neutral_style_takes_its_timing_and_width_from_egui() {
     egui_style.interaction.tooltip_delay = 0.25;
     egui_style.interaction.tooltip_grace_time = 0.75;
     let style = Style::from_egui(&egui_style);
-    assert_eq!(style.tooltip.delay, Duration::from_millis(250));
-    assert_eq!(style.tooltip.grace, Duration::from_millis(750));
-    assert!((style.tooltip.max_width - egui_style.spacing.tooltip_width).abs() < f32::EPSILON);
-    assert!(style.tooltip.arrow.is_none());
+    assert_eq!(style.tooltip().delay, Duration::from_millis(250));
+    assert_eq!(style.tooltip().grace, Duration::from_millis(750));
+    assert!((style.tooltip().max_width - egui_style.spacing.tooltip_width).abs() < f32::EPSILON);
+    assert!(style.tooltip().arrow.is_none());
 }
 
 #[test]
@@ -430,10 +436,10 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
     for theme in [Theme::Light, Theme::Dark] {
         let preset = eggshell_ui_shadcn::Shadcn::for_theme(theme);
         let style = preset.style();
-        let rest = style.tooltip.popup.paint.states.rest;
+        let rest = style.tooltip().popup.paint.states.rest;
         assert_eq!(rest.fill, preset.tokens.foreground);
         assert_eq!(rest.text, preset.tokens.background);
-        assert_eq!(style.tooltip.arrow.map(|arrow| arrow.size), Some(10.0));
+        assert_eq!(style.tooltip().arrow.map(|arrow| arrow.size), Some(10.0));
         assert_eq!(
             style.motion.tooltip.entry,
             eggshell_ui::contract::Entry::Zoom
@@ -476,7 +482,7 @@ const RED: egui::Color32 = egui::Color32::from_rgb(200, 20, 20);
 ///   <span title="Red mono">Rich</span>
 ///   <span title="Strong words">Strong</span>
 ///   <button>Target</button>
-///   <button>Built</button>  <!-- tooltip: Save <kbd>Ctrl+S</kbd> -->
+///   <button>Built</button>  <!-- tooltip: <button>Inside</button> Save <kbd>Ctrl+S</kbd> -->
 ///   <button disabled>Off</button>  <!-- tooltip: Cannot <kbd>Ctrl+S</kbd> -->
 ///   <kbd>K</kbd>
 /// </div>
@@ -498,11 +504,11 @@ fn rich_view(b: &mut Builder<'_, '_, App>, _: &App) {
                 .on_click(|app: &mut App| app.undone += 1);
             b.button("built", "Built")
                 .tooltip_with(|s| {
-                    s.text(tw(), "Save");
-                    s.kbd("Ctrl+S");
                     s.button("inside", "Inside").on_click(|_| {
                         INSIDE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     });
+                    s.text(tw(), "Save");
+                    s.kbd("Ctrl+S");
                 })
                 .add();
             b.button("off", "Off")
@@ -526,7 +532,7 @@ fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
 }
 
 fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {
-    d.shell().style().tooltip.popup.paint.states.rest.text
+    d.shell().style().tooltip().popup.paint.states.rest.text
 }
 
 #[test]
@@ -727,7 +733,7 @@ fn a_built_tooltip_describes_its_trigger_with_its_text_while_closed() {
     let node = d.harness().get_by_label("Built");
     assert_eq!(
         node.accesskit_node().description().as_deref(),
-        Some("Save Ctrl+S Inside")
+        Some("Inside Save Ctrl+S")
     );
 }
 
@@ -883,6 +889,29 @@ fn a_kbd_takes_the_tooltip_look_inside_a_tooltip_and_its_own_on_the_page() {
     assert_eq!(d.painted().expect("Ctrl+S").color(), kbd.tooltip.text);
 }
 
+fn red_tooltips(style: &mut Style) {
+    timed(style);
+    style
+        .sheet
+        .as_app()
+        .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
+            t.bg(egui::Color32::RED)
+        });
+}
+
+#[test]
+fn a_rule_on_the_content_part_restyles_the_box_and_its_arrow() {
+    let mut d = harness_styled(view, red_tooltips);
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    assert!(tip_box(&d).is_some(), "precondition: the tooltip is shown");
+    assert_eq!(
+        diamonds(&d, egui::Color32::RED).len(),
+        1,
+        "the arrow takes the content's fill"
+    );
+}
+
 /// The four corners of every filled four-point path painted in `fill`.
 fn diamonds(d: &Driver<App>, fill: egui::Color32) -> Vec<Rect> {
     support::shapes(d)
@@ -909,11 +938,11 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
     );
     let style = d.shell().style();
     let size = style
-        .tooltip
+        .tooltip()
         .arrow
         .expect("precondition: the shadcn style has an arrow")
         .size;
-    let fill = style.tooltip.popup.paint.states.rest.fill;
+    let fill = style.tooltip().popup.paint.states.rest.fill;
     let arrows = diamonds(&d, fill);
     assert_eq!(arrows.len(), 1, "one arrow in the box's fill: {arrows:?}");
     let arrow = arrows[0];
@@ -1507,4 +1536,62 @@ fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
     assert!(is_shown(&d), "precondition: the tooltip is open");
     let node = d.harness().get_by_label(LONG_NOTE);
     assert_eq!(node.accesskit_node().description(), None);
+}
+
+/// shadcn's tooltip content (`style-vega.css` `.cn-tooltip-content`,
+/// tooltip.tsx): `bg-foreground text-background px-3 py-1.5 rounded-md`, and
+/// `has-data-[slot=kbd]:pr-1.5` with `**:data-[slot=kbd]:rounded-sm`.
+#[test]
+fn the_tooltip_is_shadcns_after_a_section_change_and_reaches_its_kbd_chip() {
+    // `harness_of` sets the tooltip section's delay after the preset, which
+    // keeps the preset's look.
+    let mut d = harness_of(|b, _| {
+        b.div(
+            tw().pt(10.0).gap(4.0).flex().flex_col().items_start(),
+            |b| {
+                b.button("plain", "Plain").tooltip("Plain words").add();
+                b.button("keyed", "Keyed")
+                    .tooltip_with(|s| {
+                        s.text(tw(), "Save");
+                        s.kbd("Ctrl+S");
+                    })
+                    .add();
+            },
+        );
+    });
+    assert_eq!(
+        d.shell().style().tooltip().delay,
+        DELAY,
+        "precondition: the delay is the one set after the preset"
+    );
+    let wait = DELAY + GRACE;
+    let t = Tokens::for_theme(d.ctx().theme());
+    d.hover(Target::suffix("/\"plain\""));
+    d.advance(wait);
+    let tip = tip_box(&d).expect("shown");
+    let shape = support::box_at(&d, tip);
+    assert_eq!(shape.fill, t.foreground, "bg-foreground");
+    assert_eq!(
+        shape.corner_radius,
+        egui::CornerRadius::same(8),
+        "rounded-md"
+    );
+    let text = support::text_left(&d, tip, "Plain words");
+    assert_eq!(text - tip.left(), 12.0, "px-3");
+
+    d.hover(Target::suffix("/\"keyed\""));
+    d.advance(wait);
+    let tip = tip_box(&d).expect("shown");
+    let chip = tooltip_nodes(&d)
+        .into_iter()
+        .filter(|(_, rect)| rect.width() < tip.width() && rect.height() < tip.height())
+        .max_by(|(_, a), (_, b)| a.right().total_cmp(&b.right()))
+        .map(|(_, rect)| rect)
+        .expect("the kbd chip");
+    assert_eq!(tip.right() - chip.right(), 6.0, "has-[kbd]:pr-1.5");
+    assert_eq!(
+        support::box_at(&d, chip).corner_radius,
+        egui::CornerRadius::same(6),
+        "rounded-sm"
+    );
 }

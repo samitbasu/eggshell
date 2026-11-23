@@ -61,6 +61,7 @@ pub(crate) struct OverlayDecl {
     pub(crate) behavior: Behavior,
     pub(crate) declared_at: &'static std::panic::Location<'static>,
     pub(crate) staged: Staged,
+    pub(crate) showing: crate::overlay::Showing,
 }
 
 /// A root, from the moment its body starts to be built: the slot is
@@ -181,6 +182,7 @@ pub(crate) struct PlacedOverlay {
     pub(crate) stack_index: usize,
     pub(crate) description: Description,
     pub(crate) staged: Staged,
+    pub(crate) showing: crate::overlay::Showing,
 }
 
 /// What a laid-out root is.

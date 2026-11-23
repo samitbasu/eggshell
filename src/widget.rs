@@ -128,9 +128,16 @@ pub struct TextEdit {
     role: Option<egui::Role>,
     size: ControlSize,
     enter: Enter,
+    /// An ARIA state its frame's look takes, such as invalid.
+    aria: Option<crate::Aria>,
 }
 
 impl TextEdit {
+    /// This field, its frame in the look of the ARIA state `aria`.
+    pub(crate) fn aria(self, aria: Option<crate::Aria>) -> Self {
+        Self { aria, ..self }
+    }
+
     /// The text the field was built with.
     pub fn text(&self) -> &str {
         &self.text
@@ -148,6 +155,7 @@ impl TextEdit {
             role: None,
             size: ControlSize::DEFAULT,
             enter: Enter::Submit,
+            aria: None,
         }
     }
 
@@ -163,6 +171,7 @@ impl TextEdit {
             role: None,
             size: ControlSize::DEFAULT,
             enter: Enter::Submit,
+            aria: None,
         }
     }
 
@@ -272,7 +281,8 @@ impl TextEdit {
     /// pass, so the frame that is painted is laid out for the new text
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
-        ui.node_style().map_input(ui.style_mut(), self.size);
+        ui.node_style()
+            .map_input_as(ui.style_mut(), self.size, self.aria);
         if self.framing != Framing::Framed {
             // egui floors a single-line field at interact_size.y, which
             // map_input set to input.height; a bare field is its leaf's height.

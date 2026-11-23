@@ -168,6 +168,13 @@ impl When {
     }
 }
 
+/// TODO(prose): a widget's own look for a part, given at its call site:
+/// [`Builder::part_over`](crate::Builder::part_over) puts it under every
+/// layer of the sheet, as the widgets' defaults, for a widget whose looks
+/// no style's sections write, such as an extension crate's.
+#[derive(Clone, Debug)]
+pub struct Defaults(pub Tw);
+
 /// What a part is named by: its widget's parts, and its slot.
 type PartKey = (TypeId, &'static str);
 
@@ -278,6 +285,18 @@ impl Sheet {
         self.layer
     }
 
+    pub(crate) fn set_layer(&mut self, layer: Layer) {
+        self.layer = layer;
+    }
+
+    /// Whether any rule was written at `layer`.
+    pub(crate) fn has_rules_at(&self, layer: Layer) -> bool {
+        self.rules
+            .values()
+            .flatten()
+            .any(|rule| rule.layer == layer)
+    }
+
     /// TODO(prose): adds the classes `body` writes for every node of `part`, given the style's tokens, at this sheet's layer, after the rules it has.
     pub fn rule<P: Part>(
         &mut self,
@@ -361,6 +380,28 @@ impl Sheet {
         self
     }
 
+    /// The rules of the part at `at` that a later rule replacing all of
+    /// its nodes leaves standing, the lowest layer's first.
+    fn live(&self, at: PartKey) -> impl Iterator<Item = &Stored> {
+        let mut rules: Vec<&Stored> = self.rules.get(&at).into_iter().flatten().collect();
+        rules.sort_by_key(|rule| rule.layer);
+        let from = rules
+            .iter()
+            .rposition(|rule| rule.replace && rule.when == When::always())
+            .unwrap_or(0);
+        rules.into_iter().skip(from)
+    }
+
+    /// Whether a rule that holds for a node of `part` with `keys` replaces
+    /// what is under it.
+    pub(crate) fn replaces<P: Part>(&self, part: P, keys: &[Key]) -> bool {
+        self.rules
+            .get(&part_key(part))
+            .into_iter()
+            .flatten()
+            .any(|rule| rule.replace && rule.when.holds(keys))
+    }
+
     /// TODO(prose): the classes of `part` for a node with `keys`: the rules that hold, the lowest layer's first, each over the last, their bodies given `tokens`. The node's `data-slot` is the part's.
     ///
     /// A builder keeps what it resolved, so this runs each rule's body: for a call outside a build, such as a test's.
@@ -393,9 +434,9 @@ impl Sheet {
         let mut named = Vec::new();
         let rules = self
             .rules
-            .iter()
-            .filter(|(at, _)| at.0 == widget)
-            .flat_map(|(_, rules)| rules);
+            .keys()
+            .filter(|at| at.0 == widget)
+            .flat_map(|at| self.live(*at));
         for key in rules.flat_map(|rule| rule.when.named()) {
             if matches!(key, Key::Variant(_) | Key::Size(_)) && !named.contains(&key) {
                 named.push(key);
@@ -407,10 +448,7 @@ impl Sheet {
     /// The first variant or size in `keys` that `part`'s rules leave out while naming others of its kind.
     pub(crate) fn unnamed<P: Part>(&self, part: P, keys: &[Key]) -> Option<Key> {
         let named: Vec<Key> = self
-            .rules
-            .get(&part_key(part))
-            .into_iter()
-            .flatten()
+            .live(part_key(part))
             .flat_map(|rule| rule.when.named())
             .collect();
         let same_kind = |a: &Key, b: &Key| {
@@ -629,6 +667,22 @@ mod tests {
             None,
             "a part with no variants takes any"
         );
+    }
+
+    #[test]
+    fn a_variant_only_a_replaced_rule_names_counts_as_left_out() {
+        let mut sheet = sheet();
+        sheet.as_preset().replace(Test::Root, |t, _| t.px(3.0));
+        sheet.rule_when(Test::Root, When::always().variant(NARROW), |t, _| t);
+        let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)], &tokens());
+        assert_eq!(wide.style(), tw().px(3.0).style(), "precondition: replaced");
+        assert_eq!(
+            sheet.unnamed(Test::Root, &[Key::Variant(WIDE)]),
+            Some(Key::Variant(WIDE))
+        );
+        assert_eq!(sheet.unnamed(Test::Root, &[Key::Variant(NARROW)]), None);
+        let keys: Vec<Key> = sheet.keys::<Test>().collect();
+        assert_eq!(keys, [Key::Variant(NARROW)]);
     }
 
     #[test]

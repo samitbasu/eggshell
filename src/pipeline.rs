@@ -25,7 +25,7 @@ use crate::key::{ReadablePath, Seen, layout_root, root_id};
 use crate::layout_tree::LayoutTree;
 use crate::measure::{Content, Measure, measure_content};
 use crate::nodes::Nodes;
-use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
 use crate::owned::Side;
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
@@ -323,7 +323,7 @@ pub(crate) struct BuildState {
     pub seen: Seen,
     /// What the nodes built under a container with `has` rules say of
     /// themselves, until it closes.
-    pub observed: std::collections::HashMap<NodeId, crate::tw::Observed>,
+    pub observed: std::collections::HashMap<NodeId, Vec<crate::tw::Observed>>,
     /// The rules containers declared this frame, by the index `Rules` holds.
     pub links: Vec<crate::tw::Link>,
     /// What the style's sheet gave the parts built so far.
@@ -630,42 +630,6 @@ fn fresh_scope() -> Id {
         "layout-state",
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ))
-}
-
-/// The room an overlay would have.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Room {
-    /// It fits as it is, or it is not known where it would go.
-    Enough,
-    /// Taller than the room it would have: it must scroll.
-    Short,
-}
-
-/// Whether an overlay of the `natural` size anchored to `anchor` gets the
-/// room it wants under `placement`, as the last layout of the state placed
-/// things. Asks [`place`] itself, so that a build-time decision to scroll
-/// agrees with the clamp the layout applies.
-pub(crate) fn room_for(
-    ctx: &egui::Context,
-    (kept, viewport): (&Handle, egui::ViewportId),
-    anchor: Id,
-    placement: &Placement,
-    natural: Vec2,
-) -> Room {
-    let area = kept.viewport(viewport, |here| here.area);
-    let rect = |id| ctx.read_response(id).map(|response| response.rect);
-    let placement = match placement.boundary_node() {
-        Some(node) => rect(node).map(|rect| placement.with_node_rect(rect)),
-        None => Some(*placement),
-    };
-    match (area, rect(anchor), placement) {
-        (Some(area), Some(anchor), Some(placement))
-            if place(anchor, natural, &placement, area).available.y < natural.y =>
-        {
-            Room::Short
-        }
-        _ => Room::Enough,
-    }
 }
 
 /// Gives egui the look of the layout's own style, both themes and its
@@ -1143,6 +1107,12 @@ impl<'f, A> Built<'f, A> {
                         );
                         spot = spot.refit(anchor, laid_size(&st.tree, node), &placement, area);
                     }
+                    if let Some(open) = stack.get_mut(overlay.id) {
+                        open.fit = match room.height {
+                            Some(_) => crate::overlay::Fit::Short { natural },
+                            None => crate::overlay::Fit::Fits,
+                        };
+                    }
                     (
                         anchor_decl,
                         anchor,
@@ -1225,6 +1195,7 @@ impl<'f, A> Built<'f, A> {
                     stack_index: 0,
                     description: overlay.description,
                     staged: overlay.staged,
+                    showing: overlay.showing,
                 }),
             });
             at += 1;

@@ -42,10 +42,12 @@
 mod button;
 mod checkbox;
 mod choice;
+mod choices_sheet;
 mod custom;
 mod field_box;
 mod input_sheet;
 mod menu;
+mod menu_sheet;
 mod number;
 mod number_field;
 pub(crate) mod options;
@@ -59,9 +61,11 @@ mod splitter;
 mod stepper;
 mod switch;
 mod table;
+mod table_sheet;
 mod tabs_sheet;
 mod toggle;
 mod toggle_group;
+mod tooltip_sheet;
 
 use crate::overlay_input::Blur;
 use crate::widget::Enter;
@@ -72,24 +76,58 @@ use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
-pub use button::{ButtonChain, ButtonOptions, Face};
+pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
+pub(crate) use button::{ButtonDefaults, button_defaults};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
+pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+pub(crate) use choices_sheet::{
+    write_checkbox_rules, write_exceptions as write_choice_exceptions, write_field_rules,
+    write_radio_rules, write_switch_rules,
+};
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
-pub(crate) use input_sheet::{Frame, keys as input_keys, write_rules as write_input_rules};
+pub(crate) use input_sheet::{
+    Frame, keys as input_keys, write_exceptions as write_input_exceptions,
+    write_rules as write_input_rules,
+};
+pub(crate) use input_sheet::{INLINE_END, INLINE_START};
 pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
+pub use menu_sheet::MenuPart;
+pub(crate) use menu_sheet::{
+    write_exceptions as write_menu_exceptions, write_rules as write_menu_rules,
+};
 pub use number::{Edit, Step, ValueRange};
-pub(crate) use options::Gate;
 pub use options::IntoTip;
+pub(crate) use options::{Gate, Validity};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
-pub use select::SelectChain;
-pub use slider::SliderChain;
+pub use select::{SelectChain, SelectPart};
+pub(crate) use select::{write_select_exceptions, write_select_rules};
+pub(crate) use slider::write_exceptions as write_slider_exceptions;
+pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
+
+/// Writes the recorded exception of the tracks over a preset's look (#132):
+/// a slider's and a progress bar's track are the style's fill (the input
+/// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the
+/// segmented control's is written with the tabs'.
+pub(crate) fn write_track_exceptions(
+    sheet: &mut crate::sheet::Sheet,
+    (slider, progress): (
+        &crate::contract::SliderStyle,
+        &crate::contract::ProgressStyle,
+    ),
+) {
+    let (slider, progress) = (slider.track.rest.fill, progress.track.fill);
+    sheet.rule(SliderPart::Track, move |t, _| t.bg(slider));
+    sheet.rule(ProgressPart::Root, move |t, _| t.bg(progress));
+}
+pub use progress::ProgressPart;
+pub use slider::{SliderChain, SliderPart};
 pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
@@ -97,10 +135,18 @@ pub use switch::SwitchChain;
 pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
+pub use table_sheet::TablePart;
+pub(crate) use table_sheet::{
+    write_exceptions as write_table_exceptions, write_rules as write_table_rules,
+};
 pub use tabs_sheet::TabsPart;
-pub(crate) use tabs_sheet::{Roles as TabsRoles, write_rules as write_tabs_rules};
+pub(crate) use tabs_sheet::{
+    Roles as TabsRoles, write_exceptions as write_tabs_exceptions, write_rules as write_tabs_rules,
+};
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
+pub use tooltip_sheet::TooltipPart;
+pub(crate) use tooltip_sheet::write_rules as write_tooltip_rules;
 
 use crate::contract::{Colors, Disabled, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
@@ -167,20 +213,36 @@ impl From<bool> for Enablement {
 }
 
 impl Enablement {
+    /// What a control's own node senses: a click, or nothing at all while
+    /// disabled. A generated look sets paint only, so the control says this
+    /// at its call site.
+    pub(crate) fn senses(self) -> Tw {
+        match self {
+            Self::Enabled => tw().sense_click(),
+            Self::Disabled => tw().inert(),
+        }
+    }
+
     /// `classes`, inert when disabled and, if the style fades disabled
     /// controls, faded. Apply it to the root of a control: what is inside
     /// follows the root's opacity.
     pub(crate) fn apply(self, classes: Tw, style: &Style) -> Tw {
-        match self {
-            Self::Enabled => classes,
-            Self::Disabled => self.fade(classes.inert(), style),
+        self.apply_in(classes, style.tokens.disabled)
+    }
+
+    /// [`apply`](Self::apply) where disabled controls draw as `disabled` says.
+    fn apply_in(self, classes: Tw, disabled: Disabled) -> Tw {
+        match (self, disabled) {
+            (Self::Enabled, _) => classes,
+            (Self::Disabled, Disabled::Faded(opacity)) => classes.inert().opacity(opacity),
+            (Self::Disabled, Disabled::Colors) => classes.inert(),
         }
     }
 
     /// `classes` at the opacity the style gives a disabled control, if it
     /// fades them.
     fn fade(self, classes: Tw, style: &Style) -> Tw {
-        match (self, style.disabled()) {
+        match (self, style.tokens.disabled) {
             (Self::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
             _ => classes,
         }
@@ -206,7 +268,7 @@ impl Enablement {
     /// The colours of `states` at rest, or the disabled ones if the style
     /// has them (a style that fades has the rest colours, faded by the root).
     fn colors(self, states: States, style: &Style) -> Colors {
-        self.colors_in(states, style.disabled())
+        self.colors_in(states, style.tokens.disabled)
     }
 
     /// [`colors`](Self::colors) where disabled controls draw as `disabled`
@@ -445,7 +507,7 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.button.variants.get(style.button.variants.default_key());
+    ///     let look = style.select().trigger;
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)
@@ -479,7 +541,7 @@ impl Paint {
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let paint = style.checkbox.off;
+    ///     let paint = style.checkbox().off;
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
     /// }
@@ -494,7 +556,7 @@ impl Paint {
     ) -> Tw {
         self.classes_in(
             border_width,
-            (style.focus(), style.disabled()),
+            (style.tokens.focus, style.tokens.disabled),
             radius,
             enablement,
             transition,
@@ -581,67 +643,6 @@ impl Paint {
     }
 }
 
-impl Paint {
-    /// The classes of a checkbox box or radio circle: a `size` square that
-    /// keeps its size and centres what it holds.
-    fn indicator(
-        &self,
-        border_width: f32,
-        style: &Style,
-        radius: u8,
-        enablement: Enablement,
-        transition: Duration,
-        size: f32,
-    ) -> Tw {
-        centered(self.classes(border_width, style, radius, enablement, transition))
-            .shrink_0()
-            .size_px(size)
-    }
-}
-
-/// The ring a field shows while it has focus: the look's own, else the style's.
-fn field_ring(look: &Look, style: &Style) -> crate::contract::Focus {
-    look.paint.focus.unwrap_or(style.focus())
-}
-
-/// A box that holds a text field, drawn in `look`: it does not sense, and shows
-/// the focus ring while a widget inside has focus.
-fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement) -> Tw {
-    let base = tw().border(look.border_width).rounded_px(f32::from(radius));
-    let (states, shadow) = (look.paint.states, look.paint.shadow);
-    let classes = match enablement {
-        Enablement::Disabled => painted(base, enablement.colors(states, style)).inert(),
-        Enablement::Enabled => {
-            let ring = field_ring(look, style);
-            painted(base, states.rest).focus_within(|p| {
-                p.border_color(states.focused.border)
-                    .ring(ring.width, ring.color)
-            })
-        }
-    };
-    match shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
-}
-
-/// A box in `look` of `radius` and `height` that holds a row: the frame of a
-/// field and of what sits beside it.
-pub(crate) fn field_box_classes(
-    look: &Look,
-    style: &Style,
-    radius: u8,
-    height: f32,
-    enablement: Enablement,
-) -> Tw {
-    enablement.fade(
-        field_classes(look, style, radius, enablement)
-            .flex()
-            .h_px(height),
-        style,
-    )
-}
-
 /// `size`'s text laid over the role the subtree inherits.
 pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract::TextSize>) -> Tw {
     match size {
@@ -654,15 +655,35 @@ pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract
     }
 }
 
-/// The classes of a framed text field's leaf: the focus ring around the box the
-/// field's own frame draws, from the field's rules. The frame's border is
-/// egui's, set by [`Style::map_input`].
-pub(crate) fn text_field_classes<A: 'static>(b: &mut Builder<'_, '_, A>, size: Size) -> Tw {
+/// The key of a trigger whose popup is `open`, the web's `aria-expanded`:
+/// for its own open look, and for its containers' `has-aria-expanded`.
+pub(crate) fn expanded_key(open: bool) -> Option<crate::sheet::Key> {
+    open.then_some(crate::sheet::Key::Aria(crate::Aria::Expanded))
+}
+
+/// The classes of a framed text field's leaf in the ARIA state `aria`, if
+/// any: the ring around the box the field's own frame draws, from the
+/// field's rules, at rest (an invalid field's) and on focus. The frame's
+/// border is egui's, set by [`Style::map_input`].
+pub(crate) fn text_field_classes<A: 'static>(
+    b: &mut Builder<'_, '_, A>,
+    size: Size,
+    aria: Option<crate::Aria>,
+) -> Tw {
     let style = b.style().clone();
-    let keys = input_keys(style.input().sizes.key_for(size), false);
+    let mut keys = input_keys(style.input().sizes.key_for(size), false);
+    keys.extend(aria.map(crate::sheet::Key::Aria));
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
-    match root.variant_ring(crate::tw::State::FocusWithin) {
+    let leaf = match aria {
+        Some(aria) => leaf.aria(aria),
+        None => leaf,
+    };
+    let leaf = match root.paint.ring {
+        Some(ring) => leaf.ring(ring.width, ring.color),
+        None => leaf,
+    };
+    match root.variant_ring(crate::tw::State::Focus) {
         Some(ring) => leaf.focus_within(|p| p.ring(ring.width, ring.color)),
         None => leaf,
     }
@@ -692,18 +713,26 @@ impl Chevron {
 
 /// The classes of the row that holds a checkbox, radio button or switch and
 /// its label.
-fn choice_row(style: &Style, text: &TextSpec, enablement: Enablement, gap: f32) -> Tw {
-    let row = tw()
-        .flex()
-        .items_center()
-        .gap(gap / 4.0)
-        .role(TextSpec {
-            line_height: text.size,
-            ..text.clone()
-        })
-        .whitespace_nowrap()
-        .select_none();
-    enablement.apply(row, style)
+///
+/// TODO(#446): the gap and the text role are the control's own section's,
+/// given here until the field's rules hold them.
+fn choice_row<A>(
+    b: &mut Builder<'_, '_, A>,
+    text: &TextSpec,
+    (enablement, validity): (Enablement, &Validity),
+    gap: f32,
+) -> Tw {
+    let own = tw().gap(gap / 4.0).role(TextSpec {
+        line_height: text.size,
+        ..text.clone()
+    });
+    let own = match enablement {
+        Enablement::Enabled => own,
+        Enablement::Disabled => own.inert(),
+    };
+    let mut keys = FieldPart::keys(enablement);
+    keys.extend(validity.field_key(enablement));
+    b.part(FieldPart::Root, &keys, own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -716,15 +745,96 @@ fn choice_label<A: 'static, K: crate::Key>(
     enablement: Enablement,
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
-    let style = b.style().clone();
-    let color = enablement.colors(style.label, &style).text;
+    let classes = b.part(
+        FieldPart::Label,
+        &FieldPart::keys(enablement),
+        tw().sense_click().focusable_none(),
+    );
     let name = text.clone();
-    b.span(key, tw().text(color).sense_click().focusable_none(), text)
-        .draw(move |app, ui| {
-            if ui.label_for(control, &name) {
-                on_click(app);
-            }
+    b.span(key, classes, text).draw(move |app, ui| {
+        if ui.label_for(control, &name) {
+            on_click(app);
+        }
+    });
+}
+
+/// How a choice control is laid out with its label.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Form {
+    /// The control beside its label.
+    #[default]
+    Row,
+    /// A card: the label holds the field, the control after the title and
+    /// description, and the whole card toggles it.
+    Card,
+}
+
+impl Form {
+    /// `keys` with the card's, for a control in a card.
+    fn keys(self, mut keys: Vec<crate::sheet::Key>) -> Vec<crate::sheet::Key> {
+        if self == Self::Card {
+            keys.push(crate::sheet::Key::Attr(
+                choices_sheet::CARD.0,
+                choices_sheet::CARD.1,
+            ));
+        }
+        keys
+    }
+}
+
+/// What a choice card says of the control it holds.
+struct Card {
+    /// The control the card names and toggles.
+    control: Id,
+    title: String,
+    description: Option<String>,
+    enablement: Enablement,
+    /// The caller's classes, over the card's.
+    classes: Tw,
+}
+
+/// A choice card under `key`: a label that holds the field `row`, with the
+/// content and then what `build_control` builds. Clicking the card runs
+/// `on_click`.
+fn choice_card<A: 'static, K: crate::Key>(
+    b: &mut Builder<'_, '_, A>,
+    key: K,
+    card: Card,
+    row: Tw,
+    on_click: impl FnOnce(&mut A) + 'static,
+    build_control: impl FnOnce(&mut Builder<'_, '_, A>),
+) {
+    let Card {
+        control,
+        title,
+        description,
+        enablement,
+        classes,
+    } = card;
+    let keys = FieldPart::card_keys(enablement);
+    let own = enablement.senses();
+    let label = b.part(FieldPart::Label, &keys, own.focusable_none().merge(classes));
+    let name = title.clone();
+    b.div_id(key, label, |b| {
+        b.div(row, |b| {
+            let content = b.part(FieldPart::Content, &[], tw());
+            let keys = FieldPart::keys(enablement);
+            b.div(content, |b| {
+                let title_classes = b.part(FieldPart::Title, &keys, tw());
+                b.text(title_classes, title);
+                if let Some(description) = description {
+                    let classes = b.part(FieldPart::Description, &keys, tw());
+                    b.text(classes, description);
+                }
+            });
+            build_control(b);
         });
+    })
+    .draw(move |app, ui| {
+        if ui.label_for(control, &name) {
+            on_click(app);
+        }
+    });
 }
 
 /// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
@@ -927,5 +1037,41 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         range: impl Into<ValueRange>,
     ) -> StepperChain<'_, 'f, A> {
         StepperChain::new(self.reborrow(), key, value, range.into())
+    }
+}
+
+/// Builds an open overlay's rows in a box of `classes` under `key`. When the
+/// last layout cut the overlay short, the rows are in a scroll container
+/// under `scroller`, as tall as they want, which the box shrinks to its
+/// room: shadcn's `max-h-(--available-height) overflow-y-auto`, with the
+/// gutter only when it scrolls.
+pub(crate) fn fitted_box<'f, A: 'static>(
+    s: &mut crate::builder::Scope<'_, 'f, A>,
+    fit: crate::overlay::Fit,
+    (key, scroller): (impl crate::Key, impl crate::Key),
+    classes: Tw,
+    rows: impl FnOnce(&mut crate::builder::Scope<'_, 'f, A>),
+) {
+    use crate::overlay::Fit;
+    use crate::scroll::{Axis, Focusable};
+    match fit {
+        Fit::Short { natural } => {
+            let height = natural.y - crate::builder::block_insets(classes.style());
+            s.div_id(key, classes.flex().flex_col().min_h_0(), |s| {
+                let viewport = tw()
+                    .flex()
+                    .flex_col()
+                    .h_px(height)
+                    .min_h_0()
+                    .focusable_none();
+                s.scroll(scroller, viewport)
+                    .axis(Axis::Y)
+                    .focusable(Focusable::Auto)
+                    .children(rows);
+            });
+        }
+        Fit::Measuring | Fit::Fits => {
+            s.div_id(key, classes, rows);
+        }
     }
 }

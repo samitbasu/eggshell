@@ -56,6 +56,16 @@ impl Sensing {
     pub(crate) fn is_none(self) -> bool {
         self == Self::None
     }
+
+    /// What a style's sheet may make a node sense: what its looks need to
+    /// show (the pointer over it), never clicks or drags, which would make
+    /// it a Tab stop. Whether a node is pressed or focused is the widget's.
+    pub(crate) fn looks_only(self) -> Self {
+        match self {
+            Self::None => Self::None,
+            Self::Hover | Self::Click | Self::Drag | Self::ClickDrag => Self::Hover,
+        }
+    }
 }
 
 impl From<Sensing> for Sense {
@@ -165,6 +175,52 @@ impl Grouping {
         } else {
             Self::Ungrouped
         }
+    }
+}
+
+/// TODO(prose): the paint a [`has`](Tw::has) rule's hover changes: the box's
+/// fill, border and ring, and nothing its children inherit.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BoxState(Paint);
+
+impl BoxState {
+    /// `bg-<color>`.
+    #[must_use]
+    pub fn bg(self, color: impl Into<Color32>) -> Self {
+        Self(self.0.bg(color))
+    }
+
+    /// `border-<color>`.
+    #[must_use]
+    pub fn border_color(self, color: impl Into<Color32>) -> Self {
+        Self(self.0.border_color(color))
+    }
+
+    /// `ring-<width> ring-<color>`.
+    #[must_use]
+    pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
+        Self(self.0.ring(width, color))
+    }
+}
+
+impl super::BoxTw {
+    /// TODO(prose): `hover:` inside a [`has`](Tw::has) rule: Tailwind's
+    /// `has-*:hover:*`. It paints the hover of a node that senses it and
+    /// makes none sense it.
+    ///
+    /// ```
+    /// use eggshell_ui::{Match, tw};
+    /// use egui::Color32;
+    /// let card = tw()
+    ///     .sense_click()
+    ///     .has_child(Match::slot("field"), |b| b.hover(|p| p.bg(Color32::GRAY)));
+    /// ```
+    #[must_use]
+    pub fn hover(self, style: impl FnOnce(BoxState) -> BoxState) -> Self {
+        Self(
+            self.0
+                .variant(|variants| &mut variants.hover, |p| style(BoxState(p)).0),
+        )
     }
 }
 
@@ -336,6 +392,7 @@ pub(crate) enum State {
     Hover,
     FocusWithin,
     Focus,
+    Highlighted,
     Active,
     DragAccepts,
     DragOver,
@@ -343,11 +400,12 @@ pub(crate) enum State {
 }
 
 impl State {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::GroupHover,
         Self::Hover,
         Self::FocusWithin,
         Self::Focus,
+        Self::Highlighted,
         Self::Active,
         Self::DragAccepts,
         Self::DragOver,
@@ -362,6 +420,7 @@ pub(crate) struct Presence {
     pub hover: Progress,
     pub focus_within: Progress,
     pub focus: Progress,
+    pub highlighted: Progress,
     pub active: Progress,
     pub drag_accepts: Progress,
     pub drag_over: Progress,
@@ -376,6 +435,7 @@ impl Presence {
         hover: Progress::START,
         focus_within: Progress::START,
         focus: Progress::START,
+        highlighted: Progress::START,
         active: Progress::START,
         drag_accepts: Progress::START,
         drag_over: Progress::START,
@@ -388,6 +448,7 @@ impl Presence {
             State::Hover => self.hover,
             State::FocusWithin => self.focus_within,
             State::Focus => self.focus,
+            State::Highlighted => self.highlighted,
             State::Active => self.active,
             State::DragAccepts => self.drag_accepts,
             State::DragOver => self.drag_over,
@@ -479,6 +540,7 @@ struct VariantData {
     group_hover: Option<Paint>,
     focus: Option<Paint>,
     focus_within: Option<Paint>,
+    highlighted: Option<Paint>,
     drag_accepts: Option<Paint>,
     drag_over: Option<Paint>,
     drag_lifted: Option<Paint>,
@@ -505,6 +567,7 @@ impl VariantData {
             group_hover: both(self.group_hover, other.group_hover),
             focus: both(self.focus, other.focus),
             focus_within: both(self.focus_within, other.focus_within),
+            highlighted: both(self.highlighted, other.highlighted),
             drag_accepts: both(self.drag_accepts, other.drag_accepts),
             drag_over: both(self.drag_over, other.drag_over),
             drag_lifted: both(self.drag_lifted, other.drag_lifted),
@@ -524,6 +587,7 @@ impl VariantData {
             State::Hover => self.hover.as_ref(),
             State::FocusWithin => self.focus_within.as_ref(),
             State::Focus => self.focus.as_ref(),
+            State::Highlighted => self.highlighted.as_ref(),
             State::Active => self.active.as_ref(),
             State::DragAccepts => self.drag_accepts.as_ref(),
             State::DragOver => self.drag_over.as_ref(),
@@ -651,6 +715,19 @@ impl Tw {
         tw.sensing = tw.sensing.pressable();
         #[cfg(debug_assertions)]
         tw.note(super::Property::VariantFocus);
+        tw
+    }
+
+    /// TODO(prose): `data-highlighted:`. The node is the current item of
+    /// a menu or listbox, whether the keyboard or the pointer made it
+    /// current; never true of a node that is not an item. Implies
+    /// [`sense_hover`](Self::sense_hover).
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn highlighted(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        let mut tw = self.variant(|variants| &mut variants.highlighted, style);
+        tw.sensing = tw.sensing.or(Sensing::Hover);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantHighlighted);
         tw
     }
 
@@ -901,6 +978,7 @@ impl Tw {
             || self.variants.get(State::Active).is_some()
             || self.variants.get(State::Focus).is_some()
             || self.variants.get(State::FocusWithin).is_some()
+            || self.variants.get(State::Highlighted).is_some()
             || self.variants.get(State::DragAccepts).is_some()
             || self.variants.get(State::DragOver).is_some()
             || self.variants.get(State::DragLifted).is_some()

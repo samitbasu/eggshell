@@ -44,10 +44,26 @@ impl SkeletonStyle {
     pub fn from_style(style: &Style) -> Self {
         Self {
             fill: Color32::from_gray(128).gamma_multiply(0.2),
-            radius: style.menu.radius,
+            radius: style.menu().radius,
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }
+    }
+}
+
+/// TODO(prose): a skeleton for the style's sheet, as shadcn's
+/// `skeleton.tsx` names it. Its pulse is the widget's own motion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SkeletonPart {
+    /// TODO(prose): the box.
+    Root,
+}
+
+impl eggshell_ui::sheet::Part for SkeletonPart {
+    const SOURCE: &'static str = "skeleton.tsx";
+
+    fn slot(self) -> &'static str {
+        "skeleton"
     }
 }
 
@@ -64,12 +80,14 @@ impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
         let style = self.style().extension::<SkeletonStyle>();
         let opacity = cycle(self.ctx(), style.period)
             .map_or(Opacity::OPAQUE, |phase| pulse(phase, style.low));
-        let styled = tw()
-            .shrink_0()
-            .bg(style.fill)
-            .rounded_px(f32::from(style.radius))
-            .opacity(opacity);
-        self.div(styled.merge(classes), |_| {});
+        let look = tw().bg(style.fill).rounded_px(f32::from(style.radius));
+        let styled = self.part_over(
+            SkeletonPart::Root,
+            &[],
+            eggshell_ui::sheet::Defaults(look),
+            tw().shrink_0().opacity(opacity).merge(classes),
+        );
+        self.div(styled, |_| {});
     }
 }
 

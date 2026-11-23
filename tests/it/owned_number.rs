@@ -12,7 +12,9 @@ use egui::epaint::Shape;
 use egui::{Key, KeyboardShortcut, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, box_at, focused_path, press_and_release, ring_at, shapes, text_color};
+use crate::support::{
+    self, box_at, focused_path, press_and_release, ring_at, shapes, text_color, try_box_at,
+};
 
 const REGIONS: [(usize, &str); 3] = [(0, "Europe"), (1, "North America"), (2, "Asia Pacific")];
 
@@ -150,12 +152,14 @@ fn slider_track_range_and_thumb_are_the_styles() {
         );
         assert_eq!(bar.width(), track.width());
         let bar_shape = box_at(&d, bar);
-        assert_eq!(bar_shape.fill, slider.track.rest.fill, "{theme:?}");
+        let tokens = Tokens::for_theme(theme);
+        // Recorded exception (#132): the input token, not `bg-muted`.
+        assert_eq!(bar_shape.fill, tokens.input, "{theme:?}: the input token");
         assert_eq!(bar_shape.corner_radius, egui::CornerRadius::same(u8::MAX));
 
         let range = range(&d, "volume");
         assert!((range.width() - 0.4 * bar.width()).abs() < 0.6, "{range:?}");
-        assert_eq!(box_at(&d, range).fill, slider.range.rest.fill);
+        assert_eq!(box_at(&d, range).fill, tokens.primary, "bg-primary");
 
         let thumb = d.rect(Target::suffix(THUMB));
         assert_eq!(thumb.size(), vec2(16.0, 16.0), "size-4");
@@ -163,12 +167,10 @@ fn slider_track_range_and_thumb_are_the_styles() {
         assert!((thumb.center().x - centre).abs() < 0.6, "{thumb:?}");
         assert!((thumb.center().y - track.center().y).abs() < 0.6);
         let shape = box_at(&d, thumb);
-        let look = slider.thumb;
-        assert_eq!(shape.fill, look.paint.states.rest.fill);
-        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
+        assert_eq!(shape.fill, egui::Color32::WHITE, "{theme:?}: bg-white");
+        assert_eq!(shape.stroke.color, tokens.primary, "border-primary");
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
-        assert_ne!(slider.range.rest.fill, slider.track.rest.fill);
     }
 }
 
@@ -354,6 +356,7 @@ fn a_disabled_slider_ignores_the_pointer_and_the_keyboard() {
             "not a Tab stop"
         );
     }
+    // Recorded exception (#40): opaque blends, not the root's opacity-50.
     let slider = style(Theme::Light).slider;
     let bar = bar(&d, "locked");
     assert_eq!(box_at(&d, bar).fill, slider.track.disabled.fill);
@@ -403,43 +406,42 @@ fn chevron_in(d: &Driver<App>, rect: Rect) -> Option<egui::Color32> {
 
 #[test]
 fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
+    // style-vega.css `.cn-select-trigger`, `.cn-select-trigger-icon`.
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let select = style(theme).select;
+        let t = Tokens::for_theme(theme);
+        let select = style(theme).select().clone();
         let trigger = d.rect(Target::suffix(REGION));
         assert_eq!(trigger.size(), vec2(200.0, 36.0), "h-9");
         let shape = box_at(&d, trigger);
-        let look = select.trigger;
-        assert_eq!(shape.fill, look.paint.states.rest.fill, "{theme:?}");
-        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
+        let fill = match theme {
+            Theme::Light => egui::Color32::TRANSPARENT,
+            Theme::Dark => t.input.gamma_multiply(0.3),
+        };
+        assert_eq!(
+            shape.fill, fill,
+            "bg-transparent dark:bg-input/30, {theme:?}"
+        );
+        assert_eq!(shape.stroke.color, t.input, "border-input");
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(
             shape.corner_radius,
             egui::CornerRadius::same(select.sizes.get(Size::DEFAULT).radius)
         );
         let text = d.rect(Target::suffix("/\"region\"/<text>"));
-        assert_eq!(
-            text.left() - trigger.left(),
-            1.0 + select.sizes.get(Size::DEFAULT).padding_x
-        );
-        assert_eq!(
-            text_color(&d, trigger, "Europe"),
-            look.paint.states.rest.text
-        );
+        assert_eq!(text.left() - trigger.left(), 1.0 + 10.0, "pl-2.5");
+        assert_eq!(text_color(&d, trigger, "Europe"), t.foreground);
         let glyph = d.rect(Target::suffix("/\"region\"/<glyph>"));
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "size-4");
-        assert_eq!(
-            trigger.right() - glyph.right(),
-            1.0 + select.sizes.get(Size::DEFAULT).padding_x
-        );
+        assert_eq!(trigger.right() - glyph.right(), 1.0 + 8.0, "pr-2");
         let chevron = chevron_in(&d, glyph).expect("a chevron");
-        assert_eq!(
-            chevron,
-            look.paint.states.rest.text.gamma_multiply(0.5),
-            "opacity-50"
-        );
+        assert_eq!(chevron, t.muted_foreground, "text-muted-foreground");
         let frozen = d.rect(Target::suffix("/\"frozen\""));
-        assert_eq!(box_at(&d, frozen).fill, look.paint.states.disabled.fill);
+        assert_eq!(
+            box_at(&d, frozen).fill,
+            fill.gamma_multiply(0.5),
+            "disabled:opacity-50"
+        );
     }
 }
 
@@ -450,15 +452,25 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     d.click(Target::suffix(REGION)).frames(4);
     assert!(is_open(&d), "a click opens");
 
-    let list = style(Theme::Light).menu;
-    let colors = list.popup.paint.states.rest;
-    assert!(
-        shapes(&d).iter().any(|shape| matches!(
-            shape,
-            Shape::Rect(r) if r.fill == colors.fill && r.stroke.color == colors.border
-                && r.corner_radius == egui::CornerRadius::same(list.radius)
-        )),
-        "the list is drawn in the popup colours"
+    let list = style(Theme::Light).menu().clone();
+    // The list's own box: the smallest one around an option of it.
+    let option = d
+        .harness()
+        .get_by_role_and_label(Role::ListBoxOption, "Asia Pacific")
+        .rect();
+    let popup = shapes(&d)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r) if r.rect.contains_rect(option) && r.fill.a() == u8::MAX => Some(r),
+            _ => None,
+        })
+        .filter(|r| r.rect.area() > option.area() * 1.5)
+        .min_by(|a, b| a.rect.area().total_cmp(&b.rect.area()))
+        .expect("the list's box");
+    assert_eq!(
+        popup.fill,
+        Tokens::for_theme(Theme::Light).popover,
+        "the list is drawn in bg-popover"
     );
     assert!(
         shapes(&d).iter().any(|shape| matches!(
@@ -526,6 +538,30 @@ fn select_keyboard_opens_moves_chooses_and_closes() {
 }
 
 #[test]
+fn the_highlighted_option_takes_the_accent_and_no_other_does() {
+    // style-vega.css `.cn-select-item`: `focus:bg-accent`.
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut d = harness(theme);
+        let accent = Tokens::for_theme(theme).accent;
+        tab_to(&mut d, REGION);
+        d.press(Key::ArrowDown).frames(7);
+        assert!(is_open(&d), "precondition");
+        d.press(Key::ArrowDown).frames(7);
+        let row = |index: usize| {
+            support::nodes(&d)
+                .into_iter()
+                .map(|(path, _)| path)
+                .find(|path| path.ends_with(&format!("/Box/Group/Option({index})")))
+                .expect("the option's row")
+        };
+        let accented: Vec<usize> = (0..REGIONS.len())
+            .filter(|&index| support::fill_of(&d, &row(index)) == Some(accent))
+            .collect();
+        assert_eq!(accented, [1], "{theme:?}");
+    }
+}
+
+#[test]
 fn a_select_trigger_does_not_shift_when_pressed_and_is_a_combobox() {
     let mut d = harness(Theme::Light);
     let trigger = d.rect(Target::suffix(REGION));
@@ -569,16 +605,22 @@ const DOWN: &str = "/\"count\"/Box/Buttons/Down";
 #[test]
 fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
     for theme in [Theme::Light, Theme::Dark] {
-        let d = harness(theme);
+        let mut d = harness(theme);
         let stepper = style(theme).stepper;
         let group = d.rect(Target::suffix("/\"count\"/Box"));
         assert_eq!(group.height(), stepper.sizes.get(Size::DEFAULT).height);
+        // An input group (input-group.tsx, the stepper's one source).
+        let tokens = Tokens::for_theme(theme);
         let shape = box_at(&d, group);
+        let fill = match theme {
+            Theme::Light => egui::Color32::TRANSPARENT,
+            Theme::Dark => tokens.input.gamma_multiply(0.3),
+        };
         assert_eq!(
-            shape.fill, stepper.group.paint.states.rest.fill,
-            "{theme:?}"
+            shape.fill, fill,
+            "{theme:?}: bg-transparent, dark:bg-input/30"
         );
-        assert_eq!(shape.stroke.color, stepper.group.paint.states.rest.border);
+        assert_eq!(shape.stroke.color, tokens.input, "border-input");
         assert_eq!(
             shape.corner_radius,
             egui::CornerRadius::same(stepper.sizes.get(Size::DEFAULT).radius)
@@ -587,20 +629,25 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         assert_eq!(up.width(), stepper.sizes.get(Size::DEFAULT).button_width);
         assert_eq!(down.width(), stepper.sizes.get(Size::DEFAULT).button_width);
         assert_eq!(down.top() - up.bottom(), 1.0, "a divider between");
-        let border = stepper.group.border_width;
+        let border = shape.stroke.width;
         assert_eq!(up.top() - group.top(), border, "inside the border");
         assert_eq!(group.bottom() - down.bottom(), border);
         assert_eq!(group.right() - up.right(), border);
         assert!(group.contains_rect(d.rect(Target::suffix(FIELD))));
         assert!(d.rect(Target::suffix(FIELD)).right() <= up.left() - 1.0);
-        assert_eq!(box_at(&d, up).fill, stepper.button.paint.states.rest.fill);
-        let inner = f32::from(stepper.sizes.get(Size::DEFAULT).radius) - border;
-        let (up_corners, down_corners) =
-            (box_at(&d, up).corner_radius, box_at(&d, down).corner_radius);
-        assert_eq!((up_corners.ne, up_corners.se), (inner as u8, 0));
-        assert_eq!((down_corners.ne, down_corners.se), (0, inner as u8));
+        assert!(
+            try_box_at(&d, up).is_none(),
+            "a ghost button with no border paints nothing at rest"
+        );
         assert!(chevron_in(&d, up).is_some());
         assert!(d.painted().shows("3"));
+        let inner = f32::from(stepper.sizes.get(Size::DEFAULT).radius) - border;
+        d.hover(Target::suffix(UP)).frames(8);
+        let up_corners = box_at(&d, up).corner_radius;
+        assert_eq!((up_corners.ne, up_corners.se), (inner as u8, 0));
+        d.hover(Target::suffix(DOWN)).frames(8);
+        let down_corners = box_at(&d, down).corner_radius;
+        assert_eq!((down_corners.ne, down_corners.se), (0, inner as u8));
     }
 }
 
@@ -608,7 +655,6 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
 fn a_focused_stepper_rings_the_group_and_never_crosses_a_button() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let stepper = style(theme).stepper;
         let group = d.rect(Target::suffix("/\"count\"/Box"));
         assert!(ring_at(&d, group).is_none(), "no ring at rest");
         d.click(Target::suffix(FIELD)).frames(12);
@@ -616,8 +662,8 @@ fn a_focused_stepper_rings_the_group_and_never_crosses_a_button() {
         assert_eq!(ring.stroke.width, 3.0);
         assert_eq!(
             box_at(&d, group).stroke.color,
-            stepper.group.paint.states.focused.border,
-            "the group's border takes the ring colour"
+            Tokens::for_theme(theme).ring,
+            "the group's border takes the ring colour (border-ring)"
         );
         for path in [UP, DOWN] {
             let button = d.rect(Target::suffix(path));
@@ -638,18 +684,18 @@ fn a_focused_stepper_rings_the_group_and_never_crosses_a_button() {
     }
 }
 
+/// A disabled stepper fades as a whole, as a disabled input group does
+/// (exception #4; a refused one looks the same, #385).
 #[test]
-fn a_disabled_stepper_group_is_painted_in_opaque_disabled_colours() {
+fn a_disabled_stepper_fades_as_a_whole() {
     let d = harness(Theme::Light);
-    let stepper = style(Theme::Light).stepper;
     let group = box_at(&d, d.rect(Target::suffix("/\"fixed\"/Box")));
-    assert_eq!(group.fill, stepper.group.paint.states.disabled.fill);
+    let tokens = Tokens::for_theme(Theme::Light);
     assert_eq!(
         group.stroke.color,
-        stepper.group.paint.states.disabled.border
+        tokens.input.gamma_multiply(0.5),
+        "opacity-50"
     );
-    assert_eq!(group.fill.a(), 255);
-    assert_eq!(group.stroke.color.a(), 255);
     let up = d
         .harness()
         .get_by_role_and_label(Role::Button, "Increase Fixed");
@@ -681,10 +727,9 @@ fn the_buttons_step_the_value_and_disable_at_the_limits() {
             .is_disabled()
     );
     let stepper = style(Theme::Light).stepper;
-    assert_eq!(
-        box_at(&d, d.rect(Target::suffix(DOWN))).fill,
-        stepper.button.paint.states.disabled.fill
-    );
+    let fill = try_box_at(&d, d.rect(Target::suffix(DOWN)))
+        .map_or(egui::Color32::TRANSPARENT, |shape| shape.fill);
+    assert_eq!(fill, stepper.button.paint.states.disabled.fill);
     d.click(Target::suffix(DOWN));
     assert_eq!(d.app().count, 0.0);
 
@@ -822,14 +867,20 @@ fn a_stepper_is_a_spin_button_and_its_buttons_are_not_tab_stops() {
 
 #[test]
 fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
-    let mut style = style(Theme::Light);
+    // The select's section draws it where no preset's look is over it.
+    let mut style = support::sections_of(style(Theme::Light));
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.slider.range.rest.fill = red;
     style.slider.sizes.default_entry_mut().track_height = 10.0;
     style.slider.sizes.default_entry_mut().thumb_size = 24.0;
-    style.select.trigger.paint.states.rest.fill = red;
-    style.select.sizes.default_entry_mut().height = 44.0;
-    style.stepper.group.paint.states.rest.fill = red;
+    let mut select = style.select().clone();
+    select.trigger.paint.states.rest.fill = red;
+    select.sizes.default_entry_mut().height = 44.0;
+    style.set_select(select);
+    // The stepper's group is an input group: it follows the input section.
+    let mut input = style.input().clone();
+    input.look.paint.states.rest.fill = red;
+    style.set_input(input);
     style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
@@ -926,4 +977,78 @@ fn the_select_list_is_as_wide_as_its_options_not_the_window() {
         option_width(400.0, "Europe"),
         option_width(1200.0, "Europe")
     );
+}
+
+/// The slider draws from the style's sheet: an App rule restyles its range.
+#[test]
+fn an_app_rule_restyles_a_sliders_range() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui::owned::SliderPart::Range, |t, _| {
+                t.bg(egui::Color32::RED)
+            });
+    }))
+    .build();
+    d.frames(12);
+    let range = range(&d, "volume");
+    assert!(range.width() > 0.0, "precondition: a range is drawn");
+    assert_eq!(box_at(&d, range).fill, egui::Color32::RED);
+}
+
+/// A disabled slider's colours are on the sheet, recorded exception and all:
+/// an App rule restyles its thumb.
+#[test]
+fn an_app_rule_restyles_a_disabled_sliders_thumb() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style.sheet.as_app().rule_when(
+            eggshell_ui::owned::SliderPart::Thumb,
+            eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
+            |t, _| t.bg(egui::Color32::RED),
+        );
+    }))
+    .build();
+    d.frames(12);
+    let thumb = d.rect(Target::suffix("/\"locked\"/Track/Thumb"));
+    assert_eq!(box_at(&d, thumb).fill, egui::Color32::RED);
+}
+
+/// The stepper draws from the style's sheet as an input group: an App rule
+/// restyles its group.
+#[test]
+fn an_app_rule_restyles_a_steppers_group() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style.sheet.as_app().rule_when(
+            eggshell_ui::owned::InputGroupPart::Root,
+            eggshell_ui::sheet::When::always().attr("stepper", "true"),
+            |t, _| t.bg(egui::Color32::RED),
+        );
+    }))
+    .theme(Theme::Light)
+    .build();
+    d.frames(12);
+    let group = d.rect(Target::suffix("/\"count\"/Box"));
+    assert_eq!(box_at(&d, group).fill, egui::Color32::RED);
 }

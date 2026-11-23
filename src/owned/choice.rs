@@ -35,6 +35,8 @@ pub struct Choice<T> {
     /// tooltip and read as its accessible description; `None` while it is not
     /// refused.
     pub refusal: Option<WidgetText>,
+    /// TODO(prose): shown under the label when the option is drawn as a card; the other widgets show none.
+    pub description: Option<String>,
 }
 
 impl<T> Choice<T> {
@@ -47,6 +49,7 @@ impl<T> Choice<T> {
             tooltip: None,
             enablement: Enablement::Enabled,
             refusal: None,
+            description: None,
         }
     }
 
@@ -54,6 +57,18 @@ impl<T> Choice<T> {
     /// in each state and sized by the style.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// TODO(prose): shows `text` under the label of a card.
+    ///
+    /// ```
+    /// # use eggshell_ui::owned::Choice;
+    /// let pro = Choice::new(2, "Pro").description("For teams");
+    /// assert_eq!(pro.description.as_deref(), Some("For teams"));
+    /// ```
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
         self
     }
 

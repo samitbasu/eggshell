@@ -91,9 +91,9 @@ fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
     let frame = rect_of(&harness, BOX);
     let row = rect_of(&harness, RATE);
     let value = rect_of(&harness, &format!("{RATE}/\"Value\""));
+    // The frame is shadcn's card, edged by a ring, which takes no room.
     assert!(
-        (row.left() - frame.left() - style.border_width).abs() < 0.5
-            && (frame.right() - row.right() - style.border_width).abs() < 0.5,
+        (row.left() - frame.left()).abs() < 0.5 && (frame.right() - row.right()).abs() < 0.5,
         "the row spans the box, so the rule above it does: {row:?} in {frame:?}"
     );
     assert!(
@@ -153,8 +153,8 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                     );
                     let tracks = [
                         ("slider", style.slider.track.rest.fill),
-                        ("segmented", style.segmented.track_fill),
-                        ("switch off", style.switch.off.states.rest.fill),
+                        ("segmented", style.segmented().track_fill),
+                        ("switch off", style.switch().off.states.rest.fill),
                         ("progress", style.progress.track.fill),
                     ];
                     for (name, track) in tracks {
@@ -189,4 +189,79 @@ fn the_example_passes_kittests_accessibility_check() {
     );
     harness.state_mut().companion = support::Companion::Alone;
     harness.run();
+}
+
+/// A choice field fills a form's line, as shadcn's `Field` does, and is as
+/// wide as its content inline, beside a button in a row.
+#[test]
+fn a_choice_field_fills_a_form_and_is_its_contents_width_inline() {
+    fn view(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(6.0).p(4.0).w_px(360.0),
+            |b| {
+                b.div_id(
+                    "Row",
+                    tw().flex().flex_wrap().items_center().gap(2.0),
+                    |b| {
+                        b.button("go", "Go").add();
+                        b.checkbox("inline", "Inline", false)
+                            .on_change(|_: &mut App, _| {});
+                    },
+                );
+                b.form_section("audio").children(|b| {
+                    b.checkbox("formed", "Formed", false)
+                        .on_change(|_: &mut App, _| {});
+                });
+            },
+        );
+    }
+    let mut harness = support::harness(vec2(420.0, 300.0), base(), App::default(), view);
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.run_steps(4);
+    let field = |key: &str| {
+        harness
+            .placed()
+            .into_iter()
+            .find(|(path, _, _)| path.contains(&format!("\"{key}\"")) && path.ends_with("<div>"))
+            .map(|(_, rect, _)| rect)
+            .expect("the field")
+    };
+    let (go, inline) = (rect_of(&harness, r#"/"Page"/"Row"/"go""#), field("inline"));
+    assert_eq!(
+        inline.center().y.round(),
+        go.center().y.round(),
+        "on the button's line"
+    );
+    assert!(inline.width() < 120.0, "as wide as its content: {inline:?}");
+    let section = rect_of(&harness, r#"/"Page"/"audio"/"Box""#);
+    let formed = field("formed");
+    assert!(
+        (formed.width() - section.width()).abs() < 0.5,
+        "the form's line: {formed:?} in {section:?}"
+    );
+}
+
+/// A section's frame is shadcn's card (card.tsx: `ring-1 rounded-xl
+/// bg-card`), drawn from the style's sheet; as recorded, it keeps the
+/// section's own vertical padding, not the card's `py-6`.
+#[test]
+fn a_sections_frame_is_shadcns_card_with_the_sections_padding() {
+    let harness = harness();
+    let style = harness.view_shell().style().extension::<FormStyle>();
+    let frame = rect_of(&harness, BOX);
+    let drawn = support::box_at(&harness, frame);
+    assert_eq!(drawn.stroke.width, 0.0, "a ring, not a border");
+    assert_eq!(
+        drawn.corner_radius,
+        egui::CornerRadius::same(14),
+        "rounded-xl"
+    );
+    assert_eq!(drawn.fill, Tokens::for_theme(Theme::Light).card, "bg-card");
+    let first = rect_of(&harness, GAIN);
+    assert_eq!(
+        first.top() - frame.top(),
+        style.padding_y,
+        "the section's padding"
+    );
 }

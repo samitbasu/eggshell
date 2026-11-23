@@ -5,7 +5,7 @@
 use core::time::Duration;
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Size, Themed};
+use eggshell_ui::contract::{Focus, Size, Themed};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -116,6 +116,25 @@ fn circle_in(d: &Driver<App>, rect: Rect) -> Option<CircleShape> {
         .next_back()
 }
 
+/// The radio's dot drawn inside `rect`: a filled, fully rounded box smaller
+/// than it.
+fn dot_in(d: &Driver<App>, rect: Rect) -> Option<egui::epaint::RectShape> {
+    shapes(d)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r)
+                if rect.expand(0.5).contains_rect(r.rect)
+                    && r.rect.width() < rect.width() - 2.0
+                    && r.fill.a() > 0
+                    && r.corner_radius == egui::CornerRadius::same(u8::MAX) =>
+            {
+                Some(r.clone())
+            }
+            _ => None,
+        })
+        .next_back()
+}
+
 fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..16 {
         if focused_path(d).as_deref() == Some(path) {
@@ -131,25 +150,32 @@ fn circle_path(unit: Unit) -> String {
 }
 
 #[test]
-fn radio_circles_and_dots_are_the_styles() {
+fn radio_circles_and_dots_are_shadcns() {
+    // style-vega.css `.cn-radio-group-item`, `.cn-radio-group-indicator-icon`.
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let radio = style(theme).radio;
+        let t = Tokens::for_theme(theme);
         for (unit, _) in UNITS {
             let rect = d.rect(Target::suffix(&circle_path(unit)));
             assert_eq!(rect.size(), vec2(16.0, 16.0), "size-4");
             let shape = box_at(&d, rect);
             let chosen = unit == Unit::Metric;
-            let look = if chosen { radio.on } else { radio.off };
-            assert_eq!(shape.fill, look.states.rest.fill, "{theme:?} {unit:?}");
-            assert_eq!(shape.stroke.color, look.states.rest.border);
+            let (fill, border) = match (chosen, theme) {
+                (true, _) => (t.primary, t.primary),
+                (false, Theme::Light) => (egui::Color32::TRANSPARENT, t.input),
+                (false, Theme::Dark) => (t.input.gamma_multiply(0.3), t.input),
+            };
+            assert_eq!(shape.fill, fill, "{theme:?} {unit:?}");
+            assert_eq!(shape.stroke.color, border, "{theme:?} {unit:?}");
             assert_eq!(shape.stroke.width, 1.0);
             assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
-            match (chosen, circle_in(&d, rect)) {
+            match (chosen, dot_in(&d, rect)) {
                 (true, Some(dot)) => {
-                    assert_eq!(dot.radius, 4.0, "size-2 dot");
-                    assert_eq!(dot.fill, look.states.rest.text);
-                    assert_eq!(dot.center, rect.center());
+                    assert_eq!(dot.rect.size(), vec2(8.0, 8.0), "size-2");
+                    assert_eq!(dot.fill, t.primary_foreground, "bg-primary-foreground");
+                    // The dot snaps to the pixel grid; the circle need not.
+                    let off = dot.rect.center() - rect.center();
+                    assert!(off.x.abs() <= 0.5 && off.y.abs() <= 0.5, "centred: {off:?}");
                 }
                 (false, None) => {}
                 (chosen, dot) => panic!("{unit:?} chosen {chosen}: dot {dot:?}"),
@@ -166,7 +192,7 @@ fn clicking_a_circle_or_its_label_chooses_it() {
     d.click(Target::suffix("/\"units\"/Label(2)")).frames(3);
     assert_eq!(d.app().unit, Unit::Nautical, "the label forwards");
     let rect = d.rect(Target::suffix(&circle_path(Unit::Nautical)));
-    assert!(circle_in(&d, rect).is_some(), "and the dot follows");
+    assert!(dot_in(&d, rect).is_some(), "and the dot follows");
 }
 
 #[test]
@@ -277,7 +303,7 @@ fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let switch = style(theme).switch;
+        let switch = style(theme).switch().clone();
         let metrics = *switch.sizes.get(Size::DEFAULT);
         for on in [false, true] {
             if on {
@@ -359,8 +385,8 @@ fn a_focused_switch_shows_the_styles_ring() {
         d.frames(12);
         let rect = d.rect(Target::suffix("/\"air\"/Track"));
         let ring = ring_at(&d, rect).expect("a focus ring");
-        assert_eq!(ring.stroke.width, style.focus().width);
-        assert_eq!(ring.stroke.color, style.focus().color);
+        assert_eq!(ring.stroke.width, style.tokens.focus.width);
+        assert_eq!(ring.stroke.color, style.tokens.focus.color);
     }
 }
 
@@ -372,7 +398,7 @@ fn cell_path(unit: Unit) -> String {
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let seg = style(theme).segmented;
+        let seg = style(theme).segmented().clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
         assert_eq!(box_at(&d, track).fill, seg.track_fill);
@@ -415,7 +441,7 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
     tab_to(&mut d, &cell_path(Unit::Imperial));
     d.frames(12);
-    let seg = style(Theme::Light).segmented;
+    let seg = style(Theme::Light).segmented().clone();
     let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
@@ -437,12 +463,17 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
 #[test]
 fn a_modified_style_changes_every_owned_widget() {
-    let mut style = style(Theme::Light);
+    // The sections draw the widgets where no preset's look is over them.
+    let mut style = support::sections_of(style(Theme::Light));
     let red = egui::Color32::from_rgb(200, 30, 30);
-    style.switch.on.states.rest.fill = red;
-    style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
-    style.radio.sizes.default_entry_mut().size = 24.0;
-    let mut segmented = style.segmented.clone();
+    let mut switch = style.switch().clone();
+    switch.on.states.rest.fill = red;
+    switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
+    style.set_switch(switch);
+    let mut radio = style.radio().clone();
+    radio.sizes.default_entry_mut().size = 24.0;
+    style.set_radio(radio);
+    let mut segmented = style.segmented().clone();
     segmented.track_fill = red;
     style.set_segmented(segmented);
     let mut d = harness(Theme::Light);
@@ -518,7 +549,7 @@ fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
 #[test]
 fn the_switch_track_eases_to_its_new_colour() {
     let mut d = harness_stepping(Theme::Light, 0.016);
-    let switch = style(Theme::Light).switch;
+    let switch = style(Theme::Light).switch().clone();
     let (off, on) = (switch.off.states.rest.fill, switch.on.states.rest.fill);
     assert_ne!(off, on);
     let track = d.rect(Target::suffix("/\"air\"/Track"));
@@ -542,12 +573,14 @@ fn the_switch_track_eases_to_its_new_colour() {
 fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     let red = egui::Color32::from_rgb(200, 30, 30);
     let mut style = style(Theme::Light);
-    style.switch.off.states.hover.text = red;
-    style.switch.off.states.pressed.text = red;
+    let mut switch = style.switch().clone();
+    switch.off.states.hover.text = red;
+    switch.off.states.pressed.text = red;
+    style.set_switch(switch);
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style.clone())));
     d.frames(4);
-    let rest = style.switch.off.states.rest.text;
+    let rest = style.switch().off.states.rest.text;
     let (_, at_rest) = thumb(&d, "/\"air\"/Track");
     assert_eq!(at_rest.fill, rest);
     d.hover(Target::suffix("/\"air\"/Track")).frames(12);
@@ -555,6 +588,32 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     d.pointer_down(Target::suffix("/\"air\"/Track")).frames(11);
     assert_eq!(thumb(&d, "/\"air\"/Track").1.fill, rest, "pressed");
     d.pointer_up(Target::suffix("/\"air\"/Track")).frames(11);
+}
+
+#[test]
+fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
+    let ring = Focus {
+        width: 5.0,
+        color: egui::Color32::from_rgb(200, 30, 30),
+    };
+    // The preset's switch and cells take shadcn's
+    // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's.
+    let mut style = support::sections_of(style(Theme::Light));
+    assert_ne!(
+        style.tokens.focus, ring,
+        "precondition: the preset's ring is another"
+    );
+    style.tokens.focus = ring;
+    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
+        let mut d = harness(Theme::Light);
+        d.set_style(Themed::both(Arc::new(style.clone())));
+        d.frames(4);
+        tab_to(&mut d, &path);
+        d.frames(12);
+        let drawn = ring_at(&d, d.rect(Target::suffix(&path))).expect("a focus ring");
+        assert_eq!(drawn.stroke.width, ring.width, "{path}");
+        assert_eq!(drawn.stroke.color, ring.color, "{path}");
+    }
 }
 
 #[test]
@@ -652,5 +711,123 @@ mod tiling {
         between_cells(&d, near_first);
         click(&mut d, near_first);
         assert_eq!(d.app().segment, Unit::Metric);
+    }
+}
+
+/// An app's rules on the choice controls' parts reach what they draw.
+mod app_rules {
+    use eggshell_ui::Aria;
+    use eggshell_ui::owned::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+    use eggshell_ui::sheet::When;
+    use egui::Color32;
+
+    use super::*;
+    use crate::support::text_color;
+
+    const RED: Color32 = Color32::from_rgb(200, 30, 30);
+    const BLUE: Color32 = Color32::from_rgb(30, 30, 200);
+    const GREEN: Color32 = Color32::from_rgb(30, 160, 30);
+
+    /// ```html
+    /// <div class="flex flex-col items-start gap-4 p-4">
+    ///   <label><button role="checkbox" aria-checked="true"></button> Tick</label>
+    ///   <div role="radiogroup">Metric Imperial Nautical</div>
+    ///   <label><button role="switch" aria-checked="true"></button> Lit</label>
+    /// </div>
+    /// ```
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+            b.checkbox("tick", "Tick", true)
+                .on_change(|_: &mut App, _| {});
+            b.radio_group("units", app.unit, UNITS)
+                .on_change(|app: &mut App, unit| app.unit = unit);
+            b.switch("lit", "Lit", true).on_change(|_: &mut App, _| {});
+        });
+    }
+
+    fn restyled() -> Style {
+        let mut style = style(Theme::Light);
+        let checked = When::always().aria(Aria::Checked);
+        style
+            .sheet
+            .as_app()
+            .rule_when(CheckboxPart::Root, checked, |t, _| t.bg(RED))
+            .rule_when(RadioGroupPart::Item, checked, |t, _| t.bg(RED))
+            .rule(RadioGroupPart::IndicatorIcon, |t, _| t.size_px(12.0))
+            .rule_when(SwitchPart::Root, checked, |t, _| t.bg(RED))
+            .rule_when(SwitchPart::Thumb, checked, |t, _| t.bg(BLUE))
+            .rule(FieldPart::Label, |t, _| t.text(GREEN));
+        style
+    }
+
+    #[test]
+    fn an_app_rule_on_a_choice_part_restyles_it() {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut d = support::driver(
+            vec2(500.0, 400.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::default(),
+            view,
+        )
+        .build();
+        d.ctx().set_theme(Theme::Light);
+        d.set_style(Themed::both(Arc::new(restyled())));
+        d.frames(12);
+
+        let tick = d.rect(Target::suffix("/\"tick\"/Box"));
+        assert_eq!(box_at(&d, tick).fill, RED, "the ticked box");
+        let chosen = d.rect(Target::suffix(&circle_path(Unit::Metric)));
+        assert_eq!(box_at(&d, chosen).fill, RED, "the chosen circle");
+        let dot = dot_in(&d, chosen).expect("a dot");
+        assert_eq!(dot.rect.width(), 12.0, "the dot");
+        let unchosen = d.rect(Target::suffix(&circle_path(Unit::Imperial)));
+        assert_ne!(
+            box_at(&d, unchosen).fill,
+            RED,
+            "the preset's other rules stand"
+        );
+        let (track, thumb) = thumb(&d, "/\"lit\"/Track");
+        assert_eq!(box_at(&d, track).fill, RED, "the track");
+        assert_eq!(thumb.fill, BLUE, "the thumb");
+        let label = d.rect(Target::suffix("/\"tick\"/Label"));
+        assert_eq!(text_color(&d, label, "Tick"), GREEN, "the label");
+    }
+}
+
+/// style-vega.css `.cn-switch`, `.cn-switch-thumb`: `h-[18.4px] w-[32px]`,
+/// `data-checked:bg-primary data-unchecked:bg-input`, and a `size-4` thumb
+/// in `bg-background`, `dark:data-unchecked:bg-foreground`,
+/// `dark:data-checked:bg-primary-foreground`.
+#[test]
+fn a_switch_is_shadcns() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut d = harness(theme);
+        let t = Tokens::for_theme(theme);
+        let (track, knob) = thumb(&d, "/\"air\"/Track");
+        assert!(
+            (track.size() - vec2(32.0, 18.4)).length() < 0.01,
+            "{theme:?}: {:?}",
+            track.size()
+        );
+        let off = match theme {
+            Theme::Light => t.input,
+            Theme::Dark => t.input.gamma_multiply(0.8),
+        };
+        assert_eq!(box_at(&d, track).fill, off, "{theme:?} bg-input");
+        assert_eq!(knob.radius, 8.0, "size-4");
+        let knob_off = match theme {
+            Theme::Light => t.background,
+            Theme::Dark => t.foreground,
+        };
+        assert_eq!(knob.fill, knob_off, "{theme:?} unchecked thumb");
+        d.click(Target::suffix("/\"air\"/Track")).frames(30);
+        assert!(d.app().on, "precondition: it turned on");
+        let (track, knob) = thumb(&d, "/\"air\"/Track");
+        assert_eq!(box_at(&d, track).fill, t.primary, "{theme:?} bg-primary");
+        let knob_on = match theme {
+            Theme::Light => t.background,
+            Theme::Dark => t.primary_foreground,
+        };
+        assert_eq!(knob.fill, knob_on, "{theme:?} checked thumb");
     }
 }

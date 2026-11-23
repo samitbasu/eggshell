@@ -34,7 +34,7 @@ use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tooltip::{Content, Tooltip};
-use crate::tw::{Grouping, PointerEvents, Progress, Sensing, Tw, tw};
+use crate::tw::{Grouping, Observed, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -159,6 +159,8 @@ pub(crate) struct Ambient {
     pub(crate) flex: Option<taffy::FlexDirection>,
     /// The rules of the containers above, for the nodes built here.
     pub(crate) rules: crate::tw::Rules,
+    /// The slot of the nearest part the nodes are built inside.
+    pub(crate) part: Option<&'static str>,
 }
 
 impl Ambient {
@@ -168,6 +170,7 @@ impl Ambient {
     pub(crate) fn cut(&self) -> Self {
         Self {
             rules: crate::tw::Rules::NONE,
+            part: None,
             ..*self
         }
     }
@@ -178,6 +181,7 @@ impl Ambient {
         size: None,
         flex: None,
         rules: crate::tw::Rules::NONE,
+        part: None,
     };
 }
 
@@ -261,7 +265,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.style
     }
 
-    /// TODO(prose): the classes of `part` for a node with `keys`: the style's sheet's, with `call_site`'s over them and the rules of the containers above between. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
+    /// TODO(prose): the classes of `part` for a node with `keys`: the style's sheet's, with `call_site`'s over them and the rules of the containers above between; the node says its ARIA and attribute keys, for the rules that match it. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
     #[track_caller]
     pub fn part<P: crate::sheet::Part>(
         &mut self,
@@ -269,7 +273,60 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         keys: &[crate::sheet::Key],
         call_site: Tw,
     ) -> Tw {
-        Tw::over_sheet(self.resolved_part(part, keys)).merge(call_site)
+        self.part_over(part, keys, crate::sheet::Defaults(Tw::blank()), call_site)
+    }
+
+    /// TODO(prose): [`part`](Self::part), with `defaults`, the widget's own
+    /// look for the part, under every layer of the sheet: the widgets'
+    /// defaults, which a rule that replaces the part's lower layers, such as
+    /// a preset's generated look, replaces too. The inspector shows them as
+    /// the defaults layer, at the widget's own lines.
+    ///
+    /// ```
+    /// use eggshell_ui::sheet::{Defaults, Part};
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// enum ChipPart {
+    ///     Root,
+    /// }
+    ///
+    /// impl Part for ChipPart {
+    ///     const SOURCE: &'static str = "chip.tsx";
+    ///     fn slot(self) -> &'static str {
+    ///         "chip"
+    ///     }
+    /// }
+    ///
+    /// fn chip(b: &mut Builder<'_, '_, ()>) {
+    ///     let classes = b.part_over(ChipPart::Root, &[], Defaults(tw().px(2.0)), tw());
+    ///     b.div(classes, |_| {});
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn part_over<P: crate::sheet::Part>(
+        &mut self,
+        part: P,
+        keys: &[crate::sheet::Key],
+        defaults: crate::sheet::Defaults,
+        call_site: Tw,
+    ) -> Tw {
+        let sheet = self.resolved_part(part, keys);
+        let base = match self.style.sheet.replaces(part, keys) {
+            true => sheet,
+            false => defaults
+                .0
+                .staged(crate::sheet::Layer::Defaults)
+                .merge(sheet),
+        };
+        let said = keys
+            .iter()
+            .fold(Tw::over_sheet(base), |classes, key| match *key {
+                crate::sheet::Key::Aria(state) => classes.aria(state),
+                crate::sheet::Key::Attr(name, value) => classes.attr(name, value),
+                _ => classes,
+            });
+        said.merge(call_site)
     }
 
     /// What the style's sheet gives `part` for a node with `keys`, on its own.
@@ -310,7 +367,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.styled(
-    ///         |style| style.table.cell_padding = 16.0,
+    ///         |style| {
+    ///             let mut table = style.table().clone();
+    ///             table.cell_padding = 16.0;
+    ///             style.set_table(table);
+    ///         },
     ///         |b| {
     ///             b.text(tw(), "Tables built here are roomier.");
     ///         },
@@ -423,23 +484,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             id: self.st.seen.vacant(declared),
             label: Label(readable),
         }
-    }
-
-    /// Whether an overlay `natural` points big, anchored to the node `anchor`
-    /// and placed by `placement`, has the room it wants.
-    pub(crate) fn room_for(
-        &self,
-        anchor: Id,
-        placement: &crate::overlay::Placement,
-        natural: egui::Vec2,
-    ) -> crate::pipeline::Room {
-        crate::pipeline::room_for(
-            self.frame.ctx,
-            (&self.st.kept, self.viewport()),
-            anchor,
-            placement,
-            natural,
-        )
     }
 
     pub(crate) fn kept(&self) -> &crate::kept::Handle {
@@ -726,15 +770,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         if style.size.height != Dimension::auto() {
             return;
         }
-        let length = |side: CompactLength| match side {
-            side if side.tag() == CompactLength::LENGTH_TAG => side.value(),
-            _ => 0.0,
-        };
         let padding = self.st.tree.scroll(node).map_or(0.0, |scroll| {
-            let padding = self.st.tree.style(scroll.content).padding;
-            length(padding.top.into_raw()) + length(padding.bottom.into_raw())
+            block_padding(self.st.tree.style(scroll.content))
         });
-        let border = length(style.border.top.into_raw()) + length(style.border.bottom.into_raw());
+        let border = block_border(&style);
         let insets = match style.box_sizing {
             BoxSizing::BorderBox => padding + border,
             BoxSizing::ContentBox => 0.0,
@@ -1243,6 +1282,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         } = options;
         let path = self.identify(slot);
         self.apply_rules(&mut classes, NodeKind::Scroll);
+        let bars = bars.settled(classes.scrollbar);
         let parts = Parts {
             id: Some(slot.id),
             ..Parts::anonymous(NodeKind::Scroll, path)
@@ -1457,7 +1497,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .rounded_px(f32::from(kbd.radius))
             .bg(colors.fill)
             .text(colors.text)
-            .whitespace_nowrap();
+            .whitespace_nowrap()
+            .slot("kbd");
         let classes = match kbd.text.clone() {
             Some(spec) => classes.role(spec),
             None => classes,
@@ -1686,20 +1727,22 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
-        self.observe(id, observed);
+        self.observe(id, observed, Vec::new());
         id
     }
 
-    /// `tw` as its `has` rules make it once the children `kids` are built.
-    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> Tw {
-        let applied = tw.with_has(kids.iter().filter_map(|kid| self.st.observed.get(kid)));
-        if !self.st.observed.is_empty() {
-            for kid in kids {
-                self.st.observed.remove(kid);
-            }
-        }
-        let Some(applied) = applied else {
-            return tw;
+    /// `tw` as its `has` rules make it once the children `kids` are built,
+    /// and what was observed of each child and what it holds.
+    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> (Tw, Vec<Vec<Observed>>) {
+        let seen: Vec<Vec<Observed>> = match self.st.observed.is_empty() {
+            true => Vec::new(),
+            false => kids
+                .iter()
+                .filter_map(|kid| self.st.observed.remove(kid))
+                .collect(),
+        };
+        let Some(applied) = tw.with_has(&seen) else {
+            return (tw, seen);
         };
         node.paint = applied.paint;
         node.text_valign = VAlign::of(&applied.style);
@@ -1707,22 +1750,26 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         {
             node.origins = applied.origins.clone();
         }
-        applied
+        (applied, seen)
     }
 
     /// What the container these nodes are built in learns of the node a `tw`
     /// and `parts` make, if it has `has` rules.
-    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<crate::tw::Observed> {
-        self.ambient.rules.observed.then(|| crate::tw::Observed {
+    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<Observed> {
+        self.ambient.rules.observed.then(|| Observed {
             kind: parts.kind,
             facts: tw.facts().clone(),
             focused: parts.id.is_some_and(|id| self.shell().focus_within(id)),
         })
     }
 
-    fn observe(&mut self, node: NodeId, observed: Option<crate::tw::Observed>) {
+    /// Keeps what is observed of `node` and what it holds, `below`, for the
+    /// containers above.
+    fn observe(&mut self, node: NodeId, observed: Option<Observed>, below: Vec<Vec<Observed>>) {
         if let Some(observed) = observed {
-            self.st.observed.insert(node, observed);
+            let mut seen = vec![observed];
+            seen.extend(below.into_iter().flatten());
+            self.st.observed.insert(node, seen);
         }
     }
 
@@ -1757,8 +1804,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             flex: (classes.style.display == taffy::Display::Flex)
                 .then_some(classes.style.flex_direction),
             rules: self.ambient.rules.within(classes, &mut self.st.links),
+            part: classes.facts().said_slot().or(self.ambient.part),
             ..self.ambient
         }
+    }
+
+    /// The slot of the nearest part this builds inside: a field inside an
+    /// input group is its control.
+    pub(crate) fn within_part(&self) -> Option<&'static str> {
+        self.ambient.part
     }
 
     pub(crate) fn flex(&self) -> Option<taffy::FlexDirection> {
@@ -1898,11 +1952,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (&text, ambient, self.style),
         ));
-        let tw = self.closed(tw, &mut node, &kids);
+        let (tw, below) = self.closed(tw, &mut node, &kids);
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
-        self.observe(id, observed);
+        self.observe(id, observed, below);
         id
     }
 }
@@ -2758,4 +2812,28 @@ fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, r
             templates.join(", ")
         )
     });
+}
+
+/// The points `side` is, when it is a length; a percentage or `auto` counts
+/// as none.
+fn length_px(side: taffy::CompactLength) -> f32 {
+    match side {
+        side if side.tag() == taffy::CompactLength::LENGTH_TAG => side.value(),
+        _ => 0.0,
+    }
+}
+
+/// A box's top and bottom padding, in points.
+fn block_padding(style: &taffy::Style) -> f32 {
+    length_px(style.padding.top.into_raw()) + length_px(style.padding.bottom.into_raw())
+}
+
+/// A box's top and bottom border, in points.
+fn block_border(style: &taffy::Style) -> f32 {
+    length_px(style.border.top.into_raw()) + length_px(style.border.bottom.into_raw())
+}
+
+/// What a box's padding and border take of its height, in points.
+pub(crate) fn block_insets(style: &taffy::Style) -> f32 {
+    block_padding(style) + block_border(style)
 }

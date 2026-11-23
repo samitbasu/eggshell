@@ -134,12 +134,12 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
 
         assert_eq!(vega_style.text.size, 14.0);
         assert_eq!(lyra_style.text.size, 12.0);
-        let radius = |style: &Style| style.button.sizes.get(Size::DEFAULT).radius;
+        let radius = |style: &Style| default_button(style).paint_classes().radius.nw;
         assert_eq!(radius(&vega_style), vega_tokens.radius_md());
         assert_eq!(radius(&lyra_style), 0, "Lyra is square");
         assert!(radius(&vega_style) > 0, "precondition: Vega is rounded");
-        assert_eq!(vega_style.focus().width, 3.0);
-        assert_eq!(lyra_style.focus().width, 1.0);
+        assert_eq!(vega_style.tokens.focus.width, 3.0);
+        assert_eq!(lyra_style.tokens.focus.width, 1.0);
         assert_eq!(
             vega_style
                 .input()
@@ -187,20 +187,24 @@ fn style_and_theme_colour_are_chosen_independently() {
             .with_palette(Palette::new().theme(ThemeColor::Blue))
             .style()
     };
+    let primary = |style: &Style| {
+        *crate::support::button::classes(style, eggshell_ui_shadcn::variant::PRIMARY, Size::DEFAULT)
+            .paint_classes()
+    };
     for style in ShadcnStyle::ALL {
         assert_ne!(
-            neutral(style).button,
-            blue(style).button,
+            primary(&neutral(style)),
+            primary(&blue(style)),
             "{style:?} takes a theme colour"
         );
     }
     assert_ne!(
-        neutral(ShadcnStyle::Vega).button,
-        neutral(ShadcnStyle::Lyra).button
+        primary(&neutral(ShadcnStyle::Vega)),
+        primary(&neutral(ShadcnStyle::Lyra))
     );
     assert_eq!(
-        blue(ShadcnStyle::Lyra).button.sizes.get(Size::DEFAULT),
-        neutral(ShadcnStyle::Lyra).button.sizes.get(Size::DEFAULT),
+        default_button(&blue(ShadcnStyle::Lyra)).style(),
+        default_button(&neutral(ShadcnStyle::Lyra)).style(),
         "the theme colour does not change sizes"
     );
 }
@@ -287,5 +291,21 @@ fn a_harness_switched_to_lyra_draws_lyra() {
     common::set_style(d.ctx(), ShadcnStyle::Lyra);
     d.frames(4);
     let style = d.shell().style();
-    assert_eq!(style.button.sizes.get(Size::DEFAULT).height, 32.0);
+    assert_eq!(
+        default_button(&style).style().size.height,
+        taffy::Dimension::length(32.0),
+        "Lyra's h-8"
+    );
+}
+
+/// The classes `style`'s sheet gives a button that names no variant or size.
+fn default_button(style: &Style) -> eggshell_ui::Tw {
+    style.sheet.resolve(
+        eggshell_ui::owned::ButtonPart::Root,
+        &[
+            eggshell_ui::sheet::Key::Variant(eggshell_ui::contract::Variant::DEFAULT),
+            eggshell_ui::sheet::Key::Size(Size::DEFAULT),
+        ],
+        &style.tokens,
+    )
 }

@@ -18,6 +18,7 @@ extras = [
     "eggshell-ui-extras/accordion",
     "eggshell-ui-extras/badge",
     "eggshell-ui-extras/command",
+    "eggshell-ui-extras/dialog",
     "eggshell-ui-extras/disclosure",
     "eggshell-ui-extras/form",
     "eggshell-ui-extras/hover-card",
@@ -33,3 +34,7 @@ eggshell-ui-extras = { path = "../eggshell-ui-extras", version = "0.1.0", option
 
 [lints]
 workspace = true
+
+[[example]]
+name = "preset_dump"
+required-features = ["extras"]

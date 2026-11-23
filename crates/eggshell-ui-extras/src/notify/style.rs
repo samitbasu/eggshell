@@ -94,17 +94,17 @@ impl NotifyStyle {
     /// wide, 16 points of padding, 6 between a card's parts, 14 between
     /// cards, 3 on show and 24 points from the window's edges.
     pub fn from_style(style: &Style) -> Self {
-        let popup = &style.menu.popup;
+        let popup = &style.menu().popup;
         let colors = popup.paint.states.rest;
         Self {
             fill: colors.fill,
             border: colors.border,
             text: colors.text,
             border_width: popup.border_width,
-            radius: style.menu.radius,
+            radius: style.menu().radius,
             shadow: popup.paint.shadow,
             role: style
-                .menu
+                .menu()
                 .text
                 .clone()
                 .unwrap_or_else(|| style.text.clone()),

@@ -6,7 +6,7 @@
 //! shadcn's `cn-tabs*` replace them.
 
 use crate::TextSpec;
-use crate::contract::{Disabled, Focus, SegmentedStyle, Size, Variant};
+use crate::contract::{Disabled, SegmentedStyle, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Builder, Match};
 
@@ -64,7 +64,7 @@ impl TabsPart {
     /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
     pub fn size_key<A>(b: &Builder<'_, '_, A>, size: Size) -> Size {
-        let sizes = &b.style().segmented.sizes;
+        let sizes = &b.style().segmented().sizes;
         sizes.lookup(b.ctx(), size);
         sizes.key_for(size)
     }
@@ -122,25 +122,21 @@ pub(crate) struct Roles {
 }
 
 /// Writes the rules that draw `segmented`'s look at the sheet's current layer.
-pub(crate) fn write_rules(
-    sheet: &mut Sheet,
-    segmented: &SegmentedStyle,
-    roles: Vec<Roles>,
-    (focus, disabled): (Focus, Disabled),
-) {
+pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: Vec<Roles>) {
     let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
     let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
     sheet.rule(TabsPart::Root, |t, _| t.flex().flex_col().gap(2.0));
     sheet.rule(TabsPart::Content, |t, _| t.flex_1());
     sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
     sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto());
-    if let Disabled::Faded(opacity) = disabled {
-        sheet.rule_when(
-            TabsPart::List,
-            When::always().aria(Aria::Disabled),
-            move |t, _| t.opacity(opacity),
-        );
-    }
+    sheet.rule_when(
+        TabsPart::List,
+        When::always().aria(Aria::Disabled),
+        |t, k| match k.disabled {
+            Disabled::Faded(opacity) => t.opacity(opacity),
+            Disabled::Colors => t,
+        },
+    );
     let fill = segmented.track_fill;
     let (width, transition) = (segmented.cell_border_width, segmented.transition);
     for Roles {
@@ -180,10 +176,10 @@ pub(crate) fn write_rules(
                     Enablement::Disabled => when.aria(Aria::Disabled),
                 };
                 let role = role.clone();
-                sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+                sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
                     let look = paint.classes_in(
                         width,
-                        (focus, disabled),
+                        (k.focus, k.disabled),
                         metrics.cell_radius,
                         enablement,
                         transition,
@@ -200,4 +196,50 @@ pub(crate) fn write_rules(
             }
         }
     }
+}
+
+/// Writes the tabs' recorded exceptions over the rules at the sheet's current
+/// layer: the list's track keeps `segmented`'s fill, which shadcn's `bg-muted`
+/// would lose on a muted panel (#346); a trigger's `h-[calc(100%-1px)]` is
+/// the list's full height inside a list padded half a point more, with the
+/// point its `text-sm` would overflow taken out of its own padding; the sizes other than the default keep their metrics;
+/// and wrapping lists, eggshell's own, keep their rows, with each trigger
+/// growing from its content's width where `flex-1` would share a row equally.
+pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
+    let fill = segmented.track_fill;
+    sheet.rule(TabsPart::List, move |t, _| t.bg(fill));
+    let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
+    let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
+    let default = segmented.sizes.default_key();
+    for size in segmented.sizes.keys() {
+        let m = *segmented.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+            t.py(m.cell_padding.y / 4.0)
+        });
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
+            t.py((m.track_padding + m.cell_trim / 2.0) / 4.0)
+        });
+        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
+            t.flex_wrap().h_auto().gap(m.row_gap / 4.0)
+        });
+        if size == default {
+            sheet.rule_when(TabsPart::List, when, |t, _| t);
+            continue;
+        }
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
+            t.h_px(m.height)
+        });
+        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+            let t = t
+                .px(m.cell_padding.x / 4.0)
+                .descendants(Match::glyph(), |g| g.size_px(m.icon_size));
+            match m.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
+            }
+        });
+    }
+    sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
+    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto().basis_auto());
 }

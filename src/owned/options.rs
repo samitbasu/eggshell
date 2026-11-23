@@ -1,5 +1,5 @@
 //! The options the owned controls share, resolved in one place: a tooltip,
-//! a refusal, and the conditional `when` and `when_some`.
+//! a refusal, validity, and the conditional `when` and `when_some`.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -128,6 +128,59 @@ impl Gate {
             None => super::tip(b, trigger, self.tooltip),
         };
         (enablement, tip)
+    }
+}
+
+/// Whether a control's value is accepted, as `aria-invalid` says, with the
+/// error that says why not.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Validity {
+    #[default]
+    Valid,
+    Invalid(String),
+}
+
+impl Validity {
+    pub(crate) fn of(error: Option<impl Into<String>>) -> Self {
+        error.map_or(Self::Valid, |error| Self::Invalid(error.into()))
+    }
+
+    /// The ARIA state of an invalid control's look. A disabled or refused
+    /// control takes no input, so its disabled look wins and it has none.
+    pub(crate) fn aria(&self, enablement: Enablement) -> Option<crate::Aria> {
+        match (self, enablement) {
+            (Self::Invalid(_), Enablement::Enabled) => Some(crate::Aria::Invalid),
+            _ => None,
+        }
+    }
+
+    /// The key of the field around an invalid control, shadcn's
+    /// `data-invalid` on its `Field`, on the same terms as
+    /// [`aria`](Self::aria).
+    pub(crate) fn field_key(&self, enablement: Enablement) -> Option<crate::sheet::Key> {
+        self.aria(enablement)
+            .map(|_| crate::sheet::Key::Attr("invalid", "true"))
+    }
+
+    /// [`aria`](Self::aria) as the key of a part's look.
+    pub(crate) fn key(&self, enablement: Enablement) -> Option<crate::sheet::Key> {
+        self.aria(enablement).map(crate::sheet::Key::Aria)
+    }
+
+    /// Tells assistive technology that the control `id` is invalid, enabled
+    /// or not, described by its error before any other description.
+    pub(crate) fn describe(&self, ctx: &egui::Context, id: Id) {
+        let Self::Invalid(error) = self else {
+            return;
+        };
+        ctx.accesskit_node_builder(id, |node| {
+            node.set_invalid(egui::accesskit::Invalid::True);
+            let description = match node.description() {
+                Some(other) => format!("{error}. {other}"),
+                None => error.clone(),
+            };
+            node.set_description(description);
+        });
     }
 }
 

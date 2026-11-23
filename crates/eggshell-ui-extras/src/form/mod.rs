@@ -28,10 +28,29 @@
 
 mod style;
 
-use eggshell_ui::{Builder, Key, tw};
+use eggshell_ui::owned::FieldPart;
+use eggshell_ui::sheet::{Defaults, Part};
+use eggshell_ui::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
 pub use style::FormStyle;
+
+/// TODO(prose): a form section's frame for the style's sheet: shadcn's
+/// `card`, whose surface the section takes. The section's rows and title are
+/// its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CardPart {
+    /// TODO(prose): the frame.
+    Root,
+}
+
+impl Part for CardPart {
+    const SOURCE: &'static str = "card.tsx";
+
+    fn slot(self) -> &'static str {
+        "card"
+    }
+}
 
 /// TODO(prose): adds [`form_section`](Self::form_section),
 /// [`labeled`](Self::labeled) and [`labeled_text`](Self::labeled_text) to
@@ -117,17 +136,24 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             rules,
         } = self;
         let style = b.style().extension::<FormStyle>();
-        let mut frame = tw()
-            .flex()
-            .flex_col()
+        let surface = tw()
             .bg(style.fill)
             .border(style.border_width)
             .border_color(style.border)
-            .rounded_px(f32::from(style.radius))
-            .py(style.padding_y / 4.0);
+            .rounded_px(f32::from(style.radius));
+        // Recorded exception (#446): the section keeps its own padding and
+        // row spacing, not the card's `py`/`gap`, which space a card's
+        // header, content and footer.
+        let mut own = tw()
+            .flex()
+            .flex_col()
+            .py(style.padding_y / 4.0)
+            // A form's choice fields are shadcn's `Field`, `w-full`.
+            .descendants(Match::slot(FieldPart::Root.slot()), |t| t.w_full());
         if rules == Rules::Between {
-            frame = frame.divide_y(style.rule_width, style.rule);
+            own = own.divide_y(style.rule_width, style.rule);
         }
+        let frame = b.part_over(CardPart::Root, &[], Defaults(surface), own);
         let section = b.div_id(key, tw().flex().flex_col().sense_hover(), |b| {
             if let Some(title) = &title {
                 b.text(

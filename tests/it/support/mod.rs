@@ -6,6 +6,8 @@
     reason = "each test crate that includes this module uses a subset of it"
 )]
 
+pub mod button;
+
 use core::time::Duration;
 use std::sync::Arc;
 
@@ -240,6 +242,14 @@ pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshel
         edit(&mut style);
         Arc::new(style)
     })
+}
+
+/// `style` without its preset's generated looks: its sections, drawn by the
+/// widgets' own rules, which is what a change to a section restyles.
+pub fn sections_of(mut style: eggshell_ui::Style) -> eggshell_ui::Style {
+    style.sheet = eggshell_ui::sheet::Sheet::defaults();
+    style.rewrite_rules();
+    style
 }
 
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &'f A);
@@ -520,7 +530,7 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// overlay to be built and placed.
 pub fn rest_for_tooltip<D: Drives + Seen>(harness: &mut D) {
     let style = harness.view_shell().style();
-    let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
+    let wait = (style.tooltip().delay + style.motion.tooltip.enter).as_secs_f64();
     let start = harness.context().input(|input| input.time);
     for _ in 0..10_000 {
         if harness.context().input(|input| input.time) - start >= wait {
@@ -620,8 +630,26 @@ pub fn same(a: Rect, b: Rect) -> bool {
         && near(a.max.y, b.max.y)
 }
 
+/// The colour of the glyph drawn inside `rect`.
+pub fn glyph_color<S: Seen>(seen: &S, rect: Rect) -> Color32 {
+    shapes(seen)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Mesh(mesh) if rect.expand(0.5).contains_rect(shape.visual_bounding_rect()) => {
+                mesh.vertices.first().map(|vertex| vertex.color)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no glyph in {rect:?}"))
+}
+
 /// The last box painted over exactly `rect`, ring excluded.
 pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
+    try_box_at(seen, rect).unwrap_or_else(|| panic!("no box painted at {rect:?}"))
+}
+
+/// [`box_at`], or `None` where nothing is painted.
+pub fn try_box_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
     shapes(seen)
         .into_iter()
         .filter_map(|shape| match shape {
@@ -631,7 +659,6 @@ pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
             _ => None,
         })
         .next_back()
-        .unwrap_or_else(|| panic!("no box painted at {rect:?}"))
 }
 
 pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
@@ -646,13 +673,34 @@ pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
         .next_back()
 }
 
+/// Where the text `text` painted with its origin inside `inside` starts.
+pub fn text_left<S: Seen>(seen: &S, inside: Rect, text: &str) -> f32 {
+    shapes(seen)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => Some(t.pos.x),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
+}
+
 /// The colour of the text `text` painted with its origin inside `inside`.
 pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
     shapes(seen)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
-                Some(t.override_text_color.unwrap_or(t.fallback_color))
+                // As epaint paints it: the override, else the glyphs' own
+                // colour (egui's hint text has one, faded with the shape),
+                // else the fallback.
+                let glyph = t.galley.rows.iter().find_map(|placed| {
+                    let visuals = &placed.row.visuals;
+                    visuals.mesh.vertices.get(visuals.glyph_vertex_range.start)
+                });
+                let own = glyph
+                    .map(|vertex| vertex.color)
+                    .filter(|color| *color != Color32::PLACEHOLDER);
+                Some(t.override_text_color.or(own).unwrap_or(t.fallback_color))
             }
             _ => None,
         })

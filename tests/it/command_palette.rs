@@ -228,7 +228,7 @@ fn the_combobox_is_a_field_that_opens_on_a_click_filters_as_typed_and_picks() {
 
 /// The rects painted with a stroke in the focus ring's color.
 fn ring_rects(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
-    let ring = harness.view_shell().style().focus().color;
+    let ring = harness.view_shell().style().tokens.focus.color;
     harness
         .output()
         .shapes
@@ -521,4 +521,112 @@ fn the_highlight_keeps_four_points_from_the_lists_edges_as_the_arrows_scroll_it(
         nearest_above >= 3.5,
         "going up, no highlighted row comes nearer the top than 4 pt: {nearest_above}"
     );
+}
+
+/// A driver over the example with the palette open, its style edited by
+/// `edit`.
+fn palette_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing::Driver<State> {
+    let mut d = support::driver(
+        vec2(800.0, 700.0),
+        base_text(),
+        State::default(),
+        example::layout,
+    )
+    .style(support::shadcn_with(edit))
+    .theme(egui::Theme::Light)
+    .build();
+    d.frames(4);
+    d.app_mut().palette = true;
+    d.frames(20);
+    d
+}
+
+/// The rect of the palette's node whose path ends with `suffix`.
+fn palette_node(d: &eggshell_ui::testing::Driver<State>, suffix: &str) -> egui::Rect {
+    support::nodes(d)
+        .iter()
+        .find(|(path, _)| path.contains("Dialog)/Box/") && path.ends_with(suffix))
+        .map(|(_, rect)| *rect)
+        .unwrap_or_else(|| panic!("no palette node ending {suffix}"))
+}
+
+/// The palette's highlighted command is shadcn's `data-selected:bg-muted`
+/// (command.tsx; the audit's selection on #345).
+#[test]
+fn the_palettes_current_command_is_muted() {
+    let d = palette_with(|_| {});
+    let label = d
+        .harness()
+        .get_by_role_and_label(Role::ComboBox, "Command palette")
+        .accesskit_node()
+        .active_descendant()
+        .and_then(|node| node.label())
+        .expect("precondition: a current command");
+    let row = d
+        .harness()
+        .get_by_role_and_label(Role::ListBoxOption, &label)
+        .rect();
+    let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+    assert_eq!(support::box_at(&d, row).fill, tokens.muted, "bg-muted");
+}
+
+/// The palette draws from the style's sheet: an App rule restyles its panel.
+#[test]
+fn an_app_rule_restyles_the_palette() {
+    let d = palette_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui_extras::command::CommandPart::Root, |t, _| {
+                t.bg(Color32::RED)
+            });
+    });
+    let results = palette_node(&d, "/Results");
+    let root = support::nodes(&d)
+        .iter()
+        .filter(|(path, rect)| path.contains("Dialog)/Box/") && rect.contains_rect(results))
+        .map(|(_, rect)| *rect)
+        .find(|rect| *rect != results)
+        .expect("the palette's root, around its list");
+    assert_eq!(support::box_at(&d, root).fill, Color32::RED);
+}
+
+/// A group's heading is a row of its own, not one of the options; a
+/// separator comes before every group but the first (look 4a, shadcn's
+/// `CommandSeparator`).
+#[test]
+fn the_palettes_headings_are_not_options_and_separators_part_the_groups() {
+    let d = palette_with(|_| {});
+    let mut headings: Vec<(String, egui::Rect)> = d
+        .harness()
+        .query_all_by_role(Role::Heading)
+        .filter_map(|node| Some((node.accesskit_node().label()?, node.rect())))
+        .collect();
+    headings.sort_by(|a, b| a.1.min.y.total_cmp(&b.1.min.y));
+    assert!(
+        headings.len() >= 2,
+        "precondition: two groups show: {headings:?}"
+    );
+    let options: Vec<String> = d
+        .harness()
+        .query_all_by_role(Role::ListBoxOption)
+        .filter_map(|node| node.accesskit_node().label())
+        .collect();
+    for (heading, _) in &headings {
+        assert!(!options.contains(heading), "{heading} is no option");
+    }
+    let rules: Vec<egui::Rect> = support::nodes(&d)
+        .iter()
+        .filter(|(path, rect)| path.contains("/Results/") && rect.height() == 1.0)
+        .map(|(_, rect)| *rect)
+        .collect();
+    for (at, (heading, rect)) in headings.iter().enumerate() {
+        // Within the row's height: shadcn's `-mx-1` runs it past the sides.
+        let above = rules
+            .iter()
+            .filter(|rule| rule.min.y >= rect.min.y && rule.max.y <= rect.max.y)
+            .count();
+        let expected = usize::from(at > 0);
+        assert_eq!(above, expected, "separators in {heading}'s row");
+    }
 }

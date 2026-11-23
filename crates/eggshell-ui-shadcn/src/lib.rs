@@ -106,6 +106,8 @@ mod drag_chip;
 mod fonts;
 mod palette;
 mod preset;
+#[rustfmt::skip]
+mod sheets;
 mod styles;
 mod theme_color;
 mod tokens;
@@ -115,7 +117,7 @@ pub use drag_chip::{DragChip, drag_chip};
 pub use fonts::FontSet;
 pub use palette::{BaseColor, Palette};
 pub use preset::{Shadcn, tokens};
-pub use styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
+pub use styles::{Elevation, HoverSurface, ShadcnStyle};
 pub use theme_color::ThemeColor;
 pub use tokens::Tokens;
 
@@ -138,11 +140,18 @@ pub mod size {
 
     /// `icon-xs`: [`ICON`] at [`XS`].
     pub const ICON_XS: Size = Size("icon-xs");
+
+    /// TODO(prose): `lg`, a control four points taller.
+    pub const LG: Size = Size("lg");
+
+    /// TODO(prose): `icon-lg`: [`ICON`] at [`LG`].
+    pub const ICON_LG: Size = Size("icon-lg");
 }
 
-/// The names of shadcn's button variants, the keys of the contract's
-/// [`ButtonStyle::variants`](eggshell_ui::contract::ButtonStyle::variants) this
-/// preset defines.
+/// The names of shadcn's button variants, as the preset's sheet names them
+/// for [`ButtonPart`](eggshell_ui::owned::ButtonPart). shadcn's `default` is
+/// [`PRIMARY`](variant::PRIMARY); a button that names no variant is
+/// [`SECONDARY`](variant::SECONDARY).
 pub mod variant {
     use eggshell_ui::contract::Variant;
 
@@ -156,4 +165,6 @@ pub mod variant {
     pub const OUTLINE: Variant = Variant("outline");
     /// `ghost`.
     pub const GHOST: Variant = Variant("ghost");
+    /// TODO(prose): `link`: primary-coloured text, underlined under the pointer.
+    pub const LINK: Variant = Variant("link");
 }

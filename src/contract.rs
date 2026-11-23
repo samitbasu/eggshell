@@ -277,7 +277,7 @@ pub struct Paint {
     pub states: States,
     /// Drop shadow at rest.
     pub shadow: Option<Shadow>,
-    /// This paint's own focus ring, where it is not [`Style::focus`].
+    /// This paint's own focus ring, where it is not [`Tokens::focus`].
     pub focus: Option<Focus>,
     /// A ring while the pointer is over the box or presses it, as the focus
     /// ring is drawn: shadcn's slider thumb halo.
@@ -436,28 +436,26 @@ pub enum Disabled {
     Faded(Opacity),
 }
 
-/// Buttons: open sets of variants and sizes, and the toggle form.
+/// TODO(prose): toggle buttons: their sizes and their looks off and on. A
+/// plain button's look is the [`sheet`](Style::sheet)'s
+/// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with
+/// its own shadcn source, `toggle.tsx`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct ButtonStyle {
-    /// The variants the style defines. The default entry is the variant of
-    /// [`Builder::button`](crate::Builder::button).
-    pub variants: Keyed<Variant, Look>,
-    /// Metrics of a button per size.
-    pub sizes: Keyed<Size, Metrics>,
+pub struct ToggleStyle {
     /// Metrics of a toggle per size.
-    pub toggle_sizes: Keyed<Size, Metrics>,
+    pub sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
-    pub toggle_border_width: f32,
+    pub border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
     /// with [`ButtonChain::variant`](crate::owned::ButtonChain::variant) for toggles as
     /// for buttons.
-    pub toggle_off: Keyed<Variant, Paint>,
+    pub off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.
-    pub toggle_on: Keyed<Variant, Paint>,
-    /// The text role of buttons, or `None` for [`Style::text`].
+    pub on: Keyed<Variant, Paint>,
+    /// The text role of toggles, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// How far a pressed button moves down, in points; zero for none.
+    /// How far a pressed toggle moves down, in points; zero for none.
     pub press_shift: f32,
     /// How long state changes animate.
     pub transition: Duration,
@@ -730,8 +728,6 @@ pub struct MenuStyle {
     /// Side of the square an item keeps for its check or radio mark, and of
     /// the submenu chevron.
     pub indicator: f32,
-    /// Side of a radio item's dot.
-    pub dot: f32,
 }
 
 /// A tooltip's arrow: a square turned 45 degrees, filled like the box, half
@@ -1381,12 +1377,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table.cell_padding)
+///         Gap(style.table().cell_padding)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// assert_eq!(style.extension::<Gap>().0, style.table().cell_padding);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1447,6 +1443,10 @@ pub struct Tokens {
     pub input: Color32,
     /// TODO(prose): the focus ring.
     pub ring: Color32,
+    /// TODO(prose): the keyboard focus indicator every control draws unless its look names its own.
+    pub focus: Focus,
+    /// TODO(prose): how disabled controls are drawn.
+    pub disabled: Disabled,
     /// TODO(prose): the base corner radius.
     pub radius: u8,
     /// TODO(prose): a control's height.
@@ -1492,6 +1492,11 @@ impl Tokens {
             border: v.window_stroke.color,
             input: w.inactive.bg_stroke.color,
             ring: w.active.bg_stroke.color,
+            focus: Focus {
+                width: 2.0,
+                color: v.selection.bg_fill,
+            },
+            disabled: Disabled::Colors,
             radius: w.inactive.corner_radius.nw,
             control_height: egui.spacing.interact_size.y,
             button_padding: egui.spacing.button_padding,
@@ -1518,6 +1523,14 @@ impl Extension for Fonts {
     }
 }
 
+/// Where a section's setter writes its look: the widgets' defaults layer,
+/// or, inside [`Style::at_current_layer`], the sheet's current one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Writes {
+    Defaults,
+    CurrentLayer,
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -1526,33 +1539,29 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    /// The default focus indicator.
-    focus: Focus,
-    /// How disabled controls are drawn.
-    disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
-    pub label: States,
-    /// Buttons and toggles.
-    pub button: ButtonStyle,
+    label: States,
+    /// TODO(prose): toggle buttons.
+    pub toggle: ToggleStyle,
     /// Checkboxes.
-    pub checkbox: CheckboxStyle,
+    checkbox: CheckboxStyle,
     /// Radio buttons.
-    pub radio: RadioStyle,
+    radio: RadioStyle,
     /// Switches.
-    pub switch: SwitchStyle,
+    switch: SwitchStyle,
     /// Segmented controls.
-    pub segmented: SegmentedStyle,
+    segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
     /// Progress bars.
     pub progress: ProgressStyle,
     /// Select triggers.
-    pub select: SelectStyle,
+    select: SelectStyle,
     /// Menus, and the lists selects open.
-    pub menu: MenuStyle,
+    menu: MenuStyle,
     /// Tooltips.
-    pub tooltip: TooltipStyle,
+    tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -1570,7 +1579,7 @@ pub struct Style {
     /// TODO(prose): splitters.
     pub splitter: SplitterStyle,
     /// Tables.
-    pub table: TableStyle,
+    table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -1584,6 +1593,8 @@ pub struct Style {
     pub sheet: crate::sheet::Sheet,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
+    /// Where a section's setter writes its look.
+    writes: Writes,
 }
 
 #[derive(Clone)]
@@ -1738,25 +1749,26 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let focus = Focus {
-            width: 2.0,
-            color: v.selection.bg_fill,
-        };
+        let tokens = Tokens::from_egui(egui);
+        let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::button_defaults(
+            &mut sheet,
+            crate::owned::ButtonDefaults {
+                look: Look::new(button_states).bordered(border_width),
+                sizes: Keyed::new(Size::DEFAULT, metrics),
+                text: text.clone(),
+                transition,
+                press_shift: 0.0,
+            },
+        );
         let mut style = Self {
             text,
             faces: Faces::default(),
-            focus,
-            disabled: Disabled::Colors,
             label,
-            button: ButtonStyle {
-                variants: Keyed::new(
-                    Variant::DEFAULT,
-                    Look::new(button_states).bordered(border_width),
-                ),
-                sizes: Keyed::new(Size::DEFAULT, metrics),
-                toggle_sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
-                toggle_border_width: 0.0,
-                toggle_off: Keyed::new(
+            toggle: ToggleStyle {
+                sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
+                border_width: 0.0,
+                off: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(
                         Colors {
@@ -1768,7 +1780,7 @@ impl Style {
                         active,
                     )),
                 ),
-                toggle_on: Keyed::new(
+                on: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(selected, selected, selected)),
                 ),
@@ -2005,7 +2017,6 @@ impl Style {
                 },
                 shortcut_tracking: Tracking::ZERO,
                 indicator: s.icon_width,
-                dot: s.icon_width_inner / 2.0,
             },
             tooltip: TooltipStyle {
                 popup: Look::new(States::still(
@@ -2052,7 +2063,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
-                bare_padding: focus.clearance(),
+                bare_padding: tokens.focus.clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
@@ -2138,13 +2149,45 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
-            tokens: Tokens::from_egui(egui),
-            sheet: crate::sheet::Sheet::defaults(),
+            tokens,
+            sheet,
             extensions: Extensions::default(),
+            writes: Writes::Defaults,
         };
-        style.write_input_rules();
-        style.write_segmented_rules();
+        style.rewrite_rules();
         style
+    }
+
+    /// TODO(prose): writes every family's rules from its section, at the widgets' defaults layer, and the recorded exceptions again over a preset's look. A preset writes its own rules over them.
+    pub fn rewrite_rules(&mut self) {
+        self.restyle(|style| {
+            style.write_input_rules();
+            style.write_segmented_rules();
+            style.write_menu_rules();
+            style.write_tooltip_rules();
+            style.write_table_rules();
+            style.write_choice_rules();
+            crate::owned::write_select_rules(style);
+        });
+    }
+
+    /// Runs `write`, which writes a section's rules, at the widgets'
+    /// defaults layer, then writes the recorded exceptions again over a
+    /// preset's look, if a preset wrote one, so a changed section reaches
+    /// them. The sheet's layer is as it was after.
+    fn restyle(&mut self, write: impl FnOnce(&mut Self)) {
+        if self.writes == Writes::CurrentLayer {
+            write(self);
+            return;
+        }
+        let layer = self.sheet.layer();
+        self.sheet.set_layer(crate::sheet::Layer::Defaults);
+        write(self);
+        if self.sheet.has_rules_at(crate::sheet::Layer::Preset) {
+            self.sheet.set_layer(crate::sheet::Layer::Preset);
+            self.write_exceptions();
+        }
+        self.sheet.set_layer(layer);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2152,13 +2195,24 @@ impl Style {
     /// draws as the style says, at `size`. See [`InputStyle`] for what is
     /// approximated.
     pub fn map_input(&self, egui: &mut egui::Style, size: Size) {
+        self.map_input_as(egui, size, None);
+    }
+
+    /// [`map_input`](Self::map_input) for a field in the ARIA state `aria`,
+    /// such as an invalid one.
+    pub(crate) fn map_input_as(
+        &self,
+        egui: &mut egui::Style,
+        size: Size,
+        aria: Option<crate::Aria>,
+    ) {
         use crate::owned::{Frame, InputPart, input_keys};
         let input = &self.input;
         let size = input.sizes.key_for(size);
         let metrics = input.sizes.get(size);
-        let classes = self
-            .sheet
-            .resolve(InputPart::Root, &input_keys(size, false), &self.tokens);
+        let mut keys = input_keys(size, false);
+        keys.extend(aria.map(crate::sheet::Key::Aria));
+        let classes = self.sheet.resolve(InputPart::Root, &keys, &self.tokens);
         let frame = Frame::of(&classes);
         let v = &mut egui.visuals;
         v.text_edit_bg_color = frame.fill;
@@ -2184,49 +2238,178 @@ impl Style {
         egui.spacing.button_padding = metrics.padding;
     }
 
+    /// Selects: the trigger, and the list it opens.
+    pub fn select(&self) -> &SelectStyle {
+        &self.select
+    }
+
+    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the widgets' defaults layer, under a preset's look. A later change to either does not reach the select until this is called again.
+    pub fn set_select(&mut self, select: SelectStyle) {
+        self.select = select;
+        self.restyle(crate::owned::write_select_rules);
+    }
+
+    /// The text beside a checkbox, radio button or switch; only `rest` and
+    /// `disabled` apply.
+    pub fn label(&self) -> States {
+        self.label
+    }
+
+    /// Checkboxes.
+    pub fn checkbox(&self) -> &CheckboxStyle {
+        &self.checkbox
+    }
+
+    /// Radio buttons.
+    pub fn radio(&self) -> &RadioStyle {
+        &self.radio
+    }
+
+    /// Switches.
+    pub fn switch(&self) -> &SwitchStyle {
+        &self.switch
+    }
+
+    /// Segmented controls, and the tabs' list and triggers.
+    pub fn segmented(&self) -> &SegmentedStyle {
+        &self.segmented
+    }
+
     /// The input section: text fields and the boxes that hold them.
     pub fn input(&self) -> &InputStyle {
         &self.input
     }
 
-    /// TODO(prose): sets the input section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the input section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_input(&mut self, input: InputStyle) {
         self.input = input;
-        self.write_input_rules();
+        self.restyle(Self::write_input_rules);
     }
 
-    /// The default focus indicator.
-    pub fn focus(&self) -> Focus {
-        self.focus
+    /// Menus, and the lists selects open.
+    pub fn menu(&self) -> &MenuStyle {
+        &self.menu
     }
 
-    /// TODO(prose): sets the default focus indicator, and writes the input and segmented rules that use it at the sheet's current layer.
-    pub fn set_focus(&mut self, focus: Focus) {
-        self.focus = focus;
-        self.write_input_rules();
-        self.write_segmented_rules();
+    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_menu(&mut self, menu: MenuStyle) {
+        self.menu = menu;
+        self.restyle(Self::write_menu_rules);
     }
 
-    /// How disabled controls are drawn.
-    pub fn disabled(&self) -> Disabled {
-        self.disabled
+    /// Tooltips.
+    pub fn tooltip(&self) -> &TooltipStyle {
+        &self.tooltip
     }
 
-    /// TODO(prose): sets how disabled controls are drawn, and writes the input and segmented rules that use it at the sheet's current layer.
-    pub fn set_disabled(&mut self, disabled: Disabled) {
-        self.disabled = disabled;
-        self.write_input_rules();
-        self.write_segmented_rules();
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
+        self.tooltip = tooltip;
+        self.restyle(Self::write_tooltip_rules);
+    }
+
+    fn write_tooltip_rules(&mut self) {
+        let text = self.role(&self.tooltip.text).clone();
+        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
+    }
+
+    /// Tables.
+    pub fn table(&self) -> &TableStyle {
+        &self.table
+    }
+
+    /// TODO(prose): sets the table section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_table(&mut self, table: TableStyle) {
+        self.table = table;
+        self.restyle(Self::write_table_rules);
+    }
+
+    /// TODO(prose): runs `set`, whose section setters write the sections'
+    /// looks at the sheet's current layer, a scope's or the application's,
+    /// over a preset's look, where they would write the widgets' defaults,
+    /// under it: how a scope restyles its widgets from their sections, as a
+    /// document's typesetting does its tables.
+    ///
+    /// ```
+    /// use eggshell_ui::Style;
+    ///
+    /// let mut style = Style::default();
+    /// style.sheet.as_app();
+    /// let mut table = style.table().clone();
+    /// table.cell_padding = 12.0;
+    /// style.at_current_layer(|style| style.set_table(table));
+    /// ```
+    pub fn at_current_layer(&mut self, set: impl FnOnce(&mut Self)) {
+        let writes = std::mem::replace(&mut self.writes, Writes::CurrentLayer);
+        set(self);
+        self.writes = writes;
+    }
+
+    fn write_table_rules(&mut self) {
+        crate::owned::write_table_rules(&mut self.sheet, &self.table);
+    }
+
+    fn write_menu_rules(&mut self) {
+        let text = self.role(&self.menu.text).clone();
+        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
+    }
+
+    /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. The tabs': the track keeps its fill, the trigger's 1 px trim comes out of its padding, the sizes other than the default keep their metrics, and wrapping lists keep their rows. The menu's: an item of the default variant keeps the generated look. The table's: its bands' borders, the last row's, a selected row's fill under the pointer, stripes and the first column's inset. The choice controls': a radio's dot is centred in its circle, and a size their rules leave out keeps its metrics. A preset calls this after its generated look.
+    pub fn write_exceptions(&mut self) {
+        crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
+        crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
+        crate::owned::write_tabs_exceptions(&mut self.sheet, &self.segmented);
+        crate::owned::write_menu_exceptions(&mut self.sheet);
+        // A disabled slider's blends go over its track's.
+        crate::owned::write_track_exceptions(&mut self.sheet, (&self.slider, &self.progress));
+        crate::owned::write_slider_exceptions(&mut self.sheet, &self.slider);
+        crate::owned::write_stepper_exceptions(&mut self.sheet, &self.stepper);
+        crate::owned::write_table_exceptions(&mut self.sheet, &self.table);
+        crate::owned::write_choice_exceptions(
+            &mut self.sheet,
+            (&self.checkbox, &self.radio, &self.switch),
+        );
     }
 
     fn write_input_rules(&mut self) {
-        crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
+        crate::owned::write_input_rules(&mut self.sheet, &self.input);
     }
 
-    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_label(&mut self, label: States) {
+        self.label = label;
+        self.restyle(|style| crate::owned::write_field_rules(&mut style.sheet, style.label));
+    }
+
+    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_checkbox(&mut self, checkbox: CheckboxStyle) {
+        self.checkbox = checkbox;
+        self.restyle(|style| crate::owned::write_checkbox_rules(&mut style.sheet, &style.checkbox));
+    }
+
+    /// TODO(prose): sets the radio section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_radio(&mut self, radio: RadioStyle) {
+        self.radio = radio;
+        self.restyle(|style| crate::owned::write_radio_rules(&mut style.sheet, &style.radio));
+    }
+
+    /// TODO(prose): sets the switch section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
+    pub fn set_switch(&mut self, switch: SwitchStyle) {
+        self.switch = switch;
+        self.restyle(|style| crate::owned::write_switch_rules(&mut style.sheet, &style.switch));
+    }
+
+    fn write_choice_rules(&mut self) {
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+    }
+
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
         self.segmented = segmented;
-        self.write_segmented_rules();
+        self.restyle(Self::write_segmented_rules);
     }
 
     fn write_segmented_rules(&mut self) {
@@ -2250,12 +2433,7 @@ impl Style {
                 }
             })
             .collect();
-        crate::owned::write_tabs_rules(
-            &mut self.sheet,
-            &self.segmented,
-            roles,
-            (self.focus, self.disabled),
-        );
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented, roles);
     }
 }
 

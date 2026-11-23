@@ -1,6 +1,8 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
-use eggshell_ui::contract::Size;
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Focus, Size, Themed};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
@@ -52,6 +54,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                         .named("Inner")
                         .bare()
                         .on_change(|_: &mut App, _| {});
+                    s.button("addon", "Go")
+                        .variant(eggshell_ui_shadcn::variant::GHOST)
+                        .size(size::SM)
+                        .on_click(|_: &mut App| {});
                 });
         },
     );
@@ -97,6 +103,19 @@ fn input() -> eggshell_ui::contract::InputStyle {
     Shadcn::for_theme(Theme::Light).style().input().clone()
 }
 
+/// The space between the border and an icon, and between the icon and the
+/// text: shadcn's at the default size (`pl-2` on the addon, `pl-1.5` on the
+/// control, style-vega.css:1406 and 1398), the size's metrics at the others
+/// (a recorded exception, #446).
+fn spacing(size: Size) -> (f32, f32) {
+    if size == Size::DEFAULT {
+        (8.0, 6.0)
+    } else {
+        let metrics = *input().sizes.get(size);
+        (metrics.padding.x, metrics.icon_gap)
+    }
+}
+
 #[test]
 fn a_field_box_is_the_inputs_box_at_its_size() {
     let d = driver(Size::DEFAULT);
@@ -106,7 +125,11 @@ fn a_field_box_is_the_inputs_box_at_its_size() {
     assert_eq!(rect.height(), metrics.height);
     assert_eq!(rect.width(), 200.0);
     let shape = box_at(&d, rect);
-    assert_eq!(shape.fill, input.look.paint.states.rest.fill);
+    assert_eq!(
+        shape.fill,
+        Color32::TRANSPARENT,
+        "cn-input-group: no fill in light"
+    );
     assert_eq!(shape.stroke.color, input.look.paint.states.rest.border);
     assert_eq!(
         shape.corner_radius,
@@ -122,6 +145,55 @@ fn a_field_box_rings_while_a_field_inside_has_focus() {
     d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
     d.frames(6);
     assert!(ring_at(&d, rect).is_some());
+}
+
+#[test]
+fn a_focused_addon_button_rings_itself_not_its_group() {
+    let mut d = driver(Size::DEFAULT);
+    let group = d.rect(Target::suffix(CUSTOM));
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    assert!(
+        ring_at(&d, group).is_some(),
+        "precondition: the field rings it"
+    );
+    d.press(egui::Key::Tab).frames(6);
+    let addon = r#"/"Page"/"custom"/"addon""#;
+    assert_eq!(support::focused_path(&d).as_deref(), Some(addon));
+    let button = d.rect(Target::suffix(addon));
+    assert!(ring_at(&d, button).is_some(), "the button rings");
+    assert!(ring_at(&d, group).is_none(), "the group does not");
+}
+
+#[test]
+fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
+    let ring = Focus {
+        width: 5.0,
+        color: Color32::from_rgb(200, 30, 30),
+    };
+    let mut style = support::sections_of(Shadcn::for_theme(Theme::Light).style());
+    let mut input = style.input().clone();
+    input.look.paint.focus = None;
+    style.set_input(input);
+    style.tokens.focus = ring;
+    let mut d = support::driver(
+        vec2(340.0, 360.0),
+        TextStyle::new(style.text.clone(), style.tokens.foreground),
+        App {
+            text: String::new(),
+            size: Size::DEFAULT,
+            disabled: false,
+        },
+        view,
+    )
+    .build();
+    d.set_style(Themed::both(Arc::new(style)));
+    d.frames(6);
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    let drawn = ring_at(&d, d.rect(Target::suffix(CUSTOM))).expect("a focus ring");
+    assert_eq!(drawn.stroke.width, ring.width);
+    assert_eq!(drawn.stroke.color, ring.color);
 }
 
 #[test]
@@ -150,6 +222,7 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
             d.rect(Target::suffix(&format!("{SEARCH}/Leading"))),
             d.rect(Target::suffix(&format!("{SEARCH}/Field"))),
         );
+        let (edge, gap) = spacing(size);
         assert_eq!(boxed.height(), metrics.height, "{label}");
         assert_eq!(
             icon.size(),
@@ -157,13 +230,14 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
             "{label}"
         );
         assert!(
-            (icon.left() - boxed.left() - border - metrics.padding.x).abs() < 0.6,
+            (icon.left() - boxed.left() - border - edge).abs() < 0.6,
             "{label}: {icon:?} in {boxed:?}"
         );
         assert!((icon.center().y - boxed.center().y).abs() < 0.6, "{label}");
+        let text = support::text_left(&d, field, "Search");
         assert!(
-            (field.left() - icon.right() - metrics.icon_gap).abs() < 0.6,
-            "{label}: {field:?} after {icon:?}"
+            (text - icon.right() - gap).abs() < 0.6,
+            "{label}: the text at {text} after {icon:?}"
         );
         assert!(field.right() <= boxed.right());
     }
@@ -172,15 +246,32 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
 #[test]
 fn a_trailing_icon_sits_inside_the_box_after_the_field() {
     let d = driver(Size::DEFAULT);
-    let metrics = *input().sizes.get(Size::DEFAULT);
     let border = input().look.border_width;
     let (boxed, icon, field) = (
         d.rect(Target::suffix(CLEAR)),
         d.rect(Target::suffix(&format!("{CLEAR}/Trailing"))),
         d.rect(Target::suffix(&format!("{CLEAR}/Field"))),
     );
-    assert!((boxed.right() - icon.right() - border - metrics.padding.x).abs() < 0.6);
-    assert!((icon.left() - field.right() - metrics.icon_gap).abs() < 0.6);
+    let (edge, gap) = spacing(Size::DEFAULT);
+    assert!((boxed.right() - icon.right() - border - edge).abs() < 0.6);
+    assert!(
+        (icon.left() - field.right()).abs() < 0.6,
+        "the addon follows the field: {field:?} before {icon:?}"
+    );
+    let style = Shadcn::for_theme(Theme::Light).style();
+    let beside = style.sheet.resolve(
+        eggshell_ui::owned::InputGroupPart::Input,
+        &[
+            eggshell_ui::sheet::Key::Size(Size::DEFAULT),
+            eggshell_ui::sheet::Key::Attr("addon", "inline-end"),
+        ],
+        &style.tokens,
+    );
+    assert_eq!(
+        beside.style().padding.right.into_raw().value(),
+        gap,
+        "the field's own padding beside it, pr-1.5"
+    );
 }
 
 #[test]
@@ -339,5 +430,79 @@ fn a_rule_on_the_input_group_part_restyles_the_box() {
         shape.stroke.color,
         input().look.paint.states.rest.border,
         "the preset's other properties stand"
+    );
+}
+
+#[test]
+fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
+    let d = driver(Size::DEFAULT);
+    let inside = d.rect(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    let custom = d.rect(Target::suffix(CUSTOM));
+    assert!(
+        inside.width() < custom.width(),
+        "precondition: the control sits in the group beside its addon"
+    );
+    let placed = eggshell_ui::testing::Headless::new(vec2(400.0, 300.0))
+        .theme(Theme::Light)
+        .prepare(Shadcn::apply_both)
+        .style(support::shadcn())
+        .base_text(TextStyle::new(
+            Shadcn::for_theme(Theme::Light).tokens.text_role(),
+            Color32::BLACK,
+        ))
+        .layout(&(), |b, _| {
+            b.div(tw().flex().flex_col().w_px(120.0), |b| {
+                b.span("line", tw(), "1.234");
+                b.text_field_with(
+                    "bare",
+                    eggshell_ui::prim::text_field::Field::singleline("1.234").bare(),
+                )
+                .on_change(|_, _| {});
+            });
+        });
+    assert_eq!(
+        placed.at("bare").rect().height(),
+        placed.at("line").rect().height(),
+        "outside a group, a bare field is its text: no control padding or height"
+    );
+}
+
+#[test]
+fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
+    use eggshell_ui::owned::InputGroupPart;
+    use eggshell_ui::sheet::Key;
+    let style = Shadcn::for_theme(Theme::Light).style();
+    let addon = |disabled: bool| {
+        let mut keys = vec![Key::Size(Size::DEFAULT), Key::Attr("align", "inline-start")];
+        if disabled {
+            keys.push(Key::Aria(eggshell_ui::Aria::Disabled));
+        }
+        style
+            .sheet
+            .resolve(InputGroupPart::Addon, &keys, &style.tokens)
+            .paint_classes()
+            .opacity
+    };
+    let root = |keys: &[Key]| {
+        style
+            .sheet
+            .resolve(InputGroupPart::Root, keys, &style.tokens)
+            .paint_classes()
+            .opacity
+    };
+    let disabled = [
+        Key::Size(Size::DEFAULT),
+        Key::Aria(eggshell_ui::Aria::Disabled),
+    ];
+    assert_eq!(
+        root(&disabled),
+        eggshell_ui::Opacity::new(0.5),
+        "the whole group at half: the disabled look (#385)"
+    );
+    assert_eq!(root(&disabled[..1]), eggshell_ui::Opacity::new(1.0));
+    assert_eq!(
+        addon(true),
+        addon(false),
+        "the addon fades with its group, not again on its own"
     );
 }

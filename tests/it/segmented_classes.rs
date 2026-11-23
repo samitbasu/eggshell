@@ -37,10 +37,14 @@ struct App {
 }
 
 fn edit(style: &mut Style, ambient: Ambient) {
-    if ambient == Ambient::InertFaded {
-        style.set_disabled(Disabled::Faded(Opacity::new(0.4)));
+    // The disabled token reaches the section's look, not the preset's.
+    if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
+        *style = support::sections_of(style.clone());
     }
-    let mut segmented = style.segmented.clone();
+    if ambient == Ambient::InertFaded {
+        style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
+    }
+    let mut segmented = style.segmented().clone();
     let default = *segmented.sizes.get(Size::DEFAULT);
     segmented.sizes = segmented.sizes.clone().with(
         SM,

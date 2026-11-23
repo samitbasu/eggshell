@@ -7,9 +7,11 @@ use eggshell_ui::owned::{Enablement, Face};
 use eggshell_ui::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 
+use eggshell_ui::sheet::{Defaults, Key as SheetKey};
+
 use super::{
-    ChangeFn, DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron, chevron_classes,
-    enablement_in, name_of, toggled,
+    AccordionPart, ChangeFn, DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron,
+    chevron_classes, enablement_in, name_of, toggled,
 };
 
 /// The parts of a section, under its key.
@@ -194,14 +196,28 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             current,
             on_change,
         };
-        let content = tw().pb(style.content_padding_bottom / 4.0).merge(content);
-        b.div_id(key, tw().flex().flex_col(), |b| {
+        let keys = keys_of(enablement);
+        let content = b.part_over(
+            AccordionPart::ContentInner,
+            &[],
+            Defaults(tw().pb(style.content_padding_bottom / 4.0)),
+            content,
+        );
+        let item = b.part_over(
+            AccordionPart::Item,
+            keys,
+            Defaults(tw()),
+            tw().flex().flex_col(),
+        );
+        b.div_id(key, item, |b| {
             let region = b.id_of(Part::Region);
             let region_classes = if current.is_open() {
                 tw().sense_hover().focusable_none()
             } else {
                 tw()
             };
+            let region_classes =
+                b.part_over(AccordionPart::Content, keys, Defaults(tw()), region_classes);
             b.collapsible(Part::Region, current)
                 .classes(region_classes)
                 .content(content)
@@ -239,7 +255,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             on_change,
         } = self;
         let header = &style.header;
-        let mut box_classes = box_classes(style, enablement)
+        let mut look = box_classes(style, enablement)
             .flex()
             .items_start()
             .justify_between()
@@ -247,17 +263,30 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             .py(header.padding_y / 4.0)
             .role(header.text.clone());
         if enablement == Enablement::Enabled {
-            box_classes = match header.hover {
-                Hover::Underline => box_classes.hover(|paint| paint.underline()),
-                Hover::Tint(fill) => box_classes.hover(|paint| paint.bg(fill)),
-                Hover::None => box_classes,
+            look = match header.hover {
+                Hover::Underline => look.hover(|paint| paint.underline()),
+                Hover::Tint(fill) => look.hover(|paint| paint.bg(fill)),
+                Hover::None => look,
             };
         }
+        let sense = match enablement {
+            Enablement::Enabled => tw().sense_click(),
+            Enablement::Disabled => tw().sense_click().inert(),
+        };
+        let keys = keys_of(enablement);
+        let box_classes = b.part_over(AccordionPart::Trigger, keys, Defaults(look), sense);
         let name = name_of(&face).to_owned();
         let glyph = chevron(&style.section, open);
-        let glyph_classes = chevron_classes(style, &style.section)
-            .mt(style.nudge / 4.0)
-            .mb(-style.nudge / 4.0);
+        let glyph_classes = b.part_over(
+            AccordionPart::TriggerIcon,
+            keys,
+            Defaults(
+                chevron_classes(style, &style.section)
+                    .mt(style.nudge / 4.0)
+                    .mb(-style.nudge / 4.0),
+            ),
+            tw(),
+        );
         let handle = b
             .div_id(Part::Header, box_classes.merge(classes), |b| {
                 b.div(
@@ -303,5 +332,13 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             }
             (Enablement::Disabled, _) => {}
         }
+    }
+}
+
+/// The keys a section's parts carry for the style's sheet.
+fn keys_of(enablement: Enablement) -> &'static [SheetKey] {
+    match enablement {
+        Enablement::Enabled => &[],
+        Enablement::Disabled => &[SheetKey::Aria(eggshell_ui::Aria::Disabled)],
     }
 }

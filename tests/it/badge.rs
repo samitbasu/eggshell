@@ -268,3 +268,84 @@ fn a_spinner_turns_unless_motion_is_reduced() {
     assert_eq!(spinner_turn(&d), before, "it stands still");
     d.settle();
 }
+
+/// A badge says shadcn's `focus-visible:` ring, which would make it a Tab
+/// stop; only a chip that can be clicked is one.
+#[test]
+fn a_badge_is_no_tab_stop() {
+    let mut d = harness(badges, App::default());
+    for _ in 0..8 {
+        d.press(Key::Tab).frames(2);
+        assert_eq!(
+            support::focused_path(&d),
+            None,
+            "nothing among the badges takes the focus"
+        );
+    }
+}
+
+/// The badge is drawn from the style's sheet: an App rule on its part
+/// restyles it over the preset's look.
+#[test]
+fn an_app_rule_restyles_a_badge() {
+    let d = builder(badges, App::default())
+        .style(support::shadcn_with(|style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui_extras::badge::BadgePart::Root, |t, _| {
+                    t.bg(egui::Color32::RED)
+                });
+        }))
+        .build();
+    let mut d = d;
+    d.frames(4);
+    let plain = d.rect(Target::suffix("/\"plain\""));
+    assert_eq!(box_at(&d, plain).fill, egui::Color32::RED);
+}
+
+/// A chip whose × is its Tab stop rings itself while the × has the focus,
+/// over the preset's generated look.
+#[test]
+fn a_chip_rings_while_its_x_has_the_focus() {
+    let mut d = harness(chips, App::default());
+    let x = "/\"removable\"/\"remove\"";
+    for _ in 0..8 {
+        if support::focused_path(&d)
+            .as_deref()
+            .is_some_and(|path| path.ends_with(x))
+        {
+            break;
+        }
+        d.press(Key::Tab).frames(4);
+    }
+    assert!(
+        support::focused_path(&d)
+            .as_deref()
+            .is_some_and(|path| path.ends_with(x)),
+        "precondition: the × has the focus"
+    );
+    d.frames(8);
+    let chip = d.rect(Target::suffix("/\"removable\""));
+    assert!(support::ring_at(&d, chip).is_some(), "the chip is ringed");
+}
+
+/// A spinner draws from the style's sheet: an App rule restyles it, and its
+/// size stays its size's entry over the sheet's `size-4`.
+#[test]
+fn an_app_rule_restyles_a_spinner() {
+    let mut d = builder(spinners, App::default())
+        .style(support::shadcn_with(|style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui_extras::spinner::SpinnerPart::Root, |t, _| {
+                    t.bg(egui::Color32::RED).size(10.0)
+                });
+        }))
+        .build();
+    d.frames(4);
+    let spinner = d.rect(Target::suffix("/\"spinner\""));
+    assert_eq!(box_at(&d, spinner).fill, egui::Color32::RED);
+    assert_eq!(spinner.width(), 16.0, "the size is the widget's");
+}

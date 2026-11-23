@@ -15,8 +15,10 @@ pub use crate::focus::Select;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
-use crate::owned::options::{self, Gate};
-use crate::owned::{Enablement, FieldBoxChain, IntoTip, text_sized, tipped};
+use crate::owned::options::{self, Gate, Validity};
+use crate::owned::{Enablement, FieldBoxChain, InputGroupPart, IntoTip, text_sized, tipped};
+use crate::owned::{INLINE_END, INLINE_START};
+use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
 use crate::{Builder, Icon, Key, Measure, Tw, tw};
 
@@ -146,6 +148,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             size: None,
             leading: None,
             trailing: None,
+            validity: Validity::Valid,
         }
     }
 }
@@ -173,6 +176,7 @@ pub struct TextFieldChain<'a, 'f, A> {
     size: Option<ControlSize>,
     leading: Option<Icon>,
     trailing: Option<Icon>,
+    validity: Validity,
 }
 
 impl<A: 'static> TextFieldChain<'_, '_, A> {
@@ -381,6 +385,28 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): marks the field invalid while `error` is `Some`: shadcn's
+    /// `aria-invalid` look, a destructive border and ring, which an input
+    /// group around the field takes too, and the error as its accessible
+    /// description. `None` clears it; the last call wins. A disabled or
+    /// refused field keeps its disabled look, and is still reported invalid.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    ///
+    /// fn email(b: &mut Builder<'_, '_, String>, text: &String) {
+    ///     let error: Option<&str> = (!text.contains('@')).then_some("Enter an email address");
+    ///     b.text_field("email", text.clone())
+    ///         .named("Email")
+    ///         .invalid(error)
+    ///         .on_change(|text: &mut String, new| *text = new);
+    /// }
+    /// ```
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -429,6 +455,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             size,
             leading,
             trailing,
+            validity,
         } = self;
         // shadcn's Input: `min-w-0`, so a field shrinks below egui's
         // text-edit width rather than out of a narrow row.
@@ -447,56 +474,86 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             });
         }
         let icons = leading.is_some() || trailing.is_some();
+        let mut control_keys = crate::owned::input_keys(
+            style.input().sizes.key_for(size),
+            enablement == Enablement::Disabled,
+        );
+        for (icon, side) in [(&leading, INLINE_START), (&trailing, INLINE_END)] {
+            if icon.is_some() {
+                control_keys.push(SheetKey::Attr("addon", side));
+            }
+        }
+        control_keys.extend(validity.key(enablement));
+        let invalid = validity.aria(enablement);
         let disabled_frame = enablement == Enablement::Disabled && !field.is_bare();
         // A disabled field takes the input look's disabled colours through the
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
-            let metrics = *style.input().sizes.get(size);
-            let (side, tint) = (metrics.icon_size, style.input().icon);
-            let put = |s: &mut Scope<'_, '_, A>, part, icon| {
-                s.icon(part, tw().size_px(side).shrink_0().text(tint), icon);
+            let size_key = SheetKey::Size(style.input().sizes.key_for(size));
+            let put = |s: &mut Scope<'_, '_, A>, part, side, icon| {
+                let mut keys = vec![size_key, SheetKey::Attr("align", side)];
+                if enablement == Enablement::Disabled {
+                    keys.push(SheetKey::Aria(crate::Aria::Disabled));
+                }
+                let addon = s.part(InputGroupPart::Addon, &keys, tw().attr("align", side));
+                s.div(addon, |s| {
+                    s.icon(part, tw().shrink_0(), icon);
+                });
             };
             let field = field.bare();
             let measured = field.clone();
             let tip = tooltip.clone();
+            let validity = validity.clone();
             FieldBoxChain::new(b, slot)
                 .size(size)
                 .enablement(enablement)
                 .classes(classes)
                 .children(|s| {
                     if let Some(icon) = leading {
-                        put(s, Part::Leading, icon);
+                        put(s, Part::Leading, INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
-                        b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
-                            measure(m, &measured)
-                        })
-                        .open_focus(autofocus.open_focus())
-                        .draw_widgets(move |app, ui| {
-                            let mut edited = text;
-                            let shown = show(ui, &mut edited, &field);
-                            let response = tipped(ui, shown, &tip);
-                            if let Some(select) = autofocus.apply(ui.ctx(), &response) {
-                                Opening::from(select).open(ui, &response, &edited);
-                            }
-                            if response.changed() {
-                                on_change(app, edited);
-                            }
-                            hooks.run(app, ui, &response, field.enter());
-                        });
+                        let control =
+                            b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
+                        b.leaf(Part::Field, control, move |m| measure(m, &measured))
+                            .open_focus(autofocus.open_focus())
+                            .draw_widgets(move |app, ui| {
+                                let mut edited = text;
+                                let shown = show(ui, &mut edited, &field);
+                                let response = tipped(ui, shown, &tip);
+                                validity.describe(ui.ctx(), response.id);
+                                if let Some(select) = autofocus.apply(ui.ctx(), &response) {
+                                    Opening::from(select).open(ui, &response, &edited);
+                                }
+                                if response.changed() {
+                                    on_change(app, edited);
+                                }
+                                hooks.run(app, ui, &response, field.enter());
+                            });
                     });
                     if let Some(icon) = trailing {
-                        put(s, Part::Trailing, icon);
+                        put(s, Part::Trailing, INLINE_END, icon);
                     }
                 });
             return;
         }
         let classes = text_sized(&b, style.input().sizes.lookup(b.ctx(), size).text).merge(classes);
-        let classes = if field.is_bare() {
-            classes
+        let in_group = b.within_part() == Some(InputGroupPart::Root.slot());
+        let classes = if field.is_bare() && in_group {
+            let control = match field.is_single_line() {
+                true => InputGroupPart::Input,
+                false => InputGroupPart::Textarea,
+            };
+            b.part(control, &control_keys, classes)
+        } else if field.is_bare() {
+            match invalid {
+                Some(aria) => classes.aria(aria),
+                None => classes,
+            }
         } else {
-            crate::owned::text_field_classes(&mut b, size).merge(classes)
+            crate::owned::text_field_classes(&mut b, size, invalid).merge(classes)
         };
+        let field = field.aria(invalid);
         let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .open_focus(autofocus.open_focus())
@@ -504,6 +561,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
                 let response = tipped(ui, shown, &tooltip);
+                validity.describe(ui.ctx(), response.id);
                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                     Opening::from(select).open(ui, &response, &edited);
                 }

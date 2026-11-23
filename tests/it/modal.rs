@@ -479,7 +479,7 @@ mod example {
 
     fn confirm() -> Driver<State> {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Footer/Delete"))
+        d.click(Target::suffix("/Dialog/Box/Footer/Leading"))
             .frames(12);
         assert!(d.app().confirm.is_open(), "precondition: confirm open");
         d
@@ -637,7 +637,7 @@ mod example {
             "trapped: {lap:?}"
         );
         assert!(
-            lap.iter().any(|node| node.ends_with("/Save")),
+            lap.iter().any(|node| node.ends_with("/Default")),
             "and reaches the end of it: {lap:?}"
         );
     }
@@ -664,7 +664,7 @@ mod example {
     #[test]
     fn esc_presses_cancel_and_return_presses_save() {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Group(\"Name\")/Name"));
+        d.click(Target::suffix("/Dialog/Box/Body/Group(\"Name\")/Name"));
         d.type_text("Ada").frames(11);
         assert_eq!(d.app().name, "Ada", "precondition: typed");
         d.press(Key::Enter).frames(11);
@@ -680,8 +680,8 @@ mod example {
     #[test]
     fn a_confirmation_opened_from_the_dialog_is_above_it_and_the_dialog_is_inert() {
         let mut d = confirm();
-        let save = d.rect(Target::suffix("/Dialog/Box/Footer/Save"));
-        let confirm_box = d.rect(Target::suffix("/Dialog/Box/Confirm/Box"));
+        let save = d.rect(Target::suffix("/Dialog/Box/Footer/Default"));
+        let confirm_box = d.rect(Target::suffix("/Dialog/Box/Body/Confirm/Box"));
         assert!(
             !confirm_box.contains(save.center()),
             "precondition: Save is outside the confirmation"
@@ -692,7 +692,7 @@ mod example {
         let lap = lap(&mut d);
         assert!(
             lap.iter()
-                .all(|node| node.starts_with("/Dialog/Box/Confirm/")),
+                .all(|node| node.starts_with("/Dialog/Box/Body/Confirm/")),
             "focus is trapped in the confirmation: {lap:?}"
         );
     }
@@ -714,7 +714,7 @@ mod example {
     fn return_in_the_confirmation_is_the_focused_buttons_and_never_the_dialogs() {
         let mut d = confirm();
         assert!(
-            focus(&d).ends_with("/Confirm/Box/Cancel"),
+            focus(&d).ends_with("/Confirm/Box/Footer/Cancel"),
             "precondition: focus entered at Cancel, as an alert dialog does: {}",
             focus(&d)
         );
@@ -742,11 +742,13 @@ mod example {
     #[test]
     fn a_menu_nested_in_the_dialog_is_above_the_trap_and_usable() {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Group(\"Role\")/RoleButton"))
-            .frames(12);
+        d.click(Target::suffix(
+            "/Dialog/Box/Body/Group(\"Role\")/RoleButton",
+        ))
+        .frames(12);
         assert!(d.app().picker, "precondition: the menu opened");
         let item = d.rect(Target::suffix(
-            "/Dialog/Box/Group(\"Role\")/RoleMenu/Role/RoleItem(1)",
+            "/Dialog/Box/Body/Group(\"Role\")/RoleMenu/Role/RoleItem(1)",
         ));
         d.click(item.center()).frames(12);
         assert_eq!(d.app().role, 1);
@@ -757,8 +759,10 @@ mod example {
     #[test]
     fn a_press_on_the_scrim_closes_the_open_menu_and_the_dialog() {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Group(\"Role\")/RoleButton"))
-            .frames(12);
+        d.click(Target::suffix(
+            "/Dialog/Box/Body/Group(\"Role\")/RoleButton",
+        ))
+        .frames(12);
         assert!(d.app().picker, "precondition: the menu opened");
         d.click(pos2(5.0, 5.0)).frames(12);
         assert!(!d.app().picker && !d.app().dialog.is_open());
@@ -766,10 +770,10 @@ mod example {
 
     const ROLES_LAST: usize = 2;
 
-    const ROLE_BUTTON: &str = "/Dialog/Box/Group(\"Role\")/RoleButton";
+    const ROLE_BUTTON: &str = "/Dialog/Box/Body/Group(\"Role\")/RoleButton";
 
     fn item(index: usize) -> String {
-        format!("/Dialog/Box/Group(\"Role\")/RoleMenu/Role/RoleItem({index})")
+        format!("/Dialog/Box/Body/Group(\"Role\")/RoleMenu/Role/RoleItem({index})")
     }
 
     fn open_menu_with_the_pointer() -> Driver<State> {
@@ -780,7 +784,7 @@ mod example {
     }
 
     fn highlight(d: &Driver<State>) -> egui::Color32 {
-        d.shell().style().menu.item.paint.states.hover.fill
+        d.shell().style().menu().item.paint.states.hover.fill
     }
 
     #[test]
@@ -809,7 +813,7 @@ mod example {
     #[test]
     fn a_menu_opened_from_the_keyboard_focuses_its_first_item() {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Group(\"Name\")/Name"));
+        d.click(Target::suffix("/Dialog/Box/Body/Group(\"Name\")/Name"));
         for _ in 0..4 {
             if support::focused_path(&d).as_deref() == Some(ROLE_BUTTON) {
                 break;
@@ -841,8 +845,10 @@ mod example {
     #[test]
     fn esc_in_the_menu_closes_only_the_menu() {
         let mut d = dialog();
-        d.click(Target::suffix("/Dialog/Box/Group(\"Role\")/RoleButton"))
-            .frames(12);
+        d.click(Target::suffix(
+            "/Dialog/Box/Body/Group(\"Role\")/RoleButton",
+        ))
+        .frames(12);
         d.press(Key::Escape).frames(11);
         assert!(!d.app().picker);
         assert!(d.app().dialog.is_open());

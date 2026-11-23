@@ -29,6 +29,8 @@ use eggshell_ui::overlay::{Nav, Shown, Wrap};
 use eggshell_ui::owned::{Enablement, Face};
 use eggshell_ui::{Builder, Key, Scope, Tw, tw};
 
+use eggshell_ui::sheet::Defaults;
+
 use crate::disclosure::{DisclosureStyle, SectionExt};
 
 /// What an accordion runs with what a header asked for.
@@ -216,12 +218,20 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             value: _,
         } = self;
         let style = b.style().extension::<DisclosureStyle>();
+        // shadcn's `not-last:border-b` on each item, which the importer
+        // cannot say, is the column's `divide-y`: the accordion's own.
         let column = tw().flex().flex_col();
         let column = match style.separator {
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        b.div_id(key, column.merge(classes), |b| {
+        let column = b.part_over(
+            crate::disclosure::AccordionPart::Root,
+            &[],
+            Defaults(tw()),
+            column.merge(classes),
+        );
+        b.div_id(key, column, |b| {
             items(&mut Items {
                 b,
                 mode: Rc::new(mode),

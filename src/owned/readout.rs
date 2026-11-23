@@ -155,7 +155,14 @@ impl Readout {
                     .tabular_nums(),
             )
             .children(|s| {
-                let leaf = tw().w_full().h_full().text_right();
+                let keys = super::input_keys(style.input().sizes.key_for(size), false);
+                let leaf = s.part(
+                    super::InputGroupPart::Input,
+                    &keys,
+                    // The field is inset by egui's margin already, so its
+                    // text stays where the readout drew it.
+                    tw().w_full().h_full().p(0.0).text_right(),
+                );
                 s.leaf(Part::Field, leaf, move |m| {
                     text_field::measure(m, &measured)
                 })

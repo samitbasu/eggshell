@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 
 use crate::examples;
 use crate::loc;
+use crate::shadcn_import;
 use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
 use crate::web;
@@ -18,8 +19,9 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Run everything CI runs, in CI's order, and list the failed steps at
-    /// the end: fmt --check, the no-wall-clock check, clippy -D warnings,
-    /// tests, doctests, rustdoc -D warnings, screenshots (Linux), wasm32 check,
+    /// the end: fmt --check, the no-wall-clock check, clippy -D warnings
+    /// (also of the crates with features, with none of them), tests,
+    /// doctests, rustdoc -D warnings, screenshots (Linux), wasm32 check,
     /// fuzz
     Ci {
         /// Leave out the step of this name; repeatable. CI runs `fuzz` as a
@@ -27,6 +29,9 @@ pub enum Command {
         #[arg(long, value_name = "STEP")]
         skip: Vec<String>,
     },
+    /// Run CI's steps but its slowest (the wasm32 check and fuzz), in CI's
+    /// order: the check before an item is integrated
+    Integrate,
     /// Format the workspace with `cargo fmt --all`
     Fmt {
         /// Verify formatting without writing
@@ -90,12 +95,34 @@ pub enum Command {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// A spike: map shadcn's Button, Badge and Combobox onto eggshell and
+    /// write a report of what maps, what does not, and the generated values
+    /// against today's preset. Changes nothing
+    ShadcnImport {
+        /// The shadcn checkout to read
+        #[arg(long, default_value = "../ref/shadcn")]
+        reference: std::path::PathBuf,
+        /// The style, as in `style-<name>.css`
+        #[arg(long, default_value = "vega")]
+        style: String,
+        /// The directory the report is written to
+        #[arg(long, default_value = "target/shadcn-import")]
+        out: std::path::PathBuf,
+        /// Write the migrated widgets' rules into the shadcn preset's crate
+        #[arg(long, conflicts_with = "check")]
+        write: bool,
+        /// Fail if the shadcn preset's crate holds other rules than the
+        /// pinned source gives
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 impl Command {
     pub fn run(self) -> Result<()> {
         match self {
             Command::Ci { skip } => steps::run_all(&steps::ci_steps_skipping(&skip)?),
+            Command::Integrate => steps::run_all(&steps::integrate_steps()),
             Command::Fmt { check } => {
                 let mode = if check {
                     FmtMode::Check
@@ -138,6 +165,22 @@ impl Command {
                     Profile::Debug
                 },
                 port,
+            }),
+            Command::ShadcnImport {
+                reference,
+                style,
+                out,
+                write,
+                check,
+            } => shadcn_import::run(&shadcn_import::Plan {
+                mode: match (write, check) {
+                    (true, _) => shadcn_import::Mode::Write,
+                    (false, true) => shadcn_import::Mode::Check,
+                    (false, false) => shadcn_import::Mode::Report,
+                },
+                reference,
+                style,
+                out,
             }),
             Command::Loc { roots } => loc::run(&roots),
             Command::Snapshots {
@@ -182,6 +225,11 @@ mod tests {
             panic!("expected ci")
         };
         assert_eq!(skip, ["fuzz", "wasm"]);
+    }
+
+    #[test]
+    fn integrate_parses() {
+        assert!(matches!(parse(&["integrate"]), Command::Integrate));
     }
 
     #[test]

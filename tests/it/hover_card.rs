@@ -151,3 +151,44 @@ fn hovering_a_trigger_with_nothing_focusable_in_it_opens_the_card() {
         d.harness().get_by_label(text);
     }
 }
+
+/// hover-card.tsx in `style-vega.css`: the card's box is drawn from the
+/// sheet, `ring-1 ring-foreground/10` where the widget's own look is
+/// bordered; an App rule on its part restyles it.
+#[test]
+fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
+    use eggshell_ui_extras::hover_card::HoverCardPart;
+    let open = |d: &mut Driver<App>| {
+        d.hover(Target::suffix(HANDLE))
+            .advance(Duration::from_millis(800));
+        shown(d, "nextjs").expect("open")
+    };
+    let mut d = harness();
+    let card = open(&mut d);
+    let shape = support::box_at(&d, card);
+    assert_eq!(shape.stroke.width, 0.0, "a ring, not the widget's border");
+    assert_eq!(
+        shape.fill,
+        Tokens::for_theme(d.ctx().theme()).popover,
+        "bg-popover"
+    );
+    let tokens = Tokens::for_theme(Theme::Light);
+    // The plain driver: a prepared one sets the context's style each frame.
+    let mut d = support::driver(
+        vec2(500.0, 400.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(HoverCardPart::Content, |t, _| t.bg(egui::Color32::RED));
+    }))
+    .build();
+    still(d.ctx(), d.app());
+    d.frames(4);
+    let card = open(&mut d);
+    assert_eq!(support::box_at(&d, card).fill, egui::Color32::RED);
+}

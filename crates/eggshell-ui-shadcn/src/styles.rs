@@ -1,6 +1,6 @@
 //! shadcn's styles: parameter sets that differ in a handful of values.
 
-use eggshell_ui::{Opacity, Weight};
+use eggshell_ui::Weight;
 use egui::vec2;
 
 use crate::Tokens;
@@ -43,7 +43,8 @@ impl ShadcnStyle {
                 t.text_line_height = 20.0;
                 t.control_height = 36.0;
                 t.button_padding = vec2(16.0, 8.0);
-                t.input_padding = vec2(12.0, 4.0);
+                t.input_padding = vec2(10.0, 4.0);
+                t.own_input_padding_x = 12.0;
                 t.control_gap = 8.0;
                 t.icon_size = 16.0;
                 t.toggle_padding_x = 8.0;
@@ -57,10 +58,7 @@ impl ShadcnStyle {
                 t.cell_padding = vec2(8.0, 4.0);
                 t.popup_padding = 4.0;
                 t.item_padding = vec2(8.0, 6.0);
-                t.primary_hover = Opacity::new(0.9);
-                t.secondary_hover = SecondaryHover::Fade(Opacity::new(0.8));
                 t.hover_surface = HoverSurface::Accent;
-                t.destructive_look = DestructiveLook::Solid;
                 t.elevation = Elevation::Raised;
                 t.control_weight = Weight::Medium;
                 t.label_weight = Weight::Medium;
@@ -72,6 +70,7 @@ impl ShadcnStyle {
                 t.control_height = 32.0;
                 t.button_padding = vec2(10.0, 6.0);
                 t.input_padding = vec2(10.0, 4.0);
+                t.own_input_padding_x = 10.0;
                 t.control_gap = 6.0;
                 t.icon_size = 14.0;
                 t.toggle_padding_x = 10.0;
@@ -85,10 +84,7 @@ impl ShadcnStyle {
                 t.cell_padding = vec2(6.0, 2.0);
                 t.popup_padding = 4.0;
                 t.item_padding = vec2(8.0, 8.0);
-                t.primary_hover = Opacity::new(0.8);
-                t.secondary_hover = SecondaryHover::Mix(Opacity::new(0.05));
                 t.hover_surface = HoverSurface::Muted;
-                t.destructive_look = DestructiveLook::Tinted;
                 t.elevation = Elevation::Flat;
                 t.control_weight = Weight::Medium;
                 t.label_weight = Weight::Normal;
@@ -122,24 +118,4 @@ pub enum HoverSurface {
     Accent,
     /// `hover:bg-muted hover:text-foreground`.
     Muted,
-}
-
-/// How a secondary button looks under the pointer.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum SecondaryHover {
-    /// `hover:bg-secondary/80`: the fill at this opacity.
-    Fade(Opacity),
-    /// `hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`:
-    /// this much of `foreground` mixed into the fill.
-    Mix(Opacity),
-}
-
-/// How the destructive button is filled.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DestructiveLook {
-    /// `bg-destructive text-white`.
-    Solid,
-    /// `bg-destructive/10 text-destructive`: a tint of the colour, in the
-    /// colour.
-    Tinted,
 }

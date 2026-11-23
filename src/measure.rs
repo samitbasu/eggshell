@@ -318,7 +318,7 @@ pub(crate) fn text_format(style: &TextStyle, font_id: FontId) -> TextFormat {
     };
     TextFormat {
         font_id,
-        extra_letter_spacing: style.tracking.into(),
+        extra_letter_spacing: style.tracking.at(style.spec.size),
         line_height: Some(style.spec.line_height),
         italics: style.font_style == FontStyle::Italic,
         color: Color32::PLACEHOLDER,

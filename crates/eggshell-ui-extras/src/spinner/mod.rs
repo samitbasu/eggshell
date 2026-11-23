@@ -42,6 +42,22 @@ pub struct SpinnerStyle {
     pub period: Duration,
 }
 
+/// TODO(prose): a spinner for the style's sheet, as shadcn's `spinner.tsx`
+/// names it. Its turn is the widget's own motion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SpinnerPart {
+    /// TODO(prose): the icon.
+    Root,
+}
+
+impl eggshell_ui::sheet::Part for SpinnerPart {
+    const SOURCE: &'static str = "spinner.tsx";
+
+    fn slot(self) -> &'static str {
+        "spinner"
+    }
+}
+
 impl eggshell_ui::contract::Extension for SpinnerStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
@@ -49,10 +65,10 @@ impl eggshell_ui::contract::Extension for SpinnerStyle {
 }
 
 impl SpinnerStyle {
-    /// TODO(prose): a spinner as large as a button's icon at each of the
+    /// TODO(prose): a spinner as large as a control's icon at each of the
     /// style's sizes, turning once a second, as Tailwind's `animate-spin`.
     pub fn from_style(style: &Style) -> Self {
-        let buttons = &style.button.sizes;
+        let buttons = &style.toggle.sizes;
         let mut sizes = Keyed::new(
             buttons.default_key(),
             buttons.get(buttons.default_key()).glyph,
@@ -139,12 +155,18 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
         let size = size.unwrap_or_else(|| b.control_size());
         let side = *crate::styles::entry(&ctx, &style.sizes, size);
         let name = name.unwrap_or_else(|| "Loading".to_owned());
-        let classes = tw()
-            .size_px(side)
-            .shrink_0()
-            .sense_hover()
-            .focusable_none()
-            .merge(classes);
+        // The size is the widget's, from its size's entry (#348), over the
+        // sheet's `size-4`.
+        let classes = b.part_over(
+            SpinnerPart::Root,
+            &[],
+            eggshell_ui::sheet::Defaults(tw()),
+            tw().size_px(side)
+                .shrink_0()
+                .sense_hover()
+                .focusable_none()
+                .merge(classes),
+        );
         let icon = Icon::new(LOADER).rotated(turned(&ctx, style.period));
         let _ = b.icon(key, classes, icon).draw(move |_, ui| {
             let enabled = ui.is_enabled();

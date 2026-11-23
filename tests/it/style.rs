@@ -398,7 +398,7 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
 }
 
 #[test]
-fn a_text_field_under_the_preset_is_h9_with_px3() {
+fn a_text_field_under_the_preset_is_h9_with_px_2_5() {
     fn field(b: &mut Builder<'_, '_, App>, _: &App) {
         b.widget(
             "field",
@@ -422,7 +422,7 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
             _ => None,
         })
         .expect("the hint is painted");
-    assert_eq!(hint.x - rect.left(), 12.0, "px-3");
+    assert_eq!(hint.x - rect.left(), 10.0, "px-2.5 (style-vega.css:678)");
 }
 
 fn palette(base: BaseColor, theme_color: ThemeColor) -> Palette {
@@ -677,7 +677,7 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varies() {
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
-        let seg = style.segmented;
+        let seg = style.segmented();
         let tokens = Tokens::for_theme(theme);
         assert_eq!(seg.cell_border_width, 1.0, "border, {theme:?}");
         assert_eq!(
@@ -691,4 +691,107 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
         };
         assert_eq!(seg.selected.states.rest.border, selected, "{theme:?}");
     }
+}
+
+/// A section set after the preset changes what the widget reads of it and
+/// keeps the preset's look: its rules are the widgets' defaults, under the
+/// preset's.
+#[test]
+fn a_section_set_after_the_preset_keeps_the_presets_look() {
+    use eggshell_ui::owned::TooltipPart;
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let before = style
+        .sheet
+        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .style()
+        .clone();
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = core::time::Duration::from_millis(123);
+    style.set_tooltip(tooltip);
+    assert_eq!(
+        style.tooltip().delay,
+        core::time::Duration::from_millis(123)
+    );
+    let after = style
+        .sheet
+        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .style()
+        .clone();
+    assert_eq!(after, before, "the preset's look");
+    assert_eq!(
+        style.sheet.layer(),
+        eggshell_ui::sheet::Layer::Preset,
+        "the layer is kept"
+    );
+}
+
+/// A metric the preset's recorded exceptions read, changed after the preset,
+/// lands: the exceptions are written again over its look.
+#[test]
+fn a_section_metric_an_exception_reads_lands_after_the_preset() {
+    use eggshell_ui::contract::Size;
+    use eggshell_ui::owned::{Enablement, SegmentedRows, TabsPart};
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let sm = Size("sm");
+    let height = |style: &eggshell_ui::Style| {
+        style
+            .sheet
+            .resolve(
+                TabsPart::List,
+                &TabsPart::list_keys(sm, SegmentedRows::One, Enablement::Enabled),
+                &style.tokens,
+            )
+            .style()
+            .size
+            .height
+    };
+    let mut segmented = style.segmented().clone();
+    assert!(
+        segmented.sizes.keys().any(|size| size == sm),
+        "precondition: the preset has a small size"
+    );
+    let mut metrics = *segmented.sizes.get(sm);
+    metrics.height = 50.0;
+    segmented.sizes = segmented.sizes.clone().with(sm, metrics);
+    style.set_segmented(segmented);
+    assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
+}
+
+/// Sections set inside `at_current_layer` write their looks at the sheet's
+/// layer, over the preset's, for every family: a tooltip's padding and a
+/// table's cells both land, where a plain setter keeps the preset's look.
+#[test]
+fn sections_set_at_the_current_layer_restyle_over_the_preset() {
+    use eggshell_ui::owned::{TablePart, TooltipPart};
+    let padding = |style: &eggshell_ui::Style| {
+        let tip = style
+            .sheet
+            .resolve(TooltipPart::Content, &[], &style.tokens);
+        let cell = style.sheet.resolve(TablePart::Cell, &[], &style.tokens);
+        (tip.style().padding.left, cell.style().padding.left)
+    };
+    let preset = Shadcn::for_theme(Theme::Light).style();
+    let mut tooltip = preset.tooltip().clone();
+    tooltip.padding = vec2(40.0, 20.0);
+    let mut table = preset.table().clone();
+    table.cell_padding = 36.0;
+    let want = (
+        tw().px(10.0).style().padding.left,
+        tw().px(9.0).style().padding.left,
+    );
+    let mut plain = preset.clone();
+    plain.set_tooltip(tooltip.clone());
+    plain.set_table(table.clone());
+    assert_ne!(
+        padding(&plain),
+        want,
+        "precondition: a plain setter keeps the preset's"
+    );
+    let mut over = preset.clone();
+    over.sheet.as_app();
+    over.at_current_layer(|style| {
+        style.set_tooltip(tooltip);
+        style.set_table(table);
+    });
+    assert_eq!(padding(&over), want);
 }

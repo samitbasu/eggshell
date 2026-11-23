@@ -3,25 +3,26 @@
 //! it is open: in egui's temp data, keyed by the trigger.
 
 use std::rc::Rc;
-use std::sync::Arc;
 
 use egui::accesskit::HasPopup;
-use egui::{Context, Id, Key, Role, WidgetInfo, vec2};
+use egui::{Context, Id, Key, Role, WidgetInfo};
 
 use super::choice::{self, Choice, IntoChoice};
 use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::options::Refused;
 use super::{
-    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, tipped,
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, Validity, check, describe, options,
+    tipped,
 };
+use crate::Aria;
 use crate::builder::Slot;
-use crate::contract::Size;
+use crate::contract::{Disabled, SelectStyle, Size};
 use crate::focus::{Autofocus, Select};
+use crate::overlay::Fit;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
-use crate::pipeline::Room;
-use crate::scroll::{Axis, Focusable};
+use crate::sheet::{Key as SheetKey, Part as SheetPart, Sheet, When};
 use crate::{Builder, NodeUi as _, Scope, Style, Tw, nav, tw};
 
 /// The parts of a select's list.
@@ -30,7 +31,155 @@ enum Part {
     List,
     Box,
     Rows,
+    Group,
     Option(usize),
+}
+
+/// TODO(prose): a select's anatomy for the [`Sheet`](crate::sheet::Sheet),
+/// as shadcn's `select.tsx` names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SelectPart {
+    /// TODO(prose): the box that shows the chosen option.
+    Trigger,
+    /// TODO(prose): the chosen option's label in the trigger.
+    Value,
+    /// TODO(prose): the chevron in the trigger.
+    TriggerIcon,
+    /// TODO(prose): the box of the open list.
+    Content,
+    /// TODO(prose): the options of the list, together.
+    Group,
+    /// TODO(prose): one option of the list.
+    Item,
+    /// TODO(prose): the room an option keeps for its check mark.
+    ItemIndicator,
+    /// TODO(prose): the check mark of the chosen option.
+    ItemIndicatorIcon,
+}
+
+impl SheetPart for SelectPart {
+    const SOURCE: &'static str = "select.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Trigger => "select-trigger",
+            Self::Value => "select-value",
+            Self::TriggerIcon => "select-trigger-icon",
+            Self::Content => "select-content",
+            Self::Group => "select-group",
+            Self::Item => "select-item",
+            Self::ItemIndicator => "select-item-indicator",
+            Self::ItemIndicatorIcon => "select-item-indicator-icon",
+        }
+    }
+}
+
+/// Writes the select's rules into `style`'s sheet from its `select` and
+/// `menu` looks, at the sheet's current layer. Each part's rules replace the
+/// lower layers' for it.
+pub(crate) fn write_select_rules(style: &mut Style) {
+    let select = style.select().clone();
+    let menu = style.menu().clone();
+    let list_text = style.role(&menu.text).clone();
+    let sizes: Vec<(Size, crate::contract::Metrics, crate::TextSpec)> = select
+        .sizes
+        .keys()
+        .map(|size| {
+            let metrics = *select.sizes.get(size);
+            (size, metrics, style.role_sized(&select.text, metrics.text))
+        })
+        .collect();
+    let radius = select.sizes.get(select.sizes.default_key()).radius;
+    let trigger = select.trigger;
+    let transition = select.transition;
+    let sheet = &mut style.sheet;
+    for enablement in [Enablement::Enabled, Enablement::Disabled] {
+        let when = match enablement {
+            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
+            Enablement::Disabled => When::always().aria(Aria::Disabled),
+        };
+        sheet.replace_when(SelectPart::Trigger, when, move |t, k| {
+            let classes = t.merge(trigger.paint.classes_in(
+                trigger.border_width,
+                (k.focus, k.disabled),
+                radius,
+                enablement,
+                transition,
+            ));
+            let classes = classes
+                .flex()
+                .items_center()
+                .justify_between()
+                .whitespace_nowrap()
+                .w_fit();
+            match (enablement, k.disabled) {
+                (Enablement::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
+                _ => classes,
+            }
+        });
+        let item_menu = menu.clone();
+        let item_text = list_text.clone();
+        sheet.replace_when(SelectPart::Item, when, move |t, _| {
+            t.merge(item_menu.row_classes(Tone::Plain, enablement, &item_text))
+                .justify_between()
+                .focusable_none()
+        });
+    }
+    for (size, m, text) in sizes {
+        sheet.rule_when(
+            SelectPart::Trigger,
+            When::always().size(size),
+            move |t, _| {
+                t.h_px(m.height)
+                    .px(m.padding_x / 4.0)
+                    .gap(m.gap / 4.0)
+                    .rounded_px(f32::from(m.radius))
+                    .role(text.clone())
+            },
+        );
+    }
+    let (chevron, opacity) = (select.chevron, select.chevron_opacity);
+    sheet.replace(SelectPart::TriggerIcon, move |t, _| {
+        t.size_px(chevron).shrink_0().opacity(opacity)
+    });
+    sheet.replace(SelectPart::Content, move |t, _| {
+        t.merge(menu.box_classes(&list_text))
+    });
+    sheet.replace(SelectPart::ItemIndicator, move |t, _| {
+        t.size_px(chevron).shrink_0()
+    });
+    sheet.replace(SelectPart::ItemIndicatorIcon, move |t, _| {
+        t.size_px(chevron)
+    });
+}
+
+/// Writes the select's recorded exception over the rules at the sheet's
+/// current layer: a size the trigger's rules leave out keeps its metrics.
+pub(crate) fn write_select_exceptions(sheet: &mut Sheet, select: &SelectStyle) {
+    for size in select.sizes.keys() {
+        if sheet
+            .unnamed(SelectPart::Trigger, &[SheetKey::Size(size)])
+            .is_none()
+        {
+            continue;
+        }
+        let m = *select.sizes.get(size);
+        sheet.rule_when(
+            SelectPart::Trigger,
+            When::always().size(size),
+            move |t, _| {
+                let t = t
+                    .h_px(m.height)
+                    .px(m.padding_x / 4.0)
+                    .gap(m.gap / 4.0)
+                    .rounded_px(f32::from(m.radius));
+                match m.text {
+                    Some(text) => t.text_size(text.size, text.line_height),
+                    None => t,
+                }
+            },
+        );
+    }
 }
 
 /// Whether the list is shown.
@@ -90,6 +239,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     size: Option<Size>,
     on_response: OnResponse<A>,
     autofocus: Autofocus,
+    validity: Validity,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T> {
@@ -114,12 +264,21 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             size: None,
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// TODO(prose): marks the select invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its trigger's border and ring turn destructive.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
         self
     }
 
@@ -236,6 +395,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             size,
             on_response,
             autofocus,
+            validity,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let ctx = b.ctx().clone();
@@ -244,40 +404,38 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = b.style().clone();
-        let offset = offset.unwrap_or(style.menu.offset);
-        let select = &style.select;
-        let metrics = *select.sizes.lookup(b.ctx(), b.size_of(size));
-        let classes = select
-            .trigger
-            .classes(&style, metrics.radius, enablement, select.transition)
-            .flex()
-            .items_center()
-            .justify_between()
-            .h_px(metrics.height)
-            .px(metrics.padding_x / 4.0)
-            .gap(metrics.gap / 4.0)
-            .role(style.role_sized(&select.text, metrics.text))
-            .whitespace_nowrap()
-            .w_fit();
-        let classes = enablement.fade(classes, &style).merge(caller);
+        let offset = offset.unwrap_or(style.menu().offset);
+        let mut keys = vec![SheetKey::Size(b.size_of(size))];
+        if enablement == Enablement::Disabled {
+            keys.push(SheetKey::Aria(Aria::Disabled));
+        }
+        keys.extend(validity.key(enablement));
+        keys.extend(super::expanded_key(
+            Listing::of(&ctx, trigger) == Listing::Open,
+        ));
+        let own = tw().sense_click();
+        let own = match enablement {
+            Enablement::Enabled => own,
+            Enablement::Disabled => own.inert(),
+        };
+        let classes = b.part(SelectPart::Trigger, &keys, own.merge(caller));
+        let value_classes = b.part(SelectPart::Value, &[], tw());
+        let icon = b.part(SelectPart::TriggerIcon, &[], tw());
         let current = options.iter().position(|option| option.value == chosen);
         let shown = current
             .and_then(|at| options.get(at))
             .map_or_else(String::new, |option| option.label.clone());
         let name = name.unwrap_or_default();
-        let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let value = shown.clone();
         let label = name.clone();
         b.div_id_with(&slot, classes, |b| {
-            b.text(tw(), shown);
-            b.glyph(
-                tw().size_px(chevron).shrink_0().opacity(opacity),
-                Chevron::Down.icon(),
-            );
+            b.text(value_classes, shown);
+            b.glyph(icon, Chevron::Down.icon());
         })
         .open_focus(autofocus.open_focus())
         .draw(move |app, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
+            validity.describe(ui.ctx(), response.id);
             autofocus.apply(ui.ctx(), &response);
             let ctx = ui.ctx();
             hold_arrows(ui);
@@ -305,7 +463,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 Listing::Closed => Shown::Closed,
             };
             let options = List {
-                style,
                 options,
                 current,
                 trigger,
@@ -325,7 +482,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 .role(Role::ListBox)
                 .named(name)
                 .on_dismiss(move |_| Listing::Closed.store(&close, trigger))
-                .children(|s| options.show(s, &choose));
+                .children_fitted(|s, fit| options.show(s, &choose, fit));
         }
     }
 }
@@ -334,7 +491,6 @@ type Choose<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
 /// The options of an open list.
 struct List<T> {
-    style: Arc<Style>,
     options: Vec<Choice<T>>,
     current: Option<usize>,
     trigger: Id,
@@ -343,52 +499,20 @@ struct List<T> {
 }
 
 impl<T: Copy + 'static> List<T> {
-    fn row_height(&self) -> f32 {
-        self.style
-            .menu
-            .row_height(self.style.role(&self.style.menu.text))
-    }
-
-    /// The box around the rows.
-    fn box_classes(&self) -> Tw {
-        let text = self.style.role(&self.style.menu.text);
-        self.style.menu.box_classes(text)
-    }
-
     /// Where the list goes: under the trigger, flipping above it for want of room.
     fn placement(&self) -> Placement {
         Placement::below().gap(self.offset)
     }
 
-    /// One row: the highlighted one takes the item's `hover` colours.
-    fn row_classes(&self, enablement: Enablement) -> Tw {
-        let text = self.style.role(&self.style.menu.text);
-        self.style
-            .menu
-            .row_classes(Tone::Plain, enablement, text)
-            .justify_between()
-            .focusable_none()
-    }
-
-    fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let menu = &self.style.menu;
-        let rows = self.options.len() as f32 * self.row_height();
-        let chrome = 2.0 * (menu.padding + menu.popup.border_width);
-        let natural = vec2(0.0, rows + chrome);
-        let room = s.room_for(self.trigger, &self.placement(), natural);
-        s.div_id(Part::Box, self.box_classes(), |s| match room {
-            Room::Enough => self.rows(s, choose),
-            Room::Short => {
-                let scroller = tw().flex().flex_col().h_px(rows).min_h_0().focusable_none();
-                s.scroll(Part::Rows, scroller)
-                    .axis(Axis::Y)
-                    .focusable(Focusable::Auto)
-                    .children(|s| self.rows(s, choose));
-            }
+    fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>, fit: Fit) {
+        let content = s.part(SelectPart::Content, &[], tw().flex().flex_col().min_h_0());
+        let group = s.part(SelectPart::Group, &[], tw().flex().flex_col());
+        super::fitted_box(s, fit, (Part::Box, Part::Rows), content, |s| {
+            s.div_id(Part::Group, group, |s| self.rows(s, choose, fit));
         });
     }
 
-    fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
+    fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>, fit: Fit) {
         let enabled = |at: usize| {
             self.options.get(at).is_some_and(|option| {
                 option.gated(Enablement::Enabled, Refused::No).0 == Enablement::Enabled
@@ -398,7 +522,8 @@ impl<T: Copy + 'static> List<T> {
             .current
             .filter(|&at| enabled(at))
             .or_else(|| (0..self.options.len()).find(|&at| enabled(at)));
-        if let Some(at) = start {
+        // Scrolled to once the list is drawn, in the container it is drawn in.
+        if let Some(at) = start.filter(|_| fit != Fit::Measuring) {
             let item = s.id_of(Part::Option(at));
             nav::highlight_initially(s.ctx(), s.kept(), self.list, item, self.trigger);
         }
@@ -407,15 +532,22 @@ impl<T: Copy + 'static> List<T> {
             let (enablement, tooltip) = option.gated(Enablement::Enabled, Refused::No);
             let marked = Some(index) == self.current;
             let (label, value) = (option.label.clone(), option.value);
-            let side = self.style.select.chevron;
+            let keys: &[SheetKey] = match enablement {
+                Enablement::Enabled => &[],
+                Enablement::Disabled => &[SheetKey::Aria(Aria::Disabled)],
+            };
+            let own = enablement.senses();
+            let item = s.part(SelectPart::Item, keys, own.focusable_none());
+            let indicator = s.part(SelectPart::ItemIndicator, &[], tw());
+            let mark = s.part(SelectPart::ItemIndicatorIcon, &[], tw());
             let row = s
-                .div_id(Part::Option(index), self.row_classes(enablement), |s| {
+                .div_id(Part::Option(index), item, |s| {
                     s.text(tw(), label.clone());
-                    if marked {
-                        s.glyph(tw().size_px(side).shrink_0(), check());
-                    } else {
-                        s.div(tw().size_px(side).shrink_0(), |_| {});
-                    }
+                    s.div(indicator, |s| {
+                        if marked {
+                            s.glyph(mark, check());
+                        }
+                    });
                 })
                 .role(Role::ListBoxOption)
                 .named(label.clone());

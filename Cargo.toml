@@ -60,6 +60,7 @@ eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = [
     "accordion",
     "badge",
     "command",
+    "dialog",
     "disclosure",
     "form",
     "hover-card",

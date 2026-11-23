@@ -312,7 +312,10 @@ fn paint_box(
     if uniform.is_none() {
         paint_side_borders(painter, boxes, paint.border_colors);
     }
-    if let Some(ring) = paint.ring {
+    if let Some(ring) = paint
+        .ring
+        .filter(|ring| ring.width > 0.0 && ring.color.a() > 0)
+    {
         painter.add(RectShape::stroke(
             border,
             paint.radius,
@@ -840,6 +843,7 @@ impl<A> Walk<'_, A> {
                     group == Some(Hovering::Over)
                 }
                 State::Hover => hovering == Some(Hovering::Over),
+                State::Highlighted => node.is_item() && hovering == Some(Hovering::Over),
                 State::Focus => response.is_some_and(Response::has_focus),
                 State::FocusWithin => node.id().is_some_and(|id| self.shell.focus_within(id)),
                 State::Active => {
@@ -866,6 +870,7 @@ impl<A> Walk<'_, A> {
             hover: progress(State::Hover),
             focus_within: progress(State::FocusWithin),
             focus: progress(State::Focus),
+            highlighted: progress(State::Highlighted),
             active: progress(State::Active),
             drag_accepts: progress(State::DragAccepts),
             drag_over: progress(State::DragOver),
@@ -1019,7 +1024,8 @@ impl<A> Walk<'_, A> {
             dnd::show_grab(self.shell, nodes, index, response);
         }
         let needs_hovering = interaction.grouping == Grouping::Group
-            || interaction.variants.get(State::Hover).is_some();
+            || interaction.variants.get(State::Hover).is_some()
+            || interaction.variants.get(State::Highlighted).is_some();
         let hovering = response
             .as_ref()
             .filter(|_| needs_hovering)
@@ -1194,7 +1200,7 @@ impl<A> Walk<'_, A> {
             && !interaction.variants.has_focus()
             && response.as_ref().is_some_and(Response::has_focus)
         {
-            let ring = node.style.focus();
+            let ring = node.style.tokens.focus;
             self.painter(parent.clip, opacity).add(RectShape::stroke(
                 boxes.border,
                 look.paint.radius,
@@ -1703,6 +1709,11 @@ impl<A> Walk<'_, A> {
             }
             if staged.is_exiting() {
                 inherited.inertness = Inertness::Inert;
+            }
+            if overlay.showing == crate::overlay::Showing::Measuring {
+                inherited.visibility = Visibility::Hidden;
+                inherited.inertness = Inertness::Inert;
+                ctx.request_repaint();
             }
             egui::Area::new(layer.id)
                 .order(layer.order)

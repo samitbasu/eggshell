@@ -9,14 +9,15 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::number_field::Session;
 use super::{
-    Chevron, Enablement, FieldHooks, Gate, IntoTip, Tip, centered, described, field_box_classes,
-    options, text_sized, tip_describes, tipped_whole,
+    ButtonPart, Chevron, Enablement, FieldHooks, Gate, InputGroupPart, IntoTip, Tip, Validity,
+    centered, described, options, text_sized, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
-use crate::contract::Size;
+use crate::contract::{Size, StepperStyle};
 use crate::focus::{Autofocus, Select};
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
+use crate::sheet::{Defaults, Key as SheetKey};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -64,6 +65,7 @@ pub struct StepperChain<'a, 'f, A> {
     hooks: FieldHooks<A>,
     edits: Edits<A>,
     autofocus: Autofocus,
+    validity: Validity,
 }
 
 impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
@@ -88,6 +90,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             hooks: FieldHooks::default(),
             edits: Edits::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
@@ -209,6 +212,15 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): marks the stepper invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its group's border and ring turn destructive, because its field
+    /// is invalid.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -237,6 +249,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             hooks,
             edits,
             autofocus,
+            validity,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
@@ -244,7 +257,9 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (range.start(), range.end());
+        let invalid = validity.key(enablement);
         let spec = Spec {
+            validity,
             value,
             range,
             step,
@@ -254,53 +269,83 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             edits,
             autofocus,
         };
-        let group = field_box_classes(
-            &stepper.group,
-            &style,
-            metrics.radius,
-            metrics.height,
-            enablement,
-        )
-        .items_stretch()
-        .gap(1.0 / 4.0)
-        .w_px(112.0)
-        .merge(classes);
-        let divider = match enablement {
-            Enablement::Enabled => stepper.divider,
-            Enablement::Disabled => enablement.colors(stepper.group.paint.states, &style).border,
+        // shadcn has no number field: the stepper is an input group (its
+        // one source), the field its input and the buttons its addon's.
+        let mut keys = super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
+        keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
+        if enablement == Enablement::Disabled {
+            keys.push(SheetKey::Aria(crate::Aria::Disabled));
+        }
+        // The group's look is the input group's; the dividers are the
+        // stepper's own.
+        let look = tw().gap(1.0 / 4.0).divide_x(1.0, stepper.divider);
+        let own = tw().items_stretch().w_px(112.0);
+        let own = match enablement {
+            Enablement::Enabled => own,
+            Enablement::Disabled => own.inert(),
         };
-        let group = group.divide_x(1.0, divider);
-        let group = if spec.tooltip.is_some() {
-            group.sense_hover()
+        let own = if spec.tooltip.is_some() {
+            own.sense_hover()
         } else {
-            group
+            own
         };
+        let group = b.part_over(
+            InputGroupPart::Root,
+            &keys,
+            Defaults(look),
+            own.merge(classes),
+        );
         let tooltip = spec.tooltip.clone();
         let field_box = centered(text_sized(&b, metrics.text))
             .justify_start()
             .grow()
-            .min_w_0()
-            .px(metrics.padding_x / 4.0);
-        let inner_radius = f32::from(metrics.radius) - stepper.group.border_width;
-        let button = |at_end: bool, corner: fn(Tw, f32) -> Tw| {
+            .min_w_0();
+        let mut control_keys =
+            super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
+        control_keys.push(SheetKey::Attr("addon", "inline-end"));
+        control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
+        control_keys.extend(invalid);
+        let control = b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
+        let inner_radius = f32::from(metrics.radius) - style.input().look.border_width;
+        let button = |b: &mut Builder<'_, '_, A>, at_end: bool, corner: fn(Tw, f32) -> Tw| {
             let enablement = if at_end {
                 Enablement::Disabled
             } else {
                 enablement
             };
-            let classes = centered(stepper.button.classes(
-                &style,
-                0,
-                enablement,
-                stepper.transition,
-            ))
-            .focusable_none()
-            .grow();
-            corner(classes, inner_radius)
+            let mut keys = vec![
+                SheetKey::Variant(crate::contract::Variant("ghost")),
+                SheetKey::Size(Size::DEFAULT),
+            ];
+            if enablement == Enablement::Disabled {
+                keys.push(SheetKey::Aria(crate::Aria::Disabled));
+            }
+            let look = stepper
+                .button
+                .classes(&style, 0, enablement, stepper.transition);
+            // shadcn's `InputGroupButton` is a ghost `Button`; the stepper's
+            // buttons fill its column, without a button's padding and border,
+            // each rounding its outer corner.
+            let own = centered(tw())
+                .p(0.0)
+                .border(0.0)
+                .sense_click()
+                .focusable_none()
+                .grow()
+                .h_auto()
+                .w_full();
+            let own = match enablement {
+                Enablement::Enabled => own,
+                Enablement::Disabled => own.inert(),
+            };
+            // Square but the outer corner, which egui cannot clip to the group's.
+            let own = corner(own.rounded_px(0.0), inner_radius);
+            b.part_over(ButtonPart::Root, &keys, Defaults(look), tw())
+                .merge(b.part_over(InputGroupPart::Button, &[], Defaults(tw()), own))
         };
         let (up, down) = (
-            button(value >= high, Tw::rounded_tr_px),
-            button(value <= low, Tw::rounded_br_px),
+            button(&mut b, value >= high, Tw::rounded_tr_px),
+            button(&mut b, value <= low, Tw::rounded_br_px),
         );
         let glyph = metrics.glyph;
         let field = Field::singleline("").bare();
@@ -312,19 +357,26 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                 b.div(field_box, |b| {
                     let spec = spec.clone();
                     let set = set.clone();
-                    b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
+                    b.leaf(Part::Field, control, move |m| {
                         text_field::measure(m, &measured)
                     })
                     .open_focus(autofocus.open_focus())
                     .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
-                let buttons = tw()
-                    .flex()
-                    .flex_col()
-                    .gap(1.0 / 4.0)
-                    .divide_y(1.0, divider)
-                    .w_px(metrics.button_width)
-                    .shrink_0();
+                let buttons = b.part_over(
+                    InputGroupPart::Addon,
+                    &[
+                        SheetKey::Attr("align", "inline-end"),
+                        SheetKey::Attr(STEPPER.0, STEPPER.1),
+                    ],
+                    Defaults(tw().gap(1.0 / 4.0).divide_y(1.0, stepper.divider)),
+                    tw().flex()
+                        .flex_col()
+                        .items_stretch()
+                        .w_px(metrics.button_width)
+                        .shrink_0()
+                        .attr("align", "inline-end"),
+                );
                 b.div_id(Part::Buttons, buttons, |b| {
                     for (part, classes, chevron, steps, label) in [
                         (Part::Up, up, Chevron::Up, 1, "Increase"),
@@ -354,8 +406,41 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     }
 }
 
+/// The key a stepper's group and its buttons' addon carry, for its
+/// recorded exceptions.
+const STEPPER: (&str, &str) = ("stepper", "true");
+
+/// Writes the stepper's recorded exceptions over a preset's input group
+/// (#22, ed7ec6c): 1pt dividers between its field and its buttons and
+/// between the buttons, its buttons stacked in a column that fills the
+/// group's height, where shadcn's addon is a padded row, its chevrons in its
+/// buttons' colour, where shadcn's addon is muted, and its value inset by
+/// its own metrics at each size (#446).
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &StepperStyle) {
+    use crate::sheet::When;
+    let divider = stepper.divider;
+    let chevrons = stepper.button.paint.states.rest.text;
+    let marked = || When::always().attr(STEPPER.0, STEPPER.1);
+    sheet.rule_when(InputGroupPart::Root, marked(), move |t, _| {
+        t.gap(1.0 / 4.0).divide_x(1.0, divider)
+    });
+    sheet.rule_when(InputGroupPart::Addon, marked(), move |t, _| {
+        t.p(0.0)
+            .gap(1.0 / 4.0)
+            .divide_y(1.0, divider)
+            .text(chevrons)
+    });
+    for size in stepper.sizes.keys() {
+        let inset = stepper.sizes.get(size).padding_x / 4.0;
+        sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, _| {
+            t.pl(inset)
+        });
+    }
+}
+
 /// What a stepper's field and buttons act on.
 struct Spec<A> {
+    validity: Validity,
     value: f64,
     range: ValueRange,
     step: Step,
@@ -369,6 +454,7 @@ struct Spec<A> {
 impl<A> Clone for Spec<A> {
     fn clone(&self) -> Self {
         Self {
+            validity: self.validity.clone(),
             value: self.value,
             range: self.range,
             step: self.step,
@@ -416,6 +502,7 @@ impl<A> Spec<A> {
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
         tip_describes(ui, &response, &self.tooltip);
+        self.validity.describe(ui.ctx(), response.id);
         let asked = self.autofocus.apply(ui.ctx(), &response);
         let opening = text_field::Opening::of_number(&response, asked);
         text_field::select_number(ui, &response, &text, opening);

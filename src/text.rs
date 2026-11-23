@@ -369,27 +369,60 @@ pub enum Numerals {
     Tabular,
 }
 
-/// Extra space between letters, in points.
+/// Extra space between letters: in points, or in ems of the text's size,
+/// as Tailwind's `tracking-*` gives it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Tracking(f32);
+pub struct Tracking(Spacing);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Spacing {
+    Points(f32),
+    Em(f32),
+}
+
+impl Default for Spacing {
+    fn default() -> Self {
+        Self::Points(0.0)
+    }
+}
 
 impl Tracking {
     /// No extra space.
-    pub const ZERO: Self = Self(0.0);
+    pub const ZERO: Self = Self(Spacing::Points(0.0));
 
     /// Extra space of `points` between letters; non-finite input is no extra space.
     pub fn points(points: f32) -> Self {
         if points.is_finite() {
-            Self(points)
+            Self(Spacing::Points(points))
         } else {
             Self::ZERO
         }
     }
-}
 
-impl From<Tracking> for f32 {
-    fn from(tracking: Tracking) -> f32 {
-        tracking.0
+    /// TODO(prose): extra space of `em` times the text's size between
+    /// letters: `tracking-widest` is `em(0.1)`. Non-finite input is no extra
+    /// space.
+    ///
+    /// ```
+    /// use eggshell_ui::Tracking;
+    ///
+    /// assert_eq!(Tracking::em(0.1).at(12.0), 1.2);
+    /// assert_eq!(Tracking::points(2.0).at(12.0), 2.0);
+    /// ```
+    pub fn em(em: f32) -> Self {
+        if em.is_finite() {
+            Self(Spacing::Em(em))
+        } else {
+            Self::ZERO
+        }
+    }
+
+    /// TODO(prose): the extra space in points, for text of `size` points.
+    pub fn at(self, size: f32) -> f32 {
+        match self.0 {
+            Spacing::Points(points) => points,
+            Spacing::Em(em) => em * size,
+        }
     }
 }
 
@@ -473,6 +506,10 @@ impl TextStyle {
 pub struct TextClasses {
     pub(crate) size: Option<f32>,
     pub(crate) line_height: Option<f32>,
+    /// Line height as a multiple of the size, Tailwind's `leading-*`: it
+    /// wins over `line_height`, as `leading-*` follows `text-*` in
+    /// Tailwind's order.
+    pub(crate) leading: Option<f32>,
     pub(crate) family: Option<FontFamily>,
     pub(crate) weight: Option<Weight>,
     pub(crate) color: Option<Color32>,
@@ -493,6 +530,7 @@ impl TextClasses {
         Self {
             size: other.size.or(self.size),
             line_height: other.line_height.or(self.line_height),
+            leading: other.leading.or(self.leading),
             family: other.family.or(self.family),
             weight: other.weight.or(self.weight),
             color: other.color.or(self.color),
@@ -509,10 +547,15 @@ impl TextClasses {
 
     /// These classes merged over `inherited`, field by field.
     pub fn over(&self, inherited: &TextStyle) -> TextStyle {
+        let size = self.size.unwrap_or(inherited.spec.size);
         TextStyle {
             spec: TextSpec {
-                size: self.size.unwrap_or(inherited.spec.size),
-                line_height: self.line_height.unwrap_or(inherited.spec.line_height),
+                size,
+                line_height: self
+                    .leading
+                    .map(|leading| leading * size)
+                    .or(self.line_height)
+                    .unwrap_or(inherited.spec.line_height),
                 family: self
                     .family
                     .clone()

@@ -1,8 +1,8 @@
-use eggshell_ui::{Opacity, TextSpec, Weight};
+use eggshell_ui::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
 use crate::palette::{Palette, Scheme};
-use crate::styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
+use crate::styles::{Elevation, HoverSurface, ShadcnStyle};
 use crate::{ContrastPair, FontSet};
 
 /// A colour from `0xRRGGBB`.
@@ -93,6 +93,10 @@ pub struct Tokens {
     pub button_padding: Vec2,
     /// An input's and a select's padding (`px-3 py-1`).
     pub input_padding: Vec2,
+    /// TODO(prose): the inline padding of eggshell's own smaller fields, which
+    /// shadcn does not name: a `sm` field's and a stepper's value's, and 4
+    /// points more than an `xs` field's.
+    pub own_input_padding_x: f32,
     /// The gap between a control's children (`gap-2`).
     pub control_gap: f32,
     /// The side of an icon in a button or a segmented cell (`size-4`).
@@ -116,14 +120,8 @@ pub struct Tokens {
     pub popup_padding: f32,
     /// The padding of an item in a popup.
     pub item_padding: Vec2,
-    /// How much of `primary` a primary button keeps under the pointer.
-    pub primary_hover: Opacity,
-    /// A secondary button under the pointer.
-    pub secondary_hover: SecondaryHover,
     /// The surface of a ghost or outline button under the pointer.
     pub hover_surface: HoverSurface,
-    /// How the destructive button is filled.
-    pub destructive_look: DestructiveLook,
     /// Whether controls are shadowed.
     pub elevation: Elevation,
     /// A switch's track (`h-[1.15rem] w-8`).
@@ -247,6 +245,7 @@ impl Tokens {
             control_height: 0.0,
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
+            own_input_padding_x: 0.0,
             control_gap: 0.0,
             icon_size: 0.0,
             toggle_padding_x: 0.0,
@@ -258,10 +257,7 @@ impl Tokens {
             cell_padding: Vec2::ZERO,
             popup_padding: 0.0,
             item_padding: Vec2::ZERO,
-            primary_hover: Opacity::OPAQUE,
-            secondary_hover: SecondaryHover::Fade(Opacity::OPAQUE),
             hover_surface: HoverSurface::Accent,
-            destructive_look: DestructiveLook::Solid,
             elevation: Elevation::Raised,
             switch_track: vec2(32.0, 18.4),
             switch_thumb: 16.0,

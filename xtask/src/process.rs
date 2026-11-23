@@ -18,6 +18,56 @@ pub fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Where this binary was built against where `cargo run` runs it. Cargo
+/// hashes a workspace's crates by their path within it, so with a target
+/// dir shared between worktrees it can run another worktree's xtask, with
+/// that worktree's path and code inside.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Home {
+    /// Built here, or run directly, not through cargo.
+    Here,
+    /// Built in `built`, run for `running`.
+    Elsewhere { built: PathBuf, running: PathBuf },
+}
+
+/// Where a binary built in `built` stands, when cargo runs it for `running`.
+pub fn home_of(built: &Path, running: Option<&Path>) -> Home {
+    match running {
+        Some(running) if running != built => Home::Elsewhere {
+            built: built.to_path_buf(),
+            running: running.to_path_buf(),
+        },
+        _ => Home::Here,
+    }
+}
+
+/// Stops if this binary is another worktree's.
+pub fn ensure_this_worktrees() -> Result<()> {
+    let running = std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from);
+    match home_of(Path::new(env!("CARGO_MANIFEST_DIR")), running.as_deref()) {
+        Home::Here => Ok(()),
+        Home::Elsewhere { built, running } => anyhow::bail!(
+            "this xtask was built in {}, not {}: a target dir shared between worktrees? \
+             give each worktree its own",
+            built.display(),
+            running.display()
+        ),
+    }
+}
+
+/// Where cargo builds: `CARGO_TARGET_DIR` if it is set, as cargo reads it
+/// (relative to the workspace), or the workspace's `target`.
+pub fn target_dir() -> PathBuf {
+    target_dir_from(&workspace_root(), std::env::var_os("CARGO_TARGET_DIR"))
+}
+
+fn target_dir_from(root: &Path, set: Option<std::ffi::OsString>) -> PathBuf {
+    match set.filter(|dir| !dir.is_empty()) {
+        Some(dir) => root.join(dir),
+        None => root.join("target"),
+    }
+}
+
 pub fn install_signal_handler() -> Result<()> {
     ctrlc::set_handler(|| {
         kill_running_groups();
@@ -179,3 +229,44 @@ fn put_in_own_process_group(_command: &mut std::process::Command) {}
 
 #[cfg(not(unix))]
 fn kill_group(_pgid: u32) {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_binary_built_in_another_worktree_is_elsewhere() {
+        let (built, running) = (Path::new("/wt/a/xtask"), Path::new("/wt/b/xtask"));
+        assert_eq!(
+            home_of(built, Some(running)),
+            Home::Elsewhere {
+                built: built.to_path_buf(),
+                running: running.to_path_buf(),
+            }
+        );
+    }
+
+    #[test]
+    fn a_binary_built_here_or_run_directly_is_here() {
+        let built = Path::new("/wt/a/xtask");
+        assert_eq!(home_of(built, Some(built)), Home::Here);
+        assert_eq!(home_of(built, None), Home::Here);
+    }
+
+    use super::*;
+
+    #[test]
+    fn the_target_dir_is_cargo_target_dir_when_set_and_target_otherwise() {
+        let root = Path::new("/work/eggshell");
+        assert_eq!(target_dir_from(root, None), root.join("target"));
+        assert_eq!(target_dir_from(root, Some("".into())), root.join("target"));
+        assert_eq!(
+            target_dir_from(root, Some("/shared/.target".into())),
+            Path::new("/shared/.target"),
+            "an absolute dir replaces the root"
+        );
+        assert_eq!(
+            target_dir_from(root, Some("build".into())),
+            root.join("build"),
+            "a relative one is the workspace's"
+        );
+    }
+}
