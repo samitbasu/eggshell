@@ -783,23 +783,17 @@ pub struct ProgressStyle {
     pub range: Colors,
 }
 
-/// Select triggers. The list they open is drawn from [`MenuStyle`].
+/// TODO(prose): Select triggers: each size's metrics and the chevron. The trigger's look is the sheet's [`SelectPart::Trigger`](crate::owned::SelectPart::Trigger); the list it opens is drawn from [`MenuStyle`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
-    /// The trigger, an input-like box.
-    pub trigger: Look,
     /// Size of the trigger per size: height, padding, gap between value and
     /// chevron, and corner radius.
     pub sizes: Keyed<Size, Metrics>,
-    /// The text role of the trigger, or `None` for [`Style::text`].
-    pub text: Option<TextSpec>,
     /// Side of the chevron glyph.
     pub chevron: f32,
     /// How much of the trigger's text colour the chevron keeps.
     pub chevron_opacity: Opacity,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// Menus: the box, items, separators, headings, shortcuts and indicators of a
@@ -1809,6 +1803,14 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::select_defaults(
+            &mut sheet,
+            crate::owned::SelectDefaults {
+                trigger: Look::new(button_states).bordered(border_width.max(1.0)),
+                radius: metrics.radius,
+                transition,
+            },
+        );
         crate::owned::input_defaults(
             &mut sheet,
             crate::owned::InputDefaults {
@@ -2075,12 +2077,9 @@ impl Style {
                 transition,
             },
             select: SelectStyle {
-                trigger: Look::new(button_states).bordered(border_width.max(1.0)),
                 sizes: Keyed::new(Size::DEFAULT, metrics),
-                text: None,
                 chevron: s.icon_width,
                 chevron_opacity: Opacity::new(0.5),
-                transition,
             },
             menu: MenuStyle {
                 popup: Look::new(States::still(

@@ -74,49 +74,66 @@ impl SheetPart for SelectPart {
     }
 }
 
-/// Writes the select's rules into `style`'s sheet from its `select` and
-/// `menu` looks, at the sheet's current layer. Each part's rules replace the
-/// lower layers' for it.
-pub(crate) fn write_select_rules(style: &mut Style) {
-    let select = style.select().clone();
-    let menu = style.menu().clone();
-    let list_text = style.role(&menu.text).clone();
-    let sizes: Vec<(Size, crate::contract::Metrics, crate::TextSpec)> = select
-        .sizes
-        .keys()
-        .map(|size| {
-            let metrics = *select.sizes.get(size);
-            (size, metrics, style.role_sized(&select.text, metrics.text))
-        })
-        .collect();
-    let radius = select.sizes.get(select.sizes.default_key()).radius;
-    let trigger = select.trigger;
-    let transition = select.transition;
-    let sheet = &mut style.sheet;
+/// What a style without a preset draws a select's trigger with.
+pub(crate) struct SelectDefaults {
+    pub trigger: crate::contract::Look,
+    pub radius: u8,
+    pub transition: std::time::Duration,
+}
+
+/// Writes `defaults` as the select trigger's rules in `sheet`: its look,
+/// enabled and disabled.
+pub(crate) fn select_defaults(sheet: &mut Sheet, defaults: SelectDefaults) {
+    let SelectDefaults {
+        trigger,
+        radius,
+        transition,
+    } = defaults;
     for enablement in [Enablement::Enabled, Enablement::Disabled] {
         let when = match enablement {
             Enablement::Enabled => When::always().not_aria(Aria::Disabled),
             Enablement::Disabled => When::always().aria(Aria::Disabled),
         };
         sheet.replace_when(SelectPart::Trigger, when, move |t, k| {
-            let classes = t.merge(trigger.paint.classes_in(
+            t.merge(trigger.paint.classes_in(
                 trigger.border_width,
                 (k.focus, k.disabled),
                 radius,
                 enablement,
                 transition,
-            ));
-            let classes = classes
-                .flex()
-                .items_center()
-                .justify_between()
-                .whitespace_nowrap()
-                .w_fit();
-            match (enablement, k.disabled) {
-                (Enablement::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
-                _ => classes,
-            }
+            ))
         });
+    }
+}
+
+/// Writes the select's layout and the rules its sizes and chevron give into
+/// `style`'s sheet, with its list drawn from the `menu` look, at the sheet's
+/// current layer.
+pub(crate) fn write_select_rules(style: &mut Style) {
+    let select = style.select().clone();
+    let menu = style.menu().clone();
+    let list_text = style.role(&menu.text).clone();
+    let sheet = &mut style.sheet;
+    sheet.rule(SelectPart::Trigger, |t, _| {
+        t.flex()
+            .items_center()
+            .justify_between()
+            .whitespace_nowrap()
+            .w_fit()
+    });
+    sheet.rule_when(
+        SelectPart::Trigger,
+        When::always().aria(Aria::Disabled),
+        |t, k| match k.disabled {
+            Disabled::Faded(opacity) => t.opacity(opacity),
+            Disabled::Colors => t,
+        },
+    );
+    for enablement in [Enablement::Enabled, Enablement::Disabled] {
+        let when = match enablement {
+            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
+            Enablement::Disabled => When::always().aria(Aria::Disabled),
+        };
         let item_menu = menu.clone();
         let item_text = list_text.clone();
         sheet.replace_when(SelectPart::Item, when, move |t, _| {
@@ -125,16 +142,21 @@ pub(crate) fn write_select_rules(style: &mut Style) {
                 .focusable_none()
         });
     }
-    for (size, m, text) in sizes {
+    for size in select.sizes.keys() {
+        let m = *select.sizes.get(size);
         sheet.rule_when(
             SelectPart::Trigger,
             When::always().size(size),
             move |t, _| {
-                t.h_px(m.height)
+                let t = t
+                    .h_px(m.height)
                     .px_px(m.padding_x)
                     .gap_px(m.gap)
-                    .rounded_px(f32::from(m.radius))
-                    .role(text.clone())
+                    .rounded_px(f32::from(m.radius));
+                match m.text {
+                    Some(text) => t.text_size(text.size, text.line_height),
+                    None => t,
+                }
             },
         );
     }

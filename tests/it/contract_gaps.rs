@@ -587,9 +587,11 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                 style
                     .sheet
                     .rule(TabsPart::Trigger, |t, _| t.role(spec(17.0)));
-                let mut select = style.select().clone();
-                select.text = Some(spec(19.0));
-                style.set_select(select);
+                style
+                    .sheet
+                    .rule(eggshell_ui::owned::SelectPart::Trigger, |t, _| {
+                        t.role(spec(19.0))
+                    });
                 let mut checkbox = style.checkbox().clone();
                 checkbox.text = Some(spec(23.0));
                 style.set_checkbox(checkbox);

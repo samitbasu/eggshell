@@ -874,9 +874,13 @@ fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.sizes.default_entry_mut().track_height = 10.0;
     style.slider.sizes.default_entry_mut().thumb_size = 24.0;
     let mut select = style.select().clone();
-    select.trigger.paint.states.rest.fill = red;
     select.sizes.default_entry_mut().height = 44.0;
     style.set_select(select);
+    style
+        .sheet
+        .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
+            t.bg(red)
+        });
     // The stepper's group is an input group: it follows the input section.
     style
         .sheet

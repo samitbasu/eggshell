@@ -411,33 +411,28 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
     eggshell_ui::overlay::Distance::new(6.0)
 }
 
-/// The classes of a combobox's box, shadcn's input group: the select's box
-/// with the ring while the field inside has focus. The field's own padding
-/// is the box's left, and the end button sits close to its right.
+/// The classes of a combobox's box, shadcn's input group: the select
+/// trigger's look, with the ring while the field inside has focus. The
+/// field's own padding is the box's left, and the end button sits close to
+/// its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
-    let select = style.select();
-    let metrics = select.sizes.get(eggshell_ui::contract::Size::DEFAULT);
-    let states = select.trigger.paint.states;
-    let classes = tw()
-        .flex()
-        .items_center()
+    let size = eggshell_ui::contract::Size::DEFAULT;
+    let metrics = style.select().sizes.get(size);
+    let trigger = style.sheet.resolve(
+        eggshell_ui::owned::SelectPart::Trigger,
+        &[eggshell_ui::sheet::Key::Size(size)],
+        &style.tokens,
+    );
+    let focus = style.tokens.focus;
+    trigger
+        .w_auto()
+        .justify_start()
         .pl_px(metrics.padding_x)
         .pr(1.0)
-        .h_px(metrics.height)
-        .rounded_px(f32::from(metrics.radius))
-        .border(select.trigger.border_width)
-        .border_color(states.rest.border)
-        .bg(states.rest.fill)
-        .text(states.rest.text)
-        .role(style.role(&select.text).clone())
         .has(Match::focus_visible(), |b| {
-            b.border_color(states.focused.border)
-                .ring(style.tokens.focus.width, style.tokens.focus.color)
-        });
-    match select.trigger.paint.shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
+            b.border_color(style.tokens.ring)
+                .ring(focus.width, focus.color)
+        })
 }
 
 /// The classes of the button at the end of a combobox's box, shadcn's ghost

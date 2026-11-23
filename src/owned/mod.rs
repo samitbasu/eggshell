@@ -108,7 +108,9 @@ pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::{SelectChain, SelectPart};
-pub(crate) use select::{write_select_exceptions, write_select_rules};
+pub(crate) use select::{
+    SelectDefaults, select_defaults, write_select_exceptions, write_select_rules,
+};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
@@ -119,8 +121,8 @@ pub(crate) fn input_border_width(style: &Style, size: Size) -> f32 {
 }
 
 /// Writes `text`, the style's text role, as the role of the controls that
-/// take it by default: an enabled button, a tooltip's box and a tab's
-/// trigger, at the sheet's current layer.
+/// take it by default: an enabled button, a tooltip's box, a tab's trigger
+/// and a select's trigger, at the sheet's current layer.
 pub(crate) fn write_text_roles(sheet: &mut crate::sheet::Sheet, text: &crate::TextSpec) {
     use crate::sheet::When;
     let role = text.clone();
@@ -133,6 +135,8 @@ pub(crate) fn write_text_roles(sheet: &mut crate::sheet::Sheet, text: &crate::Te
     sheet.rule(TooltipPart::Content, move |t, _| t.role(role.clone()));
     let role = text.clone();
     sheet.rule(TabsPart::Trigger, move |t, _| t.role(role.clone()));
+    let role = text.clone();
+    sheet.rule(SelectPart::Trigger, move |t, _| t.role(role.clone()));
 }
 
 /// Writes the recorded exception of the tracks over a preset's look (#132):
@@ -533,7 +537,14 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.select().trigger;
+    ///     let look = eggshell_ui::contract::Look::new(eggshell_ui::contract::States::still(
+    ///         eggshell_ui::contract::Colors {
+    ///             fill: style.tokens.secondary,
+    ///             border: style.tokens.border,
+    ///             text: style.tokens.secondary_foreground,
+    ///         },
+    ///         style.tokens.background,
+    ///     ));
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)

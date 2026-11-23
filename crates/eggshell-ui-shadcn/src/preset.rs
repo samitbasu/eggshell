@@ -494,13 +494,11 @@ impl Shadcn {
         };
         style.set_select({
             let mut select = style.select().clone();
-            select.trigger = input_box;
             select.sizes = Keyed::new(Size::DEFAULT, control)
                 .with(size::SM, small(control))
                 .with(size::XS, tiny(control));
             select.chevron = 16.0;
             select.chevron_opacity = Opacity::new(0.5);
-            select.transition = transition;
             select
         });
         // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
