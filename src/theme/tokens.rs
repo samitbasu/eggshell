@@ -1,10 +1,10 @@
-use eggshell_ui::contract::{Radius, Spacing, TextScale, TextSize, TextStep, corner};
-use eggshell_ui::{TextSpec, Weight};
+use crate::contract::{Radius, Spacing, TextScale, TextSize, TextStep, corner};
+use crate::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
-use crate::palette::{Palette, Scheme};
-use crate::styles::{Elevation, HoverSurface, ShadcnStyle};
-use crate::{ContrastPair, FontSet};
+use super::palette::{Palette, Scheme};
+use super::styles::{Elevation, HoverSurface, ShadcnStyle};
+use super::{ContrastPair, FontSet};
 
 /// A colour from `0xRRGGBB`.
 pub(crate) const fn rgb(hex: u32) -> Color32 {
@@ -151,13 +151,13 @@ pub struct Tokens {
     pub shadow_md: Shadow,
     /// `shadow-lg`, without its negative spread.
     pub shadow_lg: Shadow,
-    /// `--font-sans`: the font [`Shadcn::apply`](crate::Shadcn::apply)
+    /// `--font-sans`: the font `Shadcn::apply`
     /// registers, or `None` to leave egui's fonts alone.
     pub font: Option<FontSet>,
     /// The weight of buttons, toggles, tabs and key chips (`font-medium`).
     pub control_weight: Weight,
     /// TODO(prose): the pairs under AA contrast the application accepts:
-    /// [`Shadcn::apply`](crate::Shadcn::apply) warns about the others in a
+    /// `Shadcn::apply` warns about the others in a
     /// debug build.
     pub accepted_contrast: Vec<ContrastPair>,
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button
@@ -389,9 +389,9 @@ impl Tokens {
     }
 
     /// TODO(prose): the colours of each tone: the status tokens.
-    pub fn tones(&self) -> eggshell_ui::contract::Tones {
-        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
-        eggshell_ui::contract::Tones {
+    pub fn tones(&self) -> crate::contract::Tones {
+        let on = |tone, foreground| crate::contract::ToneColors { tone, foreground };
+        crate::contract::Tones {
             info: on(self.info, self.info_foreground),
             success: on(self.success, self.success_foreground),
             warning: on(self.warning, self.warning_foreground),

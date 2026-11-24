@@ -11,7 +11,7 @@ use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
-use crate::styles::{HoverSurface, ShadcnStyle};
+use crate::{HoverSurface, ShadcnStyle};
 #[cfg(feature = "extras")]
 use crate::variant;
 use crate::{ContrastPair, FontSet, Palette, Tokens, size};
@@ -838,7 +838,7 @@ impl Shadcn {
     /// unless the tokens accept it or it is shadcn's own colour; it never
     /// changes a colour.
     pub fn apply(&self, ctx: &Context) {
-        crate::contrast::warn_low_contrast(ctx, self.theme, &self.tokens);
+        eggshell_ui::theme::warn_low_contrast(ctx, self.theme, &self.tokens);
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }

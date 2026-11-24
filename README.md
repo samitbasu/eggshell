@@ -120,4 +120,4 @@ MIT
 
 The symbol fallback face (`src/fonts/DejaVuSans-symbols.ttf`) is a subset of DejaVu Sans, under the licence in `src/fonts/DejaVuSans-LICENSE.txt` (Bitstream Vera with public-domain changes). `src/fonts/README.md` says how it was made.
 
-The `eggshell-ui-shadcn` crate's `fonts` feature bundles Geist (`crates/eggshell-ui-shadcn/fonts/Geist-Variable.ttf`), under the SIL Open Font License 1.1 in `crates/eggshell-ui-shadcn/fonts/OFL.txt`.
+The `eggshell-ui-shadcn` crate's `fonts` feature bundles Geist (`src/fonts/Geist-Variable.ttf`), under the SIL Open Font License 1.1 in `src/fonts/OFL.txt`.

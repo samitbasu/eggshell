@@ -400,6 +400,7 @@ mod stack;
 mod symbols;
 mod sync;
 pub mod testing;
+pub mod theme;
 #[cfg(all(feature = "screenshots", not(target_os = "linux")))]
 compile_error!(
     "the `screenshots` feature renders on Mesa lavapipe and is Linux-only for now; \
