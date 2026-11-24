@@ -271,7 +271,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         };
         // shadcn has no number field: the stepper is an input group (its
         // one source), the field its input and the buttons its addon's.
-        let mut keys = super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
+        let mut keys = super::input_keys(style.input.sizes.key_for(b.size_of(size)), false);
         keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(crate::Aria::Disabled));
@@ -300,8 +300,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             .justify_start()
             .grow()
             .min_w_0();
-        let mut control_keys =
-            super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
+        let mut control_keys = super::input_keys(style.input.sizes.key_for(b.size_of(size)), false);
         control_keys.push(SheetKey::Attr("addon", "inline-end"));
         control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         control_keys.extend(invalid);

@@ -191,7 +191,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
     );
     assert_eq!(
         style(Theme::Light)
-            .checkbox()
+            .checkbox
             .sizes
             .get(eggshell_ui::contract::Size::DEFAULT)
             .radius,

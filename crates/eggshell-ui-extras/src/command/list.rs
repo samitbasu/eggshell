@@ -412,7 +412,7 @@ pub(crate) fn popover_classes(style: &Style) -> Tw {
         .bg(colors.fill)
         .text(colors.text)
         .rounded_px(f32::from(popover.radius))
-        .role(style.role(&style.menu().text).clone())
+        .role(style.role(&style.menu.text).clone())
         .shadow(popover.shadow)
         .overflow_hidden()
 }
@@ -438,9 +438,7 @@ impl Rows {
             MenuPart::Item,
             &[SheetKey::Variant(eggshell_ui::contract::Variant::DEFAULT)],
         );
-        let heading_role = style
-            .role(&Some(style.menu().shortcut_text.clone()))
-            .clone();
+        let heading_role = style.role(&Some(style.menu.shortcut_text.clone())).clone();
         let heading = menu_part(style, MenuPart::Label, &[]).text_classes().over(
             &eggshell_ui::TextStyle::new(heading_role, Color32::PLACEHOLDER),
         );
@@ -467,7 +465,7 @@ impl Rows {
 
     /// A row's own look in `enablement`, highlighted in `highlight`.
     fn look(&self, style: &Style, enablement: Enablement, highlight: (Color32, Color32)) -> Tw {
-        let menu = style.menu();
+        let menu = &style.menu;
         let base = tw()
             .flex()
             .items_center()
@@ -499,7 +497,7 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
 /// its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
     let size = eggshell_ui::contract::Size::DEFAULT;
-    let metrics = style.select().sizes.get(size);
+    let metrics = style.select.sizes.get(size);
     let trigger = style.sheet.resolve(
         eggshell_ui::owned::SelectPart::Trigger,
         &[eggshell_ui::sheet::Key::Size(size)],
@@ -537,9 +535,9 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
 
 /// The classes of the glyph in the end button: muted, `size-4`.
 pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
-    tw().size_px(style.select().chevron)
+    tw().size_px(style.select.chevron)
         .shrink_0()
-        .text(style.input().icon)
+        .text(style.input.icon)
 }
 
 /// The classes of a command dialog's box.
@@ -616,12 +614,12 @@ pub(crate) fn show<'f, A: 'static>(
             }
             return;
         }
-        let text = style.role(&style.menu().text).clone();
-        let row_height = style.menu().row_height(&text);
+        let text = style.role(&style.menu.text).clone();
+        let row_height = style.menu.row_height(&text);
         let list_classes = looks.part(
             s,
             (ListPart::List, &[]),
-            tw().p_px(style.menu().padding)
+            tw().p_px(style.menu.padding)
                 .scroll_py(1.0)
                 .scrollbar_none(),
             match looks {
@@ -836,7 +834,7 @@ fn note_classes(style: &Style) -> Tw {
 }
 
 fn heading_classes(style: &Style, place: Place) -> Tw {
-    let menu = style.menu();
+    let menu = &style.menu;
     let rows = Rows::of(style);
     let classes = tw()
         .px_px(menu.item_padding.x)
@@ -879,7 +877,7 @@ fn palette_heading<A: 'static>(
 /// A palette's command, in a row that is its `CommandPart::Item`: its
 /// label, its shortcut and its check.
 fn palette_item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Entry<A>) {
-    let menu = style.menu();
+    let menu = &style.menu;
     s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
     if let Some(shortcut) = &entry.shortcut {
         let classes = s.part_over(
@@ -918,7 +916,7 @@ fn combobox_item<A: 'static>(s: &mut Scope<'_, '_, A>, entry: &Entry<A>) {
     if let Some(shortcut) = &entry.shortcut {
         s.text(tw().ml_auto(), shortcut.clone());
     }
-    let side = s.style().menu().indicator;
+    let side = s.style().menu.indicator;
     let indicator = s.part_over(
         ComboboxPart::ItemIndicator,
         &[],
@@ -947,7 +945,7 @@ fn item<A: 'static>(
     command: &super::CommandStyle,
     entry: &Entry<A>,
 ) {
-    let menu = style.menu();
+    let menu = &style.menu;
     let rows = Rows::of(style);
     let base = tw()
         .flex()

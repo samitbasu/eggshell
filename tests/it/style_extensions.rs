@@ -18,16 +18,16 @@ struct Probe {
 impl Extension for Probe {
     fn derive(style: &Style) -> Self {
         Self {
-            gap: style.table().rule_width * 2.0,
+            gap: style.table.rule_width * 2.0,
         }
     }
 }
 
 fn padded(padding: f32) -> Style {
     let mut style = Style::default();
-    let mut table = style.table().clone();
+    let mut table = style.table.clone();
     table.rule_width = padding;
-    style.set_table(table);
+    style.table = table;
     style
 }
 

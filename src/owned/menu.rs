@@ -990,7 +990,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
         let name = options.name_or(&face).to_owned();
-        let select = shared.style.select();
+        let select = &shared.style.select;
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
@@ -1036,7 +1036,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let close = shared.clone();
         OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
-            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu().offset)))
+            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu.offset)))
             .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu(Wrap::Around))
             .role(Role::Menu)

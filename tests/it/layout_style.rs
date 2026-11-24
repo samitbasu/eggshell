@@ -18,9 +18,9 @@ const DARK: f32 = 22.0;
 
 fn padded(padding: f32) -> Arc<Style> {
     let mut style = Style::default();
-    let mut table = style.table().clone();
+    let mut table = style.table.clone();
     table.rule_width = padding;
-    style.set_table(table);
+    style.table = table;
     Arc::new(style)
 }
 
@@ -40,9 +40,9 @@ struct Scene {
 }
 
 fn view(b: &mut Builder<'_, '_, ()>, built: &mut Option<f32>) {
-    *built = Some(b.style().table().rule_width);
+    *built = Some(b.style().table.rule_width);
     b.span("probe", tw(), "probe").draw(|_, ui| {
-        let padding = ui.node_style().table().rule_width;
+        let padding = ui.node_style().table.rule_width;
         ui.ctx()
             .data_mut(|data| data.insert_temp(egui::Id::NULL.with("drawn"), padding));
     });
@@ -77,11 +77,11 @@ fn harness(layout: LayoutState) -> Harness<'static, Scene> {
 
 /// The table rule width of the style derived from egui's.
 fn derived() -> f32 {
-    Style::default().table().rule_width
+    Style::default().table.rule_width
 }
 
 #[test]
-fn without_a_style_of_its_own_a_layout_builds_with_one_derived_from_egui_s() {
+fn without_a_style_of_its_own_a_layout_builds_with_the_default() {
     let harness = harness(LayoutState::new());
     assert_eq!(harness.state().built, Some(derived()));
     assert_eq!(harness.state().drawn, Some(derived()));
@@ -120,10 +120,10 @@ fn set_style_swaps_the_style_from_the_next_build() {
 fn the_shell_reads_the_layout_s_style() {
     let harness = harness(LayoutState::new().with_style(pair()));
     let shell = harness.state().layout.shell(&harness.ctx);
-    assert_eq!(shell.style().table().rule_width, LIGHT);
+    assert_eq!(shell.style().table.rule_width, LIGHT);
     let plain = LayoutState::new();
     assert_eq!(
-        plain.shell(&harness.ctx).style().table().rule_width,
+        plain.shell(&harness.ctx).style().table.rule_width,
         derived(),
         "without a style of its own, the derived one"
     );
@@ -166,9 +166,9 @@ fn without_base_text_the_root_text_is_the_layout_s_style_text() {
 fn a_tooltip_waits_as_the_layout_s_style_says() {
     fn delayed(delay: std::time::Duration) -> Arc<Style> {
         let mut style = Style::default();
-        let mut tooltip = style.tooltip().clone();
+        let mut tooltip = style.tooltip.clone();
         tooltip.delay = delay;
-        style.set_tooltip(tooltip);
+        style.tooltip = tooltip;
         Arc::new(style)
     }
     let mut harness = Harness::builder()
@@ -191,7 +191,7 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
             }),
         );
     assert!(
-        Style::default().tooltip().delay > std::time::Duration::from_millis(300),
+        Style::default().tooltip.delay > std::time::Duration::from_millis(300),
         "precondition: the derived style would wait past the six steps"
     );
     harness.run_steps(2);
@@ -204,8 +204,16 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
 }
 
 /// A style that declares a face for Proportional at Medium.
+/// The default style without the tokens' font, so it declares no weighted face.
+fn fontless() -> Style {
+    Style::new(&eggshell_ui::theme::Tokens {
+        font: None,
+        ..eggshell_ui::theme::Tokens::light()
+    })
+}
+
 fn with_medium() -> Arc<Style> {
-    let mut style = Style::default();
+    let mut style = fontless();
     style.faces = style.faces.clone().with(
         FontFamily::Proportional,
         Weight::Medium,
@@ -249,10 +257,11 @@ fn medium_reports(layout: LayoutState) -> (usize, bool) {
 
 #[test]
 fn text_is_drawn_in_the_faces_the_layout_s_style_declares() {
-    let (missing, _) = medium_reports(LayoutState::new());
+    let (missing, _) =
+        medium_reports(LayoutState::new().with_style(Themed::both(Arc::new(fontless()))));
     assert_eq!(
         missing, 1,
-        "precondition: the default style declares no medium face"
+        "precondition: the style declares no medium face"
     );
     let (missing, _) = medium_reports(LayoutState::new().with_style(Themed {
         light: with_medium(),

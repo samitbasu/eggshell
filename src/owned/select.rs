@@ -109,8 +109,8 @@ pub(crate) fn select_defaults(sheet: &mut Sheet, defaults: SelectDefaults) {
 /// `style`'s sheet, with its list drawn from the `menu` look, at the sheet's
 /// current layer.
 pub(crate) fn write_select_rules(style: &mut Style) {
-    let select = style.select().clone();
-    let menu = style.menu().clone();
+    let select = style.select.clone();
+    let menu = style.menu.clone();
     let list_text = style.role(&menu.text).clone();
     let sheet = &mut style.sheet;
     sheet.rule(SelectPart::Trigger, |t, _| {
@@ -425,7 +425,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = b.style().clone();
-        let offset = offset.unwrap_or(style.menu().offset);
+        let offset = offset.unwrap_or(style.menu.offset);
         let mut keys = vec![SheetKey::Size(b.size_of(size))];
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(Aria::Disabled));

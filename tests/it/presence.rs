@@ -464,8 +464,10 @@ fn an_overlay_without_motion_in_the_style_appears_and_vanishes_at_once() {
             });
     }
     let mut d = harness(instant_view);
+    let mut style = eggshell_ui::Style::default();
+    style.motion = eggshell_ui::contract::MotionStyle::INSTANT;
     d.set_style(eggshell_ui::contract::Themed::both(std::sync::Arc::new(
-        eggshell_ui::Style::default(),
+        style,
     )));
     open(&mut d);
     assert_eq!(painted_offset(&d), 0.0);

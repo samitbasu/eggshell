@@ -475,7 +475,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         }
         let icons = leading.is_some() || trailing.is_some();
         let mut control_keys = crate::owned::input_keys(
-            style.input().sizes.key_for(size),
+            style.input.sizes.key_for(size),
             enablement == Enablement::Disabled,
         );
         for (icon, side) in [(&leading, INLINE_START), (&trailing, INLINE_END)] {
@@ -489,7 +489,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         // A disabled field takes the input look's disabled colours through the
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
-            let size_key = SheetKey::Size(style.input().sizes.key_for(size));
+            let size_key = SheetKey::Size(style.input.sizes.key_for(size));
             let put = |s: &mut Scope<'_, '_, A>, part, side, icon| {
                 let mut keys = vec![size_key, SheetKey::Attr("align", side)];
                 if enablement == Enablement::Disabled {
@@ -537,7 +537,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 });
             return;
         }
-        let classes = text_sized(&b, style.input().sizes.lookup(b.ctx(), size).text).merge(classes);
+        let classes = text_sized(&b, style.input.sizes.lookup(b.ctx(), size).text).merge(classes);
         let in_group = b.within_part() == Some(InputGroupPart::Root.slot());
         let classes = if field.is_bare() && in_group {
             let control = match field.is_single_line() {

@@ -100,7 +100,7 @@ const BOTH: &str = r#"/"Page"/"sized"/"both""#;
 const CUSTOM: &str = r#"/"Page"/"custom""#;
 
 fn input() -> eggshell_ui::contract::InputStyle {
-    Shadcn::for_theme(Theme::Light).style().input().clone()
+    Shadcn::for_theme(Theme::Light).style().input.clone()
 }
 
 /// The space between the border and an icon, and between the icon and the
@@ -170,7 +170,7 @@ fn a_focused_addon_button_rings_itself_not_its_group() {
 #[test]
 fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
     // The widgets' own look, whose input has no ring of its own.
-    let mut style = eggshell_ui::Style::from_egui(&egui::Context::default().style_of(Theme::Light));
+    let mut style = eggshell_ui::Style::default();
     style.tokens.ring_width = 5.0;
     style.tokens.ring = Color32::from_rgb(200, 30, 30);
     let ring = style.tokens.focus();

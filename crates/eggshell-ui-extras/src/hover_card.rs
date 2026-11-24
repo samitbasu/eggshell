@@ -107,7 +107,7 @@ impl HoverCardStyle {
             radius: popover.radius,
             padding: 16.0,
             width: 256.0,
-            offset: style.menu().offset,
+            offset: style.menu.offset,
             transition: style.motion.popover.enter,
         }
     }

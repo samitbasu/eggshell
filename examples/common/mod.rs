@@ -695,7 +695,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
         .border(1.0)
         .border_color(k.border)
         .rounded_px(menu_radius(b, MenuPart::Content, &[]))
-        .p_px(style.menu().padding)
+        .p_px(style.menu.padding)
         .text(k.popover_foreground)
         .shadow(k.shadow_md)
 }
@@ -703,7 +703,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
 /// An item of a hand-built list: the menu item look.
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
     let style = b.style();
-    let menu = style.menu();
+    let menu = &&&&&&style.menu;
     let (fill, text) = (style.tokens.accent, style.tokens.accent_foreground);
     tw().px_px(menu.item_padding.x)
         .py_px(menu.item_padding.y)

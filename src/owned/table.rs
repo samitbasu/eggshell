@@ -621,7 +621,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             stripes,
             selection,
         } = self;
-        let table = b.style().table().clone();
+        let table = b.style().table.clone();
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();

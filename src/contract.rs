@@ -19,8 +19,8 @@ use std::time::Duration;
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
 pub use crate::presence::{Entry, KindMotion, MotionStyle};
-use crate::theme::Tokens;
-use crate::{Faces, Opacity, Progress, TextSpec, Tracking, Weight};
+use crate::theme::{HoverSurface, Tokens};
+use crate::{Faces, Opacity, Progress, TextSpec, Weight};
 
 /// A button variant, named by the style that defines it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -602,6 +602,7 @@ pub enum Disabled {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToggleStyle {
+    // #497 stage 3: move: each size's text is read nowhere.
     /// Metrics of a toggle per size.
     pub sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
@@ -623,10 +624,13 @@ pub struct ToggleStyle {
 /// A checkbox's box at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CheckboxMetrics {
+    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
     /// Side of the box.
     pub size: f32,
+    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
     /// Corner radius of the box.
     pub radius: u8,
+    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
     /// Side of the check glyph.
     pub glyph: f32,
     /// Gap between the box and its label.
@@ -648,8 +652,10 @@ pub struct CheckboxStyle {
 /// A radio button's circle at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RadioMetrics {
+    // #497 stage 3: move: rule-only (write_radio_rules, write_choice_exceptions).
     /// Diameter of the circle.
     pub size: f32,
+    // #497 stage 3: move: rule-only (write_radio_rules, write_choice_exceptions).
     /// Diameter of the dot in the chosen one.
     pub dot: f32,
     /// Gap between the circle and its label.
@@ -671,10 +677,13 @@ pub struct RadioStyle {
 /// A switch's track and thumb at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SwitchMetrics {
+    // #497 stage 3: move: x rule-only; y read at draw only as the thumb's scale.
     /// Track width and height.
     pub track: Vec2,
+    // #497 stage 3: move: rule-only (write_switch_rules, write_choice_exceptions).
     /// Thumb diameter while off.
     pub thumb_off: f32,
+    // #497 stage 3: move: rule-only (write_switch_rules, write_choice_exceptions).
     /// Thumb diameter while on.
     pub thumb_on: f32,
     /// The label's text size, or `None` for the text role's own.
@@ -727,8 +736,10 @@ pub struct SegmentedMetrics {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SegmentedStyle {
+    // #497 stage 3: move: rule-only (write_tabs_rules, write_tabs_exceptions).
     /// The track's background.
     pub track_fill: Color32,
+    // #497 stage 3: move: rule-only but for its keys (write_tabs_rules, write_tabs_exceptions).
     /// Track and cell dimensions per size.
     pub sizes: Keyed<Size, SegmentedMetrics>,
 }
@@ -788,9 +799,11 @@ pub struct ProgressStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
+    // #497 stage 3: move: height, gap, radius, text rule-only; padding_x read by extras only; min_width, glyph unused.
     /// Size of the trigger per size: height, padding, gap between value and
     /// chevron, and corner radius.
     pub sizes: Keyed<Size, Metrics>,
+    // #497 stage 3: move: the select's own chevron is rule-only; the dropdown trigger's is read at draw.
     /// Side of the chevron glyph.
     pub chevron: f32,
     /// How much of the trigger's text colour the chevron keeps.
@@ -801,18 +814,24 @@ pub struct SelectStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MenuStyle {
+    // #497 stage 3: move: rule-only in core (write_menu_rules, write_select_rules); extras' command list reads it.
     /// Padding between the box and its items.
     pub padding: f32,
     /// The gap between a trigger and its dropdown menu or select list.
     pub offset: Distance,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// Left-right and top-bottom padding of an item.
     pub item_padding: Vec2,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// Space between the parts of an item: its indicator, label and shortcut.
     pub item_gap: f32,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// The text role of items and headings, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// The text role of a shortcut.
     pub shortcut_text: TextSpec,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// Side of the square an item keeps for its check or radio mark, and of
     /// the submenu chevron.
     pub indicator: f32,
@@ -944,8 +963,10 @@ impl From<Em> for f32 {
 /// A stepper's dimensions at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepperMetrics {
+    // #497 stage 3: delete: read nowhere.
     /// Height of the group.
     pub height: f32,
+    // #497 stage 3: move: rule-only (write_stepper_exceptions).
     /// Left and right padding of the text.
     pub padding_x: f32,
     /// Corner radius of the group; the buttons round their outer corners to
@@ -964,6 +985,7 @@ pub struct StepperMetrics {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StepperStyle {
+    // #497 stage 3: delete: read nowhere.
     /// The group's box. Its focus ring and border show while the text has
     /// focus.
     pub group: Look,
@@ -982,8 +1004,10 @@ pub struct StepperStyle {
 pub struct InputMetrics {
     /// The text's size, or `None` for the text role's own.
     pub text: Option<TextSize>,
+    // #497 stage 3: move: rule-only (write_input_rules, write_input_exceptions).
     /// Side of a leading or trailing icon.
     pub icon_size: f32,
+    // #497 stage 3: move: rule-only (write_input_rules, write_input_exceptions).
     /// Space between an icon and the text.
     pub icon_gap: f32,
 }
@@ -1014,6 +1038,7 @@ pub struct InputStyle {
     pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
     pub hint: Option<Color32>,
+    // #497 stage 3: move: rule-only in core; extras' command list reads it.
     /// The colour of a leading or trailing icon.
     pub icon: Color32,
 }
@@ -1088,21 +1113,6 @@ impl Default for EdgeFade {
 }
 
 impl ScrollStyle {
-    /// What egui's own scroll bars look like in `egui`.
-    pub fn from_egui(egui: &egui::Style) -> Self {
-        let (scroll, widgets) = (egui.spacing.scroll, &egui.visuals.widgets);
-        Self {
-            width: scroll.bar_width,
-            thumb: widgets.inactive.bg_fill,
-            thumb_hover: widgets.hovered.bg_fill,
-            thumb_active: widgets.active.bg_fill,
-            track: egui.visuals.extreme_bg_color,
-            radius: widgets.inactive.corner_radius,
-            min_thumb_length: scroll.handle_min_length,
-            fade: EdgeFade::OFF,
-        }
-    }
-
     /// The gutter's width, never negative.
     pub(crate) fn gutter(&self) -> f32 {
         self.width.max(0.0)
@@ -1160,30 +1170,6 @@ pub struct SplitterStyle {
     pub transition: Duration,
 }
 
-impl SplitterStyle {
-    /// TODO(prose): a splitter in egui's colours.
-    pub fn from_egui(egui: &egui::Style) -> Self {
-        let v = &egui.visuals;
-        let clear = Color32::TRANSPARENT;
-        Self {
-            thickness: 6.0,
-            line_width: 1.0,
-            rest: SplitterColors {
-                band: clear,
-                line: v.widgets.noninteractive.bg_stroke.color,
-                grip: clear,
-            },
-            hot: SplitterColors {
-                band: clear,
-                line: v.selection.bg_fill,
-                grip: clear,
-            },
-            grip: None,
-            transition: Duration::ZERO,
-        }
-    }
-}
-
 /// TODO(prose): what a table shows where a group ends and rows in no group
 /// follow.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1203,16 +1189,21 @@ pub enum GroupEnd {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableStyle {
+    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
     /// TODO(prose): padding before the first column's content, in place of
     /// `cell_padding`; zero sets it flush with the table's edge.
     pub first_column_inset: Option<f32>,
+    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
     /// TODO(prose): whether a rule also runs under the last body row,
     /// closing the table.
     pub rule_below_last: bool,
+    // #497 stage 3: move: rule-only in core; extras' form and disclosure read it.
     /// The line under each row but the last body row, and over the footer.
     pub rule: Color32,
+    // #497 stage 3: move: rule-only in core; extras' form reads it.
     /// The rule's width.
     pub rule_width: f32,
+    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
     /// TODO(prose): behind every second body row of a table with
     /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), starting
     /// with the second, and again after each group row.
@@ -1226,30 +1217,13 @@ pub struct TableStyle {
     pub group_end: GroupEnd,
 }
 
-impl TableStyle {
-    /// Rows ruled in egui's separator colour.
-    pub fn from_egui(egui: &egui::Style) -> Self {
-        let (v, s) = (&egui.visuals, &egui.spacing);
-        Self {
-            first_column_inset: None,
-            rule_below_last: false,
-            rule: v.widgets.noninteractive.bg_stroke.color,
-            rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
-            stripe: v.faint_bg_color,
-            group_text_size: None,
-            group_weight: Weight::Normal,
-            group_end: GroupEnd::Gap(s.item_spacing.y * 3.0),
-        }
-    }
-}
-
 /// TODO(prose): the severity of a status a control shows: a badge, an
 /// alert, a notification. Its colours come from [`Style::tones`].
 ///
 /// ```
 /// use eggshell_ui::{Style, Tone};
 ///
-/// let style = Style::from_egui(&egui::Style::default());
+/// let style = Style::default();
 /// for tone in Tone::ALL {
 ///     let colours = style.tones.get(tone);
 ///     assert_ne!(colours.tone, colours.foreground);
@@ -1317,27 +1291,6 @@ impl Tones {
             Tone::Warning => &mut self.warning,
         }
     }
-
-    /// egui's warning colour, and Tailwind's sky and green for the tones
-    /// egui has none of, in `visuals`' theme: the 700 shades in light, the
-    /// 400 in dark.
-    fn from_egui(visuals: &egui::Visuals) -> Self {
-        let rgb = |hex: u32| Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
-        let on = |tone: Color32, foreground: Color32| ToneColors { tone, foreground };
-        let (light, dark) = (rgb(0xfafafa), rgb(0x0a0a0a));
-        match visuals.dark_mode {
-            false => Self {
-                info: on(rgb(0x0069a8), light),
-                success: on(rgb(0x008236), light),
-                warning: on(visuals.warn_fg_color, dark),
-            },
-            true => Self {
-                info: on(rgb(0x00bcff), dark),
-                success: on(rgb(0x05df72), dark),
-                warning: on(visuals.warn_fg_color, dark),
-            },
-        }
-    }
 }
 
 /// TODO(prose): one value for each egui theme, such as a layout's style in light and dark.
@@ -1402,12 +1355,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table().rule_width)
+///         Gap(style.scroll.width)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table().rule_width);
+/// assert_eq!(style.extension::<Gap>().0, style.scroll.width);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1444,29 +1397,30 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
+    // #497 stage 3: move: read only by write_field_rules (and extras' form/markdown).
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
-    label: States,
+    pub label: States,
     /// TODO(prose): toggle buttons.
     pub toggle: ToggleStyle,
     /// Checkboxes.
-    checkbox: CheckboxStyle,
+    pub checkbox: CheckboxStyle,
     /// Radio buttons.
-    radio: RadioStyle,
+    pub radio: RadioStyle,
     /// Switches.
-    switch: SwitchStyle,
+    pub switch: SwitchStyle,
     /// Segmented controls.
-    segmented: SegmentedStyle,
+    pub segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
     /// Progress bars.
     pub progress: ProgressStyle,
     /// Select triggers.
-    select: SelectStyle,
+    pub select: SelectStyle,
     /// Menus, and the lists selects open.
-    menu: MenuStyle,
+    pub menu: MenuStyle,
     /// Tooltips.
-    tooltip: TooltipStyle,
+    pub tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -1476,7 +1430,7 @@ pub struct Style {
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
-    input: InputStyle,
+    pub input: InputStyle,
     /// Selected text.
     pub selection: Selection,
     /// Scroll containers.
@@ -1484,7 +1438,7 @@ pub struct Style {
     /// TODO(prose): splitters.
     pub splitter: SplitterStyle,
     /// Tables.
-    table: TableStyle,
+    pub table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -1498,18 +1452,6 @@ pub struct Style {
     pub sheet: crate::sheet::Sheet,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
-}
-
-#[derive(Clone)]
-struct Cached {
-    source: Arc<egui::Style>,
-    derived: Arc<Style>,
-}
-
-/// A time egui gives in seconds: none when negative or NaN, and the longest
-/// duration when it is longer.
-fn seconds(seconds: f32) -> Duration {
-    Duration::try_from_secs_f32(seconds.max(0.0)).unwrap_or(Duration::MAX)
 }
 
 impl Style {
@@ -1546,581 +1488,592 @@ impl Style {
         section.as_ref().unwrap_or(&self.text)
     }
 
-    /// [`Style::from_egui`] of the context's egui style, kept until that
-    /// style changes: the style of a layout given none.
-    pub(crate) fn derived(ctx: &Context) -> Arc<Self> {
-        let source = ctx.global_style();
-        let id = crate::key::root_id().with("derived-style");
-        match ctx.data(|data| data.get_temp::<Cached>(id)) {
-            Some(cached) if Arc::ptr_eq(&cached.source, &source) => cached.derived,
-            _ => {
-                let derived = Arc::new(Self::from_egui(&source));
-                ctx.data_mut(|data| {
-                    data.insert_temp(
-                        id,
-                        Cached {
-                            source,
-                            derived: derived.clone(),
-                        },
-                    );
-                });
-                derived
-            }
-        }
+    /// [`Style::default`] in egui's own fonts, built once: the style of a
+    /// layout given none, which gives egui nothing. With no font of its own,
+    /// its controls and labels are at the regular weight, which every font
+    /// has.
+    pub(crate) fn fallback() -> Arc<Self> {
+        static FALLBACK: std::sync::LazyLock<Arc<Style>> = std::sync::LazyLock::new(|| {
+            Arc::new(Style::new(&Tokens {
+                font: None,
+                control_weight: Weight::Normal,
+                label_weight: Weight::Normal,
+                ..Tokens::light()
+            }))
+        });
+        FALLBACK.clone()
     }
 
-    /// A neutral style from egui's visuals and spacing.
-    pub fn from_egui(egui: &egui::Style) -> Self {
-        let (v, s) = (&egui.visuals, &egui.spacing);
-        let colors = |w: &egui::style::WidgetVisuals| Colors {
-            fill: w.weak_bg_fill,
-            border: w.bg_stroke.color,
-            text: w.fg_stroke.color,
+    /// TODO(prose): every section filled from `tokens` the way shadcn draws
+    /// it, in the tokens' theme, with the widgets' own rules at the defaults
+    /// layer. A preset writes its generated look over it with
+    /// [`write_look`](Self::write_look).
+    pub fn new(tokens: &Tokens) -> Self {
+        use crate::theme::size;
+        let t = tokens;
+        let dark = t.theme == Theme::Dark;
+        let clear = Color32::TRANSPARENT;
+        let focused = |rest: Colors| Colors {
+            border: t.ring,
+            ..rest
         };
-        let w = &v.widgets;
-        let (inactive, hovered, active) =
-            (colors(&w.inactive), colors(&w.hovered), colors(&w.active));
-        let focus_border = v.selection.stroke.color;
-        let faded = Opacity::new(v.disabled_alpha);
-        let surface = v.panel_fill;
-        let states = |rest: Colors, hover: Colors, pressed: Colors| States {
-            rest,
-            hover,
-            pressed,
-            focused: Colors {
-                border: focus_border,
-                ..rest
-            },
-            disabled: rest.faded_over(faded, surface),
+        let flat = |fill, text| Colors {
+            fill,
+            border: clear,
+            text,
         };
-        let button_states = states(inactive, hovered, active);
-        let radius = w.inactive.corner_radius.nw;
-        let border_width = w.inactive.bg_stroke.width;
-        let font = egui
-            .text_styles
-            .get(&egui::TextStyle::Button)
-            .cloned()
-            .unwrap_or_default();
-        let text = TextSpec {
-            size: font.size,
-            line_height: (font.size * 1.25).round(),
-            family: FontFamily::Proportional,
-            weight: Weight::Normal,
+        let states = |rest: Colors, hover: Colors| States {
+            focused: focused(rest),
+            ..States::new(rest, hover, t.background)
         };
-        let metrics = Metrics {
-            height: s.interact_size.y,
+        let filled = |rest: Colors, hover: Colors| Look::new(states(rest, hover));
+        let raised = |paint: Paint, shadow: Shadow| Paint {
+            shadow: t.elevation.shadow(shadow),
+            ..paint
+        };
+        let shadowed = |look: Look, shadow: Shadow| Look {
+            paint: raised(look.paint, shadow),
+            ..look
+        };
+
+        let (hover_fill, hover_text, hover_fill_dark) = match t.hover_surface {
+            HoverSurface::Accent => (t.accent, t.accent_foreground, t.accent_50()),
+            HoverSurface::Muted => (t.muted, t.foreground, t.muted_50()),
+        };
+        let ghost_button = filled(
+            flat(clear, t.foreground),
+            flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
+        );
+        let control = Metrics {
+            height: t.control_height(),
             min_width: 0.0,
-            padding_x: s.button_padding.x,
-            gap: s.item_spacing.x,
-            radius,
-            glyph: text.size,
+            padding_x: t.points(t.button_padding.x),
+            gap: t.points(t.control_gap),
+            radius: t.radius_md(),
+            glyph: t.points(t.icon_size),
             text: None,
         };
-        let clear = Color32::TRANSPARENT;
-        let selected = Colors {
-            fill: v.selection.bg_fill,
-            border: v.selection.bg_fill,
-            text: v.selection.stroke.color,
+        let xs_text = Some(t.text.xs);
+        let u = |units: f32| t.points(units);
+        let small = |m: Metrics| Metrics {
+            height: m.height - u(1.0),
+            min_width: if m.min_width == 0.0 {
+                0.0
+            } else {
+                m.height - u(1.0)
+            },
+            padding_x: (m.padding_x - u(1.0)).max(0.0),
+            gap: m.gap.min(u(1.5)),
+            ..m
         };
-        let choice_border = border_width.max(1.0);
-        let choice_off = Paint::new(states(
-            Colors {
-                fill: v.extreme_bg_color,
-                border: w.inactive.bg_stroke.color,
-                text: v.text_color(),
+        let tiny = |m: Metrics| Metrics {
+            height: m.height - u(3.0),
+            min_width: if m.min_width == 0.0 {
+                0.0
+            } else {
+                m.height - u(3.0)
             },
-            hovered,
-            hovered,
-        ));
-        let choice_on = Paint::new(states(selected, selected, selected));
-        let transition = Duration::from_millis(100);
-        let label = States::new(
-            Colors {
-                fill: clear,
-                border: clear,
-                text: v.text_color(),
-            },
-            Colors {
-                fill: clear,
-                border: clear,
-                text: v.text_color(),
-            },
-            surface,
-        );
+            padding_x: (m.padding_x - u(2.0)).max(0.0),
+            gap: m.gap.min(u(1.0)),
+            glyph: u(3.0),
+            text: xs_text,
+            ..m
+        };
         let toggle_metrics = Metrics {
-            min_width: metrics.height,
+            min_width: t.control_height(),
+            padding_x: t.points(t.toggle_padding_x),
+            ..control
+        };
+        let square = |metrics: Metrics| Metrics {
+            min_width: t.control_height(),
+            padding_x: 0.0,
             ..metrics
         };
-        let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let tokens = Tokens::light();
-        let mut sheet = crate::sheet::Sheet::defaults();
-        crate::owned::select_defaults(
-            &mut sheet,
-            crate::owned::SelectDefaults {
-                trigger: Look::new(button_states).bordered(border_width.max(1.0)),
-                radius: metrics.radius,
-                transition,
-            },
+        let sized = |metrics: Metrics| {
+            Keyed::new(Size::DEFAULT, metrics)
+                .with(size::ICON, square(metrics))
+                .with(size::SM, small(metrics))
+                .with(size::XS, tiny(metrics))
+                .with(size::ICON_SM, square(small(metrics)))
+                .with(size::ICON_XS, square(tiny(metrics)))
+        };
+        let accented = flat(t.accent, t.accent_foreground);
+        let transition = Duration::from_millis(150);
+
+        let thumb = t.points(t.switch_thumb);
+        let input_rest = Colors {
+            fill: if dark { t.input_30() } else { t.background },
+            border: t.input,
+            text: t.foreground,
+        };
+        let input_box = shadowed(
+            Look::new(States {
+                focused: focused(input_rest),
+                ..States::new(
+                    input_rest,
+                    Colors {
+                        fill: if dark { t.input_50() } else { t.background },
+                        ..input_rest
+                    },
+                    t.background,
+                )
+            })
+            .bordered(1.0),
+            t.shadow_xs,
         );
-        crate::owned::menu_defaults(
-            &mut sheet,
-            crate::owned::MenuDefaults {
-                popup: Look::new(States::still(
-                    Colors {
-                        fill: v.window_fill,
-                        border: v.window_stroke.color,
-                        text: v.text_color(),
-                    },
-                    v.window_fill,
-                ))
-                .bordered(v.window_stroke.width.max(1.0))
-                .shadowed(v.popup_shadow),
-                radius,
-                min_width: s.combo_width,
-                item: Look::new(States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.text_color(),
-                    },
-                    selected,
-                    v.window_fill,
+        let thumb_colors = Colors {
+            fill: Color32::WHITE,
+            border: t.primary,
+            text: t.foreground,
+        };
+        let toggle = ToggleStyle {
+            sizes: sized(toggle_metrics),
+            border_width: 0.0,
+            off: Keyed::new(
+                Variant::DEFAULT,
+                Paint::new(states(
+                    flat(clear, t.foreground),
+                    flat(t.muted, t.muted_foreground),
                 )),
-                item_radius: radius,
-                destructive: States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.error_fg_color,
-                    },
-                    Colors {
-                        fill: v.error_fg_color.gamma_multiply(0.15),
-                        border: clear,
-                        text: v.error_fg_color,
-                    },
-                    v.window_fill,
-                ),
-                separator: w.noninteractive.bg_stroke.color,
-                separator_margin: s.item_spacing.y,
-                heading: v.weak_text_color(),
-                heading_weight: Weight::Normal,
-                shortcut: v.weak_text_color(),
-                shortcut_tracking: Tracking::ZERO,
-            },
-        );
-        crate::owned::input_defaults(
-            &mut sheet,
-            crate::owned::InputDefaults {
-                look: Look::new(States {
-                    rest: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.inactive.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    hover: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.hovered.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    pressed: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: focus_border,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    focused: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: focus_border,
-                        text: w.inactive.fg_stroke.color,
-                    },
-                    disabled: Colors {
-                        fill: v.text_edit_bg_color(),
-                        border: w.inactive.bg_stroke.color,
-                        text: w.inactive.fg_stroke.color,
-                    }
-                    .faded_over(faded, surface),
-                })
-                .bordered(border_width),
-                radius,
-                padding: s.button_padding,
-                height: s.interact_size.y,
-            },
-        );
-        crate::owned::tabs_defaults(
-            &mut sheet,
-            crate::owned::TabsDefaults {
-                selected: Paint::new(States::still(
-                    Colors {
-                        fill: w.active.weak_bg_fill,
-                        border: clear,
-                        text: v.strong_text_color(),
-                    },
-                    surface,
-                )),
-                unselected: Paint::new(States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.weak_text_color(),
-                    },
-                    hovered,
-                    surface,
-                )),
-                cell_border_width: 0.0,
-                cell_radius: radius,
-                transition,
-            },
-        );
-        crate::owned::choice_defaults(
-            &mut sheet,
-            crate::owned::ChoiceDefaults {
-                checkbox: crate::owned::ChoicePaint {
-                    off: choice_off,
-                    on: choice_on,
-                    border_width: choice_border,
-                    transition,
-                },
-                checkbox_radius: 2,
-                radio: crate::owned::ChoicePaint {
-                    off: choice_off,
-                    on: choice_on,
-                    border_width: choice_border,
-                    transition,
-                },
-                switch: crate::owned::ChoicePaint {
-                    off: choice_off,
-                    on: choice_on,
-                    border_width: choice_border,
-                    transition,
-                },
-            },
-        );
-        crate::owned::table_defaults(&mut sheet, crate::owned::TableDefaults::from_egui(egui));
-        crate::owned::tooltip_defaults(
-            &mut sheet,
-            crate::owned::TooltipDefaults {
-                popup: Look::new(States::still(
-                    Colors {
-                        fill: v.window_fill,
-                        border: v.window_stroke.color,
-                        text: v.text_color(),
-                    },
-                    v.window_fill,
-                ))
-                .bordered(v.window_stroke.width.max(1.0))
-                .shadowed(v.popup_shadow),
-                radius,
-                padding: vec2(f32::from(s.menu_margin.left), f32::from(s.menu_margin.top)),
-                max_width: s.tooltip_width,
-            },
-        );
-        crate::owned::button_defaults(
-            &mut sheet,
-            crate::owned::ButtonDefaults {
-                look: Look::new(button_states).bordered(border_width),
-                sizes: Keyed::new(Size::DEFAULT, metrics),
-                transition,
-                press_shift: 0.0,
-            },
-        );
-        let mut style = Self {
-            text,
-            faces: Faces::default(),
-            label,
-            toggle: ToggleStyle {
-                sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
-                border_width: 0.0,
-                off: Keyed::new(
-                    Variant::DEFAULT,
-                    Paint::new(states(
-                        Colors {
-                            fill: clear,
-                            border: clear,
-                            text: inactive.text,
-                        },
-                        hovered,
-                        active,
-                    )),
-                ),
-                on: Keyed::new(
-                    Variant::DEFAULT,
-                    Paint::new(states(selected, selected, selected)),
-                ),
-                text: None,
-                press_shift: 0.0,
-                transition,
-            },
-            checkbox: CheckboxStyle {
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    CheckboxMetrics {
-                        size: s.icon_width,
-                        radius: 2,
-                        glyph: s.icon_width_inner,
-                        gap: s.icon_spacing,
-                        text: None,
-                    },
-                ),
-                text: None,
-            },
-            radio: RadioStyle {
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    RadioMetrics {
-                        size: s.icon_width,
-                        dot: s.icon_width_inner,
-                        gap: s.icon_spacing,
-                        text: None,
-                    },
-                ),
-                text: None,
-            },
-            switch: SwitchStyle {
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    SwitchMetrics {
-                        track,
-                        thumb_off: track.y * 0.75,
-                        thumb_on: track.y * 0.75,
-                        text: None,
-                    },
-                ),
-                gap: s.icon_spacing,
-                text: None,
+            ),
+            on: Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented))),
+            text: Some(t.text_role_at(t.control_weight)),
+            press_shift: 1.0,
+            transition,
+        };
+        let checkbox = {
+            let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
+                size,
+                radius: t.checkbox_radius,
+                glyph,
+                gap,
+                text,
+            };
+            CheckboxStyle {
+                sizes: Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
+                    .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
+                    .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text)),
+                text: Some(t.text_role_at(t.label_weight)),
+            }
+        };
+        let radio = {
+            let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
+                size,
+                dot,
+                gap,
+                text,
+            };
+            RadioStyle {
+                sizes: Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
+                    .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
+                    .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text)),
+                text: Some(t.text_role_at(t.label_weight)),
+            }
+        };
+        let switch = {
+            let switch_at = |scale: f32, text| SwitchMetrics {
+                track: t.switch_track * scale,
+                thumb_off: thumb * scale,
+                thumb_on: thumb * scale,
+                text,
+            };
+            SwitchStyle {
+                sizes: Keyed::new(Size::DEFAULT, switch_at(1.0, None))
+                    .with(size::SM, switch_at(0.75, None))
+                    .with(size::XS, switch_at(0.625, xs_text)),
+                gap: 8.0,
+                text: Some(t.text_role_at(t.label_weight)),
                 slide: Duration::from_millis(150),
-            },
-            segmented: SegmentedStyle {
-                track_fill: v.faint_bg_color,
+            }
+        };
+        let segmented = {
+            const CELL_TRIM: f32 = 1.0;
+            let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
+                track_radius: t.radius_lg(),
+                track_padding: t.list_padding,
+                height,
+                cell_radius: t.radius_md(),
+                // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
+                // the list's inside, which overflows its `text-sm` by 1 px;
+                // the trimmed point comes out of the padding instead.
+                cell_padding: vec2(padding_x, t.points(t.cell_padding.y) - CELL_TRIM / 2.0),
+                column_gap: 0.0,
+                row_gap: 2.0,
+                icon_size: icon,
+                icon_gap: u(1.5),
+                text,
+                // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
+                cell_trim: CELL_TRIM,
+            };
+            SegmentedStyle {
+                // The one exception to tabs.tsx, whose list is `bg-muted`: on a
+                // `muted` panel that fill is the panel's own colour and the track
+                // disappears, so the list keeps `input` (the user's pick, #346).
+                // Revisit once a cascade can give a track on a muted surface its
+                // own fill (#443).
+                track_fill: t.input,
                 sizes: Keyed::new(
                     Size::DEFAULT,
-                    SegmentedMetrics {
-                        track_radius: radius,
-                        track_padding: 2.0,
-                        height: s.interact_size.y,
-                        cell_radius: radius,
-                        cell_padding: vec2(s.button_padding.x, s.button_padding.y),
-                        column_gap: 0.0,
-                        row_gap: 2.0,
-                        icon_size: metrics.glyph,
-                        icon_gap: s.icon_spacing,
-                        text: None,
-                        cell_trim: 0.0,
-                    },
+                    track_at(
+                        t.control_height(),
+                        t.points(t.cell_padding.x),
+                        t.points(t.icon_size),
+                        None,
+                    ),
+                )
+                .with(
+                    size::SM,
+                    track_at(
+                        t.control_height() - u(1.0),
+                        t.points(t.cell_padding.x),
+                        t.points(t.icon_size),
+                        None,
+                    ),
+                )
+                .with(
+                    size::XS,
+                    track_at(
+                        t.control_height() - u(3.0),
+                        (t.points(t.cell_padding.x) - u(1.0)).max(0.0),
+                        u(3.0),
+                        xs_text,
+                    ),
                 ),
-            },
-            progress: ProgressStyle {
-                height: s.slider_rail_height,
-                radius: u8::MAX,
-                track: Colors {
-                    fill: w.inactive.bg_fill,
-                    border: clear,
-                    text: clear,
-                },
-                range: Colors {
-                    fill: selected.fill,
-                    border: clear,
-                    text: clear,
-                },
-            },
-            slider: SliderStyle {
+            }
+        };
+        let slider = {
+            let slider_at = |track_height: f32,
+                             thumb_size: f32,
+                             text: Option<TextSize>,
+                             header_gap: f32| SliderMetrics {
+                track_height,
+                thumb_size,
+                radius: t.slider_radius,
+                text,
+                header_gap,
+            };
+            let thumb = shadowed(
+                Look::new(States::still(thumb_colors, t.background)).bordered(1.0),
+                t.shadow_sm,
+            );
+            SliderStyle {
                 sizes: Keyed::new(
                     Size::DEFAULT,
-                    SliderMetrics {
-                        track_height: s.slider_rail_height,
-                        thumb_size: s.icon_width,
-                        radius: u8::MAX,
-                        text: None,
-                        header_gap: 8.0,
-                    },
+                    slider_at(
+                        t.points(t.slider_track),
+                        t.points(t.slider_thumb),
+                        None,
+                        8.0,
+                    ),
+                )
+                .with(
+                    size::SM,
+                    slider_at(
+                        t.points(t.slider_track).min(u(1.0)),
+                        t.points(t.slider_thumb) - u(0.5),
+                        None,
+                        u(1.5),
+                    ),
+                )
+                .with(
+                    size::XS,
+                    slider_at(
+                        t.points(t.slider_track).min(u(0.75)),
+                        t.points(t.slider_thumb) - u(1.0),
+                        xs_text,
+                        u(1.0),
+                    ),
                 ),
-                track: States::still(
-                    Colors {
-                        fill: w.inactive.bg_fill,
-                        border: clear,
-                        text: clear,
-                    },
-                    surface,
-                ),
-                range: States::still(
-                    Colors {
-                        fill: selected.fill,
-                        border: clear,
-                        text: clear,
-                    },
-                    surface,
-                ),
-                thumb: Look::new(states(
-                    Colors {
-                        fill: w.inactive.weak_bg_fill,
-                        border: selected.fill,
-                        text: clear,
-                    },
-                    hovered,
-                    active,
-                ))
-                .bordered(border_width.max(1.0)),
-                label: States::still(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.text_color(),
-                    },
-                    surface,
-                ),
-                readout: States::still(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.weak_text_color(),
-                    },
-                    surface,
-                ),
+                track: States::still(flat(t.input, t.foreground), t.background),
+                range: States::still(flat(t.primary, t.primary_foreground), t.background),
+                thumb: Look {
+                    paint: thumb.paint.haloed(Focus {
+                        width: t.slider_halo,
+                        color: t.ring.gamma_multiply(0.5),
+                    }),
+                    ..thumb
+                },
+                label: States::still(flat(clear, t.foreground), t.background),
+                readout: States::still(flat(clear, t.muted_foreground), t.background),
                 transition,
+            }
+        };
+        let stepper = {
+            let group_at =
+                |height: f32, (padding_x, button_width, glyph): (f32, f32, f32), text| {
+                    StepperMetrics {
+                        height,
+                        padding_x,
+                        radius: t.radius_md(),
+                        button_width,
+                        glyph,
+                        text,
+                    }
+                };
+            let own = u(t.own_input_padding_x);
+            StepperStyle {
+                group: input_box,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    group_at(
+                        t.control_height(),
+                        (t.points(t.input_padding.x), u(6.0), u(3.0)),
+                        None,
+                    ),
+                )
+                .with(
+                    size::SM,
+                    group_at(t.control_height() - u(1.0), (own, u(5.0), u(3.0)), None),
+                )
+                .with(
+                    size::XS,
+                    group_at(t.control_height() - u(3.0), (own, u(4.0), u(2.5)), xs_text),
+                ),
+                button: ghost_button,
+                divider: t.input,
+                transition,
+            }
+        };
+        let input = {
+            let field_at = |text, (icon_size, icon_gap): (f32, f32)| InputMetrics {
+                text,
+                icon_size,
+                icon_gap,
+            };
+            InputStyle {
+                sizes: Keyed::new(Size::DEFAULT, field_at(None, (u(4.0), u(2.0))))
+                    .with(size::SM, field_at(None, (u(3.5), u(1.5))))
+                    .with(size::XS, field_at(xs_text, (u(3.0), u(1.5)))),
+                // input.tsx: `placeholder:text-muted-foreground`.
+                hint: Some(t.muted_foreground),
+                icon: t.muted_foreground,
+            }
+        };
+        // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
+        // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
+        // `zoom-in-95 duration-200`. SheetContent:
+        // `slide-in-from-*`, `ease-in-out`, 500 ms open and 300 ms close.
+        let animate = KindMotion {
+            entry: Entry::Pop,
+            enter: Duration::from_millis(150),
+            exit: Duration::from_millis(150),
+            easing: crate::Easing::Default,
+        };
+        let motion = MotionStyle {
+            popover: animate,
+            menu: animate,
+            tooltip: KindMotion {
+                entry: Entry::Zoom,
+                ..animate
+            },
+            dialog: KindMotion {
+                entry: Entry::Zoom,
+                enter: Duration::from_millis(200),
+                exit: Duration::from_millis(200),
+                easing: crate::Easing::Default,
+            },
+            sheet: KindMotion {
+                entry: Entry::Slide,
+                enter: Duration::from_millis(500),
+                exit: Duration::from_millis(300),
+                easing: crate::Easing::InOut,
+            },
+        };
+        let mut sheet = crate::sheet::Sheet::defaults();
+        crate::legacy_defaults::write(&mut sheet);
+        let mut style = Self {
+            text: t.text_role(),
+            faces: t
+                .font
+                .as_ref()
+                .map(crate::theme::FontSet::declared)
+                .unwrap_or_default(),
+            label: States::still(flat(clear, t.foreground), t.background),
+            toggle,
+            checkbox,
+            radio,
+            switch,
+            segmented,
+            slider,
+            progress: ProgressStyle {
+                height: 6.0,
+                radius: u8::MAX,
+                track: flat(t.input, t.foreground),
+                range: flat(t.primary, t.primary_foreground),
             },
             select: SelectStyle {
-                sizes: Keyed::new(Size::DEFAULT, metrics),
-                chevron: s.icon_width,
+                sizes: Keyed::new(Size::DEFAULT, control)
+                    .with(size::SM, small(control))
+                    .with(size::XS, tiny(control)),
+                chevron: 16.0,
                 chevron_opacity: Opacity::new(0.5),
             },
+            // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
+            // check and chevron, and a `text-xs` shortcut. The look is the
+            // generated sheet's.
             menu: MenuStyle {
-                padding: 2.0,
-                item_padding: vec2(s.button_padding.x, s.button_padding.y),
-                item_gap: s.item_spacing.x,
+                padding: t.points(t.popup_padding),
+                item_padding: t.points_vec(t.item_padding),
+                item_gap: t.points(t.item_padding.x),
                 offset: Distance::new(4.0),
                 text: None,
-                shortcut_text: {
-                    let small = egui
-                        .text_styles
-                        .get(&egui::TextStyle::Small)
-                        .cloned()
-                        .unwrap_or_default();
-                    TextSpec {
-                        size: small.size,
-                        line_height: (small.size * 1.25).round(),
-                        family: FontFamily::Proportional,
-                        weight: Weight::Normal,
-                    }
+                shortcut_text: TextSpec {
+                    size: 12.0,
+                    line_height: 16.0,
+                    family: FontFamily::Proportional,
+                    weight: Weight::Normal,
                 },
-                indicator: s.icon_width,
+                indicator: 16.0,
             },
+            // shadcn's TooltipContent: a 10 pt arrow, flush with the trigger.
+            // Radix's default delay, deliberately not shadcn's 0 ms, which
+            // assumes tooltips are rare (desktop apps use them densely); the
+            // grace is Radix's `skipDelayDuration`.
             tooltip: TooltipStyle {
-                arrow: None,
-                offset: Distance::new(4.0),
-                delay: seconds(egui.interaction.tooltip_delay),
-                grace: seconds(egui.interaction.tooltip_grace_time),
+                arrow: Some(Arrow { size: 10.0 }),
+                offset: Distance::new(0.0),
+                delay: Duration::from_millis(700),
+                grace: Duration::from_millis(300),
             },
+            // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
+            // px-1 text-xs font-medium`, and inside a tooltip
+            // `bg-background/20 text-background` (`/10` in the dark theme).
             kbd: KbdStyle {
-                page: Colors {
-                    fill: v.code_bg_color,
-                    border: Color32::TRANSPARENT,
-                    text: v.text_color(),
-                },
-                tooltip: Colors {
-                    fill: v.code_bg_color,
-                    border: Color32::TRANSPARENT,
-                    text: v.text_color(),
-                },
+                page: flat(t.muted, t.muted_foreground),
+                tooltip: flat(
+                    if dark {
+                        t.background_10()
+                    } else {
+                        t.background_20()
+                    },
+                    t.background,
+                ),
                 border_width: 0.0,
-                radius,
+                radius: t.radius_sm(),
                 padding_x: 4.0,
-                height: s.interact_size.y.min(20.0),
-                text: None,
+                height: 20.0,
+                text: Some(TextSpec {
+                    size: 12.0,
+                    line_height: 16.0,
+                    family: FontFamily::Proportional,
+                    weight: t.control_weight,
+                }),
             },
+            // A captioned mount: `text-muted-foreground` above `border rounded-md
+            // p-4`, as the docs page's examples were rendered for the pick.
             mount: MountStyle {
-                caption: v.weak_text_color(),
+                caption: t.muted_foreground,
                 caption_text: None,
-                gap: s.item_spacing.y,
-                border: v.widgets.noninteractive.bg_stroke.color,
-                border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
-                radius,
-                padding: f32::from(s.window_margin.left),
-                bare_padding: tokens.focus().clearance(),
-                selected_ring: v.selection.stroke.color,
+                gap: 6.0,
+                border: t.border,
+                border_width: 1.0,
+                radius: t.radius_md(),
+                padding: 16.0,
+                bare_padding: 8.0,
+                selected_ring: t.primary,
             },
+            // shadcn's typography: a link is `font-medium text-primary underline`,
+            // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
             rich: RichTextStyle {
-                link: v.hyperlink_color,
+                link: t.primary,
                 link_underline: None,
-                link_weight: Weight::Normal,
+                link_weight: Weight::Medium,
                 code: InlineCode {
-                    fill: v.code_bg_color,
-                    radius,
-                    padding_x: 2.0,
-                    padding_y: 1.0,
-                    size: Em::ONE,
+                    fill: t.muted,
+                    radius: t.radius_sm(),
+                    padding_x: 4.8,
+                    padding_y: 3.2,
+                    size: Em::new(0.875),
                 },
             },
-            stepper: StepperStyle {
-                group: choice_off.bordered(choice_border),
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    StepperMetrics {
-                        height: s.interact_size.y,
-                        padding_x: s.button_padding.x,
-                        radius,
-                        button_width: s.icon_width * 1.5,
-                        glyph: s.icon_width_inner,
-                        text: None,
-                    },
-                ),
-                button: Look::new(button_states),
-                divider: choice_off.states.rest.border,
-                transition,
-            },
-            input: InputStyle {
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    InputMetrics {
-                        text: None,
-                        icon_size: 16.0,
-                        icon_gap: 8.0,
-                    },
-                ),
-                hint: None,
-                icon: v.weak_text_color(),
-            },
+            stepper,
+            input,
             selection: Selection {
-                fill: v.selection.bg_fill,
-                text: Some(v.selection.stroke.color),
+                fill: t.primary.gamma_multiply(0.3),
+                text: Some(t.foreground),
             },
-            scroll: ScrollStyle::from_egui(egui),
-            splitter: SplitterStyle::from_egui(egui),
-            table: TableStyle::from_egui(egui),
-            scrim: Color32::from_black_alpha(100),
-            motion: MotionStyle::INSTANT,
-            tones: Tones::from_egui(v),
-            tokens,
+            // shadcn's ScrollArea: `w-2.5` bar, `bg-border` `rounded-full` thumb;
+            // Radix's keeps its thumb at least 18 px long.
+            scroll: ScrollStyle {
+                width: 10.0,
+                thumb: t.border,
+                thumb_hover: t.border,
+                thumb_active: t.border,
+                track: clear,
+                radius: egui::CornerRadius::same(u8::MAX),
+                min_thumb_length: 18.0,
+                fade: EdgeFade::OFF,
+            },
+            // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area,
+            // which a faint band fills while hot.
+            splitter: SplitterStyle {
+                thickness: 6.0,
+                line_width: 1.0,
+                rest: SplitterColors {
+                    band: clear,
+                    line: t.border,
+                    grip: clear,
+                },
+                hot: SplitterColors {
+                    band: t.primary.gamma_multiply(0.15),
+                    line: t.primary,
+                    grip: clear,
+                },
+                grip: None,
+                transition: Duration::from_millis(150),
+            },
+            // shadcn's Table: `border-b` rows, none under the last; the stripes
+            // and groups are eggshell's own.
+            table: TableStyle {
+                first_column_inset: None,
+                rule_below_last: false,
+                rule: t.border,
+                rule_width: 1.0,
+                stripe: t.muted.gamma_multiply(0.3),
+                group_text_size: Some(TextSize {
+                    size: 12.0,
+                    line_height: 16.0,
+                }),
+                group_weight: Weight::Medium,
+                group_end: GroupEnd::Gap(12.0),
+            },
+            // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
+            // scrim alone separates a dialog from the page, so it is darker.
+            scrim: Color32::from_black_alpha(204),
+            motion,
+            tones: t.tones(),
+            tokens: t.clone(),
             sheet,
             extensions: Extensions::default(),
         };
-        style.rewrite_rules();
+        if let Some(font) = &t.font {
+            style.set_extension(Fonts(font.inserts()));
+        }
+        style.write_rules();
         style
     }
 
-    /// TODO(prose): writes every family's rules from its section, at the widgets' defaults layer, and the recorded exceptions again over a preset's look. A preset writes its own rules over them.
-    pub fn rewrite_rules(&mut self) {
-        self.restyle(|style| {
-            crate::owned::write_text_roles(&mut style.sheet, &style.text);
-            style.write_input_rules();
-            style.write_segmented_rules();
-            style.write_menu_rules();
-            style.write_table_rules();
-            style.write_choice_rules();
-            crate::owned::write_select_rules(style);
-        });
+    /// TODO(prose): writes a preset's look over the widgets' own rules: `write`
+    /// writes it at the preset layer, then the recorded exceptions go over it.
+    pub fn write_look(&mut self, write: impl FnOnce(&mut crate::sheet::Sheet)) {
+        self.sheet.as_preset();
+        write(&mut self.sheet);
+        self.write_exceptions();
     }
 
-    /// Runs `write`, which writes a section's rules, at the widgets'
-    /// defaults layer, then writes the recorded exceptions again over a
-    /// preset's look, if a preset wrote one, so a changed section reaches
-    /// them. The sheet's layer is as it was after.
-    fn restyle(&mut self, write: impl FnOnce(&mut Self)) {
-        let layer = self.sheet.layer();
-        self.sheet.set_layer(crate::sheet::Layer::Defaults);
-        write(self);
-        if self.sheet.has_rules_at(crate::sheet::Layer::Preset) {
-            self.sheet.set_layer(crate::sheet::Layer::Preset);
-            self.write_exceptions();
-        }
-        self.sheet.set_layer(layer);
+    /// Writes every family's rules from its section, at the widgets' defaults layer.
+    fn write_rules(&mut self) {
+        crate::owned::write_text_roles(&mut self.sheet, &self.text);
+        crate::owned::write_input_rules(&mut self.sheet, &self.input);
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented);
+        let text = self.role(&self.menu.text).clone();
+        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
+        crate::owned::write_table_rules(&mut self.sheet, &self.table);
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+        crate::owned::write_select_rules(self);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2170,97 +2123,8 @@ impl Style {
         egui.spacing.button_padding = frame.padding;
     }
 
-    /// Selects: the trigger, and the list it opens.
-    pub fn select(&self) -> &SelectStyle {
-        &self.select
-    }
-
-    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the widgets' defaults layer, under a preset's look. A later change to either does not reach the select until this is called again.
-    pub fn set_select(&mut self, select: SelectStyle) {
-        self.select = select;
-        self.restyle(crate::owned::write_select_rules);
-    }
-
-    /// The text beside a checkbox, radio button or switch; only `rest` and
-    /// `disabled` apply.
-    pub fn label(&self) -> States {
-        self.label
-    }
-
-    /// Checkboxes.
-    pub fn checkbox(&self) -> &CheckboxStyle {
-        &self.checkbox
-    }
-
-    /// Radio buttons.
-    pub fn radio(&self) -> &RadioStyle {
-        &self.radio
-    }
-
-    /// Switches.
-    pub fn switch(&self) -> &SwitchStyle {
-        &self.switch
-    }
-
-    /// Segmented controls, and the tabs' list and triggers.
-    pub fn segmented(&self) -> &SegmentedStyle {
-        &self.segmented
-    }
-
-    /// The input section: text fields and the boxes that hold them.
-    pub fn input(&self) -> &InputStyle {
-        &self.input
-    }
-
-    /// TODO(prose): sets the input section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_input(&mut self, input: InputStyle) {
-        self.input = input;
-        self.restyle(Self::write_input_rules);
-    }
-
-    /// Menus, and the lists selects open.
-    pub fn menu(&self) -> &MenuStyle {
-        &self.menu
-    }
-
-    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_menu(&mut self, menu: MenuStyle) {
-        self.menu = menu;
-        self.restyle(Self::write_menu_rules);
-    }
-
-    /// Tooltips.
-    pub fn tooltip(&self) -> &TooltipStyle {
-        &self.tooltip
-    }
-
-    /// TODO(prose): sets the tooltip section: its arrow, offset and timing.
-    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
-        self.tooltip = tooltip;
-    }
-
-    /// Tables.
-    pub fn table(&self) -> &TableStyle {
-        &self.table
-    }
-
-    /// TODO(prose): sets the table section, and writes its rules (between rows, stripes, the first column's inset) at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_table(&mut self, table: TableStyle) {
-        self.table = table;
-        self.restyle(Self::write_table_rules);
-    }
-
-    fn write_table_rules(&mut self) {
-        crate::owned::write_table_rules(&mut self.sheet, &self.table);
-    }
-
-    fn write_menu_rules(&mut self) {
-        let text = self.role(&self.menu.text).clone();
-        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
-    }
-
     /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. The tabs': the track keeps its fill, the trigger's 1 px trim comes out of its padding, the sizes other than the default keep their metrics, and wrapping lists keep their rows. The menu's: an item of the default variant keeps the generated look. The table's: its bands' borders, the last row's, a selected row's fill under the pointer, stripes and the first column's inset. The choice controls': a radio's dot is centred in its circle, and a size their rules leave out keeps its metrics. A preset calls this after its generated look.
-    pub fn write_exceptions(&mut self) {
+    fn write_exceptions(&mut self) {
         crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
         crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
         crate::owned::write_tabs_exceptions(&mut self.sheet, &self.segmented);
@@ -2275,56 +2139,11 @@ impl Style {
             (&self.checkbox, &self.radio, &self.switch),
         );
     }
-
-    fn write_input_rules(&mut self) {
-        crate::owned::write_input_rules(&mut self.sheet, &self.input);
-    }
-
-    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_label(&mut self, label: States) {
-        self.label = label;
-        self.restyle(|style| crate::owned::write_field_rules(&mut style.sheet, style.label));
-    }
-
-    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_checkbox(&mut self, checkbox: CheckboxStyle) {
-        self.checkbox = checkbox;
-        self.restyle(|style| crate::owned::write_checkbox_rules(&mut style.sheet, &style.checkbox));
-    }
-
-    /// TODO(prose): sets the radio section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_radio(&mut self, radio: RadioStyle) {
-        self.radio = radio;
-        self.restyle(|style| crate::owned::write_radio_rules(&mut style.sheet, &style.radio));
-    }
-
-    /// TODO(prose): sets the switch section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_switch(&mut self, switch: SwitchStyle) {
-        self.switch = switch;
-        self.restyle(|style| crate::owned::write_switch_rules(&mut style.sheet, &style.switch));
-    }
-
-    fn write_choice_rules(&mut self) {
-        crate::owned::write_field_rules(&mut self.sheet, self.label);
-        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
-        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
-        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
-    }
-
-    /// TODO(prose): sets the segmented section, and writes the rules its track fill and sizes give the tabs' list and triggers at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
-    pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
-        self.segmented = segmented;
-        self.restyle(Self::write_segmented_rules);
-    }
-
-    fn write_segmented_rules(&mut self) {
-        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented);
-    }
 }
 
 impl Default for Style {
     fn default() -> Self {
-        Self::from_egui(&egui::Style::default())
+        Self::new(&Tokens::light())
     }
 }
 

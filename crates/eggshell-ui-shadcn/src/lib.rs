@@ -107,38 +107,12 @@ mod preset;
 mod sheets;
 
 pub use drag_chip::{DragChip, drag_chip};
+pub use eggshell_ui::theme::size;
 pub use eggshell_ui::theme::{
     BaseColor, ContrastPair, ContrastRatio, Elevation, FontSet, HoverSurface, Palette,
     REGISTRY_MISSES, RegistryMiss, ShadcnStyle, ThemeColor, Tokens,
 };
 pub use preset::{Shadcn, tokens};
-
-/// The names of the button sizes this preset defines besides the default.
-pub mod size {
-    use eggshell_ui::contract::Size;
-
-    /// `icon`: a square the height of a control, for a button that is only an
-    /// icon.
-    pub const ICON: Size = Size("icon");
-
-    /// TODO(prose): `sm`, a control four points shorter.
-    pub const SM: Size = Size("sm");
-
-    /// TODO(prose): `xs`, a control twelve points shorter, in 12 pt text.
-    pub const XS: Size = Size("xs");
-
-    /// `icon-sm`: [`ICON`] at [`SM`].
-    pub const ICON_SM: Size = Size("icon-sm");
-
-    /// `icon-xs`: [`ICON`] at [`XS`].
-    pub const ICON_XS: Size = Size("icon-xs");
-
-    /// TODO(prose): `lg`, a control four points taller.
-    pub const LG: Size = Size("lg");
-
-    /// TODO(prose): `icon-lg`: [`ICON`] at [`LG`].
-    pub const ICON_LG: Size = Size("icon-lg");
-}
 
 /// The names of shadcn's button variants, as the preset's sheet names them
 /// for [`ButtonPart`](eggshell_ui::owned::ButtonPart). shadcn's `default` is

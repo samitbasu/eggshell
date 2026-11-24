@@ -155,7 +155,7 @@ fn cell(band: &str, column: usize) -> String {
 }
 
 fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
-    d.shell().style().table().clone()
+    d.shell().style().table.clone()
 }
 
 /// The padding beside a body cell's content in `style`.
@@ -315,9 +315,12 @@ mod stripe {
     const STRIPE: Color32 = Color32::from_rgb(200, 220, 240);
 
     fn striped(style: &mut Style) {
-        let mut table = style.table().clone();
-        table.stripe = STRIPE;
-        style.set_table(table);
+        style
+            .sheet
+            .as_app()
+            .rule_when(TablePart::Row, TablePart::striped_row(), |t, _| {
+                t.bg(STRIPE)
+            });
     }
 
     fn striped_fills(stripes: Stripes) -> [bool; 5] {
@@ -633,7 +636,7 @@ mod preset {
         let preset = Shadcn::for_theme(Theme::Light);
         let t = &preset.tokens;
         let style = preset.style();
-        let table = style.table().clone();
+        let table = style.table.clone();
         assert_eq!(header_height(&style), 40.0);
         assert_eq!(cell_padding(&style), 8.0);
         assert_eq!((table.rule, table.rule_width), (t.border, 1.0));
@@ -822,15 +825,18 @@ mod spacing {
     }
 
     fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
-        d.shell().style().table().clone()
+        d.shell().style().table.clone()
     }
 
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
         let d = harness(|style| {
-            let mut table = style.table().clone();
-            table.first_column_inset = Some(0.0);
-            style.set_table(table);
+            for part in [TablePart::Head, TablePart::Cell, TablePart::FooterCell] {
+                style
+                    .sheet
+                    .as_app()
+                    .rule_when(part, TablePart::first_column(), |t, _| t.pl_px(0.0));
+            }
         });
         let padding = cell_padding(&d.shell().style());
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
@@ -867,9 +873,12 @@ mod spacing {
         };
         assert!(!rule(&harness(|_| {})), "open by default");
         assert!(rule(&harness(|style| {
-            let mut table = style.table().clone();
-            table.rule_below_last = true;
-            style.set_table(table);
+            style
+                .sheet
+                .as_app()
+                .rule_when(TablePart::Row, TablePart::last_row(), |t, _| {
+                    t.border_b(1.0)
+                });
         })));
     }
 }
@@ -1157,9 +1166,9 @@ mod groups {
         }
 
         fn gapped(style: &mut Style) {
-            let mut table = style.table().clone();
+            let mut table = style.table.clone();
             table.group_end = GroupEnd::Gap(GAP);
-            style.set_table(table);
+            style.table = table;
         }
 
         fn harness_with(app: App, view: support::View<App>) -> Driver<App> {

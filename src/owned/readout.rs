@@ -154,7 +154,7 @@ impl Readout {
                     .tabular_nums(),
             )
             .children(|s| {
-                let keys = super::input_keys(style.input().sizes.key_for(size), false);
+                let keys = super::input_keys(style.input.sizes.key_for(size), false);
                 let leaf = s.part(
                     super::InputGroupPart::Input,
                     &keys,

@@ -117,7 +117,7 @@ pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
-    let keys = input_keys(style.input().sizes.key_for(size), false);
+    let keys = input_keys(style.input.sizes.key_for(size), false);
     let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
     Frame::of(&classes, style.tokens.spacing)
 }
@@ -711,15 +711,11 @@ pub(crate) fn text_field_classes<A: 'static>(
     aria: Option<crate::Aria>,
 ) -> Tw {
     let style = b.style().clone();
-    let mut keys = input_keys(style.input().sizes.key_for(size), false);
+    let mut keys = input_keys(style.input.sizes.key_for(size), false);
     keys.extend(aria.map(crate::sheet::Key::Aria));
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
-    let own_text = style
-        .input()
-        .sizes
-        .get(style.input().sizes.key_for(size))
-        .text;
+    let own_text = style.input.sizes.get(style.input.sizes.key_for(size)).text;
     let leaf = match (own_text, root.text.size, root.text.line_height) {
         (None, Some(size), Some(line_height)) => leaf.text_size(size, line_height),
         _ => leaf,

@@ -323,16 +323,18 @@ fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
     for (theme, shadcn) in COMBINATIONS {
-        let d = sections_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
-                let mut segmented = style.segmented().clone();
-                let metrics = segmented.sizes.default_entry_mut();
-                metrics.icon_size = 18.0;
-                metrics.icon_gap = 7.0;
-                metrics.column_gap = 3.0;
-                style.set_segmented(segmented);
+                style
+                    .sheet
+                    .as_app()
+                    .rule(TabsPart::List, |t, _| t.gap_x_px(3.0))
+                    .rule(TabsPart::Trigger, |t, _| {
+                        t.gap_px(7.0)
+                            .descendants(eggshell_ui::Match::glyph(), |g| g.size_px(18.0))
+                    });
             },
             icon_cells,
         );
@@ -423,7 +425,7 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = d.app().style.segmented().clone();
+        let seg = d.app().style.segmented.clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
         assert_eq!(
@@ -519,7 +521,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"select\""),
-            style.select().sizes.get(Size::DEFAULT).height
+            style.select.sizes.get(Size::DEFAULT).height
         );
         assert_eq!(
             height("/\"stepper\"/Box"),
@@ -527,7 +529,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"segmented\""),
-            style.segmented().sizes.get(Size::DEFAULT).height
+            style.segmented.sizes.get(Size::DEFAULT).height
         );
     }
 }
@@ -565,7 +567,7 @@ fn size_of_text(d: &Harn, inside: &str, text: &str) -> f32 {
 #[test]
 fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
     for (theme, shadcn) in COMBINATIONS {
-        let plain = sections_with(theme, shadcn, |_| {}, roles);
+        let plain = harness_with(theme, shadcn, |_| {}, roles);
         let base = plain.app().style.text.size;
         for (path, text) in [
             ("/\"button\"", "Save"),
@@ -575,7 +577,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         ] {
             assert_eq!(size_of_text(&plain, path, text), base, "{path}: default");
         }
-        let d = sections_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
@@ -592,9 +594,9 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     .rule(eggshell_ui::owned::SelectPart::Trigger, |t, _| {
                         t.role(spec(19.0))
                     });
-                let mut checkbox = style.checkbox().clone();
+                let mut checkbox = style.checkbox.clone();
                 checkbox.text = Some(spec(23.0));
-                style.set_checkbox(checkbox);
+                style.checkbox = checkbox;
             },
             roles,
         );
@@ -791,7 +793,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 
 #[test]
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let neutral = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
+    let neutral = Style::default();
     let d = drive(
         Theme::Light,
         ShadcnStyle::Vega,

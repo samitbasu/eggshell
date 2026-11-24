@@ -39,12 +39,12 @@ struct App {
 fn edit(style: &mut Style, ambient: Ambient) {
     // The disabled token reaches the widgets' own look, not the preset's.
     if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
-        *style = Style::from_egui(&egui::Context::default().style_of(egui::Theme::Light));
+        *style = Style::default();
     }
     if ambient == Ambient::InertFaded {
         style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
-    let mut segmented = style.segmented().clone();
+    let mut segmented = style.segmented.clone();
     let default = *segmented.sizes.get(Size::DEFAULT);
     segmented.sizes = segmented.sizes.clone().with(
         SM,
@@ -56,7 +56,7 @@ fn edit(style: &mut Style, ambient: Ambient) {
         },
     );
     style.sheet.as_app();
-    style.set_segmented(segmented);
+    style.segmented = segmented;
 }
 
 /// The library's control, then the same one built from the public classes.

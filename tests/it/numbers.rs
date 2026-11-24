@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use eggshell_ui::testing::{Driver, Headless, Target, assert_reported};
 use eggshell_ui::widget::Stock;
-use eggshell_ui::{Builder, Problem, Style, TextStyle, Width, tw};
+use eggshell_ui::{Builder, Problem, TextStyle, Width, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Context, Key, Role, Theme, Vec2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -248,14 +248,4 @@ fn a_transition_as_long_as_a_duration_gets_retargets_without_a_panic() {
     d.hover(Target::suffix("/\"hovered\""))
         .hover(egui::pos2(250.0, 180.0))
         .hover(Target::suffix("/\"hovered\""));
-}
-
-#[test]
-fn an_infinite_egui_tooltip_delay_is_the_longest_duration() {
-    let mut egui = egui::Style::default();
-    egui.interaction.tooltip_delay = f32::INFINITY;
-    egui.interaction.tooltip_grace_time = f32::NAN;
-    let style = Style::from_egui(&egui);
-    assert_eq!(style.tooltip().delay, Duration::MAX);
-    assert_eq!(style.tooltip().grace, Duration::ZERO);
 }

@@ -107,7 +107,7 @@ pub(crate) fn apply_faces(ctx: &Context, faces: &Faces) {
 /// The faces the last build applied, else those of the derived style.
 fn applied(ctx: &Context) -> std::sync::Arc<Faces> {
     ctx.data(|data| data.get_temp::<std::sync::Arc<Faces>>(faces_id()))
-        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::derived(ctx).faces.clone()))
+        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::fallback().faces.clone()))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -640,7 +640,7 @@ mod weight_tests {
         let chain = fonts.families[&FontFamily::Proportional].clone();
         fonts.families.insert(named("medium"), chain);
         ctx.set_fonts(fonts);
-        let mut style = crate::Style::from_egui(&ctx.global_style());
+        let mut style = crate::Style::default();
         style.faces =
             Faces::default().with(FontFamily::Proportional, Weight::Medium, named("medium"));
         apply_faces(&ctx, &style.faces);
@@ -732,7 +732,7 @@ pub(crate) mod tests {
 
     /// The style a test node is built with: egui's default, derived.
     pub(crate) fn style() -> std::sync::Arc<crate::Style> {
-        std::sync::Arc::new(crate::Style::from_egui(&egui::Style::default()))
+        std::sync::Arc::new(crate::Style::default())
     }
 
     #[test]

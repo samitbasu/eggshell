@@ -113,12 +113,12 @@ impl DisclosureStyle {
     /// `chevron-down` that turns over trailing a section's title and a
     /// `chevron-right` that turns down in a disclosure button.
     pub fn from_style(style: &Style) -> Self {
-        let glyph = style.select().chevron;
+        let glyph = style.select.chevron;
         Self {
             section: Glyph::new(Icon::new(icons::CHEVRON_DOWN), glyph, Angle::degrees(180.0)),
             tree: Glyph::new(Icon::new(icons::CHEVRON_RIGHT), glyph, Angle::degrees(90.0)),
             tone: None,
-            tone_opacity: style.select().chevron_opacity,
+            tone_opacity: style.select.chevron_opacity,
             nudge: 2.0,
             header: HeaderStyle {
                 ring: style.tokens.focus(),
@@ -137,7 +137,7 @@ impl DisclosureStyle {
             content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
-            separator: Some(style.table().rule),
+            separator: Some(style.table.rule),
         }
     }
 }

@@ -57,7 +57,7 @@ fn main() {
             }
             let input = core.sheet.resolve(
                 InputPart::Root,
-                &[Key::Size(core.input().sizes.default_key())],
+                &[Key::Size(core.input.sizes.default_key())],
                 &core.tokens,
             );
             let layout = input.style_at(core.tokens.spacing);
@@ -68,7 +68,7 @@ fn main() {
                 layout.padding.top.into_raw().value(),
                 input.paint_classes().radius.nw
             );
-            let menu = core.menu();
+            let menu = core.menu;
             let radius = |part, keys: &[Key]| {
                 core.sheet
                     .resolve(part, keys, &core.tokens)

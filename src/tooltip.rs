@@ -278,9 +278,9 @@ pub(crate) fn end(
         .collect();
     let style = crate::Shell::new(ctx, kept).style();
     let timing = Timing {
-        open: style.tooltip().delay,
+        open: style.tooltip.delay,
         close: Duration::ZERO,
-        skip: Skip::Grace(style.tooltip().grace),
+        skip: Skip::Grace(style.tooltip.grace),
         focus: FocusOpens::AtOnce,
     };
     let now = crate::intent::now(ctx);
@@ -329,7 +329,7 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
         if !kept {
             continue;
         }
-        let tooltip = style.tooltip();
+        let tooltip = &style.tooltip;
         let arrow = tooltip.arrow;
         let gap = f32::from(tooltip.offset) + arrow.map_or(0.0, |arrow| arrow.size);
         let trigger = tip.trigger;

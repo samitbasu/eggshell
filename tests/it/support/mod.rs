@@ -244,12 +244,10 @@ pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshel
     })
 }
 
-/// `style` without its preset's generated looks: only the rules its sections
-/// give, which is what a change to a section restyles.
-pub fn sections_of(mut style: eggshell_ui::Style) -> eggshell_ui::Style {
-    style.sheet = eggshell_ui::sheet::Sheet::defaults();
-    style.rewrite_rules();
-    style
+/// `style` without its preset's generated looks: only the widgets' own rules
+/// its tokens give.
+pub fn sections_of(style: eggshell_ui::Style) -> eggshell_ui::Style {
+    eggshell_ui::Style::new(&style.tokens)
 }
 
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &'f A);
@@ -530,7 +528,7 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// overlay to be built and placed.
 pub fn rest_for_tooltip<D: Drives + Seen>(harness: &mut D) {
     let style = harness.view_shell().style();
-    let wait = (style.tooltip().delay + style.motion.tooltip.enter).as_secs_f64();
+    let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
     let start = harness.context().input(|input| input.time);
     for _ in 0..10_000 {
         if harness.context().input(|input| input.time) - start >= wait {

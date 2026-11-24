@@ -778,10 +778,15 @@ mod trigger {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
                 *style = support::sections_of(style.clone());
-                let mut select = style.select().clone();
-                select.chevron = chevron;
-                select.chevron_opacity = Opacity::new(opacity);
-                style.set_select(select);
+                // A dropdown's chevron reads the section; a select's is its rule.
+                style.select.chevron = chevron;
+                style.select.chevron_opacity = Opacity::new(opacity);
+                style
+                    .sheet
+                    .as_app()
+                    .rule(eggshell_ui::owned::SelectPart::TriggerIcon, move |t, _| {
+                        t.size_px(chevron).opacity(Opacity::new(opacity))
+                    });
             }));
             d.frames(4);
             d

@@ -2220,10 +2220,10 @@ mod tooltip_candidates {
 
     /// (b) the same without the arrow.
     fn inverted_without_arrow(_: &Tokens, style: &mut Style) {
-        let mut tooltip = style.tooltip().clone();
+        let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
-        style.set_tooltip(tooltip);
+        style.tooltip = tooltip;
     }
 
     /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
@@ -2243,10 +2243,10 @@ mod tooltip_candidates {
                     .text(text)
                     .shadow(shadow)
             });
-        let mut tooltip = style.tooltip().clone();
+        let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
-        style.set_tooltip(tooltip);
+        style.tooltip = tooltip;
     }
 
     fn view(b: &mut Builder<'_, '_, ()>, _: &()) {

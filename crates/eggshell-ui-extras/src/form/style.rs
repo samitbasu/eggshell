@@ -72,25 +72,25 @@ impl FormStyle {
         let buttons = &style.toggle.sizes;
         Self {
             fill: style.tokens.popover,
-            border: style.table().rule,
+            border: style.table.rule,
             border_width: 1.0,
             radius: 12,
             padding_y: 8.0,
             row_padding_x: 16.0,
             row_padding_y: 8.0,
-            rule: style.table().rule,
-            rule_width: style.table().rule_width,
+            rule: style.table.rule,
+            rule_width: style.table.rule_width,
             title: TextSpec {
                 size: 14.0,
                 line_height: 20.0,
                 weight: Weight::Medium,
                 ..style.text.clone()
             },
-            title_color: style.label().rest.text,
+            title_color: style.label.rest.text,
             title_gap: 12.0,
             row_gap: 12.0,
             row_min_height: buttons.get(buttons.default_key()).height,
-            label_color: style.label().rest.text,
+            label_color: style.label.rest.text,
             value_color: style.slider.readout.rest.text,
             section_gap: 24.0,
         }

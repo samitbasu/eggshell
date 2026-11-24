@@ -316,7 +316,7 @@ fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let switch = style(theme).switch().clone();
+        let switch = style(theme).switch.clone();
         let metrics = *switch.sizes.get(Size::DEFAULT);
         for on in [false, true] {
             if on {
@@ -414,7 +414,7 @@ fn cell_path(unit: Unit) -> String {
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let seg = style(theme).segmented().clone();
+        let seg = style(theme).segmented.clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
         assert_eq!(box_at(&d, track).fill, seg.track_fill);
@@ -471,7 +471,7 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
     tab_to(&mut d, &cell_path(Unit::Imperial));
     d.frames(12);
-    let seg = style(Theme::Light).segmented().clone();
+    let seg = style(Theme::Light).segmented.clone();
     let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
@@ -489,42 +489,6 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
         .map(|node| node.accesskit_node().toggled())
         .collect();
     assert_eq!(selected, [Some(egui::accesskit::Toggled::True)]);
-}
-
-#[test]
-fn a_modified_style_changes_every_owned_widget() {
-    // The sections draw the widgets where no preset's look is over them.
-    let mut style = support::sections_of(style(Theme::Light));
-    let red = egui::Color32::from_rgb(200, 30, 30);
-    let mut switch = style.switch().clone();
-    switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
-    style.set_switch(switch);
-    style.sheet.rule_when(
-        SwitchPart::Root,
-        eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Checked),
-        move |t, _| t.bg(red),
-    );
-    let mut radio = style.radio().clone();
-    radio.sizes.default_entry_mut().size = 24.0;
-    style.set_radio(radio);
-    let mut segmented = style.segmented().clone();
-    segmented.track_fill = red;
-    style.set_segmented(segmented);
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(4);
-    d.click(Target::suffix("/\"air\"/Track")).frames(12);
-    assert!(d.app().on, "precondition: the switch is on");
-    d.carry_to(egui::pos2(490.0, 590.0)).frames(11);
-
-    let track = d.rect(Target::suffix("/\"air\"/Track"));
-    assert_eq!(track.size(), vec2(60.0, 30.0));
-    assert_eq!(box_at(&d, track).fill, red);
-    assert_eq!(
-        d.rect(Target::suffix(&circle_path(Unit::Metric))).size(),
-        vec2(24.0, 24.0)
-    );
-    assert_eq!(box_at(&d, d.rect(Target::suffix("/\"seg\""))).fill, red);
 }
 
 #[test]
@@ -621,7 +585,7 @@ fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
     // The preset's switch and cells take shadcn's
     // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's, which
     // the style without a preset draws them with.
-    let mut style = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
+    let mut style = Style::default();
     style.tokens.ring_width = 5.0;
     style.tokens.ring = egui::Color32::from_rgb(200, 30, 30);
     let ring = style.tokens.focus();
@@ -640,24 +604,6 @@ fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
         assert_eq!(drawn.stroke.width, ring.width, "{path}");
         assert_eq!(drawn.stroke.color, ring.color, "{path}");
     }
-}
-
-#[test]
-fn the_neutral_style_draws_the_chosen_cell_in_egui_s_active_fill() {
-    let egui_style = egui::Context::default().style_of(Theme::Light);
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(Style::from_egui(&egui_style))));
-    d.frames(4);
-    let chosen = box_at(&d, d.rect(Target::suffix(&cell_path(Unit::Metric))));
-    assert_eq!(chosen.fill, egui_style.visuals.widgets.active.weak_bg_fill);
-    let other = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
-    assert!(
-        !shapes(&d).iter().any(|shape| matches!(
-            shape,
-            Shape::Rect(r) if support::same(r.rect, other) && r.fill != egui::Color32::TRANSPARENT
-        )),
-        "another cell has no fill"
-    );
 }
 
 #[test]

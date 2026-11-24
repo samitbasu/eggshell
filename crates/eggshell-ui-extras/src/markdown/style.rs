@@ -269,7 +269,7 @@ impl MarkdownStyle {
     /// TODO(prose)
     pub fn from_style(style: &Style) -> Self {
         let border = crate::styles::input_border(style);
-        let muted = style.input().hint.unwrap_or(style.label().disabled.text);
+        let muted = style.input.hint.unwrap_or(style.label.disabled.text);
         let body = &style.text;
         let mono = |scale: f32| TextSpec {
             size: body.size * scale,
@@ -323,7 +323,7 @@ impl MarkdownStyle {
                 border,
                 border_width: 2.0,
                 padding: 6.0,
-                text: style.label().rest.text,
+                text: style.label.rest.text,
                 font_style: eggshell_ui::FontStyle::Italic,
             },
             code: CodeBlockStyle {

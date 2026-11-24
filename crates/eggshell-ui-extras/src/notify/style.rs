@@ -104,7 +104,7 @@ impl NotifyStyle {
             radius: popup.radius,
             shadow: Some(popup.shadow),
             role: style
-                .menu()
+                .menu
                 .text
                 .clone()
                 .unwrap_or_else(|| style.text.clone()),

@@ -1,20 +1,20 @@
-use std::time::Duration;
-
-use eggshell_ui::contract::{
-    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, GroupEnd, InputMetrics, Keyed,
-    KindMotion, Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size,
-    SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
-};
-use eggshell_ui::overlay::Distance;
+use eggshell_ui::contract;
 use eggshell_ui::owned::{FieldPart, InputGroupPart, InputPart, TablePart};
 use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Weight};
-use egui::{Color32, Context, Id, Shadow, Theme, vec2};
+use eggshell_ui::{Aria, Match};
+use egui::{Context, Id, Theme};
+#[cfg(feature = "extras")]
+use {
+    eggshell_ui::contract::{Colors, Focus, Keyed, Look as BoxLook, States},
+    eggshell_ui::{Opacity, TextSpec, Weight},
+    egui::{Color32, Shadow},
+    std::time::Duration,
+};
 
+use crate::ShadcnStyle;
 #[cfg(feature = "extras")]
 use crate::variant;
 use crate::{ContrastPair, FontSet, Palette, Tokens, size};
-use crate::{HoverSurface, ShadcnStyle};
 
 /// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
 /// field a unit shorter than the preset's controls and a `xs` one three, each
@@ -174,12 +174,11 @@ impl Shadcn {
     /// let _layout = LayoutState::new().with_style(style);
     /// ```
     pub fn layout_style(&self) -> contract::Style {
-        let mut core = self.style();
-        if let Some(font) = &self.tokens.font {
-            core.set_extension(contract::Fonts(font.inserts()));
-        }
+        #[cfg(not(feature = "extras"))]
+        return self.style();
         #[cfg(feature = "extras")]
         {
+            let mut core = self.style();
             // keep sorted
             let badge = self.badge(&core);
             let command = self.command(&core);
@@ -197,581 +196,51 @@ impl Shadcn {
             core.set_extension(self.markdown());
             core.set_extension(notify);
             core.set_extension(skeleton);
-        }
-        core
-    }
-
-    /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.
-    fn input_fill(&self) -> Color32 {
-        match self.theme() {
-            Theme::Light => self.tokens.background,
-            Theme::Dark => self.tokens.input_30(),
-        }
-    }
-
-    /// `rest` with the focused border, `focus-visible:border-ring`.
-    fn focused(&self, rest: Colors) -> Colors {
-        Colors {
-            border: self.tokens.ring,
-            ..rest
-        }
-    }
-
-    /// A box's colours at rest and under the pointer, with the focused
-    /// border, over the page.
-    fn states(&self, rest: Colors, hover: Colors) -> States {
-        States {
-            focused: self.focused(rest),
-            ..States::new(rest, hover, self.tokens.background)
+            core
         }
     }
 
     /// This preset as the [`eggshell_ui::Style`] contract.
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
-        let dark = self.theme() == Theme::Dark;
-        let clear = Color32::TRANSPARENT;
-        let focused = |rest: Colors| self.focused(rest);
-        let flat = |fill, text| Colors {
-            fill,
-            border: clear,
-            text,
-        };
-        let states = |rest: Colors, hover: Colors| self.states(rest, hover);
-        let filled = |rest: Colors, hover: Colors| BoxLook::new(states(rest, hover));
-        let raised = |paint: Paint, shadow: Shadow| Paint {
-            shadow: t.elevation.shadow(shadow),
-            ..paint
-        };
-        let shadowed = |look: BoxLook, shadow: Shadow| BoxLook {
-            paint: raised(look.paint, shadow),
-            ..look
-        };
-
-        let (hover_fill, hover_text, hover_fill_dark) = match t.hover_surface {
-            HoverSurface::Accent => (t.accent, t.accent_foreground, t.accent_50()),
-            HoverSurface::Muted => (t.muted, t.foreground, t.muted_50()),
-        };
-        let ghost_button = filled(
-            flat(clear, t.foreground),
-            flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
-        );
-        let control = Metrics {
-            height: t.control_height(),
-            min_width: 0.0,
-            padding_x: t.points(t.button_padding.x),
-            gap: t.points(t.control_gap),
-            radius: t.radius_md(),
-            glyph: t.points(t.icon_size),
-            text: None,
-        };
-        let xs_text = Some(t.text.xs);
-        let u = |units: f32| t.points(units);
-        let small = |m: Metrics| Metrics {
-            height: m.height - u(1.0),
-            min_width: if m.min_width == 0.0 {
-                0.0
-            } else {
-                m.height - u(1.0)
-            },
-            padding_x: (m.padding_x - u(1.0)).max(0.0),
-            gap: m.gap.min(u(1.5)),
-            ..m
-        };
-        let tiny = |m: Metrics| Metrics {
-            height: m.height - u(3.0),
-            min_width: if m.min_width == 0.0 {
-                0.0
-            } else {
-                m.height - u(3.0)
-            },
-            padding_x: (m.padding_x - u(2.0)).max(0.0),
-            gap: m.gap.min(u(1.0)),
-            glyph: u(3.0),
-            text: xs_text,
-            ..m
-        };
-        let toggle_metrics = Metrics {
-            min_width: t.control_height(),
-            padding_x: t.points(t.toggle_padding_x),
-            ..control
-        };
-        let square = |metrics: Metrics| Metrics {
-            min_width: t.control_height(),
-            padding_x: 0.0,
-            ..metrics
-        };
-        let sized = |metrics: Metrics| {
-            Keyed::new(Size::DEFAULT, metrics)
-                .with(size::ICON, square(metrics))
-                .with(size::SM, small(metrics))
-                .with(size::XS, tiny(metrics))
-                .with(size::ICON_SM, square(small(metrics)))
-                .with(size::ICON_XS, square(tiny(metrics)))
-        };
-        let accented = flat(t.accent, t.accent_foreground);
-        let transition = Duration::from_millis(150);
-
-        let thumb = t.points(t.switch_thumb);
-        let input_rest = Colors {
-            fill: self.input_fill(),
-            border: t.input,
-            text: t.foreground,
-        };
-        let input_box = shadowed(
-            BoxLook::new(States {
-                focused: focused(input_rest),
-                ..States::new(
-                    input_rest,
-                    Colors {
-                        fill: if dark { t.input_50() } else { t.background },
-                        ..input_rest
-                    },
-                    t.background,
-                )
-            })
-            .bordered(1.0),
-            t.shadow_xs,
-        );
-        let thumb_colors = Colors {
-            fill: Color32::WHITE,
-            border: t.primary,
-            text: t.foreground,
-        };
-        let mut style = contract::Style::default();
-        style.text = t.text_role();
-        style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
-        style.set_label(States::still(flat(clear, t.foreground), t.background));
-        style.toggle = {
-            let mut toggle = style.toggle;
-            toggle.text = Some(t.text_role_at(t.control_weight));
-            toggle.sizes = sized(toggle_metrics);
-            toggle.border_width = 0.0;
-            toggle.off = Keyed::new(
-                Variant::DEFAULT,
-                Paint::new(states(
-                    flat(clear, t.foreground),
-                    flat(t.muted, t.muted_foreground),
-                )),
-            );
-            toggle.on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
-            toggle.press_shift = 1.0;
-            toggle.transition = transition;
-            toggle
-        };
-        let checkbox = {
-            let mut checkbox = style.checkbox().clone();
-            checkbox.text = Some(t.text_role_at(t.label_weight));
-            let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
-                size,
-                radius: t.checkbox_radius,
-                glyph,
-                gap,
-                text,
-            };
-            checkbox.sizes = Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
-                .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
-                .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text));
-            checkbox
-        };
-        style.set_checkbox(checkbox);
-        let radio = {
-            let mut radio = style.radio().clone();
-            radio.text = Some(t.text_role_at(t.label_weight));
-            let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
-                size,
-                dot,
-                gap,
-                text,
-            };
-            radio.sizes = Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
-                .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
-                .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text));
-            radio
-        };
-        style.set_radio(radio);
-        let switch = {
-            let mut switch = style.switch().clone();
-            switch.text = Some(t.text_role_at(t.label_weight));
-            let switch_at = |scale: f32, text| SwitchMetrics {
-                track: t.switch_track * scale,
-                thumb_off: thumb * scale,
-                thumb_on: thumb * scale,
-                text,
-            };
-            switch.sizes = Keyed::new(Size::DEFAULT, switch_at(1.0, None))
-                .with(size::SM, switch_at(0.75, None))
-                .with(size::XS, switch_at(0.625, xs_text));
-            switch.gap = 8.0;
-            switch
-        };
-        style.set_switch(switch);
-        let segmented = {
-            const CELL_TRIM: f32 = 1.0;
-            let mut segmented = style.segmented().clone();
-            // The one exception to tabs.tsx, whose list is `bg-muted`: on a
-            // `muted` panel that fill is the panel's own colour and the track
-            // disappears, so the list keeps `input` (the user's pick, #346).
-            // Revisit once a cascade can give a track on a muted surface its
-            // own fill (#443).
-            segmented.track_fill = t.input;
-            let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
-                track_radius: t.radius_lg(),
-                track_padding: t.list_padding,
-                height,
-                cell_radius: t.radius_md(),
-                // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
-                // the list's inside, which overflows its `text-sm` by 1 px;
-                // the trimmed point comes out of the padding instead.
-                cell_padding: vec2(padding_x, t.points(t.cell_padding.y) - CELL_TRIM / 2.0),
-                column_gap: 0.0,
-                row_gap: 2.0,
-                icon_size: icon,
-                icon_gap: u(1.5),
-                text,
-                // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
-                cell_trim: CELL_TRIM,
-            };
-            segmented.sizes = Keyed::new(
-                Size::DEFAULT,
-                track_at(
-                    t.control_height(),
-                    t.points(t.cell_padding.x),
-                    t.points(t.icon_size),
-                    None,
-                ),
-            )
-            .with(
-                size::SM,
-                track_at(
-                    t.control_height() - u(1.0),
-                    t.points(t.cell_padding.x),
-                    t.points(t.icon_size),
-                    None,
-                ),
-            )
-            .with(
-                size::XS,
-                track_at(
-                    t.control_height() - u(3.0),
-                    (t.points(t.cell_padding.x) - u(1.0)).max(0.0),
-                    u(3.0),
-                    xs_text,
-                ),
-            );
-            segmented
-        };
-        style.set_segmented(segmented);
-        style.slider = {
-            let mut slider = style.slider;
-            let slider_at = |track_height: f32,
-                             thumb_size: f32,
-                             text: Option<TextSize>,
-                             header_gap: f32| SliderMetrics {
-                track_height,
-                thumb_size,
-                radius: t.slider_radius,
-                text,
-                header_gap,
-            };
-            slider.sizes = Keyed::new(
-                Size::DEFAULT,
-                slider_at(
-                    t.points(t.slider_track),
-                    t.points(t.slider_thumb),
-                    None,
-                    8.0,
-                ),
-            )
-            .with(
-                size::SM,
-                slider_at(
-                    t.points(t.slider_track).min(u(1.0)),
-                    t.points(t.slider_thumb) - u(0.5),
-                    None,
-                    u(1.5),
-                ),
-            )
-            .with(
-                size::XS,
-                slider_at(
-                    t.points(t.slider_track).min(u(0.75)),
-                    t.points(t.slider_thumb) - u(1.0),
-                    xs_text,
-                    u(1.0),
-                ),
-            );
-            slider.label = States::still(flat(clear, t.foreground), t.background);
-            slider.readout = States::still(flat(clear, t.muted_foreground), t.background);
-            slider.track = States::still(flat(t.input, t.foreground), t.background);
-            slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
-            slider.thumb = shadowed(
-                BoxLook::new(States::still(thumb_colors, t.background)).bordered(1.0),
-                t.shadow_sm,
-            );
-            slider.thumb.paint = slider.thumb.paint.haloed(Focus {
-                width: t.slider_halo,
-                color: t.ring.gamma_multiply(0.5),
-            });
-            slider.transition = transition;
-            slider
-        };
-        style.progress = {
-            let mut progress = style.progress;
-            progress.height = 6.0;
-            progress.radius = u8::MAX;
-            progress.track = flat(t.input, t.foreground);
-            progress.range = flat(t.primary, t.primary_foreground);
-            progress
-        };
-        style.set_select({
-            let mut select = style.select().clone();
-            select.sizes = Keyed::new(Size::DEFAULT, control)
-                .with(size::SM, small(control))
-                .with(size::XS, tiny(control));
-            select.chevron = 16.0;
-            select.chevron_opacity = Opacity::new(0.5);
-            select
+        let mut style = contract::Style::new(t);
+        style.write_look(|sheet| {
+            if t.theme == Theme::Dark {
+                // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
+                // dark:has-data-checked:border-primary/20`.
+                sheet.rule(FieldPart::Label, |t, k| {
+                    t.has(Match::aria(Aria::Checked), |b| {
+                        b.bg(k.primary.gamma_multiply(0.1))
+                            .border_color(k.primary.gamma_multiply(0.2))
+                    })
+                });
+            }
+            // A table's group rows are eggshell's own: shadcn's footer band.
+            sheet
+                .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
+                .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
+            crate::sheets::write(sheet, t.style, t.theme);
+            write_field_sizes(sheet, t);
         });
-        // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
-        // check and chevron, and a `text-xs` shortcut. The look is the
-        // generated sheet's.
-        style.set_menu({
-            let mut menu = style.menu().clone();
-            menu.padding = t.points(t.popup_padding);
-            menu.offset = Distance::new(4.0);
-            menu.item_padding = t.points_vec(t.item_padding);
-            menu.item_gap = t.points(t.item_padding.x);
-            menu.shortcut_text = TextSpec {
-                size: 12.0,
-                line_height: 16.0,
-                family: egui::FontFamily::Proportional,
-                weight: Weight::Normal,
-            };
-            menu.indicator = 16.0;
-            menu
-        });
-        // shadcn's TooltipContent: a 10 pt arrow, flush with the trigger.
-        style.set_tooltip({
-            let mut tooltip = style.tooltip().clone();
-            tooltip.arrow = Some(Arrow { size: 10.0 });
-            tooltip.offset = Distance::new(0.0);
-            // Radix's default delay, deliberately not shadcn's 0 ms, which
-            // assumes tooltips are rare (desktop apps use them densely); the
-            // grace is Radix's `skipDelayDuration`.
-            tooltip.delay = Duration::from_millis(700);
-            tooltip.grace = Duration::from_millis(300);
-            tooltip
-        });
-        // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
-        // px-1 text-xs font-medium`, and inside a tooltip
-        // `bg-background/20 text-background` (`/10` in the dark theme).
-        // A captioned mount: `text-muted-foreground` above `border rounded-md
-        // p-4`, as the docs page's examples were rendered for the pick.
-        style.mount = {
-            let mut mount = style.mount;
-            mount.caption = t.muted_foreground;
-            mount.caption_text = None;
-            mount.gap = 6.0;
-            mount.border = t.border;
-            mount.border_width = 1.0;
-            mount.radius = t.radius_md();
-            mount.padding = 16.0;
-            mount.bare_padding = 8.0;
-            mount.selected_ring = t.primary;
-            mount
-        };
-        style.kbd = {
-            let mut kbd = style.kbd;
-            kbd.page = flat(t.muted, t.muted_foreground);
-            kbd.tooltip = flat(
-                if dark {
-                    t.background_10()
-                } else {
-                    t.background_20()
-                },
-                t.background,
-            );
-            kbd.border_width = 0.0;
-            kbd.radius = t.radius_sm();
-            kbd.padding_x = 4.0;
-            kbd.height = 20.0;
-            kbd.text = Some(TextSpec {
-                size: 12.0,
-                line_height: 16.0,
-                family: egui::FontFamily::Proportional,
-                weight: t.control_weight,
-            });
-            kbd
-        };
-        // shadcn's typography: a link is `font-medium text-primary underline`,
-        // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
-        style.rich = {
-            let mut rich = style.rich;
-            rich.link = t.primary;
-            rich.link_weight = Weight::Medium;
-            rich.code.fill = t.muted;
-            rich.code.radius = t.radius_sm();
-            rich.code.padding_x = 4.8;
-            rich.code.padding_y = 3.2;
-            rich.code.size = Em::new(0.875);
-            rich
-        };
-        style.stepper = {
-            let mut stepper = style.stepper;
-            stepper.group = input_box;
-            let group_at =
-                |height: f32, (padding_x, button_width, glyph): (f32, f32, f32), text| {
-                    StepperMetrics {
-                        height,
-                        padding_x,
-                        radius: t.radius_md(),
-                        button_width,
-                        glyph,
-                        text,
-                    }
-                };
-            let own = u(t.own_input_padding_x);
-            stepper.sizes = Keyed::new(
-                Size::DEFAULT,
-                group_at(
-                    t.control_height(),
-                    (t.points(t.input_padding.x), u(6.0), u(3.0)),
-                    None,
-                ),
-            )
-            .with(
-                size::SM,
-                group_at(t.control_height() - u(1.0), (own, u(5.0), u(3.0)), None),
-            )
-            .with(
-                size::XS,
-                group_at(t.control_height() - u(3.0), (own, u(4.0), u(2.5)), xs_text),
-            );
-            stepper.button = ghost_button;
-            stepper.divider = t.input;
-            stepper.transition = transition;
-            stepper
-        };
-        let input = {
-            let mut input = style.input().clone();
-            let field_at = |text, (icon_size, icon_gap): (f32, f32)| InputMetrics {
-                text,
-                icon_size,
-                icon_gap,
-            };
-            input.sizes = Keyed::new(Size::DEFAULT, field_at(None, (u(4.0), u(2.0))))
-                .with(size::SM, field_at(None, (u(3.5), u(1.5))))
-                .with(size::XS, field_at(xs_text, (u(3.0), u(1.5))));
-            // input.tsx: `placeholder:text-muted-foreground`.
-            input.hint = Some(t.muted_foreground);
-            input.icon = t.muted_foreground;
-            input
-        };
-        style.set_input(input);
-        style.selection = {
-            let mut selection = style.selection;
-            selection.fill = t.primary.gamma_multiply(0.3);
-            selection.text = Some(t.foreground);
-            selection
-        };
-        // shadcn's ScrollArea: `w-2.5` bar, `bg-border` `rounded-full` thumb.
-        style.scroll.width = 10.0;
-        style.scroll.thumb = t.border;
-        style.scroll.thumb_hover = t.border;
-        style.scroll.thumb_active = t.border;
-        style.scroll.track = clear;
-        style.scroll.radius = egui::CornerRadius::same(u8::MAX);
-        // Radix's ScrollArea keeps its thumb at least 18 px long.
-        style.scroll.min_thumb_length = 18.0;
-        // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area,
-        // which a faint band fills while hot.
-        style.splitter.thickness = 6.0;
-        style.splitter.line_width = 1.0;
-        style.splitter.rest = SplitterColors {
-            band: clear,
-            line: t.border,
-            grip: clear,
-        };
-        style.splitter.hot = SplitterColors {
-            band: t.primary.gamma_multiply(0.15),
-            line: t.primary,
-            grip: clear,
-        };
-        style.splitter.grip = None;
-        style.splitter.transition = Duration::from_millis(150);
-        // shadcn's Table: `border-b` rows, none under the last; the stripes
-        // and groups are eggshell's own.
-        let mut table = style.table().clone();
-        table.rule = t.border;
-        table.rule_width = 1.0;
-        table.stripe = t.muted.gamma_multiply(0.3);
-        table.group_text_size = Some(TextSize {
-            size: 12.0,
-            line_height: 16.0,
-        });
-        table.group_weight = Weight::Medium;
-        table.group_end = GroupEnd::Gap(12.0);
-        style.set_table(table);
-        // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
-        // scrim alone separates a dialog from the page, so it is darker.
-        style.scrim = Color32::from_black_alpha(204);
-        style.tones = t.tones();
-        // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
-        // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
-        // `zoom-in-95 duration-200`. SheetContent:
-        // `slide-in-from-*`, `ease-in-out`, 500 ms open and 300 ms close.
-        let animate = KindMotion {
-            entry: Entry::Pop,
-            enter: Duration::from_millis(150),
-            exit: Duration::from_millis(150),
-            easing: Easing::Default,
-        };
-        style.motion.popover = animate;
-        style.motion.menu = animate;
-        style.motion.tooltip = KindMotion {
-            entry: Entry::Zoom,
-            ..animate
-        };
-        style.motion.dialog = KindMotion {
-            entry: Entry::Zoom,
-            enter: Duration::from_millis(200),
-            exit: Duration::from_millis(200),
-            easing: Easing::Default,
-        };
-        style.motion.sheet = KindMotion {
-            entry: Entry::Slide,
-            enter: Duration::from_millis(500),
-            exit: Duration::from_millis(300),
-            easing: Easing::InOut,
-        };
-        style.tokens = self.tokens.clone();
-        style.sheet.as_preset();
-        style.rewrite_rules();
-        if dark {
-            // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
-            // dark:has-data-checked:border-primary/20`.
-            style.sheet.rule(FieldPart::Label, |t, k| {
-                t.has(Match::aria(Aria::Checked), |b| {
-                    b.bg(k.primary.gamma_multiply(0.1))
-                        .border_color(k.primary.gamma_multiply(0.2))
-                })
-            });
-        }
-        // A table's group rows are eggshell's own: shadcn's footer band.
-        style
-            .sheet
-            .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
-            .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
-        crate::sheets::write(&mut style.sheet, t.style, self.theme());
-        write_field_sizes(&mut style.sheet, t);
-        style.write_exceptions();
         #[cfg(feature = "extras")]
         {
             let disclosure = style.extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();
             eggshell_ui_extras::disclosure::write_exceptions(&mut style.sheet, &disclosure);
         }
         style
+    }
+
+    /// A box's colours at rest and under the pointer, with the focused
+    /// border, `focus-visible:border-ring`, over the page.
+    #[cfg(feature = "extras")]
+    fn states(&self, rest: Colors, hover: Colors) -> States {
+        States {
+            focused: Colors {
+                border: self.tokens.ring,
+                ..rest
+            },
+            ..States::new(rest, hover, self.tokens.background)
+        }
     }
 
     /// This preset drawing its text in `font`, or with `None` in egui's

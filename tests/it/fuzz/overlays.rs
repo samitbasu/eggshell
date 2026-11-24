@@ -1011,7 +1011,7 @@ fn tab_while_a_menu_is_hidden_keeps_focus_out_of_the_page_it_comes_back_over() {
     let mut desk = Desk::new();
     for action in [
         Action::OpenContextMenu(0, 0),
-        Action::ResizeWindow(240, 220),
+        Action::ResizeWindow(240, 200),
     ] {
         desk.act(&action).expect("holds");
     }
@@ -1022,7 +1022,7 @@ fn tab_while_a_menu_is_hidden_keeps_focus_out_of_the_page_it_comes_back_over() {
     );
     run(&[
         Action::OpenContextMenu(0, 0),
-        Action::ResizeWindow(240, 220),
+        Action::ResizeWindow(240, 200),
         Action::Tab,
         Action::ResizeWindow(240, 262),
     ])
@@ -1047,7 +1047,7 @@ fn focusing_the_page_while_a_menu_is_hidden_dismisses_it() {
     let mut desk = Desk::new();
     for action in [
         Action::OpenContextMenu(0, 0),
-        Action::ResizeWindow(240, 220),
+        Action::ResizeWindow(240, 200),
     ] {
         desk.act(&action).expect("holds");
     }

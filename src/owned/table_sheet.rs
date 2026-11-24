@@ -91,6 +91,17 @@ impl TablePart {
         When::always().attr(COLUMN.0, COLUMN.1)
     }
 
+    /// TODO(prose): a table's last body row, which the table leaves unruled.
+    pub fn last_row() -> When {
+        When::always().attr(POSITION.0, POSITION.1)
+    }
+
+    /// TODO(prose): every second body row of a table with
+    /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), the ones a stripe fills.
+    pub fn striped_row() -> When {
+        When::always().attr(STRIPE.0, STRIPE.1)
+    }
+
     pub(crate) fn cell_keys(first: bool) -> Vec<Key> {
         match first {
             true => vec![Key::Attr(COLUMN.0, COLUMN.1)],

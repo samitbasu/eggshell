@@ -80,7 +80,7 @@ fn added(faces: Vec<String>) -> Vec<String> {
 fn a_layout_s_style_gives_egui_the_preset_s_fonts() {
     let preset = added(applied(ShadcnStyle::Vega).2);
     let layout = added(themed(ShadcnStyle::Vega).2);
-    let plain = added(egui_after(|_| {}, Some(LayoutState::new())).2);
+    let plain = added(egui_after(|_| {}, None).2);
     assert_ne!(preset, plain, "precondition: the preset adds fonts");
     assert_eq!(layout, preset);
 }
