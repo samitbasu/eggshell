@@ -255,17 +255,12 @@ pub fn warn_low_contrast(ctx: &Context, theme: Theme, tokens: &Tokens) {
             continue;
         }
         let subject = egui::Id::NULL.with(("eggshell-ui-shadcn-contrast", theme, pair));
-        crate::report(
-            ctx,
-            crate::Problem::LowContrast,
-            Some(subject),
-            || {
-                format!(
-                    "{} is {ratio} in {theme:?} (AA text needs {})",
-                    pair.name(),
-                    ContrastRatio::AA_TEXT
-                )
-            },
-        );
+        crate::report(ctx, crate::Problem::LowContrast, Some(subject), || {
+            format!(
+                "{} is {ratio} in {theme:?} (AA text needs {})",
+                pair.name(),
+                ContrastRatio::AA_TEXT
+            )
+        });
     }
 }

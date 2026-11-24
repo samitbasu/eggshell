@@ -10,8 +10,9 @@
 
 use core::time::Duration;
 
-use crate::contract::{CheckboxStyle, Paint, RadioStyle, Size, States, SwitchStyle, Tokens};
+use crate::contract::{CheckboxStyle, Paint, RadioStyle, Size, States, SwitchStyle};
 use crate::sheet::{Key, Part, Sheet, When};
+use crate::theme::Tokens;
 use crate::{Aria, Match, Tw, Weight};
 use egui::Color32;
 
@@ -269,7 +270,7 @@ impl Painted {
         };
         paint.classes_in(
             self.border_width,
-            (k.focus, k.disabled),
+            (k.focus(), k.disabled),
             radius,
             enablement,
             self.transition,
@@ -331,7 +332,8 @@ fn write_card_rules(sheet: &mut Sheet) {
                     .border_color(k.primary.gamma_multiply(0.3))
             })
             .has(Match::focus_visible(), |b| {
-                b.border_color(k.ring).ring(k.focus.width, k.focus.color)
+                b.border_color(k.ring)
+                    .ring(k.focus().width, k.focus().color)
             })
             .children(field, |t| t.p(3.0));
         for control in CONTROLS {
@@ -359,15 +361,17 @@ fn write_card_rules(sheet: &mut Sheet) {
         t.flex().flex_1().flex_col().gap(1.0).whitespace_normal()
     });
     sheet.rule(FieldPart::Title, |t, k| {
+        let size = k.control_text_size().size;
         t.flex()
             .w_fit()
             .items_center()
             .gap(2.0)
-            .text_size(k.text_size, k.text_size * 1.375)
+            .text_size(size, size * 1.375)
             .font_weight(Weight::Medium)
     });
     sheet.rule(FieldPart::Description, |t, k| {
-        t.text_size(k.text_size, k.text_size * 1.5)
+        let size = k.control_text_size().size;
+        t.text_size(size, size * 1.5)
             .font_weight(Weight::Normal)
             .text(k.muted_foreground)
     });

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Focus, Size, Themed};
+use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
@@ -169,13 +169,11 @@ fn a_focused_addon_button_rings_itself_not_its_group() {
 
 #[test]
 fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
-    let ring = Focus {
-        width: 5.0,
-        color: Color32::from_rgb(200, 30, 30),
-    };
     // The widgets' own look, whose input has no ring of its own.
     let mut style = eggshell_ui::Style::from_egui(&egui::Context::default().style_of(Theme::Light));
-    style.tokens.focus = ring;
+    style.tokens.ring_width = 5.0;
+    style.tokens.ring = Color32::from_rgb(200, 30, 30);
+    let ring = style.tokens.focus();
     let mut d = support::driver(
         vec2(340.0, 360.0),
         TextStyle::new(style.text.clone(), style.tokens.foreground),

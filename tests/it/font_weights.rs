@@ -97,9 +97,7 @@ fn without_a_font_every_weight_draws_the_regular_family() {
 
 #[test]
 fn a_set_without_semibold_draws_semibold_in_its_medium_face() {
-    let font = egui::FontData::from_static(include_bytes!(
-        "../../src/fonts/Geist-Variable.ttf"
-    ));
+    let font = egui::FontData::from_static(include_bytes!("../../src/fonts/Geist-Variable.ttf"));
     let partial = FontSet::faces(
         "partial",
         [Weight::Normal, Weight::Medium, Weight::Bold].map(|weight| (weight, font.clone())),

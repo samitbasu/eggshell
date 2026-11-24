@@ -145,8 +145,13 @@ pub(crate) fn tabs_defaults(sheet: &mut Sheet, defaults: TabsDefaults) {
                 Enablement::Disabled => when.aria(Aria::Disabled),
             };
             sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
-                let look =
-                    paint.classes_in(width, (k.focus, k.disabled), radius, enablement, transition);
+                let look = paint.classes_in(
+                    width,
+                    (k.focus(), k.disabled),
+                    radius,
+                    enablement,
+                    transition,
+                );
                 t.merge(look)
             });
         }

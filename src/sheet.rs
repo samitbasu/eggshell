@@ -7,7 +7,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::contract::{Size, Tokens, Variant};
+use crate::contract::{Size, Variant};
+use crate::theme::Tokens;
 use crate::{Aria, Tw};
 
 /// TODO(prose): the anatomy of a widget: the nodes a [`Sheet`] styles.
@@ -206,7 +207,8 @@ fn next_version() -> u64 {
 /// TODO(prose): the rules of a style: for each part of each widget, the classes it gets when its keys hold.
 ///
 /// ```
-/// use eggshell_ui::contract::{Tokens, Variant};
+/// use eggshell_ui::contract::Variant;
+/// use eggshell_ui::theme::Tokens;
 /// use eggshell_ui::sheet::{Key, Part, Sheet, When};
 /// use eggshell_ui::tw;
 ///
@@ -221,7 +223,7 @@ fn next_version() -> u64 {
 ///     }
 /// }
 ///
-/// let tokens = Tokens::from_egui(&egui::Style::default());
+/// let tokens = Tokens::light();
 /// let mut sheet = Sheet::defaults();
 /// sheet
 ///     .rule(Chip, |t, _| t.px(2.0).rounded_md())
@@ -319,7 +321,7 @@ impl Sheet {
     /// TODO(prose): [`rule`](Self::rule), but the part's classes start empty under it: every rule below that holds with it is dropped.
     ///
     /// ```
-    /// use eggshell_ui::contract::Tokens;
+    /// use eggshell_ui::theme::Tokens;
     /// use eggshell_ui::sheet::{Part, Sheet, When};
     /// use eggshell_ui::tw;
     ///
@@ -334,7 +336,7 @@ impl Sheet {
     ///     }
     /// }
     ///
-    /// let tokens = Tokens::from_egui(&egui::Style::default());
+    /// let tokens = Tokens::light();
     /// let mut sheet = Sheet::defaults();
     /// sheet.rule(Chip, |t, _| t.px(2.0).gap(1.0));
     /// sheet.as_app().replace(Chip, |t, _| t.px(4.0));
@@ -505,11 +507,11 @@ impl Memo {
         }
         let at = part_key(part);
         let kept = self.sheets.entry(sheet.version).or_insert_with(|| Kept {
-            tokens: *tokens,
+            tokens: tokens.clone(),
             parts: HashMap::new(),
         });
         if kept.tokens != *tokens {
-            kept.tokens = *tokens;
+            kept.tokens = tokens.clone();
             kept.parts.clear();
         }
         let known = kept.parts.entry(at).or_default();
@@ -549,7 +551,7 @@ mod tests {
     }
 
     fn tokens() -> Tokens {
-        Tokens::from_egui(&egui::Style::default())
+        Tokens::light()
     }
 
     const WIDE: Variant = Variant("wide");

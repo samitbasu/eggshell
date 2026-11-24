@@ -1,4 +1,4 @@
-use crate::contract::{Radius, Spacing, TextScale, TextSize, TextStep, corner};
+use crate::contract::{Disabled, Focus, Radius, Spacing, TextScale, TextSize, TextStep, corner};
 use crate::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
@@ -163,6 +163,8 @@ pub struct Tokens {
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button
     /// or switch, and over a group of menu items.
     pub label_weight: Weight,
+    /// TODO(prose): how disabled controls are drawn. Not a shadcn variable.
+    pub disabled: Disabled,
 }
 
 impl Tokens {
@@ -299,6 +301,7 @@ impl Tokens {
             control_weight: Weight::Normal,
             label_weight: Weight::Normal,
             accepted_contrast: Vec::new(),
+            disabled: Disabled::Colors,
         };
         ShadcnStyle::Vega.shape(&mut tokens);
         tokens
@@ -324,6 +327,15 @@ impl Tokens {
     /// TODO(prose): [`points`](Self::points) of both of `units`.
     pub fn points_vec(&self, units: Vec2) -> Vec2 {
         Vec2::new(self.points(units.x), self.points(units.y))
+    }
+
+    /// TODO(prose): the keyboard focus ring every control draws unless its
+    /// look names its own: `ring-[3px] ring-ring/50` at the style's ring width.
+    pub fn focus(&self) -> Focus {
+        Focus {
+            width: self.ring_width,
+            color: self.ring.gamma_multiply(0.5),
+        }
     }
 
     /// `rounded-md`: the radius of buttons, inputs and selects.

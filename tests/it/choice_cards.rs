@@ -166,7 +166,7 @@ fn a_focused_control_rings_its_card_not_itself() {
     let card = d.rect(Target::suffix(BACKUPS));
     let control = d.rect(Target::suffix("/\"backups\"/Label/Box"));
     let ring = ring_at(&d, card).expect("the card rings");
-    let focus = Shadcn::for_theme(Theme::Light).style().tokens.focus;
+    let focus = Shadcn::for_theme(Theme::Light).style().tokens.focus();
     assert_eq!(ring.stroke.width, focus.width);
     assert!(ring_at(&d, control).is_none(), "the control does not");
 }

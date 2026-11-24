@@ -124,31 +124,10 @@ fn set_style_gives_egui_the_new_look_on_the_next_build() {
 }
 
 #[test]
-fn the_core_tokens_are_the_preset_s() {
+fn the_style_s_tokens_are_the_preset_s() {
     for theme in [Theme::Light, Theme::Dark] {
         let preset = Shadcn::for_theme(theme);
-        let tokens = preset.style().tokens;
-        let t = preset.tokens;
-        assert_eq!(
-            (
-                tokens.background,
-                tokens.foreground,
-                tokens.popover,
-                tokens.primary
-            ),
-            (t.background, t.foreground, t.popover, t.primary),
-            "{theme:?}"
-        );
-        assert_eq!(
-            (
-                tokens.muted_foreground,
-                tokens.border,
-                tokens.input,
-                tokens.ring
-            ),
-            (t.muted_foreground, t.border, t.input, t.ring),
-            "{theme:?}"
-        );
+        assert_eq!(preset.style().tokens, preset.tokens, "{theme:?}");
     }
     let _: Themed<std::sync::Arc<eggshell_ui::Style>> =
         Shadcn::themed(ShadcnStyle::Vega, Palette::new());
@@ -181,9 +160,9 @@ fn each_token_lands_where_egui_reads_it() {
         *colour = next();
     }
     t.radius = eggshell_ui::contract::Radius::new(9.0);
-    t.control_height = 41.0;
-    t.text_size = 17.0;
-    let t = style.tokens;
+    t.control_units = 10.25;
+    t.text.sm.size = 17.0;
+    let t = style.tokens.clone();
     let mut egui = egui::Style::default();
     style.egui_style(Theme::Light, &mut egui);
     let v = &egui.visuals;

@@ -5,7 +5,7 @@
 use core::time::Duration;
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Focus, Size, Themed};
+use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::{Cell, Enablement, Mark, SegmentedRows, SwitchPart, TabsPart};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -401,8 +401,8 @@ fn a_focused_switch_shows_the_styles_ring() {
         d.frames(12);
         let rect = d.rect(Target::suffix("/\"air\"/Track"));
         let ring = ring_at(&d, rect).expect("a focus ring");
-        assert_eq!(ring.stroke.width, style.tokens.focus.width);
-        assert_eq!(ring.stroke.color, style.tokens.focus.color);
+        assert_eq!(ring.stroke.width, style.tokens.focus().width);
+        assert_eq!(ring.stroke.color, style.tokens.focus().color);
     }
 }
 
@@ -618,19 +618,18 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
 
 #[test]
 fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
-    let ring = Focus {
-        width: 5.0,
-        color: egui::Color32::from_rgb(200, 30, 30),
-    };
     // The preset's switch and cells take shadcn's
     // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's, which
     // the style without a preset draws them with.
     let mut style = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
+    style.tokens.ring_width = 5.0;
+    style.tokens.ring = egui::Color32::from_rgb(200, 30, 30);
+    let ring = style.tokens.focus();
     assert_ne!(
-        style.tokens.focus, ring,
+        Shadcn::for_theme(Theme::Light).tokens.focus(),
+        ring,
         "precondition: the preset's ring is another"
     );
-    style.tokens.focus = ring;
     for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
         let mut d = harness(Theme::Light);
         d.set_style(Themed::both(Arc::new(style.clone())));

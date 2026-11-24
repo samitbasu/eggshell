@@ -19,6 +19,7 @@ use std::time::Duration;
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
 pub use crate::presence::{Entry, KindMotion, MotionStyle};
+use crate::theme::Tokens;
 use crate::{Faces, Opacity, Progress, TextSpec, Tracking, Weight};
 
 /// A button variant, named by the style that defines it.
@@ -1425,124 +1426,6 @@ fn extensions_id() -> egui::Id {
     crate::key::root_id().with("extensions")
 }
 
-/// TODO(prose): a design system's named values, neutral of any one: its colours and the few sizes egui's own widgets are given.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Tokens {
-    /// TODO(prose): the page.
-    pub background: Color32,
-    /// TODO(prose): text on the page.
-    pub foreground: Color32,
-    /// TODO(prose): a card's fill.
-    pub card: Color32,
-    /// TODO(prose): text on a card.
-    pub card_foreground: Color32,
-    /// TODO(prose): a popover's fill: menus, windows.
-    pub popover: Color32,
-    /// TODO(prose): text on a popover.
-    pub popover_foreground: Color32,
-    /// TODO(prose): the primary action's fill.
-    pub primary: Color32,
-    /// TODO(prose): text on the primary fill.
-    pub primary_foreground: Color32,
-    /// TODO(prose): a secondary action's fill.
-    pub secondary: Color32,
-    /// TODO(prose): text on the secondary fill.
-    pub secondary_foreground: Color32,
-    /// TODO(prose): a muted surface.
-    pub muted: Color32,
-    /// TODO(prose): muted text.
-    pub muted_foreground: Color32,
-    /// TODO(prose): a hovered or active item's fill.
-    pub accent: Color32,
-    /// TODO(prose): text on the accent fill.
-    pub accent_foreground: Color32,
-    /// TODO(prose): a destructive action's colour.
-    pub destructive: Color32,
-    /// TODO(prose): text on the destructive fill.
-    pub destructive_foreground: Color32,
-    /// TODO(prose): borders.
-    pub border: Color32,
-    /// TODO(prose): an input's border and fill tint.
-    pub input: Color32,
-    /// TODO(prose): the focus ring.
-    pub ring: Color32,
-    /// TODO(prose): the keyboard focus indicator every control draws unless its look names its own.
-    pub focus: Focus,
-    /// TODO(prose): how disabled controls are drawn.
-    pub disabled: Disabled,
-    /// TODO(prose): the points one spacing unit is.
-    pub spacing: Spacing,
-    /// TODO(prose): the corner radii.
-    pub radius: Radius,
-    /// TODO(prose): the text sizes.
-    pub text: TextScale,
-    /// TODO(prose): a control's height.
-    pub control_height: f32,
-    /// TODO(prose): a button's padding.
-    pub button_padding: Vec2,
-    /// TODO(prose): the body text size.
-    pub text_size: f32,
-    /// TODO(prose): a switch's thumb, egui's checkbox and radio size.
-    pub switch_thumb: f32,
-    /// TODO(prose): the smallest shadow: a control at rest.
-    pub shadow_xs: Shadow,
-    /// TODO(prose): a small shadow: a slider's thumb, a tab.
-    pub shadow_sm: Shadow,
-    /// TODO(prose): a medium shadow: a menu, a popover.
-    pub shadow_md: Shadow,
-    /// TODO(prose): a large shadow: a dialog.
-    pub shadow_lg: Shadow,
-}
-
-impl Tokens {
-    /// Tokens read off egui's own style.
-    pub fn from_egui(egui: &egui::Style) -> Self {
-        let v = &egui.visuals;
-        let w = &v.widgets;
-        Self {
-            background: v.panel_fill,
-            foreground: v.text_color(),
-            card: v.panel_fill,
-            card_foreground: v.text_color(),
-            popover: v.window_fill,
-            popover_foreground: v.text_color(),
-            primary: v.selection.bg_fill,
-            primary_foreground: v.selection.stroke.color,
-            secondary: w.inactive.weak_bg_fill,
-            secondary_foreground: w.inactive.fg_stroke.color,
-            muted: v.faint_bg_color,
-            muted_foreground: v.weak_text_color(),
-            accent: w.active.weak_bg_fill,
-            accent_foreground: w.active.fg_stroke.color,
-            destructive: v.error_fg_color,
-            destructive_foreground: v.text_color(),
-            border: v.window_stroke.color,
-            input: w.inactive.bg_stroke.color,
-            ring: w.active.bg_stroke.color,
-            focus: Focus {
-                width: 2.0,
-                color: v.selection.bg_fill,
-            },
-            disabled: Disabled::Colors,
-            spacing: Spacing::DEFAULT,
-            radius: Radius::new(f32::from(w.inactive.corner_radius.nw)),
-            text: TextScale::default(),
-            control_height: egui.spacing.interact_size.y,
-            button_padding: egui.spacing.button_padding,
-            text_size: egui
-                .text_styles
-                .get(&egui::TextStyle::Body)
-                .map_or(14.0, |font| font.size),
-            switch_thumb: egui.spacing.icon_width,
-            shadow_xs: Shadow::NONE,
-            shadow_sm: Shadow::NONE,
-            shadow_md: v.popup_shadow,
-            shadow_lg: v.window_shadow,
-        }
-    }
-}
-
 /// TODO(prose): the fonts a style is drawn in, added to egui as a layout first builds with the style.
 #[derive(Clone, Debug, Default)]
 pub struct Fonts(pub Vec<egui::FontInsert>);
@@ -1769,7 +1652,7 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let tokens = Tokens::from_egui(egui);
+        let tokens = Tokens::light();
         let mut sheet = crate::sheet::Sheet::defaults();
         crate::owned::select_defaults(
             &mut sheet,
@@ -2150,7 +2033,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
-                bare_padding: tokens.focus.clearance(),
+                bare_padding: tokens.focus().clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {

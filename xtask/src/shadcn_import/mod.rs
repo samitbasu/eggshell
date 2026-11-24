@@ -1107,7 +1107,7 @@ pub fn run(plan: &Plan) -> Result<()> {
     let root = crate::process::workspace_root();
     let registry = root.join(&plan.reference).join("apps/v4/registry");
     let tw = tw_table(&root)?;
-    let tokens = classes::token_names(&read(&root.join("src/contract.rs"))?);
+    let tokens = classes::token_names(&read(&root.join("src/theme/tokens.rs"))?);
     let radius = theme_radius(&read(&registry.join("themes.ts"))?)
         .context("no `radius` in registry/themes.ts")?;
     let classifier = Classifier {

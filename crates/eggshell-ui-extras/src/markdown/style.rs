@@ -1,8 +1,9 @@
 //! How the Markdown widget looks.
 
-use eggshell_ui::contract::{Em, Tokens};
+use eggshell_ui::contract::Em;
 use eggshell_ui::owned::TablePart;
 use eggshell_ui::sheet::Sheet;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Style, TextSpec, Tracking, Tw, Weight};
 use egui::{Color32, FontFamily};
 

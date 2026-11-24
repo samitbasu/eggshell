@@ -7,8 +7,9 @@
 
 use egui::{Color32, Vec2};
 
-use crate::contract::{Colors, Disabled, InputStyle, Look, Size, Spacing, Tokens};
+use crate::contract::{Colors, Disabled, InputStyle, Look, Size, Spacing};
 use crate::sheet::{Key, Part, Sheet, When};
+use crate::theme::Tokens;
 use crate::{Aria, Match, Tw};
 
 /// TODO(prose): the anatomy of a text field: shadcn's `input`.
@@ -94,7 +95,7 @@ pub(crate) fn input_defaults(sheet: &mut Sheet, defaults: InputDefaults) {
         height,
     } = defaults;
     let (states, shadow, width) = (look.paint.states, look.paint.shadow, look.border_width);
-    let ring = move |k: &Tokens| look.paint.focus.unwrap_or(k.focus);
+    let ring = move |k: &Tokens| look.paint.focus.unwrap_or(k.focus());
     let radius = f32::from(radius);
 
     sheet.rule(InputPart::Root, move |t, k| {
