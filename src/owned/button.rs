@@ -707,11 +707,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     .gap_px(metrics.gap)
                     .role(style.role(&toggles.text).clone())
                     .whitespace_nowrap();
-                (
-                    enablement.fade(classes, &style).merge(caller),
-                    Some(mark),
-                    Some(metrics.glyph),
-                )
+                (classes.merge(caller), Some(mark), Some(metrics.glyph))
             }
         };
         let labelled = !label.is_empty();

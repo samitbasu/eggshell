@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Disabled, Size, Themed, Variant};
+use eggshell_ui::contract::{Size, Themed, Variant};
 use eggshell_ui::owned::{ButtonPart, Enablement, Face};
 use eggshell_ui::sheet::{Key, When};
 use eggshell_ui::testing::{Driver, Target};
@@ -82,7 +82,6 @@ fn driver(faded: bool) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut style = Shadcn::for_theme(Theme::Light).style();
     if faded {
-        style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
         style.sheet.as_app().rule_when(
             ButtonPart::Root,
             When::always().aria(Aria::Disabled),

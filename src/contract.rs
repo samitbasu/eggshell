@@ -562,39 +562,6 @@ pub struct Metrics {
     pub text: Option<TextSize>,
 }
 
-/// How a disabled control is drawn.
-///
-/// Both forms make the control inert. They differ in what they paint.
-///
-/// * [`Colors`](Self::Colors) draws every box in the `disabled` colours of its
-///   [`States`]. The colours are the style's, so a disabled control can be
-///   anything, and each shape is painted once: nothing shows through a fill
-///   that [`Colors::faded_over`] made opaque. The result is exactly CSS
-///   `opacity` only if the style computed those colours against the surface
-///   the control really sits on.
-/// * [`Faded`](Self::Faded) draws the control in its `rest` colours with the
-///   node opacity of its root, which every shape inside multiplies into its own
-///   alpha. It needs no knowledge of the surface, so it is the form for a
-///   translucent one, which no opaque colour can stand in for.
-///
-/// **Faded is not CSS group opacity.** CSS draws the element into
-/// a group, composites its shapes there, and fades the group over the page
-/// once. This library fades each shape separately, so where one shape lies on
-/// another, such as text on its own fill, the lower one shows through the
-/// upper by `1 - opacity`: a faded fill under faded text mixes a little of the
-/// fill into the glyphs. [`Faded`](Self::Faded) is exact when no shapes
-/// overlap: text or glyphs over the backdrop, a border-only or fill-only box,
-/// a ghost button. Over an opaque fill, [`Colors`](Self::Colors) with colours
-/// from [`Colors::faded_over`] is the exact form.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum Disabled {
-    /// The `disabled` colours of each state.
-    #[default]
-    Colors,
-    /// The `rest` colours at this node opacity.
-    Faded(Opacity),
-}
-
 /// TODO(prose): toggle buttons: their sizes and their looks off and on. A
 /// plain button's look is the [`sheet`](Style::sheet)'s
 /// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with

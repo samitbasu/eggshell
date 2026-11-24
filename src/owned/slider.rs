@@ -439,18 +439,17 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             name: name.clone(),
             enablement,
             colors: (
-                enablement.colors(slider.label, &style),
-                enablement.colors(slider.readout, &style),
+                enablement.colors(slider.label),
+                enablement.colors(slider.readout),
             ),
             text: text_sized(&b, metrics.text),
             size: b.size_of(size),
         };
         let boxed = caller.map(|caller| {
-            enablement
-                .fade(
-                    tw().flex().flex_col().gap_px(metrics.header_gap).w_full(),
-                    &style,
-                )
+            tw().flex()
+                .flex_col()
+                .gap_px(metrics.header_gap)
+                .w_full()
                 .merge(caller)
         });
         b.claim(&slot);

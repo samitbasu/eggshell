@@ -554,7 +554,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             crate::owned::text_field_classes(&mut b, size, invalid).merge(classes)
         };
         let field = field.aria(invalid);
-        let classes = enablement.apply(classes, &style);
+        let classes = enablement.apply(classes);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .open_focus(autofocus.open_focus())
             .draw_widgets(move |app, ui| {

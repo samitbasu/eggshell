@@ -1,4 +1,4 @@
-use crate::contract::{Disabled, Focus, Radius, Spacing, TextScale, TextSize, TextStep, corner};
+use crate::contract::{Focus, Radius, Spacing, TextScale, TextSize, TextStep, corner};
 use crate::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
@@ -163,8 +163,6 @@ pub struct Tokens {
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button
     /// or switch, and over a group of menu items.
     pub label_weight: Weight,
-    /// TODO(prose): how disabled controls are drawn. Not a shadcn variable.
-    pub disabled: Disabled,
     /// TODO(prose): the egui theme these colours are for: light or dark.
     pub theme: Theme,
 }
@@ -305,7 +303,6 @@ impl Tokens {
             control_weight: Weight::Normal,
             label_weight: Weight::Normal,
             accepted_contrast: Vec::new(),
-            disabled: Disabled::Colors,
             theme: Theme::Light,
         };
         ShadcnStyle::Vega.shape(&mut tokens);

@@ -99,7 +99,7 @@ impl Readout {
             parse(text).map(|number| step.snap_from(origin, reach.clamp(number), reach))
         };
         if session.typed(b.ctx()).is_none() {
-            let classes = enablement.apply(classes.sense_click(), &style);
+            let classes = enablement.apply(classes.sense_click());
             let label = format!("Edit {name}");
             let current = shown.clone();
             b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
@@ -407,10 +407,7 @@ impl<A: 'static> NumberChain<'_, '_, A> {
             size: b.size_of(size),
             describes: tooltip.clone(),
         };
-        let style = b.style().clone();
-        let wrapper = enablement
-            .fade(tw().flex().items_center(), &style)
-            .merge(classes);
+        let wrapper = tw().flex().items_center().merge(classes);
         let wrapper = match tooltip {
             Some(_) => wrapper.sense_hover(),
             None => wrapper,
