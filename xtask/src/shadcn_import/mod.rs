@@ -838,21 +838,21 @@ const TABS: [emit::Assumed; 7] = {
     ]
 };
 
-/// The `sheets` module of the preset's crate: a module per migrated
-/// `component` and style, and `write`, which writes them all for a style and
-/// theme, in the order of `components`.
-fn index(components: &[(&str, Home)]) -> String {
+/// A `sheets` module: a module per migrated `component` and style, and
+/// `write`, which writes them all for a style and theme, in the order of
+/// `components`. `uses` names `Sheet` and `ShadcnStyle` where the module is.
+fn index(components: &[(&str, Home)], uses: &str) -> String {
     let module = |style: &str, component: &str| format!("{style}_{}", component.replace('-', "_"));
     let mut out = String::from(
         "//! The widgets' rules in each shadcn style, generated from the pinned shadcn\n\
          //! source by `cargo xtask shadcn-import --write`; CI fails if they drift\n\
          //! (`--check`). Each rule's classes carry the shadcn class they came from.\n\
          //!\n\
-         //! This file is generated too. Do not edit.\n\n\
-         use eggshell_ui::sheet::Sheet;\n\
-         use egui::Theme;\n\n\
-         use crate::ShadcnStyle;\n\n\
-         /// One half of a widget's rules: its light or its dark theme.\n\
+         //! This file is generated too. Do not edit.\n\n",
+    );
+    out.push_str(uses);
+    out.push_str(
+        "\n/// One half of a widget's rules: its light or its dark theme.\n\
          type Half = fn(&mut Sheet);\n",
     );
     for style in STYLES {
@@ -889,10 +889,20 @@ fn index(components: &[(&str, Home)]) -> String {
 }
 
 /// Where a widget's checked-in rules for `style` live.
-fn checked_in(root: &Path, style: &str, component: &str) -> PathBuf {
-    root.join("crates/eggshell-ui-shadcn/src/sheets")
+fn checked_in(root: &Path, style: &str, component: &str, home: Home) -> PathBuf {
+    root.join(home.sheets())
         .join(format!("{style}_{}.rs", component.replace('-', "_")))
 }
+
+/// What a `sheets` index of core names `Sheet` and `ShadcnStyle` by.
+const CORE_USES: &str = "use crate::sheet::Sheet;\n\
+                         use egui::Theme;\n\n\
+                         use crate::theme::ShadcnStyle;\n";
+
+/// What the preset crate's `sheets` index names them by.
+const EXTENSION_USES: &str = "use eggshell_ui::sheet::Sheet;\n\
+                              use egui::Theme;\n\n\
+                              use crate::ShadcnStyle;\n";
 
 /// What the run does besides the report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -941,16 +951,28 @@ fn sheets(root: &Path, registry: &Path, classifier: &Classifier<'_>, mode: Mode)
         .filter(|w| w.checked_in)
         .map(|w| (w.component, w.home))
         .collect();
-    let mut files = vec![(
-        root.join("crates/eggshell-ui-shadcn/src/sheets/mod.rs"),
-        index(&migrated),
-    )];
+    let (core, extensions): (Vec<_>, Vec<_>) = migrated
+        .into_iter()
+        .partition(|(_, home)| matches!(home, Home::Core));
+    let mut files = vec![
+        (
+            root.join(emit::CORE_SHEETS).join("mod.rs"),
+            index(&core, CORE_USES),
+        ),
+        (
+            root.join(emit::EXTENSION_SHEETS).join("mod.rs"),
+            index(&extensions, EXTENSION_USES),
+        ),
+    ];
     for style in STYLES {
         let mut scratch = Sources::default();
         let (rows, _) = extract(registry, style, classifier, &mut scratch)?;
         for widget in WIDGETS.iter().filter(|w| w.checked_in) {
             let emitted = emit::emit(classifier, &rows, &scratch, widget, style);
-            files.push((checked_in(root, style, widget.component), emitted.rust));
+            files.push((
+                checked_in(root, style, widget.component, widget.home),
+                emitted.rust,
+            ));
         }
     }
     let mut stale = Vec::new();
@@ -1409,11 +1431,15 @@ mod tests {
 
     #[test]
     fn the_sheets_index_declares_and_writes_every_migrated_widget_in_each_style() {
-        let index = index(&[
-            ("button", Home::Core),
-            ("input-group", Home::Core),
-            ("combobox", Home::Extension("eggshell_ui_extras::command")),
-        ]);
+        let index = index(
+            &[
+                ("button", Home::Core),
+                ("input-group", Home::Core),
+                ("combobox", Home::Extension("eggshell_ui_extras::command")),
+            ],
+            EXTENSION_USES,
+        );
+        assert!(index.contains(EXTENSION_USES));
         assert!(index.contains("\n#[cfg(feature = \"extras\")] mod vega_combobox;"));
         assert!(
             index.contains(

@@ -277,3 +277,33 @@ impl Frame {
         }
     }
 }
+
+/// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
+/// field a unit shorter than the preset's controls and a `xs` one three, each
+/// with its own inline padding, over the generated look.
+pub(crate) fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
+    use crate::theme::size;
+    let own = t.own_input_padding_x;
+    for (size, height, padding_x) in [
+        (size::SM, t.control_units - 1.0, own),
+        (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
+    ] {
+        let when = When::always().size(size);
+        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
+        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
+        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-start"),
+            move |c, _| c.pl(padding_x),
+        );
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-end"),
+            move |c, _| c.pr(padding_x),
+        );
+    }
+    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
+        c.py(0.5)
+    });
+}

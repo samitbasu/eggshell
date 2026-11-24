@@ -4,9 +4,9 @@
 use std::time::Duration;
 
 use egui::Color32;
-use eggshell_ui::owned::InputPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Opacity};
+use crate::owned::InputPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Opacity};
 
 const INPUT: &str = "registry/bases/radix/ui/input.tsx";
 const LYRA: &str = "registry/styles/style-lyra.css";

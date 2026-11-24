@@ -5,10 +5,10 @@ use std::time::Duration;
 
 use egui::Color32;
 use egui::Shadow;
-use eggshell_ui::contract::{Size};
-use eggshell_ui::owned::InputGroupPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match, Opacity};
+use crate::contract::{Size};
+use crate::owned::InputGroupPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match, Opacity};
 
 const INPUT: &str = "registry/bases/radix/ui/input.tsx";
 const INPUT_GROUP: &str = "registry/bases/radix/ui/input-group.tsx";

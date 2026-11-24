@@ -83,14 +83,15 @@ pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
 pub(crate) use choices_sheet::{
     ChoiceDefaults, Painted as ChoicePaint, choice_defaults, write_checkbox_rules,
-    write_exceptions as write_choice_exceptions, write_field_rules, write_radio_rules,
-    write_switch_rules,
+    write_dark_card_label, write_exceptions as write_choice_exceptions, write_field_rules,
+    write_radio_rules, write_switch_rules,
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
 pub(crate) use input_sheet::{
     Frame, InputDefaults, input_defaults, keys as input_keys,
-    write_exceptions as write_input_exceptions, write_rules as write_input_rules,
+    write_exceptions as write_input_exceptions, write_field_sizes,
+    write_rules as write_input_rules,
 };
 pub(crate) use input_sheet::{INLINE_END, INLINE_START};
 pub use input_sheet::{InputGroupPart, InputPart};
@@ -167,7 +168,7 @@ pub use table::{
 };
 pub use table_sheet::TablePart;
 pub(crate) use table_sheet::{
-    TableDefaults, table_defaults, write_exceptions as write_table_exceptions,
+    TableDefaults, table_defaults, write_exceptions as write_table_exceptions, write_group_band,
     write_rules as write_table_rules,
 };
 pub use tabs_sheet::TabsPart;

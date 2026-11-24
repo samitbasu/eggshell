@@ -572,3 +572,14 @@ pub(crate) fn write_exceptions(
         }
     }
 }
+
+/// field.tsx, a choice card's label in the dark theme:
+/// `dark:has-data-checked:bg-primary/10 dark:has-data-checked:border-primary/20`.
+pub(crate) fn write_dark_card_label(sheet: &mut Sheet) {
+    sheet.rule(FieldPart::Label, |t, k| {
+        t.has(Match::aria(Aria::Checked), |b| {
+            b.bg(k.primary.gamma_multiply(0.1))
+                .border_color(k.primary.gamma_multiply(0.2))
+        })
+    });
+}

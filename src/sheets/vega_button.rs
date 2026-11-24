@@ -4,10 +4,10 @@
 use std::time::Duration;
 
 use egui::Color32;
-use eggshell_ui::contract::{Size, Variant};
-use eggshell_ui::owned::ButtonPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match, Opacity};
+use crate::contract::{Size, Variant};
+use crate::owned::ButtonPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match, Opacity};
 
 const BUTTON: &str = "registry/bases/radix/ui/button.tsx";
 const REGISTRY: &str = "registry/bases/radix/registry.ts";

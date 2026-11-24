@@ -1,0 +1,87 @@
+//! The widgets' rules in each shadcn style, generated from the pinned shadcn
+//! source by `cargo xtask shadcn-import --write`; CI fails if they drift
+//! (`--check`). Each rule's classes carry the shadcn class they came from.
+//!
+//! This file is generated too. Do not edit.
+
+use crate::sheet::Sheet;
+use egui::Theme;
+
+use crate::theme::ShadcnStyle;
+
+/// One half of a widget's rules: its light or its dark theme.
+type Half = fn(&mut Sheet);
+
+mod vega_button;
+mod vega_input;
+mod vega_input_group;
+mod vega_select;
+mod vega_dropdown_menu;
+mod vega_tooltip;
+mod vega_checkbox;
+mod vega_radio_group;
+mod vega_switch;
+mod vega_field;
+mod vega_table;
+mod vega_slider;
+mod vega_progress;
+mod vega_tabs;
+mod lyra_button;
+mod lyra_input;
+mod lyra_input_group;
+mod lyra_select;
+mod lyra_dropdown_menu;
+mod lyra_tooltip;
+mod lyra_checkbox;
+mod lyra_radio_group;
+mod lyra_switch;
+mod lyra_field;
+mod lyra_table;
+mod lyra_slider;
+mod lyra_progress;
+mod lyra_tabs;
+
+/// Writes the rules of `style` for `theme` into `sheet`. Their colours are
+/// the style's core tokens, which the sheet is resolved with.
+pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
+    let halves: &[(Half, Half)] = match style {
+        ShadcnStyle::Vega => &[
+            (vega_button::light, vega_button::dark),
+            (vega_input::light, vega_input::dark),
+            (vega_input_group::light, vega_input_group::dark),
+            (vega_select::light, vega_select::dark),
+            (vega_dropdown_menu::light, vega_dropdown_menu::dark),
+            (vega_tooltip::light, vega_tooltip::dark),
+            (vega_checkbox::light, vega_checkbox::dark),
+            (vega_radio_group::light, vega_radio_group::dark),
+            (vega_switch::light, vega_switch::dark),
+            (vega_field::light, vega_field::dark),
+            (vega_table::light, vega_table::dark),
+            (vega_slider::light, vega_slider::dark),
+            (vega_progress::light, vega_progress::dark),
+            (vega_tabs::light, vega_tabs::dark),
+        ],
+        ShadcnStyle::Lyra => &[
+            (lyra_button::light, lyra_button::dark),
+            (lyra_input::light, lyra_input::dark),
+            (lyra_input_group::light, lyra_input_group::dark),
+            (lyra_select::light, lyra_select::dark),
+            (lyra_dropdown_menu::light, lyra_dropdown_menu::dark),
+            (lyra_tooltip::light, lyra_tooltip::dark),
+            (lyra_checkbox::light, lyra_checkbox::dark),
+            (lyra_radio_group::light, lyra_radio_group::dark),
+            (lyra_switch::light, lyra_switch::dark),
+            (lyra_field::light, lyra_field::dark),
+            (lyra_table::light, lyra_table::dark),
+            (lyra_slider::light, lyra_slider::dark),
+            (lyra_progress::light, lyra_progress::dark),
+            (lyra_tabs::light, lyra_tabs::dark),
+        ],
+    };
+    for (light, dark) in halves {
+        match theme {
+            Theme::Light => light(sheet),
+            Theme::Dark => dark(sheet),
+        }
+    }
+}

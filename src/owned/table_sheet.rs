@@ -269,3 +269,10 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, table: &TableStyle) {
         }
     }
 }
+
+/// A table's group rows, which are eggshell's own: shadcn's footer band.
+pub(crate) fn write_group_band(sheet: &mut Sheet) {
+    sheet
+        .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
+        .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
+}

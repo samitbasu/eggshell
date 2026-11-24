@@ -1,7 +1,4 @@
 use eggshell_ui::contract;
-use eggshell_ui::owned::{FieldPart, InputGroupPart, InputPart, TablePart};
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match};
 use egui::{Context, Id, Theme};
 #[cfg(feature = "extras")]
 use {
@@ -12,38 +9,9 @@ use {
 };
 
 use crate::ShadcnStyle;
+use crate::{ContrastPair, FontSet, Palette, Tokens};
 #[cfg(feature = "extras")]
-use crate::variant;
-use crate::{ContrastPair, FontSet, Palette, Tokens, size};
-
-/// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
-/// field a unit shorter than the preset's controls and a `xs` one three, each
-/// with its own inline padding, over the generated look.
-fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
-    let own = t.own_input_padding_x;
-    for (size, height, padding_x) in [
-        (size::SM, t.control_units - 1.0, own),
-        (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
-    ] {
-        let when = When::always().size(size);
-        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
-        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
-        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
-        sheet.rule_when(
-            InputGroupPart::Addon,
-            when.attr("align", "inline-start"),
-            move |c, _| c.pl(padding_x),
-        );
-        sheet.rule_when(
-            InputGroupPart::Addon,
-            when.attr("align", "inline-end"),
-            move |c, _| c.pr(padding_x),
-        );
-    }
-    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
-        c.py(0.5)
-    });
-}
+use crate::{size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -204,24 +172,7 @@ impl Shadcn {
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
         let mut style = contract::Style::new(t);
-        style.write_look(|sheet| {
-            if t.theme == Theme::Dark {
-                // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
-                // dark:has-data-checked:border-primary/20`.
-                sheet.rule(FieldPart::Label, |t, k| {
-                    t.has(Match::aria(Aria::Checked), |b| {
-                        b.bg(k.primary.gamma_multiply(0.1))
-                            .border_color(k.primary.gamma_multiply(0.2))
-                    })
-                });
-            }
-            // A table's group rows are eggshell's own: shadcn's footer band.
-            sheet
-                .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
-                .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
-            crate::sheets::write(sheet, t.style, t.theme);
-            write_field_sizes(sheet, t);
-        });
+        style.write_look(|sheet| crate::sheets::write(sheet, t.style, t.theme));
         #[cfg(feature = "extras")]
         {
             let disclosure = style.extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();

@@ -3,9 +3,9 @@
 
 use std::time::Duration;
 
-use eggshell_ui::owned::TablePart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match};
+use crate::owned::TablePart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match};
 
 const LYRA: &str = "registry/styles/style-lyra.css";
 const REGISTRY: &str = "registry/bases/radix/registry.ts";

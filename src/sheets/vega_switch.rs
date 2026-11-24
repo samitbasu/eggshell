@@ -4,10 +4,10 @@
 use std::time::Duration;
 
 use egui::Color32;
-use eggshell_ui::contract::{Size};
-use eggshell_ui::owned::SwitchPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Opacity};
+use crate::contract::{Size};
+use crate::owned::SwitchPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Opacity};
 
 const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const SWITCH: &str = "registry/bases/radix/ui/switch.tsx";

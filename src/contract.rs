@@ -2057,7 +2057,13 @@ impl Style {
     /// writes it at the preset layer, then the recorded exceptions go over it.
     pub fn write_look(&mut self, write: impl FnOnce(&mut crate::sheet::Sheet)) {
         self.sheet.as_preset();
+        if self.tokens.theme == Theme::Dark {
+            crate::owned::write_dark_card_label(&mut self.sheet);
+        }
+        crate::owned::write_group_band(&mut self.sheet);
+        crate::sheets::write(&mut self.sheet, self.tokens.style, self.tokens.theme);
         write(&mut self.sheet);
+        crate::owned::write_field_sizes(&mut self.sheet, &self.tokens);
         self.write_exceptions();
     }
 

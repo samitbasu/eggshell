@@ -789,6 +789,13 @@ pub struct Widget {
     pub absent: &'static [(&'static str, &'static str)],
 }
 
+/// Where core's sheets are checked in, from the workspace root.
+pub const CORE_SHEETS: &str = "src/sheets";
+
+/// Where the extensions' sheets are checked in: the preset's crate, which
+/// may name their part enums.
+pub const EXTENSION_SHEETS: &str = "crates/eggshell-ui-shadcn/src/sheets";
+
 /// Where a widget's part enum lives: core's `owned`, or an extension
 /// crate's module, whose rules the preset writes only with its `extras`
 /// feature.
@@ -802,8 +809,25 @@ impl Home {
     /// The module that names the part enum.
     fn module(self) -> &'static str {
         match self {
-            Self::Core => "eggshell_ui::owned",
+            Self::Core => "crate::owned",
             Self::Extension(module) => module,
+        }
+    }
+
+    /// The crate a sheet of this home names core by.
+    fn krate(self) -> &'static str {
+        match self {
+            Self::Core => "crate",
+            Self::Extension(_) => "eggshell_ui",
+        }
+    }
+
+    /// Where the sheets of this home are checked in, from the workspace root:
+    /// core's parts in core, the extensions' in the preset's crate.
+    pub fn sheets(self) -> &'static str {
+        match self {
+            Self::Core => CORE_SHEETS,
+            Self::Extension(_) => EXTENSION_SHEETS,
         }
     }
 
@@ -1334,7 +1358,8 @@ pub fn emit(
     if !contract.is_empty() {
         let _ = writeln!(
             rust,
-            "use eggshell_ui::contract::{{{}}};",
+            "use {}::contract::{{{}}};",
+            widget.home.krate(),
             contract.join(", ")
         );
     }
@@ -1348,9 +1373,10 @@ pub fn emit(
         true => "{Sheet, When}",
         false => "Sheet",
     };
-    let _ = writeln!(rust, "use eggshell_ui::sheet::{sheet};");
+    let krate = widget.home.krate();
+    let _ = writeln!(rust, "use {krate}::sheet::{sheet};");
     if !core.is_empty() {
-        let _ = writeln!(rust, "use eggshell_ui::{{{}}};", core.join(", "));
+        let _ = writeln!(rust, "use {krate}::{{{}}};", core.join(", "));
     }
     let _ = writeln!(rust);
     for (constant, path) in &constants {
