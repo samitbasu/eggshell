@@ -9,13 +9,12 @@ use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options}
 use crate::Aria;
 use crate::actions::Action;
 use crate::builder::Slot;
-use crate::contract::{Disabled, Keyed, Look, Metrics, Size, Variant};
+use crate::contract::{Size, Variant};
 use crate::focus::{Autofocus, Select};
-use crate::sheet::{Key, Part, Sheet, When};
-use crate::tw::Match;
+use crate::sheet::{Key, Part};
 use crate::{Builder, Icon, Scope, Tw, tw};
 
-/// TODO(prose): a button's anatomy for the [`Sheet`]: its box. shadcn styles
+/// TODO(prose): a button's anatomy for the [`Sheet`](crate::sheet::Sheet): its box. shadcn styles
 /// the icons inside it from the box (`[&_svg]:size-4`), so an icon is not a
 /// part of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -31,80 +30,6 @@ impl Part for ButtonPart {
         match self {
             Self::Root => "button",
         }
-    }
-}
-
-/// What a style without a preset draws buttons with: one look, its sizes,
-/// and how it focuses, fades and moves. [`button_defaults`] writes them as
-/// the sheet's defaults.
-pub(crate) struct ButtonDefaults {
-    pub look: Look,
-    pub sizes: Keyed<Size, Metrics>,
-    pub transition: std::time::Duration,
-    pub press_shift: f32,
-}
-
-/// Writes `defaults` as Button's rules in `sheet`: the look of every
-/// variant, enabled and disabled, then each size.
-pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
-    let ButtonDefaults {
-        look,
-        sizes,
-        transition,
-        press_shift,
-    } = defaults;
-    let radius = sizes.get(sizes.default_key()).radius;
-    sheet.rule_when(
-        ButtonPart::Root,
-        When::always().not_aria(Aria::Disabled),
-        move |t, k| {
-            let classes = t.merge(look.paint.classes_in(
-                look.border_width,
-                (k.focus(), k.disabled),
-                radius,
-                Enablement::Enabled,
-                transition,
-            ));
-            centered(classes).whitespace_nowrap()
-        },
-    );
-    sheet.rule_when(
-        ButtonPart::Root,
-        When::always().aria(Aria::Disabled),
-        move |t, k| {
-            let classes = t.merge(look.paint.classes_in(
-                look.border_width,
-                (k.focus(), k.disabled),
-                radius,
-                Enablement::Disabled,
-                transition,
-            ));
-            let classes = match k.disabled {
-                Disabled::Faded(opacity) => classes.opacity(opacity),
-                Disabled::Colors => classes,
-            };
-            centered(classes).whitespace_nowrap()
-        },
-    );
-    if press_shift != 0.0 {
-        sheet.rule_when(
-            ButtonPart::Root,
-            When::always()
-                .not_aria(Aria::Disabled)
-                .not_aria(Aria::HasPopup),
-            move |t, _| t.active(|p| p.translate_y(press_shift)),
-        );
-    }
-    for size in sizes.keys() {
-        let m = *sizes.get(size);
-        sheet.rule_when(ButtonPart::Root, When::always().size(size), move |t, _| {
-            t.h_px(m.height)
-                .min_w_px(m.min_width)
-                .px_px(m.padding_x)
-                .gap_px(m.gap)
-                .rounded_px(f32::from(m.radius))
-                .descendants(Match::glyph(), |g| g.size_px(m.glyph).shrink_0())
-        });
     }
 }
 

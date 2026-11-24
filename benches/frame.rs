@@ -280,7 +280,7 @@ impl Keeping {
 
     fn style(self) -> Themed<Arc<Style>> {
         let mut style = Style::default();
-        let mut sheet = Sheet::defaults();
+        let mut sheet = Sheet::new();
         sheet.rule(Button, |_, _| button_classes());
         style.sheet = sheet;
         let style = Arc::new(style);

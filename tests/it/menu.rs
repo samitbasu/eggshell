@@ -738,21 +738,6 @@ mod trigger {
         under(d, parent, "<glyph>").expect("the trigger draws a chevron")
     }
 
-    /// The most opaque vertex the chevron of the dropdown is drawn with.
-    fn chevron_alpha(d: &Driver<App>) -> u8 {
-        let at = glyph(d, DD);
-        support::shapes(d)
-            .into_iter()
-            .filter_map(|shape| match shape {
-                egui::Shape::Mesh(mesh) if at.expand(0.5).contains_rect(mesh.calc_bounds()) => {
-                    mesh.vertices.iter().map(|vertex| vertex.color.a()).max()
-                }
-                _ => None,
-            })
-            .max()
-            .unwrap_or_default()
-    }
-
     #[test]
     fn a_chevron_trails_the_label_at_the_triggers_gap_and_is_as_big_as_a_selects() {
         let d = opened(chevron_and_select);
@@ -773,33 +758,23 @@ mod trigger {
     }
 
     #[test]
-    fn the_chevron_takes_the_selects_size_and_tone_from_the_style() {
+    fn a_selects_chevron_takes_its_size_from_the_sheet() {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
-                *style = support::sections_of(style.clone());
-                // A dropdown's chevron reads the section; a select's is its rule.
-                style.select.chevron = chevron;
-                style.select.chevron_opacity = Opacity::new(opacity);
                 style
                     .sheet
                     .as_app()
-                    .rule(eggshell_ui::owned::SelectPart::TriggerIcon, move |t, _| {
-                        t.size_px(chevron).opacity(Opacity::new(opacity))
+                    .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
+                        t.descendants(eggshell_ui::Match::glyph(), |g| {
+                            g.size_px(chevron).opacity(Opacity::new(opacity))
+                        })
                     });
             }));
             d.frames(4);
             d
         };
-        let (faint, full) = (restyled(20.0, 0.25), restyled(20.0, 1.0));
-        assert_eq!(glyph(&full, DD).size(), vec2(20.0, 20.0));
-        assert_eq!(glyph(&full, SEL).size(), vec2(20.0, 20.0));
-        let (faint, full) = (chevron_alpha(&faint), chevron_alpha(&full));
-        assert!(full > 0, "precondition: the chevron is drawn");
-        assert!(
-            faint < full / 2,
-            "a quarter opacity draws fainter: {faint} against {full}"
-        );
+        assert_eq!(glyph(&restyled(20.0, 1.0), SEL).size(), vec2(20.0, 20.0));
     }
 
     #[test]

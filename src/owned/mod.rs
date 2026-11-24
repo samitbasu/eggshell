@@ -77,31 +77,23 @@ use std::time::Duration;
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
 pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
-pub(crate) use button::{ButtonDefaults, button_defaults};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
 pub(crate) use choices_sheet::{
-    ChoiceDefaults, Painted as ChoicePaint, choice_defaults, write_checkbox_rules,
-    write_dark_card_label, write_exceptions as write_choice_exceptions, write_field_rules,
-    write_radio_rules, write_switch_rules,
+    write_dark_card_label, write_exceptions as write_choice_exceptions,
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
 pub(crate) use input_sheet::{
-    Frame, InputDefaults, input_defaults, keys as input_keys,
-    write_exceptions as write_input_exceptions, write_field_sizes,
-    write_rules as write_input_rules,
+    Frame, keys as input_keys, write_exceptions as write_input_exceptions, write_field_sizes,
 };
 pub(crate) use input_sheet::{INLINE_END, INLINE_START};
 pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use menu_sheet::MenuPart;
-pub(crate) use menu_sheet::{
-    MenuDefaults, menu_defaults, write_exceptions as write_menu_exceptions,
-    write_rules as write_menu_rules,
-};
+pub(crate) use menu_sheet::write_exceptions as write_menu_exceptions;
 pub use number::{Edit, Step, ValueRange};
 pub use options::IntoTip;
 pub(crate) use options::{Gate, Validity};
@@ -109,10 +101,8 @@ pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
+pub(crate) use select::write_select_exceptions;
 pub use select::{SelectChain, SelectPart};
-pub(crate) use select::{
-    SelectDefaults, select_defaults, write_select_exceptions, write_select_rules,
-};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
@@ -121,25 +111,6 @@ pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
     let keys = input_keys(style.input.sizes.key_for(size), false);
     let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
     Frame::of(&classes, style.tokens.spacing)
-}
-
-/// Writes `text`, the style's text role, as the role of the controls that
-/// take it by default: an enabled button, a tooltip's box, a tab's trigger
-/// and a select's trigger, at the sheet's current layer.
-pub(crate) fn write_text_roles(sheet: &mut crate::sheet::Sheet, text: &crate::TextSpec) {
-    use crate::sheet::When;
-    let role = text.clone();
-    sheet.rule_when(
-        ButtonPart::Root,
-        When::always().not_aria(crate::Aria::Disabled),
-        move |t, _| t.role(role.clone()),
-    );
-    let role = text.clone();
-    sheet.rule(TooltipPart::Content, move |t, _| t.role(role.clone()));
-    let role = text.clone();
-    sheet.rule(TabsPart::Trigger, move |t, _| t.role(role.clone()));
-    let role = text.clone();
-    sheet.rule(SelectPart::Trigger, move |t, _| t.role(role.clone()));
 }
 
 /// Writes the recorded exception of the tracks over a preset's look (#132):
@@ -167,19 +138,12 @@ pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
 pub use table_sheet::TablePart;
-pub(crate) use table_sheet::{
-    TableDefaults, table_defaults, write_exceptions as write_table_exceptions, write_group_band,
-    write_rules as write_table_rules,
-};
+pub(crate) use table_sheet::{write_exceptions as write_table_exceptions, write_group_band};
 pub use tabs_sheet::TabsPart;
-pub(crate) use tabs_sheet::{
-    TabsDefaults, tabs_defaults, write_exceptions as write_tabs_exceptions,
-    write_rules as write_tabs_rules,
-};
+pub(crate) use tabs_sheet::write_exceptions as write_tabs_exceptions;
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 pub use tooltip_sheet::TooltipPart;
-pub(crate) use tooltip_sheet::{TooltipDefaults, tooltip_defaults};
 
 use crate::contract::{Colors, Disabled, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};

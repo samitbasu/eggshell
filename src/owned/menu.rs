@@ -162,35 +162,9 @@ pub(crate) enum Tone {
 }
 
 impl MenuStyle {
-    /// The layout of the box that holds the items, in the text role `text`:
-    /// a menu's or a select's list's. Its look is the sheet's.
-    pub(crate) fn box_layout(&self, text: &TextSpec) -> Tw {
-        tw().flex()
-            .flex_col()
-            .min_h_0()
-            .p_px(self.padding)
-            .role(text.clone())
-    }
-
     /// The height of one item in the text role `text`.
     pub fn row_height(&self, text: &TextSpec) -> f32 {
         text.line_height + 2.0 * self.item_padding.y
-    }
-
-    /// The layout of one item in the text role `text`. Its look is the
-    /// sheet's.
-    pub(crate) fn row_layout(&self, enablement: Enablement, text: &TextSpec) -> Tw {
-        let base = tw()
-            .flex()
-            .items_center()
-            .gap_px(self.item_gap)
-            .px_px(self.item_padding.x)
-            .h_px(self.row_height(text))
-            .whitespace_nowrap();
-        match enablement {
-            Enablement::Disabled => base.inert(),
-            Enablement::Enabled => base.sense_click(),
-        }
     }
 }
 

@@ -1185,29 +1185,10 @@ pub enum GroupEnd {
     },
 }
 
-/// TODO(prose): Tables: the rules between rows, stripes, the first column's inset and a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::TablePart)s.
+/// TODO(prose): Tables: a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::TablePart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableStyle {
-    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
-    /// TODO(prose): padding before the first column's content, in place of
-    /// `cell_padding`; zero sets it flush with the table's edge.
-    pub first_column_inset: Option<f32>,
-    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
-    /// TODO(prose): whether a rule also runs under the last body row,
-    /// closing the table.
-    pub rule_below_last: bool,
-    // #497 stage 3: move: rule-only in core; extras' form and disclosure read it.
-    /// The line under each row but the last body row, and over the footer.
-    pub rule: Color32,
-    // #497 stage 3: move: rule-only in core; extras' form reads it.
-    /// The rule's width.
-    pub rule_width: f32,
-    // #497 stage 3: move: rule-only (write_table_rules, write_table_exceptions).
-    /// TODO(prose): behind every second body row of a table with
-    /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), starting
-    /// with the second, and again after each group row.
-    pub stripe: Color32,
     /// TODO(prose): the size of a group row's title; `None` keeps the
     /// table's.
     pub group_text_size: Option<TextSize>,
@@ -1490,24 +1471,29 @@ impl Style {
 
     /// [`Style::default`] in egui's own fonts, built once: the style of a
     /// layout given none, which gives egui nothing. With no font of its own,
-    /// its controls and labels are at the regular weight, which every font
-    /// has.
+    /// it draws every weight in egui's regular face, which every font has.
     pub(crate) fn fallback() -> Arc<Self> {
         static FALLBACK: std::sync::LazyLock<Arc<Style>> = std::sync::LazyLock::new(|| {
-            Arc::new(Style::new(&Tokens {
+            let mut style = Style::new(&Tokens {
                 font: None,
                 control_weight: Weight::Normal,
                 label_weight: Weight::Normal,
                 ..Tokens::light()
-            }))
+            });
+            style.faces = Weight::ALL
+                .into_iter()
+                .filter(|weight| *weight != Weight::Normal)
+                .fold(Faces::default(), |faces, weight| {
+                    faces.with(FontFamily::Proportional, weight, FontFamily::Proportional)
+                });
+            Arc::new(style)
         });
         FALLBACK.clone()
     }
 
     /// TODO(prose): every section filled from `tokens` the way shadcn draws
-    /// it, in the tokens' theme, with the widgets' own rules at the defaults
-    /// layer. A preset writes its generated look over it with
-    /// [`write_look`](Self::write_look).
+    /// it, in the tokens' theme, and the widgets' look in the sheet: the
+    /// generated sheets of the tokens' style and the recorded exceptions.
     pub fn new(tokens: &Tokens) -> Self {
         use crate::theme::size;
         let t = tokens;
@@ -1879,8 +1865,6 @@ impl Style {
                 easing: crate::Easing::InOut,
             },
         };
-        let mut sheet = crate::sheet::Sheet::defaults();
-        crate::legacy_defaults::write(&mut sheet);
         let mut style = Self {
             text: t.text_role(),
             faces: t
@@ -2025,11 +2009,6 @@ impl Style {
             // shadcn's Table: `border-b` rows, none under the last; the stripes
             // and groups are eggshell's own.
             table: TableStyle {
-                first_column_inset: None,
-                rule_below_last: false,
-                rule: t.border,
-                rule_width: 1.0,
-                stripe: t.muted.gamma_multiply(0.3),
                 group_text_size: Some(TextSize {
                     size: 12.0,
                     line_height: 16.0,
@@ -2043,43 +2022,27 @@ impl Style {
             motion,
             tones: t.tones(),
             tokens: t.clone(),
-            sheet,
+            sheet: crate::sheet::Sheet::new(),
             extensions: Extensions::default(),
         };
         if let Some(font) = &t.font {
             style.set_extension(Fonts(font.inserts()));
         }
-        style.write_rules();
+        style.write_look();
         style
     }
 
-    /// TODO(prose): writes a preset's look over the widgets' own rules: `write`
-    /// writes it at the preset layer, then the recorded exceptions go over it.
-    pub fn write_look(&mut self, write: impl FnOnce(&mut crate::sheet::Sheet)) {
-        self.sheet.as_preset();
+    /// Writes the widgets' look: the generated sheets of the tokens' style
+    /// and theme, eggshell's own rules around them, and the recorded
+    /// exceptions over them.
+    fn write_look(&mut self) {
         if self.tokens.theme == Theme::Dark {
             crate::owned::write_dark_card_label(&mut self.sheet);
         }
         crate::owned::write_group_band(&mut self.sheet);
         crate::sheets::write(&mut self.sheet, self.tokens.style, self.tokens.theme);
-        write(&mut self.sheet);
         crate::owned::write_field_sizes(&mut self.sheet, &self.tokens);
         self.write_exceptions();
-    }
-
-    /// Writes every family's rules from its section, at the widgets' defaults layer.
-    fn write_rules(&mut self) {
-        crate::owned::write_text_roles(&mut self.sheet, &self.text);
-        crate::owned::write_input_rules(&mut self.sheet, &self.input);
-        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented);
-        let text = self.role(&self.menu.text).clone();
-        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
-        crate::owned::write_table_rules(&mut self.sheet, &self.table);
-        crate::owned::write_field_rules(&mut self.sheet, self.label);
-        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
-        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
-        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
-        crate::owned::write_select_rules(self);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2139,7 +2102,7 @@ impl Style {
         crate::owned::write_track_exceptions(&mut self.sheet, (&self.slider, &self.progress));
         crate::owned::write_slider_exceptions(&mut self.sheet, &self.slider);
         crate::owned::write_stepper_exceptions(&mut self.sheet, &self.stepper);
-        crate::owned::write_table_exceptions(&mut self.sheet, &self.table);
+        crate::owned::write_table_exceptions(&mut self.sheet);
         crate::owned::write_choice_exceptions(
             &mut self.sheet,
             (&self.checkbox, &self.radio, &self.switch),

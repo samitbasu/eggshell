@@ -70,7 +70,7 @@ fn a_rule_that_replaces_the_part_cuts_its_defaults() {
     let d = driver(|style| {
         style
             .sheet
-            .as_preset()
+            .as_base()
             .replace(Chip, |t, _| t.w_px(30.0).h_px(10.0));
     });
     let chip = d.rect(Target::suffix("\"chip\""));

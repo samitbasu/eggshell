@@ -37,7 +37,7 @@ fn spans() -> Spans {
 
 /// Notes the table rule width a draw closure's node is drawn with.
 fn seen(ui: &egui::Ui, at: &'static str) {
-    let padding = ui.node_style().table.rule_width;
+    let padding = ui.node_style().scroll.width;
     ui.ctx()
         .data_mut(|data| data.insert_temp(egui::Id::NULL.with(at), padding));
 }
@@ -66,9 +66,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             .draw(|_, ui| seen(ui, "outside"));
         b.styled(
             |style| {
-                let mut table = style.table.clone();
-                table.rule_width = PADDING;
-                style.table = table;
+                style.scroll.width = PADDING;
             },
             |b| {
                 b.span("scoped probe", tw(), "probe")
@@ -180,7 +178,7 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
             .data(|data| data.get_temp::<f32>(egui::Id::NULL.with(at)))
     };
     assert_eq!(seen("inside"), Some(PADDING));
-    assert_eq!(seen("outside"), Some(d.shell().style().table.rule_width));
+    assert_eq!(seen("outside"), Some(d.shell().style().scroll.width));
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);

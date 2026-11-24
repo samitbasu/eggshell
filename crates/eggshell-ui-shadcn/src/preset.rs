@@ -172,7 +172,7 @@ impl Shadcn {
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
         let mut style = contract::Style::new(t);
-        style.write_look(|sheet| crate::sheets::write(sheet, t.style, t.theme));
+        crate::sheets::write(&mut style.sheet, t.style, t.theme);
         #[cfg(feature = "extras")]
         {
             let disclosure = style.extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();

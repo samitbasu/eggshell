@@ -34,7 +34,7 @@ fn base_text() -> TextStyle {
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style.sheet.as_preset().rule(Chip, |t, _| {
+            style.sheet.as_base().rule(Chip, |t, _| {
                 t.w_px(100.0).h_px(30.0).hover(|p| p.bg(Color32::RED))
             });
             style.sheet.as_app().rule(Chip, |t, _| t.w_px(80.0));
@@ -72,7 +72,7 @@ fn a_node_keeps_the_class_that_won_each_property() {
     let height = d
         .why(Target::suffix("\"chip\""), Property::height)
         .expect("the preset's");
-    assert_eq!(height.winner.origin.layer, Layer::Preset);
+    assert_eq!(height.winner.origin.layer, Layer::Base);
     assert_eq!(
         d.why(Target::suffix("\"chip\""), Property::padding_left),
         None
@@ -104,7 +104,7 @@ fn a_pinned_node_keeps_each_class_it_beat_from_the_next_frame() {
     d.frames(1);
     let why = d.frame().why(path, Property::width).expect("set");
     let layers: Vec<Layer> = why.beaten.iter().map(|step| step.origin.layer).collect();
-    assert_eq!(layers, [Layer::Preset, Layer::App, Layer::Ancestor]);
+    assert_eq!(layers, [Layer::Base, Layer::App, Layer::Ancestor]);
     assert_eq!(why.winner.origin.layer, Layer::CallSite);
     for step in why.beaten.iter().chain([&why.winner]) {
         assert!(!step.value.is_empty(), "{step:?}");
@@ -119,10 +119,7 @@ fn the_computed_style_lists_the_winner_and_what_it_beat() {
     d.frames(2);
     let table = d.frame().computed_style(path).expect("the node");
     assert!(table.starts_with(path), "{table}");
-    let width: Vec<&str> = table
-        .lines()
-        .filter(|line| line.contains("Preset"))
-        .collect();
+    let width: Vec<&str> = table.lines().filter(|line| line.contains("Base")).collect();
     assert!(
         width
             .iter()

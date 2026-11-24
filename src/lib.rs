@@ -372,7 +372,6 @@ mod intent;
 mod kept;
 mod key;
 mod layout_tree;
-mod legacy_defaults;
 mod measure;
 mod mount;
 mod nav;

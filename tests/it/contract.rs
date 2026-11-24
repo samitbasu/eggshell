@@ -72,10 +72,14 @@ fn a_layout_given_no_style_draws_with_the_default_in_egui_s_fonts_and_keeps_it()
     assert_eq!(button(&style), button(&default));
     assert_eq!(style.input, default.input);
     assert_eq!(style.text, default.text);
-    assert_eq!(
-        style.faces,
-        eggshell_ui::Faces::default(),
-        "no face, so egui's fonts draw it"
+    assert!(
+        style.faces.iter().count() > 0
+            && style
+                .faces
+                .iter()
+                .all(|face| face.face == egui::FontFamily::Proportional),
+        "every weight in egui's regular face: {:?}",
+        style.faces
     );
     assert_eq!(
         style.toggle.text.as_ref().map(|text| text.weight),

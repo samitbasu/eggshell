@@ -196,21 +196,6 @@ fn they_follow_an_inert_subtree() {
 }
 
 #[test]
-fn they_fade_as_the_style_fades_disabled_controls() {
-    let faded = harness(Ambient::InertFaded, SegmentedRows::One);
-    let colours = harness(Ambient::Inert, SegmentedRows::One);
-    let track = |harness: &Harness<'static, Rig<App>>| {
-        box_at(harness, rect_of(harness, "/\"library\"")).fill
-    };
-    assert_ne!(
-        track(&faded),
-        track(&colours),
-        "precondition: the faded style draws the library's track otherwise"
-    );
-    same_look(Ambient::InertFaded, SegmentedRows::One);
-}
-
-#[test]
 fn a_wrapping_track_matches_too() {
     same_look(Ambient::Plain, SegmentedRows::Wrapping);
 }

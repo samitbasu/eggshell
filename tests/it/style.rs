@@ -740,7 +740,7 @@ fn a_section_set_after_the_preset_keeps_the_presets_look() {
     assert_eq!(after, before, "the preset's look");
     assert_eq!(
         style.sheet.layer(),
-        eggshell_ui::sheet::Layer::Preset,
+        eggshell_ui::sheet::Layer::Base,
         "the layer is kept"
     );
 }

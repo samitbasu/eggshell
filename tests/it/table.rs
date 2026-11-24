@@ -294,7 +294,7 @@ mod layout {
     #[test]
     fn rows_are_ruled_except_the_last() {
         let d = harness(Selection::Off);
-        let rule = style(&d).rule;
+        let rule = d.shell().style().tokens.border;
         for name in ["Header", "Row(7)", "Row(1024)"] {
             assert!(
                 rule_under(&d, d.rect(Target::suffix(&band(name))), rule),
@@ -636,14 +636,19 @@ mod preset {
         let preset = Shadcn::for_theme(Theme::Light);
         let t = &preset.tokens;
         let style = preset.style();
-        let table = style.table.clone();
         assert_eq!(header_height(&style), 40.0);
         assert_eq!(cell_padding(&style), 8.0);
-        assert_eq!((table.rule, table.rule_width), (t.border, 1.0));
-        assert_ne!(table.stripe, Color32::TRANSPARENT);
+        let stripe = support::part_at(
+            &style,
+            TablePart::Row,
+            &[eggshell_ui::sheet::Key::Attr("stripe", "odd")],
+        )
+        .paint_classes()
+        .background;
+        assert_eq!(stripe, Some(t.muted.gamma_multiply(0.3)));
         assert_ne!(
-            table.stripe,
-            t.muted.gamma_multiply(0.5),
+            stripe,
+            Some(t.muted.gamma_multiply(0.5)),
             "a hovered stripe still changes"
         );
     }
@@ -824,10 +829,6 @@ mod spacing {
         d.rect(Target::suffix(&format!("/\"t\"/({band}, {column})")))
     }
 
-    fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
-        d.shell().style().table.clone()
-    }
-
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
         let d = harness(|style| {
@@ -861,7 +862,7 @@ mod spacing {
     fn rule_below_last_rules_off_the_last_row() {
         let rule = |d: &Driver<fn(&mut Style)>| {
             let last = d.rect(Target::suffix("/\"t\"/Row(2)"));
-            let color = table(d).rule;
+            let color = d.shell().style().tokens.border;
             support::shapes(d).into_iter().any(|shape| match shape {
                 Shape::Rect(r) => {
                     r.fill == color
@@ -1013,7 +1014,7 @@ mod groups {
             ..App::new(Selection::Off)
         });
         d.frames(3);
-        let stripe = style(&d).stripe;
+        let stripe = d.shell().style().tokens.muted.gamma_multiply(0.3);
         assert_ne!(
             stripe,
             Color32::TRANSPARENT,
@@ -1245,7 +1246,7 @@ mod groups {
                 },
                 ended,
             );
-            let stripe = style(&d).stripe;
+            let stripe = d.shell().style().tokens.muted.gamma_multiply(0.3);
             assert_ne!(
                 stripe,
                 Color32::TRANSPARENT,

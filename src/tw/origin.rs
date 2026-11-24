@@ -361,11 +361,11 @@ mod tests {
 
     #[test]
     fn staging_gives_plain_calls_a_layer_and_leaves_staged_ones() {
-        let staged = tw().px(2.0).staged(Layer::Preset).merge(tw().py(1.0));
+        let staged = tw().px(2.0).staged(Layer::Base).merge(tw().py(1.0));
         let staged = staged.staged(Layer::App);
         assert_eq!(
             staged.origin_of(Property::padding_left).map(|o| o.layer),
-            Some(Layer::Preset)
+            Some(Layer::Base)
         );
         assert_eq!(
             staged.origin_of(Property::padding_top).map(|o| o.layer),
@@ -406,14 +406,14 @@ mod tests {
         trace(true);
         let classes = tw()
             .px(2.0)
-            .staged(Layer::Preset)
+            .staged(Layer::Base)
             .merge(tw().px(4.0).staged(Layer::App))
             .merge(tw().px(6.0));
         trace(false);
         let why = classes.why_of(Property::padding_left).expect("set");
         assert_eq!(why.winner.origin.layer, Layer::CallSite);
         let beaten: Vec<Layer> = why.beaten.iter().map(|s| s.origin.layer).collect();
-        assert_eq!(beaten, [Layer::Preset, Layer::App]);
+        assert_eq!(beaten, [Layer::Base, Layer::App]);
         assert_eq!(why.winner.value, "6 units");
         assert_eq!(why.beaten[0].value, "2 units");
     }

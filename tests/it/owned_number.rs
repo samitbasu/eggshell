@@ -1,9 +1,7 @@
 //! The owned slider, select and stepper, through kittest's real pointer and
 //! key events and the accessibility check the support harness switches on.
 
-use std::sync::Arc;
-
-use eggshell_ui::contract::{Size, Themed};
+use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{Enablement, Step};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -863,52 +861,6 @@ fn a_stepper_is_a_spin_button_and_its_buttons_are_not_tab_stops() {
     );
     let fixed = d.harness().get_by_role_and_label(Role::SpinButton, "Fixed");
     assert!(fixed.accesskit_node().is_disabled());
-}
-
-#[test]
-fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
-    // The select's section draws it where no preset's look is over it.
-    let mut style = support::sections_of(style(Theme::Light));
-    let red = egui::Color32::from_rgb(200, 30, 30);
-    style.slider.range.rest.fill = red;
-    style.slider.sizes.default_entry_mut().track_height = 10.0;
-    style.slider.sizes.default_entry_mut().thumb_size = 24.0;
-    style
-        .sheet
-        .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
-            t.bg(red).h_px(44.0)
-        });
-    // The stepper's group is an input group: it follows the input section.
-    style
-        .sheet
-        .rule(eggshell_ui::owned::InputGroupPart::Root, move |t, _| {
-            t.bg(red)
-        });
-    style.stepper.sizes.default_entry_mut().button_width = 40.0;
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(6);
-
-    let track = d.rect(Target::suffix(TRACK));
-    assert_eq!(track.height(), 24.0);
-    assert_eq!(bar(&d, "volume").height(), 10.0);
-    assert_eq!(box_at(&d, range(&d, "volume")).fill, red);
-    assert!(
-        (d.rect(Target::suffix(THUMB)).size() - vec2(24.0, 24.0))
-            .abs()
-            .max_elem()
-            < 0.01
-    );
-
-    let trigger = d.rect(Target::suffix(REGION));
-    assert_eq!(trigger.height(), 44.0);
-    assert_eq!(box_at(&d, trigger).fill, red);
-
-    assert_eq!(
-        box_at(&d, d.rect(Target::suffix("/\"count\"/Box"))).fill,
-        red
-    );
-    assert_eq!(d.rect(Target::suffix(UP)).width(), 40.0);
 }
 
 #[test]

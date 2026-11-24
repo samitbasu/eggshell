@@ -581,32 +581,6 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
 }
 
 #[test]
-fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
-    // The preset's switch and cells take shadcn's
-    // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's, which
-    // the style without a preset draws them with.
-    let mut style = Style::default();
-    style.tokens.ring_width = 5.0;
-    style.tokens.ring = egui::Color32::from_rgb(200, 30, 30);
-    let ring = style.tokens.focus();
-    assert_ne!(
-        Shadcn::for_theme(Theme::Light).tokens.focus(),
-        ring,
-        "precondition: the preset's ring is another"
-    );
-    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
-        let mut d = harness(Theme::Light);
-        d.set_style(Themed::both(Arc::new(style.clone())));
-        d.frames(4);
-        tab_to(&mut d, &path);
-        d.frames(12);
-        let drawn = ring_at(&d, d.rect(Target::suffix(&path))).expect("a focus ring");
-        assert_eq!(drawn.stroke.width, ring.width, "{path}");
-        assert_eq!(drawn.stroke.color, ring.color, "{path}");
-    }
-}
-
-#[test]
 fn a_click_on_a_segmented_cell_does_not_show_the_focus_ring() {
     let mut d = harness(Theme::Light);
     d.click(Target::suffix(&cell_path(Unit::Nautical)))

@@ -137,7 +137,7 @@ impl DisclosureStyle {
             content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
-            separator: Some(style.table.rule),
+            separator: Some(style.tokens.border),
         }
     }
 }

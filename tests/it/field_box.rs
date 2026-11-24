@@ -1,8 +1,6 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
-use std::sync::Arc;
-
-use eggshell_ui::contract::{Size, Themed};
+use eggshell_ui::contract::Size;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
@@ -165,35 +163,6 @@ fn a_focused_addon_button_rings_itself_not_its_group() {
     let button = d.rect(Target::suffix(addon));
     assert!(ring_at(&d, button).is_some(), "the button rings");
     assert!(ring_at(&d, group).is_none(), "the group does not");
-}
-
-#[test]
-fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
-    // The widgets' own look, whose input has no ring of its own.
-    let mut style = eggshell_ui::Style::default();
-    style.tokens.ring_width = 5.0;
-    style.tokens.ring = Color32::from_rgb(200, 30, 30);
-    let ring = style.tokens.focus();
-    let mut d = support::driver(
-        vec2(340.0, 360.0),
-        TextStyle::new(style.text.clone(), style.tokens.foreground),
-        App {
-            text: String::new(),
-            size: Size::DEFAULT,
-            disabled: false,
-        },
-        view,
-    )
-    .build();
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(6);
-    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
-    d.frames(6);
-    let drawn = ring_at(&d, d.rect(Target::suffix(CUSTOM))).expect("a focus ring");
-    assert_eq!(drawn.stroke.width, ring.width);
-    assert_eq!(drawn.stroke.color, ring.color);
-    // The widgets' own look has one size: the view's small box draws at it.
-    d.expect_reported(eggshell_ui::Problem::MissingStyleEntry);
 }
 
 #[test]

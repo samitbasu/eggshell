@@ -6,9 +6,7 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
-use eggshell_ui::owned::{
-    Cell, CheckboxPart, Choice, Enablement, Face, Mark, SegmentedRows, TabsPart,
-};
+use eggshell_ui::owned::{Cell, Choice, Enablement, Face, SegmentedRows, TabsPart};
 use eggshell_ui::sheet::When;
 use eggshell_ui::{Aria, Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
@@ -789,42 +787,6 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         "fainter than the enabled fill, so the surface shows through"
     );
     d.frames(1);
-}
-
-#[test]
-fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let neutral = Style::default();
-    let d = drive(
-        Theme::Light,
-        ShadcnStyle::Vega,
-        neutral,
-        |_| {},
-        disabled_row,
-    );
-    let style = &d.app().style;
-    assert_eq!(style.tokens.disabled, Disabled::Colors);
-    let disabled = support::part_at(
-        style,
-        CheckboxPart::Root,
-        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Disabled),
-    );
-    let enabled = support::part_at(
-        style,
-        CheckboxPart::Root,
-        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled),
-    );
-    let fill = disabled.paint_classes().background;
-    assert_ne!(
-        fill,
-        enabled.paint_classes().background,
-        "precondition: disabled has colours of its own"
-    );
-    let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
-    assert_eq!(
-        Some(box_at(&d, checked).fill),
-        fill,
-        "a checkbox still draws the style's disabled colours"
-    );
 }
 
 // ----- #43 item 10: icon buttons -----

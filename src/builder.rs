@@ -276,11 +276,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.part_over(part, keys, crate::sheet::Defaults(Tw::blank()), call_site)
     }
 
+    // #497 stage 4: delete, with Layer::Defaults and sheet::Defaults, when
+    // the extensions' looks are sheet rules.
     /// TODO(prose): [`part`](Self::part), with `defaults`, the widget's own
     /// look for the part, under every layer of the sheet: the widgets'
     /// defaults, which a rule that replaces the part's lower layers, such as
-    /// a preset's generated look, replaces too. The inspector shows them as
-    /// the defaults layer, at the widget's own lines.
+    /// a generated look, replaces too. The inspector shows them as the
+    /// defaults layer, at the widget's own lines.
+    ///
+    /// TODO(prose): for the extension crates only, and only until their looks
+    /// are sheet rules; core's widgets draw from the sheet alone.
     ///
     /// ```
     /// use eggshell_ui::sheet::{Defaults, Part};

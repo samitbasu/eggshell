@@ -17,7 +17,7 @@ use crate::contract::{Size, StepperStyle};
 use crate::focus::{Autofocus, Select};
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
-use crate::sheet::{Defaults, Key as SheetKey};
+use crate::sheet::Key as SheetKey;
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -278,7 +278,6 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         }
         // The group's look is the input group's; the dividers are the
         // stepper's own.
-        let look = tw().gap_px(1.0).divide_x(1.0, stepper.divider);
         let own = tw().items_stretch().w_px(112.0);
         let own = match enablement {
             Enablement::Enabled => own,
@@ -289,12 +288,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         } else {
             own
         };
-        let group = b.part_over(
-            InputGroupPart::Root,
-            &keys,
-            Defaults(look),
-            own.merge(classes),
-        );
+        let group = b.part(InputGroupPart::Root, &keys, own.merge(classes));
         let tooltip = spec.tooltip.clone();
         let field_box = centered(text_sized(&b, metrics.text))
             .justify_start()
@@ -320,9 +314,6 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             if enablement == Enablement::Disabled {
                 keys.push(SheetKey::Aria(crate::Aria::Disabled));
             }
-            let look = stepper
-                .button
-                .classes(&style, 0, enablement, stepper.transition);
             // shadcn's `InputGroupButton` is a ghost `Button`; the stepper's
             // buttons fill its column, without a button's padding and border,
             // each rounding its outer corner.
@@ -340,8 +331,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             };
             // Square but the outer corner, which egui cannot clip to the group's.
             let own = corner(own.rounded_px(0.0), inner_radius);
-            b.part_over(ButtonPart::Root, &keys, Defaults(look), tw())
-                .merge(b.part_over(InputGroupPart::Button, &[], Defaults(tw()), own))
+            b.part(ButtonPart::Root, &keys, tw())
+                .merge(b.part(InputGroupPart::Button, &[], own))
         };
         let (up, down) = (
             button(&mut b, value >= high, Tw::rounded_tr_px),
@@ -363,13 +354,12 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                     .open_focus(autofocus.open_focus())
                     .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
-                let buttons = b.part_over(
+                let buttons = b.part(
                     InputGroupPart::Addon,
                     &[
                         SheetKey::Attr("align", "inline-end"),
                         SheetKey::Attr(STEPPER.0, STEPPER.1),
                     ],
-                    Defaults(tw().gap_px(1.0).divide_y(1.0, stepper.divider)),
                     tw().flex()
                         .flex_col()
                         .items_stretch()

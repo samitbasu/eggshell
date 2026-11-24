@@ -690,12 +690,12 @@ mod tests {
             .descendants(Match::glyph(), |t| t.size_px(12.0))
             .descendants(Match::glyph(), |t| t.gap(2.0).important());
         let rules = Rules::NONE.within(&above, &mut links);
-        let sheet = tw().size_px(16.0).m(1.0).gap(1.0).staged(Layer::Preset);
+        let sheet = tw().size_px(16.0).m(1.0).gap(1.0).staged(Layer::Base);
         let own = Tw::over_sheet(sheet).merge(tw().p(3.0));
         let applied = rules.apply_layered(&links, own, NodeKind::Glyph);
         let layer = |property| applied.origin_of(property).map(|origin| origin.layer);
         assert_eq!(layer(Property::width), Some(Layer::Ancestor));
-        assert_eq!(layer(Property::margin_left), Some(Layer::Preset));
+        assert_eq!(layer(Property::margin_left), Some(Layer::Base));
         assert_eq!(layer(Property::padding_left), Some(Layer::CallSite));
         assert_eq!(layer(Property::gap_width), Some(Layer::Important));
     }
