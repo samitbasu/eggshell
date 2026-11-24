@@ -98,7 +98,8 @@ pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Ra
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use menu_sheet::MenuPart;
 pub(crate) use menu_sheet::{
-    write_exceptions as write_menu_exceptions, write_rules as write_menu_rules,
+    MenuDefaults, menu_defaults, write_exceptions as write_menu_exceptions,
+    write_rules as write_menu_rules,
 };
 pub use number::{Edit, Step, ValueRange};
 pub use options::IntoTip;

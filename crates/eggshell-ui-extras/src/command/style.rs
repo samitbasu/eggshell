@@ -25,12 +25,11 @@ impl eggshell_ui::contract::Extension for CommandStyle {
 }
 
 impl CommandStyle {
-    /// TODO(prose): the menu item's highlight, and a list `max-h-72` tall.
+    /// TODO(prose): the accent as the highlight, and a list `max-h-72` tall.
     pub fn from_style(style: &Style) -> Self {
-        let hover = style.menu().item.paint.states.hover;
         Self {
-            selected_fill: hover.fill,
-            selected_text: hover.text,
+            selected_fill: style.tokens.accent,
+            selected_text: style.tokens.accent_foreground,
             list_height: 288.0,
         }
     }

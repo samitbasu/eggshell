@@ -159,7 +159,7 @@ fn tab_to(d: &mut Driver<App>, path: &str) {
 
 /// The rows, among `0..count` of `list`, drawn in the item's highlight colours.
 fn highlighted(d: &Driver<App>, list: &str, count: usize) -> Vec<usize> {
-    let hover = d.shell().style().menu().item.paint.states.hover.fill;
+    let hover = d.shell().style().tokens.accent;
     (0..count)
         .filter(|&index| support::fill_of(d, &row(list, index)) == Some(hover))
         .collect()
@@ -383,7 +383,7 @@ mod tall {
         d.press(Key::End).frames(4);
         assert!(visible(&d, 49), "End shows the last option");
         assert!(!visible(&d, 0));
-        let hover = d.shell().style().menu().item.paint.states.hover.fill;
+        let hover = d.shell().style().tokens.accent;
         assert_eq!(
             support::fill_of(&d, &tall_row(49)),
             Some(hover),

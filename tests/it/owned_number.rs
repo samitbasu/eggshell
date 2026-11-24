@@ -452,7 +452,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     d.click(Target::suffix(REGION)).frames(4);
     assert!(is_open(&d), "a click opens");
 
-    let list = style(Theme::Light).menu().clone();
+    let highlight = style(Theme::Light).tokens.accent;
     // The list's own box: the smallest one around an option of it.
     let option = d
         .harness()
@@ -474,7 +474,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     );
     assert!(
         shapes(&d).iter().any(|shape| matches!(
-            shape, Shape::Rect(r) if r.fill == list.item.paint.states.hover.fill
+            shape, Shape::Rect(r) if r.fill == highlight
         )),
         "the highlighted item is drawn in the item colours"
     );

@@ -8,7 +8,7 @@ use eggshell_ui::contract::{
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::owned::{FieldPart, InputGroupPart, InputPart, TablePart};
 use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
+use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{HoverSurface, ShadcnStyle};
@@ -341,11 +341,6 @@ impl Shadcn {
             border: t.primary,
             text: t.foreground,
         };
-        let popup_colors = Colors {
-            fill: t.popover,
-            border: t.border,
-            text: t.popover_foreground,
-        };
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
@@ -531,43 +526,21 @@ impl Shadcn {
             select.chevron_opacity = Opacity::new(0.5);
             select
         });
-        // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
-        // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
+        // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
+        // check and chevron, and a `text-xs` shortcut. The look is the
+        // generated sheet's.
         style.set_menu({
             let mut menu = style.menu().clone();
-            menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
-                .bordered(1.0)
-                .shadowed(t.shadow_md);
-            menu.radius = t.radius_md();
             menu.padding = t.popup_padding;
-            menu.min_width = 128.0;
             menu.offset = Distance::new(4.0);
-            menu.item = BoxLook::new(States::new(
-                flat(clear, t.popover_foreground),
-                accented,
-                t.popover,
-            ));
-            menu.item_radius = t.radius_sm();
             menu.item_padding = t.item_padding;
             menu.item_gap = t.item_padding.x;
-            let tint = if dark { 0.2 } else { 0.1 };
-            menu.destructive = States::new(
-                flat(clear, t.destructive),
-                flat(t.destructive.gamma_multiply(tint), t.destructive),
-                t.popover,
-            );
-            menu.separator = t.border;
-            menu.separator_margin = 4.0;
-            menu.heading = t.popover_foreground;
-            menu.heading_weight = t.label_weight;
-            menu.shortcut = t.muted_foreground;
             menu.shortcut_text = TextSpec {
                 size: 12.0,
                 line_height: 16.0,
                 family: egui::FontFamily::Proportional,
                 weight: Weight::Normal,
             };
-            menu.shortcut_tracking = Tracking::points(1.2);
             menu.indicator = 16.0;
             menu
         });

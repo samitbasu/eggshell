@@ -108,9 +108,8 @@ impl DialogStyle {
     /// fill and window stroke for the box, the menu's popup for the popover,
     /// and the style's default button variant everywhere.
     pub fn from_style(style: &Style) -> Self {
-        let menu = style.menu();
-        let popup = &menu.popup;
-        let colors = popup.paint.states.rest;
+        let popup = crate::styles::Popover::of(style);
+        let colors = popup.colors;
         let k = &style.tokens;
         let text = |size: f32, line_height: f32, weight: Weight| TextSpec {
             size,
@@ -127,8 +126,8 @@ impl DialogStyle {
                 text: colors.text,
                 border: colors.border,
                 border_width: popup.border_width,
-                radius: menu.radius,
-                shadow: popup.paint.shadow,
+                radius: popup.radius,
+                shadow: Some(popup.shadow),
             },
             title: text(18.0, 18.0, Weight::SemiBold),
             description: text(14.0, 20.0, Weight::Normal),

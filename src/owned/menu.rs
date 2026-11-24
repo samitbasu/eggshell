@@ -14,7 +14,7 @@ use egui::{Context, EventFilter, Id, Key as EguiKey, Pos2, Role, Vec2};
 use super::button::{ButtonChain, ButtonOptions, Face};
 use super::menu_sheet::{INSET, MenuPart};
 use super::{
-    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, painted, tipped,
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, tipped,
 };
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
@@ -162,26 +162,14 @@ pub(crate) enum Tone {
 }
 
 impl MenuStyle {
-    /// The classes of the box that holds the items, in the text role
-    /// `text`: a menu's, a select's list's, or a popover of a widget of its
-    /// own that lists items as a menu does.
-    pub fn box_classes(&self, text: &TextSpec) -> Tw {
-        let colors = self.popup.paint.states.rest;
-        let classes = tw()
-            .flex()
+    /// The layout of the box that holds the items, in the text role `text`:
+    /// a menu's or a select's list's. Its look is the sheet's.
+    pub(crate) fn box_layout(&self, text: &TextSpec) -> Tw {
+        tw().flex()
             .flex_col()
             .min_h_0()
             .p_px(self.padding)
-            .border(self.popup.border_width)
-            .border_color(colors.border)
-            .bg(colors.fill)
-            .text(colors.text)
-            .rounded_px(f32::from(self.radius))
-            .role(text.clone());
-        match self.popup.paint.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
-        }
+            .role(text.clone())
     }
 
     /// The height of one item in the text role `text`.
@@ -189,28 +177,19 @@ impl MenuStyle {
         text.line_height + 2.0 * self.item_padding.y
     }
 
-    /// The classes of one item: the highlighted one takes the `hover`
-    /// colours.
-    pub(crate) fn row_classes(&self, tone: Tone, enablement: Enablement, text: &TextSpec) -> Tw {
-        let states = match tone {
-            Tone::Plain => self.item.paint.states,
-            Tone::Destructive => self.destructive,
-        };
+    /// The layout of one item in the text role `text`. Its look is the
+    /// sheet's.
+    pub(crate) fn row_layout(&self, enablement: Enablement, text: &TextSpec) -> Tw {
         let base = tw()
             .flex()
             .items_center()
             .gap_px(self.item_gap)
             .px_px(self.item_padding.x)
             .h_px(self.row_height(text))
-            .rounded_px(f32::from(self.item_radius))
             .whitespace_nowrap();
         match enablement {
-            Enablement::Disabled => painted(base, self.item.paint.states.disabled).inert(),
-            Enablement::Enabled => {
-                let hover = states.hover;
-                painted(base.sense_click(), states.rest)
-                    .highlighted(|p| p.bg(hover.fill).text(hover.text))
-            }
+            Enablement::Disabled => base.inert(),
+            Enablement::Enabled => base.sense_click(),
         }
     }
 }

@@ -796,48 +796,22 @@ pub struct SelectStyle {
     pub chevron_opacity: Opacity,
 }
 
-/// Menus: the box, items, separators, headings, shortcuts and indicators of a
-/// dropdown, a context menu and a submenu, and the list a select opens.
+/// TODO(prose): Menus: the metrics of a dropdown's, a context menu's and a submenu's box, items and shortcuts, and of the list a select opens. Their look is the sheet's [`MenuPart`](crate::owned::MenuPart)s and [`SelectPart`](crate::owned::SelectPart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MenuStyle {
-    /// The box: its `rest` colours, border and shadow.
-    pub popup: Look,
-    /// Corner radius of the box.
-    pub radius: u8,
     /// Padding between the box and its items.
     pub padding: f32,
-    /// The least width of a menu.
-    pub min_width: f32,
     /// The gap between a trigger and its dropdown menu or select list.
     pub offset: Distance,
-    /// An item; its `hover` colours mark the highlighted one, the one the
-    /// pointer is on or that has the keyboard focus.
-    pub item: Look,
-    /// Corner radius of an item.
-    pub item_radius: u8,
     /// Left-right and top-bottom padding of an item.
     pub item_padding: Vec2,
     /// Space between the parts of an item: its indicator, label and shortcut.
     pub item_gap: f32,
-    /// A destructive item: `rest` and `hover` colours.
-    pub destructive: States,
-    /// A separator's colour.
-    pub separator: Color32,
-    /// The space above and below a separator.
-    pub separator_margin: f32,
-    /// The colour of a group heading.
-    pub heading: Color32,
-    /// The weight of a group heading, over the items' text role.
-    pub heading_weight: Weight,
     /// The text role of items and headings, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// The colour of a shortcut.
-    pub shortcut: Color32,
     /// The text role of a shortcut.
     pub shortcut_text: TextSpec,
-    /// The letter spacing of a shortcut.
-    pub shortcut_tracking: Tracking,
     /// Side of the square an item keeps for its check or radio mark, and of
     /// the submenu chevron.
     pub indicator: f32,
@@ -1805,6 +1779,52 @@ impl Style {
                 transition,
             },
         );
+        crate::owned::menu_defaults(
+            &mut sheet,
+            crate::owned::MenuDefaults {
+                popup: Look::new(States::still(
+                    Colors {
+                        fill: v.window_fill,
+                        border: v.window_stroke.color,
+                        text: v.text_color(),
+                    },
+                    v.window_fill,
+                ))
+                .bordered(v.window_stroke.width.max(1.0))
+                .shadowed(v.popup_shadow),
+                radius,
+                min_width: s.combo_width,
+                item: Look::new(States::new(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.text_color(),
+                    },
+                    selected,
+                    v.window_fill,
+                )),
+                item_radius: radius,
+                destructive: States::new(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.error_fg_color,
+                    },
+                    Colors {
+                        fill: v.error_fg_color.gamma_multiply(0.15),
+                        border: clear,
+                        text: v.error_fg_color,
+                    },
+                    v.window_fill,
+                ),
+                separator: w.noninteractive.bg_stroke.color,
+                separator_margin: s.item_spacing.y,
+                heading: v.weak_text_color(),
+                heading_weight: Weight::Normal,
+                shortcut: v.weak_text_color(),
+                shortcut_tracking: Tracking::ZERO,
+            },
+        );
         crate::owned::input_defaults(
             &mut sheet,
             crate::owned::InputDefaults {
@@ -2079,51 +2099,11 @@ impl Style {
                 chevron_opacity: Opacity::new(0.5),
             },
             menu: MenuStyle {
-                popup: Look::new(States::still(
-                    Colors {
-                        fill: v.window_fill,
-                        border: v.window_stroke.color,
-                        text: v.text_color(),
-                    },
-                    v.window_fill,
-                ))
-                .bordered(v.window_stroke.width.max(1.0))
-                .shadowed(v.popup_shadow),
-                radius,
                 padding: 2.0,
-                min_width: s.combo_width,
-                item: Look::new(States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.text_color(),
-                    },
-                    selected,
-                    v.window_fill,
-                )),
-                item_radius: radius,
                 item_padding: vec2(s.button_padding.x, s.button_padding.y),
                 item_gap: s.item_spacing.x,
-                destructive: States::new(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: v.error_fg_color,
-                    },
-                    Colors {
-                        fill: v.error_fg_color.gamma_multiply(0.15),
-                        border: clear,
-                        text: v.error_fg_color,
-                    },
-                    v.window_fill,
-                ),
-                separator: w.noninteractive.bg_stroke.color,
-                separator_margin: s.item_spacing.y,
                 offset: Distance::new(4.0),
-                heading: v.weak_text_color(),
-                heading_weight: Weight::Normal,
                 text: None,
-                shortcut: v.weak_text_color(),
                 shortcut_text: {
                     let small = egui
                         .text_styles
@@ -2137,7 +2117,6 @@ impl Style {
                         weight: Weight::Normal,
                     }
                 },
-                shortcut_tracking: Tracking::ZERO,
                 indicator: s.icon_width,
             },
             tooltip: TooltipStyle {

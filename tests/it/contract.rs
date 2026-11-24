@@ -146,10 +146,31 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
     look("slider thumb", &style.slider.thumb.paint);
-    look("menu popup", &style.menu().popup.paint);
-    look("menu item", &style.menu().item.paint);
     look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
+    let item = crate::support::part_at(
+        style,
+        eggshell_ui::owned::MenuPart::Item,
+        &[
+            eggshell_ui::sheet::Key::Variant(Variant::DEFAULT),
+            eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled),
+        ],
+    );
+    // shadcn fades a disabled item with `opacity-50` and gives it no colours.
+    let text = crate::support::ink(style, &item);
+    if text != Color32::PLACEHOLDER {
+        all.push((
+            "menu item".to_string(),
+            eggshell_ui::contract::Colors {
+                fill: item
+                    .paint_classes()
+                    .background
+                    .unwrap_or(Color32::TRANSPARENT),
+                border: Color32::TRANSPARENT,
+                text,
+            },
+        ));
+    }
     all.push(("slider track".to_string(), style.slider.track.disabled));
     all.push(("slider range".to_string(), style.slider.range.disabled));
     all
@@ -169,7 +190,7 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 9,
+            all.len() >= 8,
             "precondition: the walk reaches every look (a button's is the sheet's)"
         );
         for (name, colors) in all {

@@ -8,7 +8,6 @@ use egui::accesskit::HasPopup;
 use egui::{Context, Id, Key, Role, WidgetInfo};
 
 use super::choice::{self, Choice, IntoChoice};
-use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::options::Refused;
 use super::{
@@ -136,8 +135,8 @@ pub(crate) fn write_select_rules(style: &mut Style) {
         };
         let item_menu = menu.clone();
         let item_text = list_text.clone();
-        sheet.replace_when(SelectPart::Item, when, move |t, _| {
-            t.merge(item_menu.row_classes(Tone::Plain, enablement, &item_text))
+        sheet.rule_when(SelectPart::Item, when, move |t, _| {
+            t.merge(item_menu.row_layout(enablement, &item_text))
                 .justify_between()
                 .focusable_none()
         });
@@ -164,8 +163,8 @@ pub(crate) fn write_select_rules(style: &mut Style) {
     sheet.replace(SelectPart::TriggerIcon, move |t, _| {
         t.size_px(chevron).shrink_0().opacity(opacity)
     });
-    sheet.replace(SelectPart::Content, move |t, _| {
-        t.merge(menu.box_classes(&list_text))
+    sheet.rule(SelectPart::Content, move |t, _| {
+        t.merge(menu.box_layout(&list_text))
     });
     sheet.replace(SelectPart::ItemIndicator, move |t, _| {
         t.size_px(chevron).shrink_0()
