@@ -8,13 +8,13 @@ use egui::{Context, Id};
 #[track_caller]
 pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
     ctx: &Context,
-    keyed: &'k eggshell_ui::contract::Keyed<K, T>,
+    keyed: &'k crate::contract::Keyed<K, T>,
     key: K,
 ) -> &'k T {
     if !keyed.keys().any(|defined| defined == key) {
-        eggshell_ui::report(
+        crate::report(
             ctx,
-            eggshell_ui::Problem::MissingStyleEntry,
+            crate::Problem::MissingStyleEntry,
             Some(Id::NULL.with(("style-entry", format!("{key:?}")))),
             || format!("the style defines no {key:?}; drawing its default entry"),
         );
@@ -24,10 +24,10 @@ pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
 
 #[cfg(any(feature = "command", feature = "markdown"))]
 /// The border colour `style`'s sheet gives a text field at rest.
-pub(crate) fn input_border(style: &eggshell_ui::Style) -> egui::Color32 {
+pub(crate) fn input_border(style: &crate::Style) -> egui::Color32 {
     style
         .sheet
-        .resolve(eggshell_ui::owned::InputPart::Root, &[], &style.tokens)
+        .resolve(crate::owned::InputPart::Root, &[], &style.tokens)
         .paint_classes()
         .border_colors
         .top
@@ -44,7 +44,7 @@ pub(crate) fn input_border(style: &eggshell_ui::Style) -> egui::Color32 {
 ))]
 /// TODO(prose): the box a widget draws as `style`'s menus draw theirs: the popover's colours and shadow from the tokens, a 1 pt border, and the radius of the sheet's menu box.
 pub(crate) struct Popover {
-    pub colors: eggshell_ui::contract::Colors,
+    pub colors: crate::contract::Colors,
     pub border_width: f32,
     pub radius: u8,
     pub shadow: egui::Shadow,
@@ -59,16 +59,16 @@ pub(crate) struct Popover {
     feature = "skeleton"
 ))]
 impl Popover {
-    pub(crate) fn of(style: &eggshell_ui::Style) -> Self {
+    pub(crate) fn of(style: &crate::Style) -> Self {
         let k = &style.tokens;
         Self {
-            colors: eggshell_ui::contract::Colors {
+            colors: crate::contract::Colors {
                 fill: k.popover,
                 border: k.border,
                 text: k.popover_foreground,
             },
             border_width: 1.0,
-            radius: menu_part(style, eggshell_ui::owned::MenuPart::Content, &[])
+            radius: menu_part(style, crate::owned::MenuPart::Content, &[])
                 .paint_classes()
                 .radius
                 .nw,
@@ -76,11 +76,11 @@ impl Popover {
         }
     }
 
-    /// The box as a [`Look`](eggshell_ui::contract::Look), the same in every
+    /// The box as a [`Look`](crate::contract::Look), the same in every
     /// state.
     #[cfg(feature = "hover-card")]
-    pub(crate) fn look(&self) -> eggshell_ui::contract::Look {
-        eggshell_ui::contract::Look::new(eggshell_ui::contract::States::still(
+    pub(crate) fn look(&self) -> crate::contract::Look {
+        crate::contract::Look::new(crate::contract::States::still(
             self.colors,
             self.colors.fill,
         ))
@@ -99,9 +99,9 @@ impl Popover {
 ))]
 /// The classes `style`'s sheet gives the menu's `part` under `keys`.
 pub(crate) fn menu_part(
-    style: &eggshell_ui::Style,
-    part: eggshell_ui::owned::MenuPart,
-    keys: &[eggshell_ui::sheet::Key],
-) -> eggshell_ui::Tw {
+    style: &crate::Style,
+    part: crate::owned::MenuPart,
+    keys: &[crate::sheet::Key],
+) -> crate::Tw {
     style.sheet.resolve(part, keys, &style.tokens)
 }

@@ -7,7 +7,7 @@
 use eggshell_ui::contract::{Colors, Look, Variant};
 use eggshell_ui::owned::{InputPart, MenuPart};
 use eggshell_ui::sheet::Key;
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
+use eggshell_ui::theme::{Shadcn, ShadcnStyle};
 use egui::Theme;
 
 fn colors(prefix: &str, state: &str, c: &Colors) {

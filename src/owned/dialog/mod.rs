@@ -5,7 +5,7 @@
 //! ```
 //! use eggshell_ui::overlay::{Modal, Shown};
 //! use eggshell_ui::Builder;
-//! use eggshell_ui_extras::dialog::{Dialog, DialogExt};
+//! use eggshell_ui::owned::dialog::{Dialog, DialogExt};
 //!
 //! struct App { edit: Shown, name: String }
 //!
@@ -37,14 +37,14 @@ mod style;
 pub use parts::{AlertDialogPart, DialogPart, PopoverPart, SheetPart};
 pub use style::{DialogStyle, Surface, shadow_lg};
 
-use eggshell_ui::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
-use eggshell_ui::owned::{ButtonChain, Face};
-use eggshell_ui::sheet::{Defaults, Key as SheetKey};
-use eggshell_ui::{Builder, Icon, Scope, TextSpec, Tw, icons, tw};
+use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
+use crate::owned::{ButtonChain, Face};
+use crate::sheet::{Defaults, Key as SheetKey};
+use crate::{Builder, Icon, Scope, TextSpec, Tw, icons, tw};
 use egui::Role;
 
 /// The keys of a dialog's parts, under the overlay's key: tests and
-/// [`focus_on_open`](eggshell_ui::NodeHandle::focus_on_open) name them.
+/// [`focus_on_open`](crate::NodeHandle::focus_on_open) name them.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum DialogKey {
     /// The box: the dialog, the sheet or the popover.

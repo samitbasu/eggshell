@@ -4,9 +4,9 @@
 use std::time::Duration;
 
 use egui::Shadow;
-use eggshell_ui_extras::command::ComboboxPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match, Opacity};
+use crate::owned::command::ComboboxPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match, Opacity};
 
 const COMBOBOX: &str = "registry/bases/radix/ui/combobox.tsx";
 const INPUT_GROUP: &str = "registry/bases/radix/ui/input-group.tsx";

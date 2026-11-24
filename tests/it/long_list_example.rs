@@ -3,7 +3,7 @@
 
 use eggshell_ui::TextStyle;
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui_shadcn::Tokens;
+use eggshell_ui::theme::Tokens;
 use egui::{Theme, vec2};
 
 use crate::support;

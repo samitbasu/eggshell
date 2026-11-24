@@ -3,8 +3,8 @@
 //! from where the value is, and the step's lattice stays the track's.
 
 use eggshell_ui::owned::{Step, ValueRange};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui_extras::badge::BadgeExt;
+//! use eggshell_ui::owned::badge::BadgeExt;
 //!
 //! struct App { tags: Vec<String>, filter: Option<String> }
 //!
@@ -24,9 +24,9 @@
 mod chip;
 mod style;
 
-use eggshell_ui::contract::{Look, Variant};
-use eggshell_ui::sheet::{Defaults, Key as SheetKey, Part};
-use eggshell_ui::{Builder, Icon, Key, Tw, tw};
+use crate::contract::{Look, Variant};
+use crate::sheet::{Defaults, Key as SheetKey, Part};
+use crate::{Builder, Icon, Key, Tw, tw};
 
 /// TODO(prose): a badge's anatomy for the style's sheet: shadcn's `badge`.
 /// A chip is a badge too, one that can be clicked or removed.
@@ -134,7 +134,7 @@ impl Face {
     /// The look of the face's variant, else the style's default.
     #[track_caller]
     fn look(&self, ctx: &egui::Context, style: &BadgeStyle) -> Look {
-        *crate::styles::entry(ctx, &style.variants, self.variant(style))
+        *crate::owned::styles::entry(ctx, &style.variants, self.variant(style))
     }
 
     fn variant(&self, style: &BadgeStyle) -> Variant {

@@ -22,13 +22,13 @@ use std::collections::BTreeMap;
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::{Colors, Paint, States, Style, Variant};
 use eggshell_ui::owned;
+use eggshell_ui::owned::badge::BadgeExt;
+use eggshell_ui::owned::skeleton::SkeletonExt;
+use eggshell_ui::owned::spinner::SpinnerExt;
 use eggshell_ui::prim::text_field::{self, Field};
+use eggshell_ui::theme::{BaseColor, Palette, ThemeColor, size, variant};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};
-use eggshell_ui_extras::badge::BadgeExt;
-use eggshell_ui_extras::skeleton::SkeletonExt;
-use eggshell_ui_extras::spinner::SpinnerExt;
-use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -331,7 +331,7 @@ pub fn prepare(ctx: &Context, state: &State) {
 const ARMED: Variant = Variant("armed");
 
 /// `style` with the armed toggle variant, in the colours of `tokens`.
-fn add_armed_variant(style: &mut Style, tokens: &eggshell_ui_shadcn::Tokens) {
+fn add_armed_variant(style: &mut Style, tokens: &eggshell_ui::theme::Tokens) {
     let off = *style.toggle.off.get(Variant::DEFAULT);
     let on = Paint::new(States::still(
         Colors {

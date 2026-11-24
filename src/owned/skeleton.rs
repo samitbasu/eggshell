@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui_extras::skeleton::SkeletonExt;
+//! use eggshell_ui::owned::skeleton::SkeletonExt;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.skeleton(tw().h_px(16.0).w_px(250.0));
@@ -13,7 +13,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::{Builder, Easing, Opacity, Progress, Style, Tw, cycle, tw};
+use crate::{Builder, Easing, Opacity, Progress, Style, Tw, cycle, tw};
 use egui::Color32;
 
 /// TODO(prose): how skeletons look: their fill, corners and pulse.
@@ -31,7 +31,7 @@ pub struct SkeletonStyle {
     pub low: Opacity,
 }
 
-impl eggshell_ui::contract::Extension for SkeletonStyle {
+impl crate::contract::Extension for SkeletonStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }
@@ -44,7 +44,7 @@ impl SkeletonStyle {
     pub fn from_style(style: &Style) -> Self {
         Self {
             fill: Color32::from_gray(128).gamma_multiply(0.2),
-            radius: crate::styles::Popover::of(style).radius,
+            radius: crate::owned::styles::Popover::of(style).radius,
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }
@@ -59,7 +59,7 @@ pub enum SkeletonPart {
     Root,
 }
 
-impl eggshell_ui::sheet::Part for SkeletonPart {
+impl crate::sheet::Part for SkeletonPart {
     const SOURCE: &'static str = "skeleton.tsx";
 
     fn slot(self) -> &'static str {
@@ -84,7 +84,7 @@ impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
         let styled = self.part_over(
             SkeletonPart::Root,
             &[],
-            eggshell_ui::sheet::Defaults(look),
+            crate::sheet::Defaults(look),
             tw().shrink_0().opacity(opacity).merge(classes),
         );
         self.div(styled, |_| {});

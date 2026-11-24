@@ -229,9 +229,9 @@ const BAR_HEIGHT: f32 = 44.0;
 /// The style a rig's layout builds with unless it `prepare`s its own: shadcn's
 /// default, light and dark.
 pub fn shadcn() -> Themed<Arc<eggshell_ui::Style>> {
-    eggshell_ui_shadcn::Shadcn::themed(
-        eggshell_ui_shadcn::ShadcnStyle::default(),
-        eggshell_ui_shadcn::Palette::new(),
+    eggshell_ui::theme::Shadcn::themed(
+        eggshell_ui::theme::ShadcnStyle::default(),
+        eggshell_ui::theme::Palette::new(),
     )
 }
 
@@ -393,15 +393,15 @@ fn harness_timed<A>(
                     ids,
                 } = rig;
                 full_motion(ui.ctx());
-                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
                 }
                 if let Some(prepare) = prepare {
                     prepare(ui.ctx(), &*app);
                     layout.set_style(common::style(ui.ctx()));
                 }
                 if *page == Page::Themed {
-                    let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                    let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
                     ui.painter()
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }
@@ -767,10 +767,10 @@ pub fn frame_harness_scaled<A: 'static>(
         .build_ui_state(
             move |ui, rig: &mut FrameRig<A>| {
                 full_motion(ui.ctx());
-                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
                 }
-                let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 rig.bar.show(ui);
@@ -911,15 +911,15 @@ fn rig_driver<A: 'static>(
     Driver::whole_frame(app, move |ui, app, layout| {
         let area = ui.max_rect();
         let Surround { page, companion } = surround(ui.ctx());
-        if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-            eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+        if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+            eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
         }
         if let Some(prepare) = prepare {
             prepare(ui.ctx(), &*app);
             layout.set_style(common::style(ui.ctx()));
         }
         if page == Page::Themed {
-            let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+            let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
             ui.painter()
                 .rect_filled(ui.ctx().content_rect(), 0.0, background);
         }
@@ -950,10 +950,10 @@ pub fn frame_driver<A: 'static>(
     let mut bar = Bar::new(base_text.clone());
     let step = Duration::from_nanos(1_000_000_000 / 60);
     Driver::whole_frame(app, move |ui, app, layout| {
-        if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-            eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+        if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+            eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
         }
-        let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+        let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
         ui.painter()
             .rect_filled(ui.ctx().content_rect(), 0.0, background);
         bar.show(ui);

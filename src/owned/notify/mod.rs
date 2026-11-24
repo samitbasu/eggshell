@@ -3,7 +3,7 @@
 //! ```
 //! use core::time::Duration;
 //! use eggshell_ui::{Builder, Distance};
-//! use eggshell_ui_extras::notify::{Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
+//! use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
 //!
 //! #[derive(Clone, Copy)]
 //! enum Act {
@@ -42,8 +42,8 @@ use core::time::Duration;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use eggshell_ui::overlay::{Align, Anchor, Band, DismissOn, Focus, Outside, Placement, Side};
-use eggshell_ui::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons, tw};
+use crate::overlay::{Align, Anchor, Band, DismissOn, Focus, Outside, Placement, Side};
+use crate::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons, tw};
 use egui::accesskit::Live;
 use egui::{Context, Id, Modifiers, Role};
 
@@ -60,7 +60,7 @@ pub enum NotifyPart {
     Toast,
 }
 
-impl eggshell_ui::sheet::Part for NotifyPart {
+impl crate::sheet::Part for NotifyPart {
     const SOURCE: &'static str = "sonner.tsx";
 
     fn slot(self) -> &'static str {
@@ -444,7 +444,7 @@ fn card<A: 'static, Act: Clone + 'static>(
     let classes = s.part_over(
         NotifyPart::Toast,
         &[],
-        eggshell_ui::sheet::Defaults(look.card()),
+        crate::sheet::Defaults(look.card()),
         tw(),
     );
     let card = s.div_id(id, classes, |s| {

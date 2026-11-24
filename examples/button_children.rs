@@ -5,8 +5,8 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
+use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_shadcn::size;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Tool {

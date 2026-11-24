@@ -231,7 +231,7 @@ fn stepper_and_field(b: &mut Builder<'_, '_, Size>, size: &Size) {
 }
 
 fn themed_at(size: Size, theme: egui::Theme) -> Driver<Size> {
-    let tokens = eggshell_ui_shadcn::Tokens::for_theme(theme);
+    let tokens = eggshell_ui::theme::Tokens::for_theme(theme);
     let mut d = support::driver(
         vec2(300.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
@@ -247,7 +247,7 @@ fn themed_at(size: Size, theme: egui::Theme) -> Driver<Size> {
 #[test]
 fn a_steppers_value_and_chevrons_keep_its_own_metrics_and_colour_at_every_size() {
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
-        let style = eggshell_ui_shadcn::Shadcn::for_theme(theme).style();
+        let style = eggshell_ui::theme::Shadcn::for_theme(theme).style();
         let stepper = &style.stepper;
         for size in [Size::DEFAULT, SM, XS] {
             let d = themed_at(size, theme);

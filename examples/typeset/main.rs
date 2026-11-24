@@ -9,8 +9,8 @@
 #[path = "../common/mod.rs"]
 mod common;
 
+use eggshell_ui::owned::markdown::{MarkdownExt, Typeset};
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::markdown::{MarkdownExt, Typeset};
 
 /// The parts the layout names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

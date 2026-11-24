@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::owned::{Cells, Column};
-use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Track, Tw, child_id, tw};
+use crate::owned::{Cells, Column};
+use crate::{Builder, Key, Scope, Shell, Spans, Track, Tw, child_id, tw};
 use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
@@ -168,8 +168,8 @@ fn emit<'f, A: 'static>(
                     .pl(quote.padding)
                     .text(quote.text);
                 let at = match quote.font_style {
-                    eggshell_ui::FontStyle::Italic => at.italic(),
-                    eggshell_ui::FontStyle::Normal => at,
+                    crate::FontStyle::Italic => at.italic(),
+                    crate::FontStyle::Normal => at,
                 };
                 s.div_id(key, at, |s| emit(s, inner, context, depth));
             }

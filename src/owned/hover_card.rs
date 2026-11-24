@@ -12,7 +12,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui_extras::hover_card::HoverCardExt as _;
+//! use eggshell_ui::owned::hover_card::HoverCardExt as _;
 //!
 //! struct App { follows: u32 }
 //!
@@ -39,10 +39,10 @@
 
 use core::time::Duration;
 
-use eggshell_ui::contract::Look;
-use eggshell_ui::overlay::{Align, Distance, HoverIntent, Placement};
-use eggshell_ui::sheet::{Defaults, Part};
-use eggshell_ui::{Builder, Key, Scope, Style, Tw, tw};
+use crate::contract::Look;
+use crate::overlay::{Align, Distance, HoverIntent, Placement};
+use crate::sheet::{Defaults, Part};
+use crate::{Builder, Key, Scope, Style, Tw, tw};
 
 /// TODO(prose): the anatomy of a hover card for the style's sheet: shadcn's
 /// `hover-card`.
@@ -90,7 +90,7 @@ pub struct HoverCardStyle {
     pub transition: Duration,
 }
 
-impl eggshell_ui::contract::Extension for HoverCardStyle {
+impl crate::contract::Extension for HoverCardStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }
@@ -99,7 +99,7 @@ impl eggshell_ui::contract::Extension for HoverCardStyle {
 impl HoverCardStyle {
     /// TODO(prose): Radix's delays, and the box of `style`'s menus.
     pub fn from_style(style: &Style) -> Self {
-        let popover = crate::styles::Popover::of(style);
+        let popover = crate::owned::styles::Popover::of(style);
         Self {
             open_delay: Duration::from_millis(700),
             close_delay: Duration::from_millis(300),

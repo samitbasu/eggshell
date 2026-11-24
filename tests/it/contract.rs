@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Size, Variant};
 use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
+use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{Builder, LayoutState, Problem, Style, Weight};
-use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, Theme, vec2};
 
 #[test]

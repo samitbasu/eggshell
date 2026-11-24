@@ -1151,8 +1151,6 @@ dependencies = [
  "criterion",
  "eframe",
  "eggshell-ui",
- "eggshell-ui-extras",
- "eggshell-ui-shadcn",
  "egui",
  "egui-wgpu",
  "egui_extras",
@@ -1162,31 +1160,14 @@ dependencies = [
  "nohash-hasher",
  "pollster",
  "proptest",
+ "pulldown-cmark",
  "taffy",
  "trybuild",
+ "unicode-normalization",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
-]
-
-[[package]]
-name = "eggshell-ui-extras"
-version = "0.1.0"
-dependencies = [
- "eggshell-ui",
- "egui",
- "pulldown-cmark",
- "unicode-normalization",
-]
-
-[[package]]
-name = "eggshell-ui-shadcn"
-version = "0.1.0"
-dependencies = [
- "eggshell-ui",
- "eggshell-ui-extras",
- "egui",
 ]
 
 [[package]]

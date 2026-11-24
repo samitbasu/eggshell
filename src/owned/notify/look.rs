@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::{Tw, tw};
+use crate::{Tw, tw};
 
 use super::NotifyStyle;
 

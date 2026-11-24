@@ -2,8 +2,8 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, size};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
-use eggshell_ui_shadcn::{Shadcn, size};
 use egui::{Color32, FontFamily, Theme, vec2};
 
 use crate::support::{self, box_at, ring_at};
@@ -53,7 +53,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                         .bare()
                         .on_change(|_: &mut App, _| {});
                     s.button("addon", "Go")
-                        .variant(eggshell_ui_shadcn::variant::GHOST)
+                        .variant(eggshell_ui::theme::variant::GHOST)
                         .size(size::SM)
                         .on_click(|_: &mut App| {});
                 });

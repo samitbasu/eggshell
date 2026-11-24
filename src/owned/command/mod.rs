@@ -8,11 +8,11 @@ mod style;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
-use eggshell_ui::owned::Mark;
-use eggshell_ui::prim::text_field::Select;
-use eggshell_ui::sheet::Defaults;
-use eggshell_ui::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
+use crate::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
+use crate::owned::Mark;
+use crate::prim::text_field::Select;
+use crate::sheet::Defaults;
+use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
@@ -389,7 +389,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
     }
 
     /// TODO(prose): marks the combobox invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](eggshell_ui::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
     /// does: its box's border and ring turn destructive, because its field
     /// is invalid.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {

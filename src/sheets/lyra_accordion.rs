@@ -4,9 +4,9 @@
 use std::time::Duration;
 
 use egui::Color32;
-use eggshell_ui_extras::disclosure::AccordionPart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match, Opacity};
+use crate::owned::disclosure::AccordionPart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match, Opacity};
 
 const ACCORDION: &str = "registry/bases/radix/ui/accordion.tsx";
 const LYRA: &str = "registry/styles/style-lyra.css";

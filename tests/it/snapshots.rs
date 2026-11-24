@@ -5,8 +5,8 @@
 
 use std::sync::Once;
 
+use eggshell_ui::theme::{ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
-use eggshell_ui_shadcn::{ShadcnStyle, Tokens};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
@@ -2900,9 +2900,9 @@ fn palette_open_dark() {
 /// the rule drew. The inventory is in PHASE2-AUDIT.md.
 mod child_rules {
     use super::*;
+    use eggshell_ui::owned::badge::BadgeExt as _;
+    use eggshell_ui::owned::command::CommandExt as _;
     use eggshell_ui::{Icon, icons};
-    use eggshell_ui_extras::badge::BadgeExt as _;
-    use eggshell_ui_extras::command::CommandExt as _;
 
     fn suffix(theme: egui::Theme) -> &'static str {
         match theme {

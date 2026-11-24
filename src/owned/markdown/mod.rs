@@ -2,7 +2,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui_extras::markdown::{Directives, MarkdownExt};
+//! use eggshell_ui::owned::markdown::{Directives, MarkdownExt};
 //!
 //! struct Docs {
 //!     page: String,
@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::{Builder, Key, Problem, Scope};
+use crate::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
@@ -111,7 +111,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
 #[track_caller]
 fn report_malformed(ctx: &egui::Context, doc: egui::Id, malformed: &[parse::Malformed]) {
     for &problem in malformed {
-        eggshell_ui::report(
+        crate::report(
             ctx,
             Problem::MalformedMarkdown,
             Some(doc.with(problem.name())),
@@ -174,7 +174,7 @@ impl<A> Directives<A> {
 ///
 /// ```
 /// # use eggshell_ui::{Builder, Shell};
-/// # use eggshell_ui_extras::markdown::{MarkdownExt, heading_id};
+/// # use eggshell_ui::owned::markdown::{MarkdownExt, heading_id};
 /// fn page(b: &mut Builder<'_, '_, ()>, land_on: Option<&str>) {
 ///     let shell: Shell = b.shell();
 ///     if let Some(anchor) = land_on {
@@ -218,7 +218,7 @@ fn parsed(ctx: &egui::Context, source: &str) -> Arc<parse::Parsed> {
 
 #[cfg(test)]
 mod tests {
-    use eggshell_ui::testing::{assert_no_reports, assert_reported};
+    use crate::testing::{assert_no_reports, assert_reported};
 
     use super::*;
 
@@ -232,7 +232,7 @@ mod tests {
             parse::Malformed::CellOutsideTable,
         ];
         report_malformed(&ctx, doc, &malformed);
-        let reports = eggshell_ui::testing::reports(&ctx);
+        let reports = crate::testing::reports(&ctx);
         assert_eq!(reports.len(), 2, "{reports:#?}");
         assert!(
             reports

@@ -13,11 +13,11 @@
 use eggshell_ui::overlay::{
     Anchor, Anchored, Band, Distance, Focus, Modal, Outside, Placement, Shown,
 };
+use eggshell_ui::owned::dialog::{Dialog, DialogExt, PopoverExt};
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::{Points, leaves_bounds};
 use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextStyle, tw};
-use eggshell_ui_extras::dialog::{Dialog, DialogExt, PopoverExt};
 use egui::{Color32, Event, Id, Key, LayerId, Modifiers, PointerButton, Pos2, Rect, Role, vec2};
 use egui_kittest::Harness;
 use proptest::prelude::*;
@@ -348,7 +348,7 @@ struct Rig {
 }
 
 fn rig_harness() -> Harness<'static, Rig> {
-    let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+    let tokens = eggshell_ui::theme::Tokens::for_theme(egui::Theme::Light);
     let base = TextStyle::new(tokens.text_role(), tokens.foreground);
     let rig = Rig {
         app: App::default(),
@@ -371,10 +371,10 @@ fn rig_harness() -> Harness<'static, Rig> {
                     seen,
                     focus_after_bar,
                 } = rig;
-                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
                 }
-                let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 bar.show(ui);

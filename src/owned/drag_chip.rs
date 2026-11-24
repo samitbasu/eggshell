@@ -1,9 +1,9 @@
 //! The drag chip: shadcn's tooltip look as the image of a drag.
 
-use eggshell_ui::{Builder, NodeHandle, TextSpec, Weight, tw};
+use crate::{Builder, NodeHandle, TextSpec, Weight, tw};
 use egui::{FontFamily, vec2};
 
-use crate::{Shadcn, tokens};
+use crate::theme::{Shadcn, tokens};
 
 /// How far the chip sits from the pointer, down and to the right, in points,
 /// so that it does not cover the cursor.

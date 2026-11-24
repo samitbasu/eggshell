@@ -1,7 +1,7 @@
 //! How a command list, a combobox's list and an autosuggest's look beyond the
 //! menu they are built from.
 
-use eggshell_ui::Style;
+use crate::Style;
 use egui::Color32;
 
 /// TODO(prose): the look of the rows and the box of a command list, and of
@@ -18,7 +18,7 @@ pub struct CommandStyle {
     pub list_height: f32,
 }
 
-impl eggshell_ui::contract::Extension for CommandStyle {
+impl crate::contract::Extension for CommandStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }

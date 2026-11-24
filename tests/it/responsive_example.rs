@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 
 use eggshell_ui::testing::Headless;
+use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{NodeKind, Placed, TextSpec, TextStyle, Weight};
-use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, vec2};
 
 #[allow(dead_code, reason = "the example's main is not run here")]

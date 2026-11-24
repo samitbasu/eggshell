@@ -2,8 +2,8 @@
 //! what generated enums and row ids need of the owned controls. That this
 //! file compiles is half of each test.
 
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Role, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 

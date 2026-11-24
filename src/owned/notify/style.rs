@@ -1,6 +1,6 @@
 //! How notifications look: the card, the stack and the buttons in it.
 
-use eggshell_ui::{Distance, Style, TextSpec, Weight};
+use crate::{Distance, Style, TextSpec, Weight};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -83,7 +83,7 @@ pub struct CloseStyle {
     pub hover_border: Color32,
 }
 
-impl eggshell_ui::contract::Extension for NotifyStyle {
+impl crate::contract::Extension for NotifyStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }
@@ -94,7 +94,7 @@ impl NotifyStyle {
     /// wide, 16 points of padding, 6 between a card's parts, 14 between
     /// cards, 3 on show and 24 points from the window's edges.
     pub fn from_style(style: &Style) -> Self {
-        let popup = crate::styles::Popover::of(style);
+        let popup = crate::owned::styles::Popover::of(style);
         let colors = popup.colors;
         Self {
             fill: colors.fill,

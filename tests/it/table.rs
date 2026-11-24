@@ -4,8 +4,8 @@
 
 use eggshell_ui::owned::{Align, Column, Stripes, TablePart};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::accesskit::Action;
 use egui::epaint::Shape;
 use egui::{Color32, Key, Modifiers, Rect, Role, Theme, Vec2, vec2};

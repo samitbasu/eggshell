@@ -4,11 +4,11 @@
 
 use std::cell::RefCell;
 
+use eggshell_ui::owned::tabs::TabsExt;
 use eggshell_ui::owned::{Choice, Enablement, TabsPart};
 use eggshell_ui::sheet::When;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Aria, Builder, TextStyle, tw};
-use eggshell_ui_extras::tabs::TabsExt;
-use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Modifiers, MouseWheelUnit, Role, Theme, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

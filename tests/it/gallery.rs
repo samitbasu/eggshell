@@ -250,7 +250,7 @@ fn name_cells(d: &Driver<State>) -> Vec<egui::Rect> {
 fn every_row_name_fits_on_one_line() {
     use controls_gallery::Section;
     let line = controls_gallery::base_text().spec.line_height;
-    for style in eggshell_ui_shadcn::ShadcnStyle::ALL {
+    for style in eggshell_ui::theme::ShadcnStyle::ALL {
         for section in [Section::Buttons, Section::Choices, Section::Values] {
             let mut d = driver(State {
                 section,

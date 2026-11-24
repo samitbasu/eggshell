@@ -6,7 +6,7 @@
 
 use eggshell_ui::Problem;
 use eggshell_ui::testing::{assert_no_reports, assert_reported, reports};
-use eggshell_ui_shadcn::{
+use eggshell_ui::theme::{
     BaseColor, ContrastPair, ContrastRatio, Palette, REGISTRY_MISSES, Shadcn, ThemeColor, Tokens,
 };
 use egui::{Color32, Context, Theme};

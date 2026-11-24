@@ -1,17 +1,17 @@
 //! How the Markdown widget looks.
 
-use eggshell_ui::contract::Em;
-use eggshell_ui::owned::TablePart;
-use eggshell_ui::sheet::Sheet;
-use eggshell_ui::theme::Tokens;
-use eggshell_ui::{Style, TextSpec, Tracking, Tw, Weight};
+use crate::contract::Em;
+use crate::owned::TablePart;
+use crate::sheet::Sheet;
+use crate::theme::Tokens;
+use crate::{Style, TextSpec, Tracking, Tw, Weight};
 use egui::{Color32, FontFamily};
 
 use super::parse::Level;
 
 /// TODO(prose)
 ///
-/// Lengths are in Tailwind spacing units (a unit is 4 points), as [`Tw`](eggshell_ui::Tw)'s
+/// Lengths are in Tailwind spacing units (a unit is 4 points), as [`Tw`](crate::Tw)'s
 /// spacing classes take them.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -42,11 +42,11 @@ pub struct MarkdownStyle {
     /// What a construct the widget does not show looks like.
     pub unsupported: UnsupportedStyle,
     /// TODO(prose): the document's tables, over the page's
-    /// [`TableStyle`](eggshell_ui::contract::TableStyle); `None` keeps the
+    /// [`TableStyle`](crate::contract::TableStyle); `None` keeps the
     /// page's.
     pub table: Option<TableLook>,
     /// TODO(prose): the document's links and inline code, over the page's
-    /// [`RichTextStyle`](eggshell_ui::contract::RichTextStyle); `None` keeps
+    /// [`RichTextStyle`](crate::contract::RichTextStyle); `None` keeps
     /// the page's.
     pub rich: Option<RichLook>,
 }
@@ -124,7 +124,7 @@ impl TableLook {
     }
 }
 
-impl eggshell_ui::contract::Extension for MarkdownStyle {
+impl crate::contract::Extension for MarkdownStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }
@@ -228,7 +228,7 @@ pub struct QuoteStyle {
     /// TODO(prose)
     pub text: Color32,
     /// TODO(prose)
-    pub font_style: eggshell_ui::FontStyle,
+    pub font_style: crate::FontStyle,
 }
 
 /// TODO(prose)
@@ -268,7 +268,7 @@ pub struct UnsupportedStyle {
 impl MarkdownStyle {
     /// TODO(prose)
     pub fn from_style(style: &Style) -> Self {
-        let border = crate::styles::input_border(style);
+        let border = crate::owned::styles::input_border(style);
         let muted = style.input.hint.unwrap_or(style.label.disabled.text);
         let body = &style.text;
         let mono = |scale: f32| TextSpec {
@@ -324,7 +324,7 @@ impl MarkdownStyle {
                 border_width: 2.0,
                 padding: 6.0,
                 text: style.label.rest.text,
-                font_style: eggshell_ui::FontStyle::Italic,
+                font_style: crate::FontStyle::Italic,
             },
             code: CodeBlockStyle {
                 fill: style.rich.code.fill,

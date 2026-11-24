@@ -883,7 +883,7 @@ mod example_cards {
 
     #[test]
     fn a_cards_button_pops_it_out_and_back_in() {
-        let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+        let tokens = eggshell_ui::theme::Tokens::for_theme(egui::Theme::Light);
         let mut h = support::driver(
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
@@ -918,7 +918,7 @@ mod example_cards {
     #[test]
     fn a_card_with_a_scroll_body_opens_at_its_inline_size() {
         const CARD: &str = "/Grid/Card(0)";
-        let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+        let tokens = eggshell_ui::theme::Tokens::for_theme(egui::Theme::Light);
         let mut h = support::driver(
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),

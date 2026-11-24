@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui_extras::tabs::TabsExt;
+//! use eggshell_ui::owned::tabs::TabsExt;
 //!
 //! #[derive(Clone, Copy, PartialEq)]
 //! enum Lang { Rust, Html }
@@ -23,10 +23,10 @@
 
 use std::rc::Rc;
 
-use eggshell_ui::contract::Size;
-use eggshell_ui::overlay::{Nav, Wrap};
-use eggshell_ui::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows, TabsPart};
-use eggshell_ui::{Builder, Key, Tw, tw};
+use crate::contract::Size;
+use crate::overlay::{Nav, Wrap};
+use crate::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows, TabsPart};
+use crate::{Builder, Key, Tw, tw};
 use egui::Role;
 
 /// TODO(prose): adds [`tabs`](Self::tabs) to the builder.

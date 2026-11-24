@@ -2,7 +2,7 @@
 //! `dialog`, `alert-dialog`, `sheet` and `popover`, each drawn by the
 //! surface it names.
 
-use eggshell_ui::sheet::Part;
+use crate::sheet::Part;
 
 /// TODO(prose): a centred dialog's anatomy: shadcn's `dialog`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

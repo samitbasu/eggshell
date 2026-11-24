@@ -1,7 +1,7 @@
 //! How dialogs, sheets and popovers look.
 
-use eggshell_ui::contract::{Size, Variant};
-use eggshell_ui::{Style, TextSpec, Tw, Weight, tw};
+use crate::contract::{Size, Variant};
+use crate::{Style, TextSpec, Tw, Weight, tw};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -108,7 +108,7 @@ impl DialogStyle {
     /// fill and window stroke for the box, the menu's popup for the popover,
     /// and the style's default button variant everywhere.
     pub fn from_style(style: &Style) -> Self {
-        let popup = crate::styles::Popover::of(style);
+        let popup = crate::owned::styles::Popover::of(style);
         let colors = popup.colors;
         let k = &style.tokens;
         let text = |size: f32, line_height: f32, weight: Weight| TextSpec {
@@ -119,7 +119,7 @@ impl DialogStyle {
         };
         Self {
             surface: Surface::new(k.background, k.foreground, k.border)
-                .rounded(eggshell_ui::contract::corner(k.radius.lg()))
+                .rounded(crate::contract::corner(k.radius.lg()))
                 .shadow(shadow_lg()),
             popover: Surface {
                 fill: colors.fill,
@@ -141,7 +141,7 @@ impl DialogStyle {
     }
 }
 
-impl eggshell_ui::contract::Extension for DialogStyle {
+impl crate::contract::Extension for DialogStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }

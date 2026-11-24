@@ -16,9 +16,9 @@ mod common;
 use core::time::Duration;
 
 use common::glyphs::{self, Glyph};
+use eggshell_ui::owned::DragChip as _;
 use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, Opacity, tw};
-use eggshell_ui_shadcn::DragChip as _;
 use egui::{Context, Key, Ui, vec2};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;

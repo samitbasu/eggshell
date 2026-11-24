@@ -6,8 +6,8 @@
 //! divides some margins by the element's size ratio; each length here is
 //! that `em` resolved to points.
 
-use eggshell_ui::contract::Em;
-use eggshell_ui::{TextSpec, Tracking, Weight};
+use crate::contract::Em;
+use crate::{TextSpec, Tracking, Weight};
 use egui::{Color32, FontFamily};
 
 use super::style::{
@@ -19,7 +19,7 @@ use super::style::{
 /// document's look is derived. The defaults are shadcn's.
 ///
 /// ```
-/// use eggshell_ui_extras::markdown::{Measure, Typeset};
+/// use eggshell_ui::owned::markdown::{Measure, Typeset};
 ///
 /// let reading = Typeset {
 ///     size: 18.0,
@@ -249,7 +249,7 @@ impl Typeset {
                 border_width: 2.0,
                 padding: em(1.0),
                 text: ink.foreground,
-                font_style: eggshell_ui::FontStyle::Normal,
+                font_style: crate::FontStyle::Normal,
             },
             code: CodeBlockStyle {
                 fill: ink.code_fill,
@@ -300,7 +300,7 @@ impl Typeset {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::markdown::Level;
+    use crate::owned::markdown::Level;
 
     fn ink() -> TypesetInk {
         TypesetInk {

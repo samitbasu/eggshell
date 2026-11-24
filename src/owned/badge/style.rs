@@ -2,8 +2,8 @@
 
 use std::time::Duration;
 
-use eggshell_ui::contract::{Colors, Keyed, Look, States, Variant};
-use eggshell_ui::{Opacity, Style, TextSpec, Weight};
+use crate::contract::{Colors, Keyed, Look, States, Variant};
+use crate::{Opacity, Style, TextSpec, Weight};
 use egui::Color32;
 
 /// TODO(prose): the look of [`badge`](super::BadgeExt::badge)s and
@@ -11,7 +11,7 @@ use egui::Color32;
 /// that takes input. Lengths are in points.
 ///
 /// ```
-/// use eggshell_ui_extras::badge::BadgeStyle;
+/// use eggshell_ui::owned::badge::BadgeStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = (*style.extension::<BadgeStyle>()).clone();
@@ -60,7 +60,7 @@ pub struct RemoveStyle {
     pub hover: Opacity,
 }
 
-impl eggshell_ui::contract::Extension for BadgeStyle {
+impl crate::contract::Extension for BadgeStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }

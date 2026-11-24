@@ -485,8 +485,8 @@ mod beside_another_frame {
             .with_base_text(base_text())
             .with_style(support::shadcn());
         let mut d = Driver::whole_frame(App::default(), move |ui, app, page| {
-            if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
             }
             let area = ui.max_rect();
             bar.build(ui.ctx(), |b| b.div(tw().h_px(10.0), |_| {}))

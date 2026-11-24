@@ -4,8 +4,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_shadcn::size;
 
 /// ```html
 /// <div class="flex gap-6 p-4">
@@ -32,7 +32,7 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
                 |s| {
                     s.span("title", tw().font_semibold(), name);
                     s.button("button", "Button")
-                        .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                        .variant(eggshell_ui::theme::variant::OUTLINE)
                         .on_click(|_| {});
                     s.checkbox("checkbox", "Checkbox", true)
                         .on_change(|_, _| {});

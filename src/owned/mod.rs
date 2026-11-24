@@ -39,6 +39,48 @@
 //! When the colour follows only whether the control is chosen, carry it in
 //! the style variant's on and off looks instead.
 
+// keep sorted
+#[cfg(feature = "accordion")]
+pub mod accordion;
+#[cfg(feature = "badge")]
+pub mod badge;
+#[cfg(feature = "command")]
+pub mod command;
+#[cfg(feature = "dialog")]
+pub mod dialog;
+#[cfg(feature = "disclosure")]
+pub mod disclosure;
+#[cfg(feature = "form")]
+pub mod form;
+#[cfg(feature = "hover-card")]
+pub mod hover_card;
+#[cfg(feature = "markdown")]
+pub mod markdown;
+#[cfg(feature = "notify")]
+pub mod notify;
+#[cfg(feature = "skeleton")]
+pub mod skeleton;
+#[cfg(feature = "spinner")]
+pub mod spinner;
+// keep sorted
+#[cfg(any(
+    feature = "badge",
+    feature = "command",
+    feature = "disclosure",
+    feature = "form",
+    feature = "markdown",
+    feature = "notify",
+    feature = "skeleton",
+    feature = "spinner",
+    feature = "tabs"
+))]
+mod styles;
+#[cfg(feature = "tabs")]
+pub mod tabs;
+
+mod drag_chip;
+pub use drag_chip::{DragChip, drag_chip};
+
 mod button;
 mod checkbox;
 mod choice;

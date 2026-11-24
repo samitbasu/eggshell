@@ -46,7 +46,7 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
         s.div_id("context", tw().flex().gap(3.0).items_center(), |s| {
             s.button("button", "Settings")
                 .icon(Icon::new(icons::GEAR))
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .on_click(|_| {});
             s.segmented(
                 "segmented",
@@ -59,7 +59,7 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
             .on_change(|_, _| {});
             s.dropdown_menu("menu", "Menu")
                 .icon(Icon::new(icons::CHEVRON_DOWN))
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .items(|m| {
                     m.item("settings", "Settings")
                         .icon(Icon::new(icons::GEAR))

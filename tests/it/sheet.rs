@@ -250,7 +250,7 @@ fn a_negated_key_applies_while_the_node_lacks_the_state() {
 
 #[test]
 fn a_preset_hands_out_the_sheet_of_each_theme_at_the_base_layer() {
-    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
     assert_eq!(themed.light.sheet.layer(), eggshell_ui::sheet::Layer::Base);
     assert_eq!(themed.dark.sheet.layer(), eggshell_ui::sheet::Layer::Base);
@@ -298,7 +298,7 @@ fn a_rule_body_is_given_the_tokens_of_the_style_it_is_resolved_in() {
 
 #[test]
 fn the_preset_fills_the_shadow_scale() {
-    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
     let tokens = &themed.light.tokens;
     assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);

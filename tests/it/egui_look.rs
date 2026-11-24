@@ -3,8 +3,8 @@
 //! preset's `apply` does, so raw egui widgets look as they always have.
 
 use eggshell_ui::contract::Themed;
+use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
 use eggshell_ui::{Builder, LayoutState, tw};
-use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
 use egui::{Context, Theme, vec2};
 use egui_kittest::Harness;
 

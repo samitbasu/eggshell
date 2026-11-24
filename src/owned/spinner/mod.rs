@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui_extras::spinner::SpinnerExt;
+//! use eggshell_ui::owned::spinner::SpinnerExt;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.spinner("loading").add();
@@ -13,8 +13,8 @@
 
 use std::time::Duration;
 
-use eggshell_ui::contract::{Keyed, Size};
-use eggshell_ui::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, cycle, tw};
+use crate::contract::{Keyed, Size};
+use crate::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, cycle, tw};
 use egui::{Context, ImageSource, Role, WidgetInfo, include_image};
 
 /// Lucide's `loader-circle` (ISC, `LUCIDE-LICENSE` beside it), the icon of
@@ -25,7 +25,7 @@ const LOADER: ImageSource<'static> = include_image!("loader-circle.svg");
 ///
 /// ```
 /// use std::time::Duration;
-/// use eggshell_ui_extras::spinner::SpinnerStyle;
+/// use eggshell_ui::owned::spinner::SpinnerStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = (*style.extension::<SpinnerStyle>()).clone();
@@ -50,7 +50,7 @@ pub enum SpinnerPart {
     Root,
 }
 
-impl eggshell_ui::sheet::Part for SpinnerPart {
+impl crate::sheet::Part for SpinnerPart {
     const SOURCE: &'static str = "spinner.tsx";
 
     fn slot(self) -> &'static str {
@@ -58,7 +58,7 @@ impl eggshell_ui::sheet::Part for SpinnerPart {
     }
 }
 
-impl eggshell_ui::contract::Extension for SpinnerStyle {
+impl crate::contract::Extension for SpinnerStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }
@@ -153,14 +153,14 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
         let ctx = b.ctx().clone();
         let style = b.style().extension::<SpinnerStyle>();
         let size = size.unwrap_or_else(|| b.control_size());
-        let side = *crate::styles::entry(&ctx, &style.sizes, size);
+        let side = *crate::owned::styles::entry(&ctx, &style.sizes, size);
         let name = name.unwrap_or_else(|| "Loading".to_owned());
         // The size is the widget's, from its size's entry (#348), over the
         // sheet's `size-4`.
         let classes = b.part_over(
             SpinnerPart::Root,
             &[],
-            eggshell_ui::sheet::Defaults(tw()),
+            crate::sheet::Defaults(tw()),
             tw().size_px(side)
                 .shrink_0()
                 .sense_hover()

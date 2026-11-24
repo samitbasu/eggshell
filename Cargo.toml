@@ -16,9 +16,22 @@ nohash-hasher = "0.2"
 web-time = "1.1"
 log = "0.4"
 egui_kittest = { version = "0.37", optional = true }
+pulldown-cmark = { version = "0.13.6", default-features = false, optional = true }
+unicode-normalization = { version = "0.1.25", optional = true }
 
 [features]
-default = ["clipboard"]
+default = [
+    "clipboard",
+    "fonts",
+    # keep sorted
+    "accordion",
+    "badge",
+    "dialog",
+    "disclosure",
+    "skeleton",
+    "spinner",
+    "tabs",
+]
 # The system clipboard, read on demand through `Shell::read_clipboard`.
 # Without it, or on wasm, a read answers `ClipboardError::Unavailable`.
 clipboard = ["dep:arboard"]
@@ -33,6 +46,20 @@ screenshots = ["dep:egui_kittest", "egui_kittest/wgpu", "dep:egui-wgpu", "dep:po
 # Golden-image tests: kittest renders them on the screenshot path, so they need
 # Mesa lavapipe. `cargo xtask snapshots` selects it.
 snapshots = ["screenshots", "egui_kittest/snapshot"]
+# The widgets beyond core's controls, each its own feature.
+# keep sorted
+accordion = ["disclosure"]
+badge = []
+command = ["dep:unicode-normalization"]
+dialog = []
+disclosure = []
+form = []
+hover-card = []
+markdown = ["dep:pulldown-cmark"]
+notify = []
+skeleton = []
+spinner = []
+tabs = []
 
 # The version egui-winit asks for, so the tree has the one arboard.
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "ios")))'.dependencies]
@@ -57,9 +84,8 @@ eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
 # eggshell's own tests drive views through `testing::Driver`.
-eggshell-ui = { path = ".", features = ["driver"] }
-eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
-eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = [
+eggshell-ui = { path = ".", features = [
+    "driver",
     # keep sorted
     "accordion",
     "badge",
@@ -89,7 +115,7 @@ harness = false
 wasm-bindgen-futures = "0.4"
 
 [workspace]
-members = ["crates/eggshell-ui-shadcn", "crates/eggshell-ui-extras", "xtask"]
+members = ["xtask"]
 
 # clippy.toml's disallowed macros and methods are denied in library code by
 # each library's crate attributes; tests, examples and benches may use them.
@@ -114,3 +140,7 @@ debug = "line-tables-only"
 inherits = "dev"
 debug-assertions = false
 overflow-checks = false
+
+[[example]]
+name = "preset_dump"
+required-features = ["badge", "command", "dialog", "disclosure", "form", "hover-card", "markdown", "notify", "skeleton"]

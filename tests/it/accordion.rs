@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::owned::accordion::{AccordionExt, Items, Mode, Multiple, Single};
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::accordion::{AccordionExt, Items, Mode, Multiple, Single};
 use egui::accesskit::Role as AccessRole;
 use egui::vec2;
 use egui_kittest::Harness;

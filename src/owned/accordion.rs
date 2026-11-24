@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui_extras::accordion::{AccordionExt, Single};
+//! use eggshell_ui::owned::accordion::{AccordionExt, Single};
 //!
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Faq { Access, Motion }
@@ -25,13 +25,13 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use eggshell_ui::overlay::{Nav, Shown, Wrap};
-use eggshell_ui::owned::{Enablement, Face};
-use eggshell_ui::{Builder, Key, Scope, Tw, tw};
+use crate::overlay::{Nav, Shown, Wrap};
+use crate::owned::{Enablement, Face};
+use crate::{Builder, Key, Scope, Tw, tw};
 
-use eggshell_ui::sheet::Defaults;
+use crate::sheet::Defaults;
 
-use crate::disclosure::{DisclosureStyle, SectionExt};
+use crate::owned::disclosure::{DisclosureStyle, SectionExt};
 
 /// What an accordion runs with what a header asked for.
 type OnItems<A, C> = Rc<dyn Fn(&mut A, C)>;
@@ -132,7 +132,7 @@ impl<T: Value, F: Fn(T) -> Shown> Mode<T> for Multiple<F> {
 /// TODO(prose): adds [`accordion`](Self::accordion) to the builder.
 pub trait AccordionExt<'b, 'f, A> {
     /// TODO(prose): an accordion whose items are open as `mode` says. It is
-    /// built by [`items`](AccordionChain::items) once it has an
+    /// built by [`items`](BoundAccordion::items) once it has an
     /// [`on_change`](AccordionChain::on_change).
     fn accordion<'s, K: Key, M>(
         &'s mut self,
@@ -226,7 +226,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             None => column,
         };
         let column = b.part_over(
-            crate::disclosure::AccordionPart::Root,
+            crate::owned::disclosure::AccordionPart::Root,
             &[],
             Defaults(tw()),
             column.merge(classes),
@@ -283,10 +283,17 @@ impl<'i, 'b, 'f, A: 'static, M: Mode<T, Change = C>, T: Value, C: Clone + 'stati
 }
 
 /// TODO(prose): an accordion item: the options of a
-/// [`section`](crate::disclosure::SectionExt::section).
+/// [`section`](crate::owned::disclosure::SectionExt::section).
 #[must_use = "an item is built by `.children(..)`"]
 pub struct ItemChain<'s, 'b, 'f, A, T> {
-    section: crate::disclosure::SectionChain<'s, 'b, 'f, A, T, crate::disclosure::OnChange<A>>,
+    section: crate::owned::disclosure::SectionChain<
+        's,
+        'b,
+        'f,
+        A,
+        T,
+        crate::owned::disclosure::OnChange<A>,
+    >,
 }
 
 impl<'f, A: 'static, T: Value> ItemChain<'_, '_, 'f, A, T> {

@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui_extras::form::FormExt;
+//! use eggshell_ui::owned::form::FormExt;
 //!
 //! struct App { gain: f64, mute: bool }
 //!
@@ -28,9 +28,9 @@
 
 mod style;
 
-use eggshell_ui::owned::FieldPart;
-use eggshell_ui::sheet::{Defaults, Part};
-use eggshell_ui::{Builder, Key, Match, tw};
+use crate::owned::FieldPart;
+use crate::sheet::{Defaults, Part};
+use crate::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
 pub use style::FormStyle;

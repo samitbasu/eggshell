@@ -20,8 +20,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, Weight, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, FontFamily, Rect, Shadow, Theme};
 

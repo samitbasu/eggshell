@@ -3,8 +3,8 @@
 //! themes.
 
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
 
 use crate::support;

@@ -8,8 +8,8 @@ use std::sync::Arc;
 use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
 use eggshell_ui::owned::{Cell, Choice, Enablement, Face, SegmentedRows, TabsPart};
 use eggshell_ui::sheet::When;
+use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
 use eggshell_ui::{Aria, Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
@@ -688,7 +688,7 @@ fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             b.button(("button", enablement), "Save")
-                .variant(eggshell_ui_shadcn::variant::PRIMARY)
+                .variant(eggshell_ui::theme::variant::PRIMARY)
                 .enablement(enablement)
                 .on_click(|app: &mut App| app.clicks += 1);
             b.checkbox(("check", enablement), "Agree", true)
@@ -715,7 +715,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             },
             disabled_row,
         );
-        let rest = support::button::look(theme, eggshell_ui_shadcn::variant::PRIMARY);
+        let rest = support::button::look(theme, eggshell_ui::theme::variant::PRIMARY);
         let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
         let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
         assert_eq!(box_at(&d, enabled).fill, rest.fill, "precondition");
@@ -758,7 +758,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         |style| {
             style.sheet.as_app().rule_when(
                 eggshell_ui::owned::ButtonPart::Root,
-                eggshell_ui::sheet::When::always().variant(eggshell_ui_shadcn::variant::PRIMARY),
+                eggshell_ui::sheet::When::always().variant(eggshell_ui::theme::variant::PRIMARY),
                 move |t, _| t.bg(translucent),
             );
             style.sheet.as_app().rule_when(
@@ -785,7 +785,7 @@ fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.button("icon", (app.icon(), "Search"))
             .size(size::ICON)
-            .variant(eggshell_ui_shadcn::variant::GHOST)
+            .variant(eggshell_ui::theme::variant::GHOST)
             .on_click(|app: &mut App| app.clicks += 1);
         b.button("labelled", "Add")
             .icon(app.icon())
@@ -811,7 +811,7 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
         let (tint, glyph) = icon_in(&d, button);
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "[&_svg]:size-4");
         assert!(glyph.center().distance(button.center()) <= 0.75, "centred");
-        let ghost = support::button::look(theme, eggshell_ui_shadcn::variant::GHOST);
+        let ghost = support::button::look(theme, eggshell_ui::theme::variant::GHOST);
         assert_eq!(tint, ghost.text);
 
         d.hover(Target::suffix("/\"icon\""));

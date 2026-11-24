@@ -10,8 +10,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Tw, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

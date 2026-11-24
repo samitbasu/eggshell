@@ -2,9 +2,9 @@
 
 use std::rc::Rc;
 
-use eggshell_ui::contract::{Look, Variant};
-use eggshell_ui::owned::Enablement;
-use eggshell_ui::{Builder, Icon, Key, NodeUi as _, Style, Tw, icons, tw};
+use crate::contract::{Look, Variant};
+use crate::owned::Enablement;
+use crate::{Builder, Icon, Key, NodeUi as _, Style, Tw, icons, tw};
 use egui::{Modifiers, Role};
 
 use super::{BadgeStyle, End, Face, Options};
@@ -51,7 +51,7 @@ enum Stop {
 /// both, and finish it with [`add`](Self::add).
 ///
 /// A clickable chip is a button and a Tab stop; a removable one ends in a ×,
-/// a button named "Remove <label>", and Backspace or Delete removes it
+/// a button named "Remove \<label\>", and Backspace or Delete removes it
 /// while it has focus. A chip that is only removable has the × as its Tab
 /// stop. Either way the focus ring surrounds the whole chip.
 ///
@@ -59,7 +59,7 @@ enum Stop {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui_extras::badge::BadgeExt;
+/// use eggshell_ui::owned::badge::BadgeExt;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.chip("tag", "Rust").add();
@@ -120,7 +120,7 @@ impl<A: 'static, K: Key, C, R> ChipChain<'_, '_, '_, A, K, C, R> {
     }
 
     /// TODO(prose): the accessible name, in place of the label, as
-    /// `aria-label` is. The × is named "Remove <name>".
+    /// `aria-label` is. The × is named "Remove \<name\>".
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.parts.name = Some(name.into());
         self
@@ -200,7 +200,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
         #[cfg(debug_assertions)]
         if name.is_empty() {
             let id = egui::Id::NULL.with(("unnamed-chip", format!("{key:?}")));
-            eggshell_ui::report(&ctx, eggshell_ui::Problem::Unnamed, Some(id), || {
+            crate::report(&ctx, crate::Problem::Unnamed, Some(id), || {
                 format!(
                     "the chip {key:?} has no label and no name: assistive technology cannot read it"
                 )

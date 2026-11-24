@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Radius, Spacing, TextSize, Themed};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
 use eggshell_ui::{Builder, Icon, Match, TextStyle, icons, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::epaint::Shape;
 use egui::{Rect, vec2};
 

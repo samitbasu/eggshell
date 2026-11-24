@@ -5,7 +5,7 @@ use eggshell_ui::Tw;
 use eggshell_ui::contract::{Fonts, Size, Style, TextScale, TextSize, TextStep, Variant};
 use eggshell_ui::owned::{ButtonPart, Enablement, InputPart, SegmentedRows, SliderPart, TabsPart};
 use eggshell_ui::sheet::Key;
-use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
+use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Theme, vec2};
 
 fn style_of(theme: Theme, style: ShadcnStyle) -> Style {
@@ -128,7 +128,7 @@ fn every_style_names_the_same_variants_and_sizes() {
     assert_eq!(keys(&vega), keys(&lyra));
     assert!(keys(&vega).contains(&Key::Variant(variant::LINK)), "link");
     assert!(
-        keys(&vega).contains(&Key::Size(eggshell_ui_shadcn::size::ICON_LG)),
+        keys(&vega).contains(&Key::Size(eggshell_ui::theme::size::ICON_LG)),
         "icon-lg"
     );
 }

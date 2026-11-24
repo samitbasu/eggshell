@@ -4,8 +4,8 @@
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::Step;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens, size};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Key, Theme, vec2};
 use std::time::Duration;
 

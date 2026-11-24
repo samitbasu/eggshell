@@ -2,7 +2,7 @@
 //! (`registry/themes.ts`, a copy of the registry's file), converted from
 //! oklch to sRGB, under the preset's documented departures.
 
-use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, Tokens};
+use eggshell_ui::theme::{BaseColor, Palette, ThemeColor, Tokens};
 use egui::{Color32, Theme};
 use std::collections::BTreeMap;
 

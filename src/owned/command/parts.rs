@@ -1,6 +1,6 @@
 //! The anatomy of a combobox, for the style's sheet.
 
-use eggshell_ui::sheet::Part;
+use crate::sheet::Part;
 
 /// TODO(prose): the anatomy of a combobox: shadcn's `combobox`, as eggshell
 /// draws it, a field with its list below. Its trigger and clear buttons

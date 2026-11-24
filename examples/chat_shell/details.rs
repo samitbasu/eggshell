@@ -1,8 +1,8 @@
 //! The right pane: environment, context, changes and background tasks.
 
 use eggshell_ui::overlay::Shown;
+use eggshell_ui::owned::disclosure::SectionExt;
 use eggshell_ui::{Builder, Scope, Tw, tw};
-use eggshell_ui_extras::disclosure::SectionExt;
 use egui::Color32;
 
 use super::state::{App, MODELS, Pane};

@@ -2,7 +2,7 @@
 
 use eggshell_ui::Tone;
 use eggshell_ui::contract::ToneColors;
-use eggshell_ui_shadcn::{Shadcn, Tokens};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use egui::Theme;
 
 fn expected(t: &Tokens, tone: Tone) -> ToneColors {

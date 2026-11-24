@@ -5,17 +5,17 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::contract::Colors;
-use eggshell_ui::owned::{Enablement, InputGroupPart, Mark, MenuPart};
-use eggshell_ui::sheet::{Defaults, Key as SheetKey};
-use eggshell_ui::vlist::{ListNav, RowKind};
-use eggshell_ui::{
+use crate::contract::Colors;
+use crate::owned::{Enablement, InputGroupPart, Mark, MenuPart};
+use crate::sheet::{Defaults, Key as SheetKey};
+use crate::vlist::{ListNav, RowKind};
+use crate::{
     Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
     icons, tw,
 };
 use egui::{Color32, Context, Id, Role};
 
-use crate::styles::{Popover, menu_part};
+use crate::owned::styles::{Popover, menu_part};
 
 use super::{ComboboxPart, CommandPart};
 
@@ -427,7 +427,7 @@ struct Rows {
     disabled: Color32,
     muted: Color32,
     separator: Color32,
-    heading_weight: eggshell_ui::Weight,
+    heading_weight: crate::Weight,
 }
 
 impl Rows {
@@ -436,12 +436,12 @@ impl Rows {
         let item = menu_part(
             style,
             MenuPart::Item,
-            &[SheetKey::Variant(eggshell_ui::contract::Variant::DEFAULT)],
+            &[SheetKey::Variant(crate::contract::Variant::DEFAULT)],
         );
         let heading_role = style.role(&Some(style.menu.shortcut_text.clone())).clone();
-        let heading = menu_part(style, MenuPart::Label, &[]).text_classes().over(
-            &eggshell_ui::TextStyle::new(heading_role, Color32::PLACEHOLDER),
-        );
+        let heading = menu_part(style, MenuPart::Label, &[])
+            .text_classes()
+            .over(&crate::TextStyle::new(heading_role, Color32::PLACEHOLDER));
         let rest = Colors {
             fill: Color32::TRANSPARENT,
             border: Color32::TRANSPARENT,
@@ -451,9 +451,7 @@ impl Rows {
             radius: f32::from(item.paint_classes().radius.nw),
             text: rest.text,
             highlight: (k.accent, k.accent_foreground),
-            disabled: rest
-                .faded_over(eggshell_ui::Opacity::new(0.5), k.popover)
-                .text,
+            disabled: rest.faded_over(crate::Opacity::new(0.5), k.popover).text,
             muted: k.muted_foreground,
             separator: menu_part(style, MenuPart::Separator, &[])
                 .paint_classes()
@@ -487,8 +485,8 @@ impl Rows {
 }
 
 /// The gap between a combobox's field and its list: shadcn's `sideOffset 6`.
-pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
-    eggshell_ui::overlay::Distance::new(6.0)
+pub(crate) fn list_offset() -> crate::overlay::Distance {
+    crate::overlay::Distance::new(6.0)
 }
 
 /// The classes of a combobox's box, shadcn's input group: the select
@@ -496,11 +494,11 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
 /// field's own padding is the box's left, and the end button sits close to
 /// its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
-    let size = eggshell_ui::contract::Size::DEFAULT;
+    let size = crate::contract::Size::DEFAULT;
     let metrics = style.select.sizes.get(size);
     let trigger = style.sheet.resolve(
-        eggshell_ui::owned::SelectPart::Trigger,
-        &[eggshell_ui::sheet::Key::Size(size)],
+        crate::owned::SelectPart::Trigger,
+        &[crate::sheet::Key::Size(size)],
         &style.tokens,
     );
     let focus = style.tokens.focus();
@@ -519,7 +517,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
 /// `icon-xs`: the stepper's button.
 pub(crate) fn end_button_classes(style: &Style) -> Tw {
     let stepper = &style.stepper;
-    let metrics = stepper.sizes.get(eggshell_ui::contract::Size::DEFAULT);
+    let metrics = stepper.sizes.get(crate::contract::Size::DEFAULT);
     let states = stepper.button.paint.states;
     tw().flex()
         .items_center()
@@ -649,7 +647,7 @@ pub(crate) fn show<'f, A: 'static>(
                     .map_or(Enablement::Disabled, |entry| entry.enablement);
                 let keys: &[SheetKey] = match enablement {
                     Enablement::Enabled => &[],
-                    Enablement::Disabled => &[SheetKey::Aria(eggshell_ui::Aria::Disabled)],
+                    Enablement::Disabled => &[SheetKey::Aria(crate::Aria::Disabled)],
                 };
                 let own = match looks {
                     Looks::Command => palette_item_look(&style_of, &command_of, enablement),
@@ -748,7 +746,7 @@ fn search_field<A: 'static>(
     on_query: Option<super::Heard<A>>,
 ) -> Id {
     let radius = Popover::of(style).radius;
-    let tint = crate::styles::input_border(style).gamma_multiply(0.3);
+    let tint = crate::owned::styles::input_border(style).gamma_multiply(0.3);
     let wrapper = s.part_over(
         CommandPart::InputWrapper,
         &[],

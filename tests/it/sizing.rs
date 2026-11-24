@@ -3,9 +3,9 @@
 //! widget. Each case varies the text, the font size and the style, and a
 //! width that makes text wrap.
 
+use eggshell_ui::theme::{Shadcn, ShadcnStyle};
 use eggshell_ui::widget::{Lines, Stock, TextEdit};
 use eggshell_ui::{TextSpec, TextStyle, Weight, Width};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
 };

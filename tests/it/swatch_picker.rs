@@ -5,8 +5,8 @@
 use eggshell_ui::Problem;
 use eggshell_ui::overlay::{Anchor, Nav};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 

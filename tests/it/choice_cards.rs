@@ -3,8 +3,8 @@
 
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Key, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::kittest::Queryable as _;
 

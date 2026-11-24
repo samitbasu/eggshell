@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Command, Commands, Style, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Role, Shape, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

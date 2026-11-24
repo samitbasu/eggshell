@@ -3,9 +3,9 @@
 //! and what assistive technology reads.
 
 use eggshell_ui::overlay::{Anchor, Modal, Shown, Side};
+use eggshell_ui::owned::dialog::{Dialog, DialogContent, DialogExt, PopoverExt};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::dialog::{Dialog, DialogContent, DialogExt, PopoverExt};
 use egui::{Key, Pos2, Role, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -121,7 +121,7 @@ fn content<'c, 'f>(app: &'c App) -> impl FnOnce(&mut DialogContent<'c, 'f, App>)
 }
 
 fn prepare(ctx: &egui::Context, _: &App) {
-    eggshell_ui_shadcn::Shadcn::apply_both(ctx);
+    eggshell_ui::theme::Shadcn::apply_both(ctx);
 }
 
 fn harness(app: App) -> Harness<'static, Rig<App>> {

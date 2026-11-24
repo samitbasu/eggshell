@@ -2,12 +2,12 @@
 
 use std::rc::Rc;
 
-use eggshell_ui::overlay::Shown;
-use eggshell_ui::owned::{Enablement, Face};
-use eggshell_ui::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
+use crate::overlay::Shown;
+use crate::owned::{Enablement, Face};
+use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 
-use eggshell_ui::sheet::{Defaults, Key as SheetKey};
+use crate::sheet::{Defaults, Key as SheetKey};
 
 use super::{
     AccordionPart, ChangeFn, DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron,
@@ -124,7 +124,7 @@ impl<'f, A: 'static, K: Key, H> SectionChain<'_, '_, 'f, A, K, H> {
     }
 
     /// TODO(prose): classes merged over the content block's styled ones:
-    /// see [`CollapsibleChain::content`](eggshell_ui::CollapsibleChain::content).
+    /// see [`CollapsibleChain::content`](crate::CollapsibleChain::content).
     pub fn content(mut self, content: Tw) -> Self {
         self.content = std::mem::replace(&mut self.content, tw()).merge(content);
         self
@@ -339,6 +339,6 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
 fn keys_of(enablement: Enablement) -> &'static [SheetKey] {
     match enablement {
         Enablement::Enabled => &[],
-        Enablement::Disabled => &[SheetKey::Aria(eggshell_ui::Aria::Disabled)],
+        Enablement::Disabled => &[SheetKey::Aria(crate::Aria::Disabled)],
     }
 }

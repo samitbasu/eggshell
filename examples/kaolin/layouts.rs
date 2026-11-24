@@ -9,8 +9,8 @@
     reason = "each crate that includes this file uses a subset of it"
 )]
 
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextSpec, Tw, Weight, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, FontFamily, ImageSource};
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

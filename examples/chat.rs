@@ -116,7 +116,7 @@ impl Default for State {
 
 /// My bubbles are on the right and the others' on the left, with the corner
 /// nearest the speaker square.
-fn bubble(t: &eggshell_ui_shadcn::Tokens, mine: bool) -> Tw {
+fn bubble(t: &eggshell_ui::theme::Tokens, mine: bool) -> Tw {
     let bubble = tw()
         .flex()
         .flex_col()

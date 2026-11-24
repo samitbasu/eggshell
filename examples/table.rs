@@ -11,8 +11,8 @@ mod common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::{Align, Column, Stripes};
+use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Track, tw};
-use eggshell_ui_shadcn::variant;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Status {

@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::{Cell, Enablement, Mark, SegmentedRows, SwitchPart, TabsPart};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
 use egui::{Key, KeyboardShortcut, Rect, Role, Theme, vec2};
 

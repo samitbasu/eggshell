@@ -4,8 +4,8 @@
 
 use eggshell_ui::owned::{Column, TablePart};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Theme, Vec2, vec2};
 
 use crate::support::{self, rest_for_tooltip};

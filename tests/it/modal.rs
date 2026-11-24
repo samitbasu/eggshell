@@ -549,7 +549,7 @@ mod example {
     fn a_modal_reports_how_it_presents() {
         use eggshell_ui::testing::Headless;
         let placed = Headless::new(SCREEN)
-            .prepare(eggshell_ui_shadcn::Shadcn::apply_both)
+            .prepare(eggshell_ui::theme::Shadcn::apply_both)
             .style(crate::support::shadcn())
             .layout(&State::default(), |b, _| {
                 let open = State {

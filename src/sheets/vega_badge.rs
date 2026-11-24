@@ -4,10 +4,10 @@
 use std::time::Duration;
 
 use egui::Color32;
-use eggshell_ui::contract::{Variant};
-use eggshell_ui_extras::badge::BadgePart;
-use eggshell_ui::sheet::{Sheet, When};
-use eggshell_ui::{Aria, Match};
+use crate::contract::{Variant};
+use crate::owned::badge::BadgePart;
+use crate::sheet::{Sheet, When};
+use crate::{Aria, Match};
 
 const BADGE: &str = "registry/bases/radix/ui/badge.tsx";
 const REGISTRY: &str = "registry/bases/radix/registry.ts";

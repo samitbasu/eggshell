@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use eggshell_ui::owned::{Choice, Enablement, Face, TooltipPart};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Key, KeyboardShortcut, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -433,7 +433,7 @@ fn a_tooltip_opening_swapping_and_closing_never_teleports() {
 #[test]
 fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
     for theme in [Theme::Light, Theme::Dark] {
-        let preset = eggshell_ui_shadcn::Shadcn::for_theme(theme);
+        let preset = eggshell_ui::theme::Shadcn::for_theme(theme);
         let style = preset.style();
         let content = support::part(&style, TooltipPart::Content);
         assert_eq!(

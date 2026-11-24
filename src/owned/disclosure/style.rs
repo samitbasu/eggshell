@@ -2,8 +2,8 @@
 
 use std::time::Duration;
 
-use eggshell_ui::contract::Focus;
-use eggshell_ui::{Angle, Icon, Opacity, Style, TextSpec, Weight, icons};
+use crate::contract::Focus;
+use crate::{Angle, Icon, Opacity, Style, TextSpec, Weight, icons};
 use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
@@ -12,7 +12,7 @@ use egui::Color32;
 /// in points.
 ///
 /// ```
-/// use eggshell_ui_extras::disclosure::DisclosureStyle;
+/// use eggshell_ui::owned::disclosure::DisclosureStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = (*style.extension::<DisclosureStyle>()).clone();
@@ -102,7 +102,7 @@ pub enum Hover {
     None,
 }
 
-impl eggshell_ui::contract::Extension for DisclosureStyle {
+impl crate::contract::Extension for DisclosureStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }

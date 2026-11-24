@@ -1797,6 +1797,11 @@ impl Style {
         crate::sheets::write(&mut self.sheet, self.tokens.style, self.tokens.theme);
         crate::owned::write_field_sizes(&mut self.sheet, &self.tokens);
         self.write_exceptions();
+        #[cfg(feature = "disclosure")]
+        {
+            let disclosure = self.extension::<crate::owned::disclosure::DisclosureStyle>();
+            crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
+        }
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

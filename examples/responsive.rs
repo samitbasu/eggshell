@@ -13,8 +13,8 @@ mod common;
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::Face;
 use eggshell_ui::scroll::Axis;
+use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Width, tw};
-use eggshell_ui_shadcn::{size, variant};
 use egui::Vec2;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

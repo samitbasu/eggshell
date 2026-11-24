@@ -5,9 +5,9 @@
 use std::time::Duration;
 
 use eggshell_ui::testing::{Driver, Headless, Target, assert_reported};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::widget::Stock;
 use eggshell_ui::{Builder, Problem, TextStyle, Width, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Context, Key, Role, Theme, Vec2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

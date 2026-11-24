@@ -5,8 +5,8 @@
 
 use eggshell_ui::owned::Column;
 use eggshell_ui::testing::assert_reported;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Problem, TextStyle, Track, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::epaint::Shape;
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::Harness;

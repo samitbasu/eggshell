@@ -5,8 +5,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::owned::form::{FormExt, FormStyle};
 use eggshell_ui::{Builder, Progress, tw};
-use eggshell_ui_extras::form::{FormExt, FormStyle};
 
 pub struct Settings {
     pub gain: f64,

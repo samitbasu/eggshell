@@ -3,8 +3,8 @@
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::owned::disclosure::{DisclosureExt, SectionExt};
 use eggshell_ui::{Builder, Problem, tw};
-use eggshell_ui_extras::disclosure::{DisclosureExt, SectionExt};
 use egui::accesskit::Role as AccessRole;
 use egui::{Key, vec2};
 use egui_kittest::Harness;
@@ -351,7 +351,7 @@ fn an_unnamed_disclosure_button_is_reported() {
 
 #[test]
 fn the_disclosure_button_is_a_square_with_an_accent_tint_under_the_pointer() {
-    use eggshell_ui_shadcn::Shadcn;
+    use eggshell_ui::theme::Shadcn;
     use egui::epaint::Shape;
     let mut harness = harness();
     let rect = rect_of(&harness, r#"/"fold""#);
@@ -406,7 +406,7 @@ fn a_sections_header_is_shadcns_accordion_trigger() {
 fn an_app_rule_restyles_a_sections_header() {
     let d = driver_with(|style| {
         style.sheet.as_app().rule(
-            eggshell_ui_extras::disclosure::AccordionPart::Trigger,
+            eggshell_ui::owned::disclosure::AccordionPart::Trigger,
             |t, _| t.bg(egui::Color32::RED),
         );
     });
@@ -428,9 +428,9 @@ fn title_and_chevron(d: &eggshell_ui::testing::Driver<App>) -> (egui::Rect, egui
 #[test]
 fn a_sections_header_keeps_its_gap_and_its_chevrons_nudge() {
     let d = driver_with(|_| {});
-    let style = eggshell_ui_shadcn::Shadcn::for_theme(egui::Theme::Light)
+    let style = eggshell_ui::theme::Shadcn::for_theme(egui::Theme::Light)
         .style()
-        .extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();
+        .extension::<eggshell_ui::owned::disclosure::DisclosureStyle>();
     let header = d.rect(Target::suffix(HEADER));
     let (title, chevron) = title_and_chevron(&d);
     assert_eq!(chevron.left() - title.right(), style.header.gap, "the gap");

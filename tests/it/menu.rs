@@ -865,8 +865,8 @@ mod open_query {
         let mut bar = support::Bar::new(base_text());
         let mut d = Driver::whole_frame(app, move |ui, app, layout| {
             let area = ui.max_rect();
-            if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
             }
             bar.show(ui);
             let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
@@ -973,7 +973,7 @@ mod open_query {
 mod look {
     //! shadcn's dropdown-menu, as the preset draws it (`style-vega.css`).
     use super::*;
-    use eggshell_ui_shadcn::Tokens;
+    use eggshell_ui::theme::Tokens;
 
     fn tokens(d: &Driver<App>) -> Tokens {
         Tokens::for_theme(d.ctx().theme())

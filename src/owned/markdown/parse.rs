@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-use eggshell_ui::owned::Align;
-use eggshell_ui::{FontStyle, Span, Spans, Weight};
+use crate::owned::Align;
+use crate::{FontStyle, Span, Spans, Weight};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 /// A document's blocks, and what of its events did not nest as Markdown

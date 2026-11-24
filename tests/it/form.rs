@@ -4,12 +4,12 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
+use eggshell_ui::owned::form::{FormExt, FormStyle};
 use eggshell_ui::owned::{Enablement, Mark, ProgressPart, SliderPart, SwitchPart};
-use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_extras::form::{FormExt, FormStyle};
-use eggshell_ui_shadcn::{
+use eggshell_ui::theme::{
     BaseColor, ContrastRatio, Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens,
 };
+use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Color32, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

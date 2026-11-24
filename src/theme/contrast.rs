@@ -242,7 +242,7 @@ impl RegistryMiss {
 /// Reports, in a debug build, each pair of `tokens` under AA that is neither
 /// accepted nor a registry miss, once per pair and theme. The colours are not
 /// changed.
-pub fn warn_low_contrast(ctx: &Context, tokens: &Tokens) {
+pub(crate) fn warn_low_contrast(ctx: &Context, tokens: &Tokens) {
     let theme = tokens.theme;
     if !cfg!(debug_assertions) {
         return;

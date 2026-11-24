@@ -181,13 +181,11 @@ fn with_store<R>(ctx: &Context, f: impl FnOnce(&mut Store) -> R) -> R {
     ctx.data_mut(|data| f(data.get_temp_mut_or_default::<Store>(store_id())))
 }
 
-/// Not a stable API: it exists for `eggshell-ui-extras`. Reports `problem`
-/// at the caller, about `subject` if it concerns one identified thing.
-/// Repeats of a (problem, caller, subject) are counted, and only the first
-/// runs `message` and is logged.
-#[doc(hidden)]
+/// Reports `problem` at the caller, about `subject` if it concerns one
+/// identified thing. Repeats of a (problem, caller, subject) are counted, and
+/// only the first runs `message` and is logged.
 #[track_caller]
-pub fn report(
+pub(crate) fn report(
     ctx: &Context,
     problem: Problem,
     subject: Option<Id>,

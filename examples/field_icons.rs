@@ -4,8 +4,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, Icon, icons, tw};
-use eggshell_ui_shadcn::size;
 
 #[derive(Default)]
 pub struct State {

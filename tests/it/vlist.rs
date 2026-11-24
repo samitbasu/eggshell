@@ -6,8 +6,8 @@ use std::cell::Cell;
 use std::collections::HashMap;
 
 use eggshell_ui::overlay::{Anchor, Shown};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Id, Key, Rect, Theme, vec2};
 
 use eggshell_ui::testing::{Driver, Target};

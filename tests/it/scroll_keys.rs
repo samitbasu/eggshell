@@ -858,7 +858,7 @@ fn a_default_container_paints_no_fade_and_an_opted_in_one_does() {
 fn neither_the_default_style_nor_the_shadcn_preset_fades() {
     assert_eq!(eggshell_ui::Style::default().scroll.fade, EdgeFade::OFF);
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
-        let style = eggshell_ui_shadcn::Shadcn::for_theme(theme).style();
+        let style = eggshell_ui::theme::Shadcn::for_theme(theme).style();
         assert_eq!(style.scroll.fade, EdgeFade::OFF, "{theme:?}");
     }
 }

@@ -2,7 +2,7 @@
 //! disclosure button that folds a tree row.
 //!
 //! A [`section`](SectionExt::section) is a header over a
-//! [`collapsible`](eggshell_ui::Builder::collapsible): the header is a
+//! [`collapsible`](crate::Builder::collapsible): the header is a
 //! button that says whether the section is open and which region it
 //! controls, and its chevron turns with the region's height. A
 //! [`disclosure`](DisclosureExt::disclosure) is the chevron alone, as a
@@ -11,7 +11,7 @@
 //! ```
 //! use eggshell_ui::overlay::Shown;
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui_extras::disclosure::{DisclosureExt, SectionExt};
+//! use eggshell_ui::owned::disclosure::{DisclosureExt, SectionExt};
 //!
 //! struct App { env: Shown, src: Shown }
 //!
@@ -30,9 +30,9 @@ mod style;
 
 use std::rc::Rc;
 
-use eggshell_ui::overlay::Shown;
-use eggshell_ui::owned::{Enablement, Face};
-use eggshell_ui::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
+use crate::overlay::Shown;
+use crate::owned::{Enablement, Face};
+use crate::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
 use egui::{Color32, Role};
 
 pub use section::SectionChain;
@@ -66,7 +66,7 @@ pub enum AccordionPart {
     ContentInner,
 }
 
-impl eggshell_ui::sheet::Part for AccordionPart {
+impl crate::sheet::Part for AccordionPart {
     const SOURCE: &'static str = "accordion.tsx";
 
     fn slot(self) -> &'static str {
@@ -85,7 +85,7 @@ impl eggshell_ui::sheet::Part for AccordionPart {
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the
 /// header keeps its gap between the title and the chevron, and the chevron
 /// its nudge down to the title's line.
-pub fn write_exceptions(sheet: &mut eggshell_ui::sheet::Sheet, style: &DisclosureStyle) {
+pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &DisclosureStyle) {
     let (gap, nudge) = (style.header.gap, style.nudge);
     sheet.rule(AccordionPart::Trigger, move |t, _| t.gap_px(gap));
     sheet.rule(AccordionPart::TriggerIcon, move |t, _| {
@@ -99,7 +99,7 @@ pub fn write_exceptions(sheet: &mut eggshell_ui::sheet::Sheet, style: &Disclosur
 ///
 /// ```
 /// use eggshell_ui::Progress;
-/// use eggshell_ui_extras::disclosure::{DisclosureStyle, chevron};
+/// use eggshell_ui::owned::disclosure::{DisclosureStyle, chevron};
 ///
 /// let style = DisclosureStyle::from_style(&eggshell_ui::Style::default());
 /// let open = chevron(&style.section, Progress::END);
@@ -187,7 +187,7 @@ pub trait SectionExt<'b, 'f, A> {
     /// ```compile_fail
     /// use eggshell_ui::Builder;
     /// use eggshell_ui::overlay::Shown;
-    /// use eggshell_ui_extras::disclosure::SectionExt;
+    /// use eggshell_ui::owned::disclosure::SectionExt;
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.section("env", "Environment", Shown::Open).children(|_| {});
@@ -313,7 +313,7 @@ impl<A: 'static, K: Key> DisclosureChain<'_, '_, '_, A, K> {
         let button = match name {
             Some(name) => button.named(name),
             None => button.draw(|_, ui| {
-                eggshell_ui::report(
+                crate::report(
                     ui.ctx(),
                     Problem::Unnamed,
                     Some(ui.node_response().id),

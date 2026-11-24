@@ -4,8 +4,8 @@
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{Enablement, SliderPart, Step};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
 use egui::epaint::Shape;
 use egui::{Key, KeyboardShortcut, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

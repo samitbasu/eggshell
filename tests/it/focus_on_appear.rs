@@ -2,8 +2,8 @@
 //! once, and not again while it stays.
 
 use eggshell_ui::testing::Driver;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 

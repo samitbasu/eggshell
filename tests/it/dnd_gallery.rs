@@ -893,8 +893,8 @@ fn the_drag_chip_wears_the_tooltip_look_in_both_themes() {
             fills[0]
         );
         let (primary_in_light, primary_in_dark) = (
-            eggshell_ui_shadcn::Shadcn::light().tokens.primary,
-            eggshell_ui_shadcn::Shadcn::dark().tokens.primary,
+            eggshell_ui::theme::Shadcn::light().tokens.primary,
+            eggshell_ui::theme::Shadcn::dark().tokens.primary,
         );
         assert_ne!(
             primary_in_light, primary_in_dark,

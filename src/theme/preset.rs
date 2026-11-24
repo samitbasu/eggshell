@@ -1,17 +1,37 @@
-use eggshell_ui::contract;
+use crate::contract;
 use egui::{Context, Id, Theme};
-#[cfg(feature = "extras")]
+#[cfg(any(
+    feature = "badge",
+    feature = "command",
+    feature = "dialog",
+    feature = "disclosure",
+    feature = "form",
+    feature = "hover-card",
+    feature = "markdown",
+    feature = "notify",
+    feature = "skeleton"
+))]
 use {
-    eggshell_ui::contract::{Colors, Focus, Keyed, Look as BoxLook, States},
-    eggshell_ui::{Opacity, TextSpec, Weight},
-    egui::{Color32, Shadow},
+    crate::contract::{Colors, Focus, Keyed, Look as BoxLook, States},
+    crate::{Opacity, TextSpec, Weight},
+    egui::Color32,
     std::time::Duration,
 };
 
-use crate::ShadcnStyle;
-use crate::{ContrastPair, FontSet, Palette, Tokens};
-#[cfg(feature = "extras")]
-use crate::{size, variant};
+use crate::theme::ShadcnStyle;
+use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
+#[cfg(any(
+    feature = "badge",
+    feature = "command",
+    feature = "dialog",
+    feature = "disclosure",
+    feature = "form",
+    feature = "hover-card",
+    feature = "markdown",
+    feature = "notify",
+    feature = "skeleton"
+))]
+use crate::theme::{size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -104,7 +124,7 @@ impl Shadcn {
     ///
     /// ```
     /// use eggshell_ui::LayoutState;
-    /// use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    /// use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     ///
     /// let style = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
     /// let _layout = LayoutState::new().with_style(style);
@@ -112,7 +132,7 @@ impl Shadcn {
     pub fn themed(
         style: ShadcnStyle,
         palette: Palette,
-    ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
+    ) -> crate::contract::Themed<std::sync::Arc<contract::Style>> {
         let half = |preset: Self| {
             std::sync::Arc::new(
                 preset
@@ -121,7 +141,7 @@ impl Shadcn {
                     .layout_style(),
             )
         };
-        eggshell_ui::contract::Themed {
+        crate::contract::Themed {
             light: half(Self::light()),
             dark: half(Self::dark()),
         }
@@ -132,7 +152,7 @@ impl Shadcn {
     /// ```
     /// use eggshell_ui::LayoutState;
     /// use eggshell_ui::contract::Themed;
-    /// use eggshell_ui_shadcn::Shadcn;
+    /// use eggshell_ui::theme::Shadcn;
     /// use std::sync::Arc;
     ///
     /// let style = Themed {
@@ -142,48 +162,65 @@ impl Shadcn {
     /// let _layout = LayoutState::new().with_style(style);
     /// ```
     pub fn layout_style(&self) -> contract::Style {
-        #[cfg(not(feature = "extras"))]
-        return self.style();
-        #[cfg(feature = "extras")]
-        {
-            let mut core = self.style();
-            // keep sorted
-            let badge = self.badge(&core);
-            let command = self.command(&core);
-            let dialog = self.dialog(&core);
-            let disclosure = self.disclosure(&core);
-            let form = self.form(&core);
-            let notify = self.notify(&core);
-            let skeleton = self.skeleton(&core);
-            core.set_extension(badge);
-            core.set_extension(command);
-            core.set_extension(dialog);
-            core.set_extension(disclosure);
-            core.set_extension(form);
-            core.set_extension(self.hover_card());
-            core.set_extension(self.markdown());
-            core.set_extension(notify);
-            core.set_extension(skeleton);
-            core
-        }
+        #[cfg_attr(
+            not(any(
+                feature = "badge",
+                feature = "command",
+                feature = "dialog",
+                feature = "disclosure",
+                feature = "form",
+                feature = "hover-card",
+                feature = "markdown",
+                feature = "notify",
+                feature = "skeleton"
+            )),
+            allow(unused_mut)
+        )]
+        let mut core = self.style();
+        // keep sorted
+        #[cfg(feature = "badge")]
+        let badge = self.badge(&core);
+        #[cfg(feature = "command")]
+        let command = self.command(&core);
+        #[cfg(feature = "dialog")]
+        let dialog = self.dialog(&core);
+        #[cfg(feature = "disclosure")]
+        let disclosure = self.disclosure(&core);
+        #[cfg(feature = "form")]
+        let form = self.form(&core);
+        #[cfg(feature = "notify")]
+        let notify = self.notify(&core);
+        #[cfg(feature = "skeleton")]
+        let skeleton = self.skeleton(&core);
+        #[cfg(feature = "badge")]
+        core.set_extension(badge);
+        #[cfg(feature = "command")]
+        core.set_extension(command);
+        #[cfg(feature = "dialog")]
+        core.set_extension(dialog);
+        #[cfg(feature = "disclosure")]
+        core.set_extension(disclosure);
+        #[cfg(feature = "form")]
+        core.set_extension(form);
+        #[cfg(feature = "hover-card")]
+        core.set_extension(self.hover_card());
+        #[cfg(feature = "markdown")]
+        core.set_extension(self.markdown());
+        #[cfg(feature = "notify")]
+        core.set_extension(notify);
+        #[cfg(feature = "skeleton")]
+        core.set_extension(skeleton);
+        core
     }
 
-    /// This preset as the [`eggshell_ui::Style`] contract.
+    /// This preset as the [`Style`](crate::Style) contract.
     pub fn style(&self) -> contract::Style {
-        let t = &self.tokens;
-        let mut style = contract::Style::new(t);
-        crate::sheets::write(&mut style.sheet, t.style, t.theme);
-        #[cfg(feature = "extras")]
-        {
-            let disclosure = style.extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();
-            eggshell_ui_extras::disclosure::write_exceptions(&mut style.sheet, &disclosure);
-        }
-        style
+        contract::Style::new(&self.tokens)
     }
 
     /// A box's colours at rest and under the pointer, with the focused
     /// border, `focus-visible:border-ring`, over the page.
-    #[cfg(feature = "extras")]
+    #[cfg(feature = "badge")]
     fn states(&self, rest: Colors, hover: Colors) -> States {
         States {
             focused: Colors {
@@ -213,11 +250,11 @@ impl Shadcn {
     /// a weight is drawn in the nearest lighter registered face.
     ///
     /// TODO(prose): in a debug build it reports each [`ContrastPair`] under
-    /// AA contrast as [`Problem::LowContrast`](eggshell_ui::Problem::LowContrast),
+    /// AA contrast as [`Problem::LowContrast`](crate::Problem::LowContrast),
     /// unless the tokens accept it or it is shadcn's own colour; it never
     /// changes a colour.
     pub fn apply(&self, ctx: &Context) {
-        eggshell_ui::theme::warn_low_contrast(ctx, &self.tokens);
+        crate::theme::warn_low_contrast(ctx, &self.tokens);
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }
@@ -251,10 +288,10 @@ impl Shadcn {
     ///   and in `--normal-text` over `--normal-border`, with `hsl(0 0% 12%)`
     ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
     ///   536).
-    #[cfg(feature = "extras")]
-    pub fn notify(&self, style: &contract::Style) -> eggshell_ui_extras::notify::NotifyStyle {
+    #[cfg(feature = "notify")]
+    pub fn notify(&self, style: &contract::Style) -> crate::owned::notify::NotifyStyle {
         let t = &self.tokens;
-        let mut notify = eggshell_ui_extras::notify::NotifyStyle::from_style(style);
+        let mut notify = crate::owned::notify::NotifyStyle::from_style(style);
         notify.fill = t.popover;
         notify.border = t.border;
         notify.text = t.popover_foreground;
@@ -263,7 +300,7 @@ impl Shadcn {
             ShadcnStyle::Vega => contract::corner(t.radius.lg() * 1.8),
             ShadcnStyle::Lyra => 0,
         };
-        notify.shadow = Some(Shadow {
+        notify.shadow = Some(egui::Shadow {
             offset: [0, 4],
             blur: 12,
             spread: 0,
@@ -300,9 +337,9 @@ impl Shadcn {
     /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted
     /// rounded-md animate-pulse`: the muted fill, the radius of its style
     /// (square in Lyra) and Tailwind's two-second pulse down to half.
-    #[cfg(feature = "extras")]
-    pub fn skeleton(&self, style: &contract::Style) -> eggshell_ui_extras::skeleton::SkeletonStyle {
-        let mut skeleton = eggshell_ui_extras::skeleton::SkeletonStyle::from_style(style);
+    #[cfg(feature = "skeleton")]
+    pub fn skeleton(&self, style: &contract::Style) -> crate::owned::skeleton::SkeletonStyle {
+        let mut skeleton = crate::owned::skeleton::SkeletonStyle::from_style(style);
         skeleton.fill = self.tokens.muted;
         skeleton.radius = self.tokens.radius_md();
         skeleton
@@ -319,15 +356,15 @@ impl Shadcn {
     /// TODO(prose)
     ///
     /// ```
-    /// use eggshell_ui_shadcn::{Shadcn, variant};
+    /// use eggshell_ui::theme::{Shadcn, variant};
     ///
     /// let shadcn = Shadcn::light();
     /// let badge = shadcn.badge(&shadcn.style());
     /// assert_eq!(badge.variants.default_key(), variant::PRIMARY);
     /// assert_eq!(badge.height, 20.0);
     /// ```
-    #[cfg(feature = "extras")]
-    pub fn badge(&self, style: &contract::Style) -> eggshell_ui_extras::badge::BadgeStyle {
+    #[cfg(feature = "badge")]
+    pub fn badge(&self, style: &contract::Style) -> crate::owned::badge::BadgeStyle {
         let t = &self.tokens;
         let dark = self.theme() == Theme::Dark;
         let clear = Color32::TRANSPARENT;
@@ -354,7 +391,7 @@ impl Shadcn {
             border: t.border,
             text: t.foreground,
         };
-        let mut badge = eggshell_ui_extras::badge::BadgeStyle::from_style(style);
+        let mut badge = crate::owned::badge::BadgeStyle::from_style(style);
         badge.variants = Keyed::new(
             variant::PRIMARY,
             look(
@@ -417,9 +454,9 @@ impl Shadcn {
     /// TODO(prose): the look of a command list's rows: shadcn's
     /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
     /// and its list `max-h-72`.
-    #[cfg(feature = "extras")]
-    pub fn command(&self, style: &contract::Style) -> eggshell_ui_extras::command::CommandStyle {
-        let mut command = eggshell_ui_extras::command::CommandStyle::from_style(style);
+    #[cfg(feature = "command")]
+    pub fn command(&self, style: &contract::Style) -> crate::owned::command::CommandStyle {
+        let mut command = crate::owned::command::CommandStyle::from_style(style);
         command.selected_fill = self.tokens.muted;
         command.selected_text = self.tokens.foreground;
         command
@@ -450,20 +487,17 @@ impl Shadcn {
     /// TODO(prose)
     ///
     /// ```
-    /// use eggshell_ui_shadcn::Shadcn;
+    /// use eggshell_ui::theme::Shadcn;
     ///
     /// let shadcn = Shadcn::light();
     /// let disclosure = shadcn.disclosure(&shadcn.style());
     /// assert_eq!(disclosure.header.padding_y, 16.0);
     /// ```
-    #[cfg(feature = "extras")]
-    pub fn disclosure(
-        &self,
-        style: &contract::Style,
-    ) -> eggshell_ui_extras::disclosure::DisclosureStyle {
+    #[cfg(feature = "disclosure")]
+    pub fn disclosure(&self, style: &contract::Style) -> crate::owned::disclosure::DisclosureStyle {
         let t = &self.tokens;
         let lyra = t.style == ShadcnStyle::Lyra;
-        let mut disclosure = eggshell_ui_extras::disclosure::DisclosureStyle::from_style(style);
+        let mut disclosure = crate::owned::disclosure::DisclosureStyle::from_style(style);
         disclosure.section.size = 16.0;
         disclosure.tree.size = 16.0;
         disclosure.tone = Some(t.muted_foreground);
@@ -503,18 +537,18 @@ impl Shadcn {
     ///   and a row `px-4 py-2`, as chosen.
     ///
     /// ```
-    /// use eggshell_ui_shadcn::Shadcn;
+    /// use eggshell_ui::theme::Shadcn;
     ///
     /// let shadcn = Shadcn::light();
     /// let form = shadcn.form(&shadcn.style());
     /// assert_eq!(form.fill, shadcn.tokens.card);
     /// assert_eq!(form.radius, 14);
     /// ```
-    #[cfg(feature = "extras")]
-    pub fn form(&self, style: &contract::Style) -> eggshell_ui_extras::form::FormStyle {
+    #[cfg(feature = "form")]
+    pub fn form(&self, style: &contract::Style) -> crate::owned::form::FormStyle {
         let t = &self.tokens;
         let vega = t.style == ShadcnStyle::Vega;
-        let mut form = eggshell_ui_extras::form::FormStyle::from_style(style);
+        let mut form = crate::owned::form::FormStyle::from_style(style);
         form.fill = t.card;
         form.border = t.border;
         form.border_width = 1.0;
@@ -546,9 +580,9 @@ impl Shadcn {
     /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
     /// (`w-64 rounded-lg bg-popover p-4 shadow-md duration-100`, 4 pt below,
     /// centred) in this preset's colours, with Radix's 700/300 ms delays.
-    #[cfg(feature = "extras")]
-    pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
-        let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
+    #[cfg(feature = "hover-card")]
+    pub fn hover_card(&self) -> crate::owned::hover_card::HoverCardStyle {
+        let mut card = crate::owned::hover_card::HoverCardStyle::from_style(&self.style());
         card.radius = self.tokens.radius_lg();
         card.transition = Duration::from_millis(100);
         card
@@ -556,17 +590,17 @@ impl Shadcn {
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
     /// defaults, in this preset's colours.
-    #[cfg(feature = "extras")]
-    pub fn markdown(&self) -> eggshell_ui_extras::markdown::MarkdownStyle {
-        eggshell_ui_extras::markdown::Typeset::default().markdown_style(&self.typeset_ink())
+    #[cfg(feature = "markdown")]
+    pub fn markdown(&self) -> crate::owned::markdown::MarkdownStyle {
+        crate::owned::markdown::Typeset::default().markdown_style(&self.typeset_ink())
     }
 
     /// TODO(prose): the look of the dialog surface, the sheet and the
     /// popover: shadcn's `DialogContent`, `SheetContent` and
     /// `PopoverContent`. Placeholder values until the render round.
-    #[cfg(feature = "extras")]
-    pub fn dialog(&self, style: &contract::Style) -> eggshell_ui_extras::dialog::DialogStyle {
-        use eggshell_ui_extras::dialog::{DialogStyle, Surface, shadow_lg};
+    #[cfg(feature = "dialog")]
+    pub fn dialog(&self, style: &contract::Style) -> crate::owned::dialog::DialogStyle {
+        use crate::owned::dialog::{DialogStyle, Surface, shadow_lg};
         let t = &self.tokens;
         let mut dialog = DialogStyle::from_style(style);
         dialog.surface = Surface::new(t.background, t.foreground, t.border)
@@ -584,11 +618,11 @@ impl Shadcn {
     /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
     /// tokens, for a typeset of other parameters.
     ///
-    /// [`Typeset`]: eggshell_ui_extras::markdown::Typeset
-    #[cfg(feature = "extras")]
-    pub fn typeset_ink(&self) -> eggshell_ui_extras::markdown::TypesetInk {
+    /// [`Typeset`]: crate::owned::markdown::Typeset
+    #[cfg(feature = "markdown")]
+    pub fn typeset_ink(&self) -> crate::owned::markdown::TypesetInk {
         let t = &self.tokens;
-        eggshell_ui_extras::markdown::TypesetInk {
+        crate::owned::markdown::TypesetInk {
             foreground: t.foreground,
             muted: t.muted_foreground,
             rule: t.border,

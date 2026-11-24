@@ -5,8 +5,8 @@
 
 use eggshell_ui::contract::{Disabled, Size, Style};
 use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
 use egui_kittest::Harness;
 

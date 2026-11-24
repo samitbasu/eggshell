@@ -4,10 +4,10 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::Modal;
+use eggshell_ui::owned::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
 use eggshell_ui::testing::{Driver, Target, WindowFocus};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Distance, TextStyle, tw};
-use eggshell_ui_extras::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
-use eggshell_ui_shadcn::Tokens;
 use egui::accesskit::{Live, Role};
 use egui::{Color32, Key, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -368,7 +368,7 @@ fn a_notice_floats_above_an_open_dialog_and_takes_the_pointer() {
 #[test]
 fn the_preset_gives_sonners_notification_look() {
     use eggshell_ui::Weight;
-    use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
+    use eggshell_ui::theme::{Shadcn, ShadcnStyle};
     let vega = Shadcn::light();
     let notify = vega.notify(&vega.style());
     assert_eq!(notify.fill, vega.tokens.popover, "--normal-bg");
@@ -465,7 +465,7 @@ fn a_notice_card_draws_from_the_sheet() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui_extras::notify::NotifyPart::Toast, |t, _| {
+            .rule(eggshell_ui::owned::notify::NotifyPart::Toast, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))

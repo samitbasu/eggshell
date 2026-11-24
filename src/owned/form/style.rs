@@ -1,6 +1,6 @@
 //! How form sections and labelled rows look.
 
-use eggshell_ui::{Style, TextSpec, Weight};
+use crate::{Style, TextSpec, Weight};
 use egui::Color32;
 
 /// TODO(prose): the look of [`form_section`](super::FormExt::form_section)s
@@ -8,7 +8,7 @@ use egui::Color32;
 /// points.
 ///
 /// ```
-/// use eggshell_ui_extras::form::FormStyle;
+/// use eggshell_ui::owned::form::FormStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = (*style.extension::<FormStyle>()).clone();
@@ -58,7 +58,7 @@ pub struct FormStyle {
     pub section_gap: f32,
 }
 
-impl eggshell_ui::contract::Extension for FormStyle {
+impl crate::contract::Extension for FormStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
     }

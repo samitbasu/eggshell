@@ -3,8 +3,8 @@
 //! context's global style. The owned select therefore paints its list from
 //! `style.select` alone, which the second test pins.
 
+use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
 use eggshell_ui::{LayoutState, NodeUi as _, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
 use egui::{Color32, FontFamily, Popup, SetOpenCommand, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;

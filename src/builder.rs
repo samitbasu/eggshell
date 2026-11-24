@@ -425,12 +425,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.scope_with(&path, body);
     }
 
-    /// Not a stable API: it exists for `eggshell-ui-extras`. Builds `body`
-    /// with its nodes keyed under the node `parent` instead of this scope, so
-    /// that their ids can be found from `parent` alone, wherever they sit in
-    /// the tree.
-    #[doc(hidden)]
-    pub fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+    /// Builds `body` with its nodes keyed under the node `parent` instead of
+    /// this scope, so that their ids can be found from `parent` alone,
+    /// wherever they sit in the tree.
+    #[cfg(feature = "markdown")]
+    pub(crate) fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         body(&mut Scope(Builder::new(
             self.st,
             self.frame,

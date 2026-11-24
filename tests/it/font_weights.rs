@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::Driver;
+use eggshell_ui::theme::{FontSet, Shadcn};
 use eggshell_ui::{Builder, Problem, TextSpec, Weight, tw};
-use eggshell_ui_shadcn::{FontSet, Shadcn};
 use egui::epaint::Shape;
 use egui::{FontFamily, Theme, Vec2};
 

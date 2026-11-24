@@ -2,8 +2,8 @@
 //! around the box, as the owned controls do.
 
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::Shadcn;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Theme, vec2};
 
