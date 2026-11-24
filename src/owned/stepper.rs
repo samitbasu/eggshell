@@ -408,20 +408,30 @@ const STEPPER: (&str, &str) = ("stepper", "true");
 /// its own metrics at each size (#446).
 pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &StepperStyle) {
     use crate::sheet::When;
-    let divider = stepper.divider;
-    let chevrons = stepper.button.paint.states.rest.text;
     let marked = || When::always().attr(STEPPER.0, STEPPER.1);
-    sheet.rule_when(InputGroupPart::Root, marked(), move |t, _| {
-        t.gap_px(1.0).divide_x(1.0, divider)
+    sheet.rule_when(InputGroupPart::Root, marked(), |t, k| {
+        t.gap_px(1.0).divide_x(1.0, k.input)
     });
-    sheet.rule_when(InputGroupPart::Addon, marked(), move |t, _| {
-        t.p(0.0).gap_px(1.0).divide_y(1.0, divider).text(chevrons)
+    sheet.rule_when(InputGroupPart::Addon, marked(), |t, k| {
+        t.p(0.0)
+            .gap_px(1.0)
+            .divide_y(1.0, k.input)
+            .text(k.foreground)
     });
     for size in stepper.sizes.keys() {
-        let inset = stepper.sizes.get(size).padding_x;
-        sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, _| {
-            t.pl_px(inset)
+        sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, k| {
+            t.pl_px(value_inset(k, size))
         });
+    }
+}
+
+/// The inset of a stepper's value at a size: the input's at the default,
+/// eggshell's own smaller fields' at the others.
+fn value_inset(k: &crate::theme::Tokens, size: Size) -> f32 {
+    if size == Size::DEFAULT {
+        k.points(k.input_padding.x)
+    } else {
+        k.points(k.own_input_padding_x)
     }
 }
 

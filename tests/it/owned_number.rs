@@ -2,7 +2,7 @@
 //! key events and the accessibility check the support harness switches on.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{Enablement, Step};
+use eggshell_ui::owned::{Enablement, SliderPart, Step};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
@@ -282,14 +282,9 @@ fn a_focused_thumb_shows_the_ring_and_the_slider_is_one_tab_stop() {
         tab_to(&mut d, THUMB);
         d.frames(12);
         let ring = ring_at(&d, d.rect(Target::suffix(THUMB))).expect("a ring on the thumb");
-        let halo = style
-            .slider
-            .thumb
-            .paint
-            .focus
-            .expect("the thumb's own ring");
-        assert_eq!(ring.stroke.width, halo.width);
-        assert_eq!(ring.stroke.color, halo.color);
+        // shadcn's thumb: `hover:ring-4 focus-visible:ring-4 ring-ring/50`.
+        assert_eq!(ring.stroke.width, style.tokens.slider_halo);
+        assert_eq!(ring.stroke.color, style.tokens.ring.gamma_multiply(0.5));
         d.press(Key::Tab).frames(1);
         assert_ne!(
             focused_path(&d).as_deref(),
@@ -303,18 +298,13 @@ fn a_focused_thumb_shows_the_ring_and_the_slider_is_one_tab_stop() {
 fn the_thumb_shows_its_halo_under_the_pointer_and_not_at_rest() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let halo = style(theme)
-            .slider
-            .thumb
-            .paint
-            .hover_ring
-            .expect("the thumb's halo");
+        let tokens = style(theme).tokens;
+        let halo = (tokens.slider_halo, tokens.ring.gamma_multiply(0.5));
         let thumb = d.rect(Target::suffix(THUMB));
         assert!(ring_at(&d, thumb).is_none(), "{theme:?}: no ring at rest");
         d.carry_to(thumb.center()).frames(11);
         let ring = ring_at(&d, thumb).expect("a halo under the pointer");
-        assert_eq!(ring.stroke.width, halo.width, "{theme:?}");
-        assert_eq!(ring.stroke.color, halo.color, "{theme:?}");
+        assert_eq!((ring.stroke.width, ring.stroke.color), halo, "{theme:?}");
         d.carry_to(pos2(390.0, 490.0)).frames(11);
         assert!(
             ring_at(&d, thumb).is_none(),
@@ -327,15 +317,11 @@ fn the_thumb_shows_its_halo_under_the_pointer_and_not_at_rest() {
 fn the_halo_is_shadcns_per_style_in_the_ring_colour_at_half() {
     for (style, width) in [(ShadcnStyle::Vega, 4.0), (ShadcnStyle::Lyra, 1.0)] {
         let preset = Shadcn::for_theme(Theme::Light).with_style(style);
-        let halo = preset
-            .style()
-            .slider
-            .thumb
-            .paint
-            .hover_ring
-            .expect("a halo");
-        assert_eq!(halo.width, width, "{style:?}: hover:ring-{width}");
-        assert_eq!(halo.color, preset.tokens.ring.gamma_multiply(0.5));
+        // The halo a thumb draws is the tokens' (see the test above).
+        assert_eq!(
+            preset.tokens.slider_halo, width,
+            "{style:?}: hover:ring-{width}"
+        );
     }
 }
 
@@ -355,14 +341,17 @@ fn a_disabled_slider_ignores_the_pointer_and_the_keyboard() {
         );
     }
     // Recorded exception (#40): opaque blends, not the root's opacity-50.
-    let slider = style(Theme::Light).slider;
+    let style = style(Theme::Light);
+    let disabled = [eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled)];
+    let fill = |part| {
+        support::part_at(&style, part, &disabled)
+            .paint_classes()
+            .background
+    };
     let bar = bar(&d, "locked");
-    assert_eq!(box_at(&d, bar).fill, slider.track.disabled.fill);
+    assert_eq!(Some(box_at(&d, bar).fill), fill(SliderPart::Track));
     let thumb = d.rect(Target::suffix("/\"locked\"/Track/Thumb"));
-    assert_eq!(
-        box_at(&d, thumb).fill,
-        slider.thumb.paint.states.disabled.fill
-    );
+    assert_eq!(Some(box_at(&d, thumb).fill), fill(SliderPart::Thumb));
     assert!(
         d.harness()
             .get_by_role_and_label(Role::Slider, "Locked")
@@ -606,7 +595,7 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         let mut d = harness(theme);
         let stepper = style(theme).stepper;
         let group = d.rect(Target::suffix("/\"count\"/Box"));
-        assert_eq!(group.height(), stepper.sizes.get(Size::DEFAULT).height);
+        assert_eq!(group.height(), style(theme).tokens.control_height());
         // An input group (input-group.tsx, the stepper's one source).
         let tokens = Tokens::for_theme(theme);
         let shape = box_at(&d, group);

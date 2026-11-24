@@ -423,14 +423,10 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = d.app().style.segmented.clone();
+        let height = d.app().style.tokens.control_height();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
-        assert_eq!(
-            track.height(),
-            seg.sizes.get(Size::DEFAULT).height,
-            "the styled height stays"
-        );
+        assert_eq!(track.height(), height, "the styled height stays");
         let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         let widths: Vec<_> = cells.iter().map(|cell| cell.width()).collect();
         assert!(
@@ -521,14 +517,8 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
             height("/\"select\""),
             style.select.sizes.get(Size::DEFAULT).height
         );
-        assert_eq!(
-            height("/\"stepper\"/Box"),
-            style.stepper.sizes.get(Size::DEFAULT).height
-        );
-        assert_eq!(
-            height("/\"segmented\""),
-            style.segmented.sizes.get(Size::DEFAULT).height
-        );
+        assert_eq!(height("/\"stepper\"/Box"), style.tokens.control_height());
+        assert_eq!(height("/\"segmented\""), style.tokens.control_height());
     }
 }
 
@@ -1113,12 +1103,12 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
         let d = harness_with(theme, shadcn, |_| {}, stepper);
         let style = &d.app().style;
         let group = d.rect(Target::suffix("/\"stepper\"/Box"));
-        let inside = group.shrink(style.stepper.group.border_width);
+        let inside = group.shrink(support::input_border(style).0);
         let field_box = d.rect(Target::suffix("/\"stepper\"/Box/<div>"));
         let field = d.rect(Target::suffix("/\"stepper\"/Box/Field"));
         assert_eq!(
             group.height(),
-            style.stepper.sizes.get(Size::DEFAULT).height,
+            style.tokens.control_height(),
             "precondition"
         );
         assert!(

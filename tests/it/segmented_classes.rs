@@ -3,7 +3,7 @@
 //! their keys draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
-use eggshell_ui::contract::{Disabled, SegmentedMetrics, Size, Style};
+use eggshell_ui::contract::{Disabled, Size, Style};
 use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
 use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -44,19 +44,7 @@ fn edit(style: &mut Style, ambient: Ambient) {
     if ambient == Ambient::InertFaded {
         style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
-    let mut segmented = style.segmented.clone();
-    let default = *segmented.sizes.get(Size::DEFAULT);
-    segmented.sizes = segmented.sizes.clone().with(
-        SM,
-        SegmentedMetrics {
-            height: default.height - 8.0,
-            cell_padding: default.cell_padding / 2.0,
-            icon_size: default.icon_size - 4.0,
-            ..default
-        },
-    );
     style.sheet.as_app();
-    style.segmented = segmented;
 }
 
 /// The library's control, then the same one built from the public classes.

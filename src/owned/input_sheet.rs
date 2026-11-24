@@ -115,8 +115,8 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
                 t.text_size(text.size, text.line_height)
             });
         }
-        sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
-            t.children(Match::glyph(), |g| g.size_px(m.icon_size))
+        sheet.rule_when(InputGroupPart::Addon, when, move |t, k| {
+            t.children(Match::glyph(), |g| g.size_px(addon_icon(k, size).0))
         });
         for (side, pad) in [
             (INLINE_START, Tw::pl_px as fn(Tw, f32) -> Tw),
@@ -125,9 +125,20 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
             sheet.rule_when(
                 InputGroupPart::Input,
                 when.attr("addon", side),
-                move |t, _| pad(t, m.icon_gap),
+                move |t, k| pad(t, addon_icon(k, size).1),
             );
         }
+    }
+}
+
+/// The side of an addon's icon and its gap to the control's text at a size
+/// other than the default: eggshell's own smaller fields.
+fn addon_icon(k: &Tokens, size: Size) -> (f32, f32) {
+    use crate::theme::size;
+    match size {
+        s if s == size::XS => (k.points(3.0), k.points(1.5)),
+        s if s == size::SM => (k.points(3.5), k.points(1.5)),
+        _ => (k.points(4.0), k.points(2.0)),
     }
 }
 

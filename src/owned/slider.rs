@@ -14,7 +14,7 @@ use super::{
     tipped_whole,
 };
 use crate::builder::Slot;
-use crate::contract::{Colors, Size, SliderStyle};
+use crate::contract::{Colors, Size};
 use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
 use crate::sheet::Key as SheetKey;
@@ -157,17 +157,26 @@ impl crate::sheet::Part for SliderPart {
 /// slider does not fade at its root, as eggshell fades shape by shape (#479)
 /// and the thumb would show the track through it; its parts draw opaque
 /// blends instead (#40).
-pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, slider: &SliderStyle) {
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
+    use crate::contract::States;
     use crate::sheet::When;
+    use egui::Color32;
     let disabled = || When::always().aria(crate::Aria::Disabled);
-    let (track, range) = (slider.track.disabled, slider.range.disabled);
-    let thumb = slider.thumb.paint.states.disabled;
+    let faded = |k: &crate::theme::Tokens, fill, border, text| {
+        States::still(Colors { fill, border, text }, k.background).disabled
+    };
+    let clear = Color32::TRANSPARENT;
     sheet.rule_when(SliderPart::Root, disabled(), |t, _| {
         t.opacity(crate::Opacity::new(1.0))
     });
-    sheet.rule_when(SliderPart::Track, disabled(), move |t, _| t.bg(track.fill));
-    sheet.rule_when(SliderPart::Range, disabled(), move |t, _| t.bg(range.fill));
-    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, _| {
+    sheet.rule_when(SliderPart::Track, disabled(), move |t, k| {
+        t.bg(faded(k, k.input, clear, k.foreground).fill)
+    });
+    sheet.rule_when(SliderPart::Range, disabled(), move |t, k| {
+        t.bg(faded(k, k.primary, clear, k.primary_foreground).fill)
+    });
+    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, k| {
+        let thumb = faded(k, Color32::WHITE, k.primary, k.foreground);
         t.bg(thumb.fill).border_color(thumb.border)
     });
 }

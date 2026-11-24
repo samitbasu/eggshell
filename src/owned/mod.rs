@@ -117,16 +117,9 @@ pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
 /// a slider's and a progress bar's track are the style's fill (the input
 /// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the
 /// segmented control's is written with the tabs'.
-pub(crate) fn write_track_exceptions(
-    sheet: &mut crate::sheet::Sheet,
-    (slider, progress): (
-        &crate::contract::SliderStyle,
-        &crate::contract::ProgressStyle,
-    ),
-) {
-    let (slider, progress) = (slider.track.rest.fill, progress.track.fill);
-    sheet.rule(SliderPart::Track, move |t, _| t.bg(slider));
-    sheet.rule(ProgressPart::Root, move |t, _| t.bg(progress));
+pub(crate) fn write_track_exceptions(sheet: &mut crate::sheet::Sheet) {
+    sheet.rule(SliderPart::Track, |t, k| t.bg(k.input));
+    sheet.rule(ProgressPart::Root, |t, k| t.bg(k.input));
 }
 pub use progress::ProgressPart;
 pub use slider::{SliderChain, SliderPart};

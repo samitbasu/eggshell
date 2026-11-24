@@ -189,14 +189,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
         Some(Tokens::dark().input.gamma_multiply(0.3)),
         "dark:bg-input/30"
     );
-    assert_eq!(
-        style(Theme::Light)
-            .checkbox
-            .sizes
-            .get(eggshell_ui::contract::Size::DEFAULT)
-            .radius,
-        4
-    );
+    assert_eq!(style(Theme::Light).tokens.checkbox_radius, 4);
 }
 
 #[test]

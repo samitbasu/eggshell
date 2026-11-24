@@ -4,7 +4,7 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
+use eggshell_ui::owned::{Enablement, Mark, ProgressPart, SliderPart, SwitchPart};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_extras::form::{FormExt, FormStyle};
 use eggshell_ui_shadcn::{
@@ -154,8 +154,14 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                         "precondition: the section has a fill"
                     );
                     let tracks = [
-                        ("slider", style.slider.track.rest.fill),
-                        ("segmented", style.segmented.track_fill),
+                        (
+                            "slider",
+                            support::part_at(&style, SliderPart::Track, &[])
+                                .paint_classes()
+                                .background
+                                .expect("a slider's track is filled"),
+                        ),
+                        ("segmented", style.tokens.input),
                         (
                             "switch off",
                             support::part_at(
@@ -167,7 +173,13 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                             .background
                             .expect("a switch's track is filled"),
                         ),
-                        ("progress", style.progress.track.fill),
+                        (
+                            "progress",
+                            support::part_at(&style, ProgressPart::Root, &[])
+                                .paint_classes()
+                                .background
+                                .expect("a progress bar's track is filled"),
+                        ),
                     ];
                     for (name, track) in tracks {
                         let on_page = f32::from(ContrastRatio::between(over(page, track), page));

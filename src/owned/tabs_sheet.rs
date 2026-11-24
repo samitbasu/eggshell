@@ -1,12 +1,9 @@
-//! The tabs' parts, which the segmented control draws too, and the sheet rules
-//! that give them today's [`SegmentedStyle`] look.
-//!
-//! TODO(#446): these rules are written from the values `SegmentedStyle` holds,
-//! as the step that moves the mechanism onto the sheet; the generated rules of
-//! shadcn's `cn-tabs*` replace them.
+//! TODO(prose): the tabs' parts, which the segmented control draws too, and
+//! their recorded exceptions over the generated `cn-tabs*` look.
 
-use crate::contract::{SegmentedStyle, Size, Variant};
+use crate::contract::{Keyed, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
+use crate::theme::{Tokens, size};
 use crate::{Aria, Builder, Match};
 
 use super::{Cell, Enablement, SegmentedRows};
@@ -63,7 +60,7 @@ impl TabsPart {
     /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
     pub fn size_key<A>(b: &Builder<'_, '_, A>, size: Size) -> Size {
-        let sizes = &b.style().segmented.sizes;
+        let sizes = sizes();
         sizes.lookup(b.ctx(), size);
         sizes.key_for(size)
     }
@@ -113,39 +110,87 @@ impl TabsPart {
     }
 }
 
+/// The sizes the tabs and the segmented control are drawn at: shadcn's one
+/// and eggshell's own smaller two.
+fn sizes() -> Keyed<Size, ()> {
+    Keyed::new(Size::DEFAULT, ())
+        .with(size::SM, ())
+        .with(size::XS, ())
+}
+
+/// A tab list's and its triggers' metrics at a size.
+struct Metrics {
+    height: f32,
+    track_padding: f32,
+    cell_padding: egui::Vec2,
+    row_gap: f32,
+    icon_size: f32,
+    text: Option<crate::contract::TextSize>,
+}
+
+/// tabs.tsx, trigger: `h-[calc(100%-1px)]`.
+const CELL_TRIM: f32 = 1.0;
+
+fn metrics(k: &Tokens, size: Size) -> Metrics {
+    let u = |units: f32| k.points(units);
+    let at = |height: f32, padding_x: f32, icon_size: f32, text| Metrics {
+        height,
+        track_padding: k.list_padding,
+        // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than the list's
+        // inside, which overflows its `text-sm` by 1 px; the trimmed point
+        // comes out of the padding instead.
+        cell_padding: egui::vec2(padding_x, k.points(k.cell_padding.y) - CELL_TRIM / 2.0),
+        row_gap: 2.0,
+        icon_size,
+        text,
+    };
+    let (padding_x, icon) = (k.points(k.cell_padding.x), k.points(k.icon_size));
+    match size {
+        s if s == size::XS => at(
+            k.control_height() - u(3.0),
+            (padding_x - u(1.0)).max(0.0),
+            u(3.0),
+            Some(k.text.xs),
+        ),
+        s if s == size::SM => at(k.control_height() - u(1.0), padding_x, icon, None),
+        _ => at(k.control_height(), padding_x, icon, None),
+    }
+}
+
 /// Writes the tabs' recorded exceptions over the rules at the sheet's current
-/// layer: the list's track keeps `segmented`'s fill, which shadcn's `bg-muted`
-/// would lose on a muted panel (#346); a trigger's `h-[calc(100%-1px)]` is
-/// the list's full height inside a list padded half a point more, with the
-/// point its `text-sm` would overflow taken out of its own padding; the sizes other than the default keep their metrics;
-/// and wrapping lists, eggshell's own, keep their rows, with each trigger
-/// growing from its content's width where `flex-1` would share a row equally.
-pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
-    let fill = segmented.track_fill;
-    sheet.rule(TabsPart::List, move |t, _| t.bg(fill));
+/// layer: the list's track keeps the `input` fill, which shadcn's `bg-muted`
+/// would lose on a muted panel (#346, revisit with #443); a trigger's
+/// `h-[calc(100%-1px)]` is the list's full height inside a list padded half a
+/// point more, with the point its `text-sm` would overflow taken out of its
+/// own padding; the sizes other than the default keep their metrics; and
+/// wrapping lists, eggshell's own, keep their rows, with each trigger growing
+/// from its content's width where `flex-1` would share a row equally.
+pub(crate) fn write_exceptions(sheet: &mut Sheet) {
+    sheet.rule(TabsPart::List, |t, k| t.bg(k.input));
     let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
     let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
-    let default = segmented.sizes.default_key();
-    for size in segmented.sizes.keys() {
-        let m = *segmented.sizes.get(size);
+    let sizes = sizes();
+    let default = sizes.default_key();
+    for size in sizes.keys() {
         let when = When::always().size(size);
-        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
-            t.py_px(m.cell_padding.y)
+        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+            t.py_px(metrics(k, size).cell_padding.y)
         });
-        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
-            t.py_px(m.track_padding + m.cell_trim / 2.0)
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+            t.py_px(metrics(k, size).track_padding + CELL_TRIM / 2.0)
         });
-        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
-            t.flex_wrap().h_auto().gap_px(m.row_gap)
+        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, k| {
+            t.flex_wrap().h_auto().gap_px(metrics(k, size).row_gap)
         });
         if size == default {
             sheet.rule_when(TabsPart::List, when, |t, _| t);
             continue;
         }
-        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
-            t.h_px(m.height)
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+            t.h_px(metrics(k, size).height)
         });
-        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+            let m = metrics(k, size);
             let t = t
                 .px_px(m.cell_padding.x)
                 .descendants(Match::glyph(), |g| g.size_px(m.icon_size));

@@ -99,8 +99,6 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     for key in style.toggle.on.keys() {
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
-    look("slider thumb", &style.slider.thumb.paint);
-    look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
     let item = crate::support::part_at(
         style,
@@ -125,8 +123,23 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
             },
         ));
     }
-    all.push(("slider track".to_string(), style.slider.track.disabled));
-    all.push(("slider range".to_string(), style.slider.range.disabled));
+    let disabled = [eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled)];
+    for (name, part) in [
+        ("slider track", eggshell_ui::owned::SliderPart::Track),
+        ("slider range", eggshell_ui::owned::SliderPart::Range),
+        ("slider thumb", eggshell_ui::owned::SliderPart::Thumb),
+    ] {
+        let classes = crate::support::part_at(style, part, &disabled);
+        let paint = classes.paint_classes();
+        all.push((
+            name.to_string(),
+            eggshell_ui::contract::Colors {
+                fill: paint.background.unwrap_or(Color32::TRANSPARENT),
+                border: paint.border_colors.top.unwrap_or(Color32::TRANSPARENT),
+                text: Color32::TRANSPARENT,
+            },
+        ));
+    }
     all
 }
 
@@ -139,8 +152,8 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 8,
-            "precondition: the walk reaches every look (a button's is the sheet's)"
+            all.len() >= 7,
+            "precondition: the walk reaches the label, toggles, stepper buttons and slider parts"
         );
         for (name, colors) in all {
             for (part, color) in [
@@ -185,11 +198,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     let mut input = style.input.clone();
     input.sizes = eggshell_ui::contract::Keyed::new(
         eggshell_ui::contract::Size::DEFAULT,
-        eggshell_ui::contract::InputMetrics {
-            text: None,
-            icon_size: 15.0,
-            icon_gap: 7.0,
-        },
+        eggshell_ui::contract::InputMetrics { text: None },
     );
     input.hint = Some(c(99));
     input.icon = c(55);

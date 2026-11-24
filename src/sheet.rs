@@ -44,7 +44,7 @@ pub trait Part: Copy + Eq + Ord + Debug + Send + Sync + 'static {
 /// TODO(prose): who wrote a rule, which decides whose wins. A later layer's classes win per property over an earlier one's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
-    // #497 stage 4: delete, with Builder::part_over, when the extensions'
+    // #497 stage 5: delete, with Builder::part_over, when the extensions'
     // looks are sheet rules.
     /// TODO(prose): an extension's own look, under the sheet; see
     /// [`Builder::part_over`](crate::Builder::part_over). No sheet rule is
@@ -174,7 +174,7 @@ impl When {
     }
 }
 
-// #497 stage 4: delete, with Builder::part_over.
+// #497 stage 5: delete, with Builder::part_over.
 /// TODO(prose): a widget's own look for a part, given at its call site:
 /// [`Builder::part_over`](crate::Builder::part_over) puts it under every
 /// layer of the sheet, as the widgets' defaults, for a widget whose looks

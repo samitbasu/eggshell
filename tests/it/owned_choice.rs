@@ -316,27 +316,20 @@ fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let switch = style(theme).switch.clone();
-        let metrics = *switch.sizes.get(Size::DEFAULT);
+        let tokens = style(theme).tokens.clone();
+        let (track_size, diameter) = (tokens.switch_track, tokens.points(tokens.switch_thumb));
         for on in [false, true] {
             if on {
                 d.click(Target::suffix("/\"air\"/Track")).frames(12);
             }
             let (track_look, thumb_look) = switch_look(&style(theme), on);
             let (rect, thumb) = thumb(&d, "/\"air\"/Track");
-            assert!((rect.size() - metrics.track).abs().max_elem() < 0.01);
+            assert!((rect.size() - track_size).abs().max_elem() < 0.01);
             let track = box_at(&d, rect);
             assert_eq!(track.fill, track_look, "{theme:?} on {on}");
             assert_eq!(track.corner_radius, egui::CornerRadius::same(u8::MAX));
             assert_eq!(thumb.fill, thumb_look);
-            assert_eq!(
-                thumb.radius,
-                if on {
-                    metrics.thumb_on
-                } else {
-                    metrics.thumb_off
-                } / 2.0
-            );
+            assert_eq!(thumb.radius, diameter / 2.0);
             let inset = rect.height() / 2.0;
             let x = if on {
                 rect.right() - inset
@@ -414,15 +407,19 @@ fn cell_path(unit: Unit) -> String {
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let seg = style(theme).segmented.clone();
+        let tokens = style(theme).tokens.clone();
         let track = d.rect(Target::suffix("/\"seg\""));
-        assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
-        assert_eq!(box_at(&d, track).fill, seg.track_fill);
+        assert_eq!(track.height(), tokens.control_height());
+        assert_eq!(
+            box_at(&d, track).fill,
+            tokens.input,
+            "the recorded track fill"
+        );
         let metric = d.rect(Target::suffix(&cell_path(Unit::Metric)));
-        let metrics = seg.sizes.get(Size::DEFAULT);
         assert_eq!(
             metric.top() - track.top(),
-            metrics.track_padding + metrics.cell_trim / 2.0
+            tokens.list_padding + 0.5,
+            "`p-[3px]` and half the trigger's 1 px trim"
         );
         let selected = box_at(&d, metric);
         let trigger = support::part_at(
@@ -442,7 +439,7 @@ fn segmented_track_and_cells_are_the_styles() {
         );
         assert_eq!(
             selected.corner_radius,
-            egui::CornerRadius::same(seg.sizes.get(Size::DEFAULT).cell_radius)
+            egui::CornerRadius::same(tokens.radius_md())
         );
         assert_eq!(selected.stroke.width, 1.0, "shadcn's `border`");
         let imperial = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
@@ -471,11 +468,9 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
     tab_to(&mut d, &cell_path(Unit::Imperial));
     d.frames(12);
-    let seg = style(Theme::Light).segmented.clone();
     let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
-    let _ = seg;
     d.press(Key::Enter).frames(2);
     assert_eq!(d.app().segment, Unit::Imperial);
 

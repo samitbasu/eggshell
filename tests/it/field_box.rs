@@ -112,7 +112,7 @@ fn spacing(size: Size) -> (f32, f32) {
         let style = Shadcn::for_theme(Theme::Light).style();
         (
             support::field_box(&style, size).padding.x,
-            input().sizes.get(size).icon_gap,
+            style.tokens.points(1.5),
         )
     }
 }
@@ -184,7 +184,12 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
         (size::XS, "xs"),
     ] {
         let d = driver(size);
-        let metrics = *input().sizes.get(size);
+        let tokens = Shadcn::for_theme(Theme::Light).tokens;
+        let icon_side = tokens.points(match size {
+            s if s == size::SM => 3.5,
+            s if s == size::XS => 3.0,
+            _ => 4.0,
+        });
         let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
         let (boxed, icon, field) = (
             d.rect(Target::suffix(SEARCH)),
@@ -197,11 +202,7 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
             support::field_box(&Shadcn::for_theme(Theme::Light).style(), size).height,
             "{label}"
         );
-        assert_eq!(
-            icon.size(),
-            vec2(metrics.icon_size, metrics.icon_size),
-            "{label}"
-        );
+        assert_eq!(icon.size(), vec2(icon_side, icon_side), "{label}");
         assert!(
             (icon.left() - boxed.left() - border - edge).abs() < 0.6,
             "{label}: {icon:?} in {boxed:?}"

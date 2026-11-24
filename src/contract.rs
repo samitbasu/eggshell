@@ -16,7 +16,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
-use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
+use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2};
 
 pub use crate::presence::{Entry, KindMotion, MotionStyle};
 use crate::theme::{HoverSurface, Tokens};
@@ -602,7 +602,7 @@ pub enum Disabled {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToggleStyle {
-    // #497 stage 3: move: each size's text is read nowhere.
+    // #497 stage 5: each size's text is read nowhere (the type is shared with the select's).
     /// Metrics of a toggle per size.
     pub sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
@@ -624,15 +624,6 @@ pub struct ToggleStyle {
 /// A checkbox's box at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CheckboxMetrics {
-    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
-    /// Side of the box.
-    pub size: f32,
-    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
-    /// Corner radius of the box.
-    pub radius: u8,
-    // #497 stage 3: move: rule-only (write_checkbox_rules, write_choice_exceptions).
-    /// Side of the check glyph.
-    pub glyph: f32,
     /// Gap between the box and its label.
     pub gap: f32,
     /// The label's text size, or `None` for the text role's own.
@@ -652,12 +643,6 @@ pub struct CheckboxStyle {
 /// A radio button's circle at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RadioMetrics {
-    // #497 stage 3: move: rule-only (write_radio_rules, write_choice_exceptions).
-    /// Diameter of the circle.
-    pub size: f32,
-    // #497 stage 3: move: rule-only (write_radio_rules, write_choice_exceptions).
-    /// Diameter of the dot in the chosen one.
-    pub dot: f32,
     /// Gap between the circle and its label.
     pub gap: f32,
     /// The label's text size, or `None` for the text role's own.
@@ -677,15 +662,6 @@ pub struct RadioStyle {
 /// A switch's track and thumb at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SwitchMetrics {
-    // #497 stage 3: move: x rule-only; y read at draw only as the thumb's scale.
-    /// Track width and height.
-    pub track: Vec2,
-    // #497 stage 3: move: rule-only (write_switch_rules, write_choice_exceptions).
-    /// Thumb diameter while off.
-    pub thumb_off: f32,
-    // #497 stage 3: move: rule-only (write_switch_rules, write_choice_exceptions).
-    /// Thumb diameter while on.
-    pub thumb_on: f32,
     /// The label's text size, or `None` for the text role's own.
     pub text: Option<TextSize>,
 }
@@ -702,46 +678,6 @@ pub struct SwitchStyle {
     pub text: Option<TextSpec>,
     /// How long the thumb takes to slide.
     pub slide: Duration,
-}
-
-/// A segmented control's dimensions at one size.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SegmentedMetrics {
-    /// The track's corner radius.
-    pub track_radius: u8,
-    /// Padding between the track and its cells.
-    pub track_padding: f32,
-    /// Height of a one-row track.
-    pub height: f32,
-    /// Corner radius of a cell.
-    pub cell_radius: u8,
-    /// Left-right and top-bottom padding of a cell.
-    pub cell_padding: Vec2,
-    /// Gap between the cells of a row.
-    pub column_gap: f32,
-    /// Gap between the rows of a wrapping track.
-    pub row_gap: f32,
-    /// Side of the icon in a cell that has one.
-    pub icon_size: f32,
-    /// Gap between a cell's icon and its label.
-    pub icon_gap: f32,
-    /// The cells' text size, or `None` for the text role's own.
-    pub text: Option<TextSize>,
-    /// How much shorter than the inside of a track a cell is, split above
-    /// and below it; zero fills it.
-    pub cell_trim: f32,
-}
-
-/// TODO(prose): Segmented controls and the tabs' list: the track's fill and each size's metrics. The cells' look is the sheet's [`TabsPart`](crate::owned::TabsPart)s.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct SegmentedStyle {
-    // #497 stage 3: move: rule-only (write_tabs_rules, write_tabs_exceptions).
-    /// The track's background.
-    pub track_fill: Color32,
-    // #497 stage 3: move: rule-only but for its keys (write_tabs_rules, write_tabs_exceptions).
-    /// Track and cell dimensions per size.
-    pub sizes: Keyed<Size, SegmentedMetrics>,
 }
 
 /// A slider's dimensions at one size.
@@ -767,30 +703,18 @@ pub struct SliderMetrics {
 pub struct SliderStyle {
     /// Track and thumb dimensions per size.
     pub sizes: Keyed<Size, SliderMetrics>,
-    /// The track's fill; only `rest` and `disabled` apply.
-    pub track: States,
-    /// The range's fill; only `rest` and `disabled` apply.
-    pub range: States,
-    /// The thumb. Its focus ring is the keyboard focus indicator.
-    pub thumb: Look,
     /// The label above the track; only `text` of `rest` and `disabled` applies.
     pub label: States,
     /// The readout above the track; only `text` of `rest` and `disabled` applies.
     pub readout: States,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// Determinate progress bars: a track filled up to a fraction.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ProgressStyle {
-    /// Thickness of the bar.
-    pub height: f32,
     /// Corner radius of the track and its range; `u8::MAX` makes them round.
     pub radius: u8,
-    /// The track's colours; only `fill` applies.
-    pub track: Colors,
     /// The range's colours; only `fill` applies.
     pub range: Colors,
 }
@@ -799,11 +723,11 @@ pub struct ProgressStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
-    // #497 stage 3: move: height, gap, radius, text rule-only; padding_x read by extras only; min_width, glyph unused.
+    // #497 stage 5: height, gap, radius and text feed only write_select_exceptions; padding_x is read only by the command list; min_width and glyph nowhere.
     /// Size of the trigger per size: height, padding, gap between value and
     /// chevron, and corner radius.
     pub sizes: Keyed<Size, Metrics>,
-    // #497 stage 3: move: the select's own chevron is rule-only; the dropdown trigger's is read at draw.
+    // #497 stage 5: under the generated look neither chevron takes this size (their triggers size the svg); read by extras' disclosure and command list.
     /// Side of the chevron glyph.
     pub chevron: f32,
     /// How much of the trigger's text colour the chevron keeps.
@@ -814,24 +738,24 @@ pub struct SelectStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MenuStyle {
-    // #497 stage 3: move: rule-only in core (write_menu_rules, write_select_rules); extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// Padding between the box and its items.
     pub padding: f32,
     /// The gap between a trigger and its dropdown menu or select list.
     pub offset: Distance,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// Left-right and top-bottom padding of an item.
     pub item_padding: Vec2,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// Space between the parts of an item: its indicator, label and shortcut.
     pub item_gap: f32,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// The text role of items and headings, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// The text role of a shortcut.
     pub shortcut_text: TextSpec,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// Side of the square an item keeps for its check or radio mark, and of
     /// the submenu chevron.
     pub indicator: f32,
@@ -963,12 +887,6 @@ impl From<Em> for f32 {
 /// A stepper's dimensions at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepperMetrics {
-    // #497 stage 3: delete: read nowhere.
-    /// Height of the group.
-    pub height: f32,
-    // #497 stage 3: move: rule-only (write_stepper_exceptions).
-    /// Left and right padding of the text.
-    pub padding_x: f32,
     /// Corner radius of the group; the buttons round their outer corners to
     /// fit inside its border.
     pub radius: u8,
@@ -985,18 +903,10 @@ pub struct StepperMetrics {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StepperStyle {
-    // #497 stage 3: delete: read nowhere.
-    /// The group's box. Its focus ring and border show while the text has
-    /// focus.
-    pub group: Look,
     /// The group's dimensions per size.
     pub sizes: Keyed<Size, StepperMetrics>,
     /// The two buttons, which have no border of their own.
     pub button: Look,
-    /// The hairlines between the text and the buttons, and between the buttons.
-    pub divider: Color32,
-    /// How long state changes animate.
-    pub transition: Duration,
 }
 
 /// A text field's dimensions at one size.
@@ -1004,12 +914,6 @@ pub struct StepperStyle {
 pub struct InputMetrics {
     /// The text's size, or `None` for the text role's own.
     pub text: Option<TextSize>,
-    // #497 stage 3: move: rule-only (write_input_rules, write_input_exceptions).
-    /// Side of a leading or trailing icon.
-    pub icon_size: f32,
-    // #497 stage 3: move: rule-only (write_input_rules, write_input_exceptions).
-    /// Space between an icon and the text.
-    pub icon_gap: f32,
 }
 
 /// TODO(prose): Text fields, which are egui's `TextEdit` wrapped: egui paints them from
@@ -1038,7 +942,7 @@ pub struct InputStyle {
     pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
     pub hint: Option<Color32>,
-    // #497 stage 3: move: rule-only in core; extras' command list reads it.
+    // #497 stage 5: read only by the command list.
     /// The colour of a leading or trailing icon.
     pub icon: Color32,
 }
@@ -1378,7 +1282,7 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    // #497 stage 3: move: read only by write_field_rules (and extras' form/markdown).
+    // #497 stage 5: read only by extras' form and markdown.
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
@@ -1390,8 +1294,6 @@ pub struct Style {
     pub radio: RadioStyle,
     /// Switches.
     pub switch: SwitchStyle,
-    /// Segmented controls.
-    pub segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
     /// Progress bars.
@@ -1513,14 +1415,6 @@ impl Style {
             ..States::new(rest, hover, t.background)
         };
         let filled = |rest: Colors, hover: Colors| Look::new(states(rest, hover));
-        let raised = |paint: Paint, shadow: Shadow| Paint {
-            shadow: t.elevation.shadow(shadow),
-            ..paint
-        };
-        let shadowed = |look: Look, shadow: Shadow| Look {
-            paint: raised(look.paint, shadow),
-            ..look
-        };
 
         let (hover_fill, hover_text, hover_fill_dark) = match t.hover_surface {
             HoverSurface::Accent => (t.accent, t.accent_foreground, t.accent_50()),
@@ -1586,32 +1480,6 @@ impl Style {
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
 
-        let thumb = t.points(t.switch_thumb);
-        let input_rest = Colors {
-            fill: if dark { t.input_30() } else { t.background },
-            border: t.input,
-            text: t.foreground,
-        };
-        let input_box = shadowed(
-            Look::new(States {
-                focused: focused(input_rest),
-                ..States::new(
-                    input_rest,
-                    Colors {
-                        fill: if dark { t.input_50() } else { t.background },
-                        ..input_rest
-                    },
-                    t.background,
-                )
-            })
-            .bordered(1.0),
-            t.shadow_xs,
-        );
-        let thumb_colors = Colors {
-            fill: Color32::WHITE,
-            border: t.primary,
-            text: t.foreground,
-        };
         let toggle = ToggleStyle {
             sizes: sized(toggle_metrics),
             border_width: 0.0,
@@ -1628,103 +1496,32 @@ impl Style {
             transition,
         };
         let checkbox = {
-            let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
-                size,
-                radius: t.checkbox_radius,
-                glyph,
-                gap,
-                text,
-            };
+            let box_at = |gap: f32, text| CheckboxMetrics { gap, text };
             CheckboxStyle {
-                sizes: Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
-                    .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
-                    .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text)),
+                sizes: Keyed::new(Size::DEFAULT, box_at(8.0, None))
+                    .with(size::SM, box_at(u(1.5), None))
+                    .with(size::XS, box_at(u(1.5), xs_text)),
                 text: Some(t.text_role_at(t.label_weight)),
             }
         };
         let radio = {
-            let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
-                size,
-                dot,
-                gap,
-                text,
-            };
+            let circle = |gap: f32, text| RadioMetrics { gap, text };
             RadioStyle {
-                sizes: Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
-                    .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
-                    .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text)),
+                sizes: Keyed::new(Size::DEFAULT, circle(8.0, None))
+                    .with(size::SM, circle(u(1.5), None))
+                    .with(size::XS, circle(u(1.5), xs_text)),
                 text: Some(t.text_role_at(t.label_weight)),
             }
         };
         let switch = {
-            let switch_at = |scale: f32, text| SwitchMetrics {
-                track: t.switch_track * scale,
-                thumb_off: thumb * scale,
-                thumb_on: thumb * scale,
-                text,
-            };
+            let switch_at = |text| SwitchMetrics { text };
             SwitchStyle {
-                sizes: Keyed::new(Size::DEFAULT, switch_at(1.0, None))
-                    .with(size::SM, switch_at(0.75, None))
-                    .with(size::XS, switch_at(0.625, xs_text)),
+                sizes: Keyed::new(Size::DEFAULT, switch_at(None))
+                    .with(size::SM, switch_at(None))
+                    .with(size::XS, switch_at(xs_text)),
                 gap: 8.0,
                 text: Some(t.text_role_at(t.label_weight)),
                 slide: Duration::from_millis(150),
-            }
-        };
-        let segmented = {
-            const CELL_TRIM: f32 = 1.0;
-            let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
-                track_radius: t.radius_lg(),
-                track_padding: t.list_padding,
-                height,
-                cell_radius: t.radius_md(),
-                // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
-                // the list's inside, which overflows its `text-sm` by 1 px;
-                // the trimmed point comes out of the padding instead.
-                cell_padding: vec2(padding_x, t.points(t.cell_padding.y) - CELL_TRIM / 2.0),
-                column_gap: 0.0,
-                row_gap: 2.0,
-                icon_size: icon,
-                icon_gap: u(1.5),
-                text,
-                // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
-                cell_trim: CELL_TRIM,
-            };
-            SegmentedStyle {
-                // The one exception to tabs.tsx, whose list is `bg-muted`: on a
-                // `muted` panel that fill is the panel's own colour and the track
-                // disappears, so the list keeps `input` (the user's pick, #346).
-                // Revisit once a cascade can give a track on a muted surface its
-                // own fill (#443).
-                track_fill: t.input,
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    track_at(
-                        t.control_height(),
-                        t.points(t.cell_padding.x),
-                        t.points(t.icon_size),
-                        None,
-                    ),
-                )
-                .with(
-                    size::SM,
-                    track_at(
-                        t.control_height() - u(1.0),
-                        t.points(t.cell_padding.x),
-                        t.points(t.icon_size),
-                        None,
-                    ),
-                )
-                .with(
-                    size::XS,
-                    track_at(
-                        t.control_height() - u(3.0),
-                        (t.points(t.cell_padding.x) - u(1.0)).max(0.0),
-                        u(3.0),
-                        xs_text,
-                    ),
-                ),
             }
         };
         let slider = {
@@ -1738,10 +1535,6 @@ impl Style {
                 text,
                 header_gap,
             };
-            let thumb = shadowed(
-                Look::new(States::still(thumb_colors, t.background)).bordered(1.0),
-                t.shadow_sm,
-            );
             SliderStyle {
                 sizes: Keyed::new(
                     Size::DEFAULT,
@@ -1770,66 +1563,30 @@ impl Style {
                         u(1.0),
                     ),
                 ),
-                track: States::still(flat(t.input, t.foreground), t.background),
-                range: States::still(flat(t.primary, t.primary_foreground), t.background),
-                thumb: Look {
-                    paint: thumb.paint.haloed(Focus {
-                        width: t.slider_halo,
-                        color: t.ring.gamma_multiply(0.5),
-                    }),
-                    ..thumb
-                },
                 label: States::still(flat(clear, t.foreground), t.background),
                 readout: States::still(flat(clear, t.muted_foreground), t.background),
-                transition,
             }
         };
         let stepper = {
-            let group_at =
-                |height: f32, (padding_x, button_width, glyph): (f32, f32, f32), text| {
-                    StepperMetrics {
-                        height,
-                        padding_x,
-                        radius: t.radius_md(),
-                        button_width,
-                        glyph,
-                        text,
-                    }
-                };
-            let own = u(t.own_input_padding_x);
+            let group_at = |(button_width, glyph): (f32, f32), text| StepperMetrics {
+                radius: t.radius_md(),
+                button_width,
+                glyph,
+                text,
+            };
             StepperStyle {
-                group: input_box,
-                sizes: Keyed::new(
-                    Size::DEFAULT,
-                    group_at(
-                        t.control_height(),
-                        (t.points(t.input_padding.x), u(6.0), u(3.0)),
-                        None,
-                    ),
-                )
-                .with(
-                    size::SM,
-                    group_at(t.control_height() - u(1.0), (own, u(5.0), u(3.0)), None),
-                )
-                .with(
-                    size::XS,
-                    group_at(t.control_height() - u(3.0), (own, u(4.0), u(2.5)), xs_text),
-                ),
+                sizes: Keyed::new(Size::DEFAULT, group_at((u(6.0), u(3.0)), None))
+                    .with(size::SM, group_at((u(5.0), u(3.0)), None))
+                    .with(size::XS, group_at((u(4.0), u(2.5)), xs_text)),
                 button: ghost_button,
-                divider: t.input,
-                transition,
             }
         };
         let input = {
-            let field_at = |text, (icon_size, icon_gap): (f32, f32)| InputMetrics {
-                text,
-                icon_size,
-                icon_gap,
-            };
+            let field_at = |text| InputMetrics { text };
             InputStyle {
-                sizes: Keyed::new(Size::DEFAULT, field_at(None, (u(4.0), u(2.0))))
-                    .with(size::SM, field_at(None, (u(3.5), u(1.5))))
-                    .with(size::XS, field_at(xs_text, (u(3.0), u(1.5)))),
+                sizes: Keyed::new(Size::DEFAULT, field_at(None))
+                    .with(size::SM, field_at(None))
+                    .with(size::XS, field_at(xs_text)),
                 // input.tsx: `placeholder:text-muted-foreground`.
                 hint: Some(t.muted_foreground),
                 icon: t.muted_foreground,
@@ -1877,12 +1634,9 @@ impl Style {
             checkbox,
             radio,
             switch,
-            segmented,
             slider,
             progress: ProgressStyle {
-                height: 6.0,
                 radius: u8::MAX,
-                track: flat(t.input, t.foreground),
                 range: flat(t.primary, t.primary_foreground),
             },
             select: SelectStyle {
@@ -2096,11 +1850,11 @@ impl Style {
     fn write_exceptions(&mut self) {
         crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
         crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
-        crate::owned::write_tabs_exceptions(&mut self.sheet, &self.segmented);
+        crate::owned::write_tabs_exceptions(&mut self.sheet);
         crate::owned::write_menu_exceptions(&mut self.sheet);
         // A disabled slider's blends go over its track's.
-        crate::owned::write_track_exceptions(&mut self.sheet, (&self.slider, &self.progress));
-        crate::owned::write_slider_exceptions(&mut self.sheet, &self.slider);
+        crate::owned::write_track_exceptions(&mut self.sheet);
+        crate::owned::write_slider_exceptions(&mut self.sheet);
         crate::owned::write_stepper_exceptions(&mut self.sheet, &self.stepper);
         crate::owned::write_table_exceptions(&mut self.sheet);
         crate::owned::write_choice_exceptions(

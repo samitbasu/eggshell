@@ -10,6 +10,7 @@
 
 use crate::contract::{CheckboxStyle, RadioStyle, Size, SwitchStyle};
 use crate::sheet::{Key, Part, Sheet, When};
+use crate::theme::{Tokens, size};
 use crate::{Aria, Match};
 
 use super::{Enablement, Mark, centered};
@@ -269,12 +270,13 @@ pub(crate) fn write_exceptions(
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in checkbox.sizes.keys().filter(|size| *size != default) {
-        let m = *checkbox.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(CheckboxPart::Root, when, move |t, _| {
-            t.size_px(m.size).rounded_px(f32::from(m.radius))
+        sheet.rule_when(CheckboxPart::Root, when, move |t, k| {
+            let m = checkbox_box(k, size);
+            t.size_px(m.side).rounded_px(f32::from(m.radius))
         });
-        sheet.rule_when(CheckboxPart::Indicator, when, move |t, _| {
+        sheet.rule_when(CheckboxPart::Indicator, when, move |t, k| {
+            let m = checkbox_box(k, size);
             t.children(Match::glyph(), |g| g.size_px(m.glyph))
         });
     }
@@ -283,11 +285,12 @@ pub(crate) fn write_exceptions(
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in radio.sizes.keys().filter(|size| *size != default) {
-        let m = *radio.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(RadioGroupPart::Item, when, move |t, _| t.size_px(m.size));
-        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, _| {
-            t.size_px(m.dot)
+        sheet.rule_when(RadioGroupPart::Item, when, move |t, k| {
+            t.size_px(radio_circle(k, size).0)
+        });
+        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, k| {
+            t.size_px(radio_circle(k, size).1)
         });
     }
     for size in switch.sizes.keys() {
@@ -297,19 +300,75 @@ pub(crate) fn write_exceptions(
         {
             continue;
         }
-        let m = *switch.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(SwitchPart::Root, when, move |t, _| {
-            t.w_px(m.track.x).h_px(m.track.y)
+        sheet.rule_when(SwitchPart::Root, when, move |t, k| {
+            let track = switch_track(k, size);
+            t.w_px(track.x).h_px(track.y)
         });
-        for (mark, diameter) in [(Mark::Off, m.thumb_off), (Mark::On, m.thumb_on)] {
+        for mark in [Mark::Off, Mark::On] {
             let when = match mark {
                 Mark::Off => when.not_aria(Aria::Checked),
                 Mark::On => when.aria(Aria::Checked),
             };
-            sheet.rule_when(SwitchPart::Thumb, when, move |t, _| t.size_px(diameter));
+            sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
+                t.size_px(switch_thumb(k, size))
+            });
         }
     }
+}
+
+/// A checkbox's box at a size: eggshell's own smaller ones, which shadcn,
+/// with one size, does not draw.
+#[derive(Clone, Copy)]
+struct CheckboxBox {
+    side: f32,
+    radius: u8,
+    glyph: f32,
+}
+
+fn checkbox_box(k: &Tokens, size: Size) -> CheckboxBox {
+    let at = |side, glyph| CheckboxBox {
+        side: k.points(side),
+        radius: k.checkbox_radius,
+        glyph: k.points(glyph),
+    };
+    match size {
+        s if s == size::XS => at(3.0, 2.5),
+        s if s == size::SM => at(3.5, 3.0),
+        _ => CheckboxBox {
+            side: 16.0,
+            radius: k.checkbox_radius,
+            glyph: 14.0,
+        },
+    }
+}
+
+/// A radio button's circle and dot diameters at a size.
+fn radio_circle(k: &Tokens, size: Size) -> (f32, f32) {
+    match size {
+        s if s == size::XS => (k.points(3.0), k.points(1.5)),
+        s if s == size::SM => (k.points(3.5), k.points(1.75)),
+        _ => (16.0, 8.0),
+    }
+}
+
+/// The share of the default switch a switch at `size` is.
+fn switch_scale(size: Size) -> f32 {
+    match size {
+        s if s == size::XS => 0.625,
+        s if s == size::SM => 0.75,
+        _ => 1.0,
+    }
+}
+
+/// A switch's track at `size`.
+pub(crate) fn switch_track(k: &Tokens, size: Size) -> egui::Vec2 {
+    k.switch_track * switch_scale(size)
+}
+
+/// A switch's thumb diameter at `size`, on or off.
+fn switch_thumb(k: &Tokens, size: Size) -> f32 {
+    k.points(k.switch_thumb) * switch_scale(size)
 }
 
 /// field.tsx, a choice card's label in the dark theme:

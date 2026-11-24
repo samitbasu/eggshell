@@ -276,7 +276,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.part_over(part, keys, crate::sheet::Defaults(Tw::blank()), call_site)
     }
 
-    // #497 stage 4: delete, with Layer::Defaults and sheet::Defaults, when
+    // #497 stage 5: delete, with Layer::Defaults and sheet::Defaults, when
     // the extensions' looks are sheet rules.
     /// TODO(prose): [`part`](Self::part), with `defaults`, the widget's own
     /// look for the part, under every layer of the sheet: the widgets'
