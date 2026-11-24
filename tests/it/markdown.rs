@@ -273,7 +273,12 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     let tokens = common::tokens(d.ctx());
     let preset = eggshell_ui::theme::Shadcn::of(d.ctx());
     let installed = style(&d);
-    assert_eq!(*installed, preset.markdown());
+    assert_eq!(
+        *installed,
+        *preset
+            .style()
+            .extension::<eggshell_ui::owned::markdown::MarkdownStyle>()
+    );
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
 }

@@ -78,7 +78,7 @@ fn the_shadcn_preset_gives_shadcns_hover_card() {
     let d = harness();
     let given = d.shell().style().extension::<HoverCardStyle>();
     let preset = Shadcn::of(d.ctx());
-    assert_eq!(*given, preset.hover_card());
+    assert_eq!(*given, *preset.style().extension::<HoverCardStyle>());
     assert_eq!(given.width, 256.0, "w-64");
     assert_eq!(given.padding, 16.0, "p-4");
     assert_eq!(given.radius, preset.tokens.radius_lg(), "rounded-lg");

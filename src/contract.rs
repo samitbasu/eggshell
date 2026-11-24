@@ -1750,6 +1750,7 @@ impl Style {
             style.set_extension(Fonts(font.inserts()));
         }
         style.write_look();
+        crate::theme::Shadcn::widget_styles(&mut style);
         style
     }
 

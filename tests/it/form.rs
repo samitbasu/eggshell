@@ -146,7 +146,9 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                         .with_style(look)
                         .with_palette(Palette::new().base(base).theme(colour));
                     let style = preset.style();
-                    let section = preset.form(&style).fill;
+                    let section = style
+                        .extension::<eggshell_ui::owned::form::FormStyle>()
+                        .fill;
                     let page = preset.tokens.background;
                     assert_ne!(
                         section,
