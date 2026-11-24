@@ -42,7 +42,7 @@ arboard = { version = "3.6", optional = true, default-features = false, features
 # eframe's web runner already brings both crates.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.126"
-web-sys = { version = "0.3.103", features = ["CssStyleDeclaration", "Document", "DomRect", "Element", "Event", "EventTarget", "HtmlCanvasElement", "HtmlElement", "KeyboardEvent", "Node", "ScrollBehavior", "ScrollIntoViewOptions", "ScrollLogicalPosition", "VisualViewport", "Window"] }
+web-sys = { version = "0.3.103", features = ["CssStyleDeclaration", "Document", "DomRect", "Element", "Event", "EventTarget", "HtmlCanvasElement", "HtmlElement", "KeyboardEvent", "MutationObserver", "MutationObserverInit", "Node", "ScrollBehavior", "ScrollIntoViewOptions", "ScrollLogicalPosition", "VisualViewport", "Window"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 egui-wgpu = { version = "0.37", optional = true, default-features = false }

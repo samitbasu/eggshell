@@ -56,7 +56,8 @@
 //! the browser never sees the field: it sees eframe's hidden text input,
 //! which eframe keeps at the caret and focuses without scrolling.
 //! `reveal_text_input` (wasm32 only) scrolls the page so that input, and so
-//! the caret, is in view when the keyboard opens. Like any HTML page on a
+//! the caret, is in view when the keyboard opens and whenever the caret
+//! moves out of view while it is open. Like any HTML page on a
 //! phone, the page slides up while the keyboard is open.
 //!
 //! The page must be able to scroll: `html` and `body` without
@@ -322,11 +323,12 @@ fn locks_scrolling(window: &web_sys::Window, element: &web_sys::Element) -> bool
         .is_some_and(|overflow| overflow == "hidden")
 }
 
-/// TODO(prose): scrolls the page, smoothly, so eframe's text input is in
-/// view whenever the on-screen keyboard (or anything else that shrinks the
-/// visible part of the page) would hide it while it has the focus. Install
-/// it once, after the runner has the canvas; the listener lives as long as
-/// the page.
+/// TODO(prose): scrolls the page, smoothly, so eframe's text input, which
+/// eframe keeps at the caret, is in view while it has the focus: when the
+/// on-screen keyboard (or anything else) shrinks the visible part of the
+/// page, and when the caret moves, as it does in a field that moves while
+/// it is edited or in a multi-line field. Install it once, after the runner
+/// has the canvas; the listeners live as long as the page.
 ///
 /// # Errors
 ///
@@ -343,9 +345,9 @@ pub fn reveal_text_input(canvas: &web_sys::HtmlCanvasElement) -> Result<(), wasm
     let viewport = window
         .visual_viewport()
         .ok_or_else(|| error("the browser has no visual viewport"))?;
-    if canvas.parent_node().is_none() {
-        return Err(error("the canvas has no parent"));
-    }
+    let parent = canvas
+        .parent_node()
+        .ok_or_else(|| error("the canvas has no parent"))?;
     let locked = [document.document_element(), document.body().map(Into::into)]
         .into_iter()
         .flatten()
@@ -357,7 +359,7 @@ pub fn reveal_text_input(canvas: &web_sys::HtmlCanvasElement) -> Result<(), wasm
     }
     let canvas = canvas.clone();
     let watched = viewport.clone();
-    let on_resize = Closure::<dyn Fn()>::new(move || {
+    let check = Closure::<dyn Fn()>::new(move || {
         let Some(agent) = canvas
             .next_sibling()
             .and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok())
@@ -378,9 +380,16 @@ pub fn reveal_text_input(canvas: &web_sys::HtmlCanvasElement) -> Result<(), wasm
             agent.scroll_into_view_with_scroll_into_view_options(&options);
         }
     });
-    viewport.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref())?;
-    // The listener is the page's for good: dropping the closure would detach it.
-    on_resize.forget();
+    let callback = check.as_ref().unchecked_ref();
+    viewport.add_event_listener_with_callback("resize", callback)?;
+    // eframe moves its text input with the caret by rewriting its `style`.
+    let moves = web_sys::MutationObserverInit::new();
+    moves.set_attributes(true);
+    moves.set_subtree(true);
+    web_sys::MutationObserver::new(callback)?.observe_with_options(&parent, &moves)?;
+    // The listeners are the page's for good: dropping the closure would
+    // detach them. The observer stays registered on `parent` without a handle.
+    check.forget();
     Ok(())
 }
 
