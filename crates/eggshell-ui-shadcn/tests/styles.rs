@@ -58,7 +58,7 @@ fn vega_is_the_default_and_the_tokens_of_before() {
     assert_eq!((t.radius.lg(), t.control_height()), (10.0, 36.0));
     assert_eq!(t.control_text, TextStep::Sm, "text-sm");
     assert_eq!(
-        t.input_padding,
+        t.points_vec(t.input_padding),
         vec2(10.0, 4.0),
         "px-2.5 py-1, style-vega.css:678"
     );
@@ -73,10 +73,10 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!(t.radius_sm(), 0);
         assert_eq!(t.control_text, TextStep::Xs, "text-xs");
         assert_eq!(t.control_height(), 32.0, "h-8");
-        assert_eq!(t.button_padding.x, 10.0, "px-2.5");
-        assert_eq!(t.control_gap, 6.0, "gap-1.5");
+        assert_eq!(t.button_padding.x, 2.5, "px-2.5");
+        assert_eq!(t.control_gap, 1.5, "gap-1.5");
         assert_eq!(t.ring_width, 1.0, "ring-1");
-        assert_eq!((t.slider_track, t.slider_thumb), (4.0, 12.0), "h-1, size-3");
+        assert_eq!((t.slider_track, t.slider_thumb), (1.0, 3.0), "h-1, size-3");
 
         let style = style_of(theme, ShadcnStyle::Lyra);
         assert_eq!(

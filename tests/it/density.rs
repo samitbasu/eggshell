@@ -151,6 +151,30 @@ fn a_call_sites_spacing_units_follow_the_theme_and_its_points_do_not() {
 }
 
 #[test]
+fn the_presets_unit_tokens_scale_the_metrics_they_feed() {
+    let d = driver(ShadcnStyle::Vega, dense);
+    let style = d.shell().style();
+    let u = |units: f32| units * 3.5;
+    assert_eq!(style.menu().padding, u(1.0), "p-1");
+    assert_eq!(
+        style.menu().item_padding,
+        vec2(u(2.0), u(1.5)),
+        "px-2 py-1.5"
+    );
+    let slider = style.slider.sizes.get(eggshell_ui::contract::Size::DEFAULT);
+    assert_eq!(
+        (slider.track_height, slider.thumb_size),
+        (u(1.5), u(4.0)),
+        "h-1.5, size-4"
+    );
+    assert_eq!(
+        style.tokens.button_padding,
+        vec2(u(4.0), u(2.0)),
+        "px-4 py-2, as egui's button padding"
+    );
+}
+
+#[test]
 fn the_default_tokens_lay_out_as_before() {
     let d = driver(ShadcnStyle::Lyra, |_| {});
     assert_eq!(rect(&d, "/\"save\"").height(), 32.0);

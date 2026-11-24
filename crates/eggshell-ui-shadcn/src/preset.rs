@@ -262,14 +262,14 @@ impl Shadcn {
         let control = Metrics {
             height: t.control_height(),
             min_width: 0.0,
-            padding_x: t.button_padding.x,
-            gap: t.control_gap,
+            padding_x: t.points(t.button_padding.x),
+            gap: t.points(t.control_gap),
             radius: t.radius_md(),
-            glyph: t.icon_size,
+            glyph: t.points(t.icon_size),
             text: None,
         };
         let xs_text = Some(t.text.xs);
-        let u = |units: f32| t.spacing.points(units);
+        let u = |units: f32| t.points(units);
         let small = |m: Metrics| Metrics {
             height: m.height - u(1.0),
             min_width: if m.min_width == 0.0 {
@@ -296,7 +296,7 @@ impl Shadcn {
         };
         let toggle_metrics = Metrics {
             min_width: t.control_height(),
-            padding_x: t.toggle_padding_x,
+            padding_x: t.points(t.toggle_padding_x),
             ..control
         };
         let square = |metrics: Metrics| Metrics {
@@ -315,7 +315,7 @@ impl Shadcn {
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
 
-        let thumb = t.switch_thumb;
+        let thumb = t.points(t.switch_thumb);
         let input_rest = Colors {
             fill: self.input_fill(),
             border: t.input,
@@ -426,25 +426,30 @@ impl Shadcn {
                 // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
                 // the list's inside, which overflows its `text-sm` by 1 px;
                 // the trimmed point comes out of the padding instead.
-                cell_padding: vec2(padding_x, t.cell_padding.y - CELL_TRIM / 2.0),
+                cell_padding: vec2(padding_x, t.points(t.cell_padding.y) - CELL_TRIM / 2.0),
                 column_gap: 0.0,
                 row_gap: 2.0,
                 icon_size: icon,
-                icon_gap: 6.0,
+                icon_gap: u(1.5),
                 text,
                 // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
                 cell_trim: CELL_TRIM,
             };
             segmented.sizes = Keyed::new(
                 Size::DEFAULT,
-                track_at(t.control_height(), t.cell_padding.x, t.icon_size, None),
+                track_at(
+                    t.control_height(),
+                    t.points(t.cell_padding.x),
+                    t.points(t.icon_size),
+                    None,
+                ),
             )
             .with(
                 size::SM,
                 track_at(
                     t.control_height() - u(1.0),
-                    t.cell_padding.x,
-                    t.icon_size,
+                    t.points(t.cell_padding.x),
+                    t.points(t.icon_size),
                     None,
                 ),
             )
@@ -452,7 +457,7 @@ impl Shadcn {
                 size::XS,
                 track_at(
                     t.control_height() - u(3.0),
-                    (t.cell_padding.x - u(1.0)).max(0.0),
+                    (t.points(t.cell_padding.x) - u(1.0)).max(0.0),
                     u(3.0),
                     xs_text,
                 ),
@@ -474,13 +479,18 @@ impl Shadcn {
             };
             slider.sizes = Keyed::new(
                 Size::DEFAULT,
-                slider_at(t.slider_track, t.slider_thumb, None, 8.0),
+                slider_at(
+                    t.points(t.slider_track),
+                    t.points(t.slider_thumb),
+                    None,
+                    8.0,
+                ),
             )
             .with(
                 size::SM,
                 slider_at(
-                    t.slider_track.min(u(1.0)),
-                    t.slider_thumb - u(0.5),
+                    t.points(t.slider_track).min(u(1.0)),
+                    t.points(t.slider_thumb) - u(0.5),
                     None,
                     u(1.5),
                 ),
@@ -488,8 +498,8 @@ impl Shadcn {
             .with(
                 size::XS,
                 slider_at(
-                    t.slider_track.min(u(0.75)),
-                    t.slider_thumb - u(1.0),
+                    t.points(t.slider_track).min(u(0.75)),
+                    t.points(t.slider_thumb) - u(1.0),
                     xs_text,
                     u(1.0),
                 ),
@@ -531,10 +541,10 @@ impl Shadcn {
         // generated sheet's.
         style.set_menu({
             let mut menu = style.menu().clone();
-            menu.padding = t.popup_padding;
+            menu.padding = t.points(t.popup_padding);
             menu.offset = Distance::new(4.0);
-            menu.item_padding = t.item_padding;
-            menu.item_gap = t.item_padding.x;
+            menu.item_padding = t.points_vec(t.item_padding);
+            menu.item_gap = t.points(t.item_padding.x);
             menu.shortcut_text = TextSpec {
                 size: 12.0,
                 line_height: 16.0,
@@ -629,7 +639,7 @@ impl Shadcn {
                 Size::DEFAULT,
                 group_at(
                     t.control_height(),
-                    (t.input_padding.x, u(6.0), u(3.0)),
+                    (t.points(t.input_padding.x), u(6.0), u(3.0)),
                     None,
                 ),
             )
@@ -653,7 +663,7 @@ impl Shadcn {
                 icon_size,
                 icon_gap,
             };
-            input.sizes = Keyed::new(Size::DEFAULT, field_at(None, (16.0, 8.0)))
+            input.sizes = Keyed::new(Size::DEFAULT, field_at(None, (u(4.0), u(2.0))))
                 .with(size::SM, field_at(None, (u(3.5), u(1.5))))
                 .with(size::XS, field_at(xs_text, (u(3.0), u(1.5))));
             // input.tsx: `placeholder:text-muted-foreground`.
@@ -795,9 +805,9 @@ impl Shadcn {
         core.radius = t.radius;
         core.text = t.text;
         core.control_height = t.control_height();
-        core.button_padding = t.button_padding;
+        core.button_padding = t.points_vec(t.button_padding);
         core.text_size = t.control_text_size().size;
-        core.switch_thumb = t.switch_thumb;
+        core.switch_thumb = t.points(t.switch_thumb);
         core.shadow_xs = t.shadow_xs;
         core.shadow_sm = t.shadow_sm;
         core.shadow_md = t.shadow_md;
@@ -1007,7 +1017,7 @@ impl Shadcn {
         );
         badge.height = 20.0;
         badge.padding_x = 8.0;
-        badge.icon_padding = 6.0;
+        badge.icon_padding = self.tokens.points(1.5);
         badge.gap = 4.0;
         badge.radius = match t.style {
             ShadcnStyle::Vega => u8::MAX,
