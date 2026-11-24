@@ -328,6 +328,7 @@ mod web {
     impl<F: FnMut(&mut egui::Ui)> eframe::App for App<F> {
         fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
             (self.0)(ui);
+            eggshell_ui::web::paint_page_background(ui.ctx());
         }
     }
 
@@ -345,13 +346,19 @@ mod web {
             let started = eframe::WebRunner::new()
                 .start(
                     canvas.clone(),
-                    eframe::WebOptions::default(),
+                    eframe::WebOptions {
+                        should_prevent_default: Box::new(eggshell_ui::web::should_prevent_default),
+                        ..eframe::WebOptions::default()
+                    },
                     Box::new(move |cc| {
                         let claimed = eggshell_ui::web::ClaimedChords::of(&cc.egui_ctx);
                         if let Err(error) =
                             eggshell_ui::web::prevent_claimed_chords(&canvas, claimed)
                         {
                             log::warn!("chords stay the browser's too: {error:?}");
+                        }
+                        if let Err(error) = eggshell_ui::web::reveal_text_input(&canvas) {
+                            log::warn!("the keyboard may cover the field being edited: {error:?}");
                         }
                         Ok(Box::new(App(ui_fun)))
                     }),

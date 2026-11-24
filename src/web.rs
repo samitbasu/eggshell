@@ -1,5 +1,8 @@
-//! The web build's keyboard: keeping the browser off the chords the
-//! application's commands take.
+//! The web build's input: keeping the browser off the chords the
+//! application's commands take, letting a tap bring back the window's
+//! focus, and keeping the field being edited above the on-screen keyboard.
+//!
+//! ## Chords
 //!
 //! eframe 0.37 asks its `WebOptions::should_prevent_default` hook about
 //! text, but never about a key press, so a browser shortcut on a chord a
@@ -19,6 +22,62 @@
 //! eggshell_ui::web::prevent_claimed_chords(&canvas, ClaimedChords::of(&cc.egui_ctx)).ok();
 //! # Ok(Box::new(MyApp))
 //! # }));
+//! # }
+//! ```
+//!
+//! ## Window focus
+//!
+//! TODO(prose): why a page that has lost the window's focus (Safari's address
+//! bar, for one) stays without a keyboard: eframe cancels every touch on the
+//! canvas, and Safari returns the window's focus only for a tap it handles
+//! itself. `should_prevent_default` (wasm32 only) leaves a touch to the
+//! browser while the page lacks the window's focus, so the first tap brings
+//! the focus back and the next one the keyboard.
+//!
+//! An app installs it in the options it gives the runner:
+//!
+//! ```no_run
+//! # #[cfg(target_arch = "wasm32")]
+//! # fn options() -> eframe::WebOptions {
+//! eframe::WebOptions {
+//!     should_prevent_default: Box::new(eggshell_ui::web::should_prevent_default),
+//!     ..Default::default()
+//! }
+//! # }
+//! ```
+//!
+//! TODO(prose): an app with its own rule combines it with
+//! [`PageFocus::prevents_default`].
+//!
+//! ## Keyboard
+//!
+//! TODO(prose): on a phone the keyboard covers the lower part of the page,
+//! and the browser does not move the field being edited into view, because
+//! the browser never sees the field: it sees eframe's hidden text input,
+//! which eframe keeps at the caret and focuses without scrolling.
+//! `reveal_text_input` (wasm32 only) scrolls the page so that input, and so
+//! the caret, is in view when the keyboard opens and whenever the caret
+//! moves out of view while it is open. Like any HTML page on a
+//! phone, the page slides up while the keyboard is open.
+//!
+//! The page must be able to scroll: `html` and `body` without
+//! `overflow: hidden`. `reveal_text_input` refuses to install otherwise.
+//!
+//! TODO(prose): the keyboard is translucent and shows the page behind the
+//! canvas. `paint_page_background` (wasm32 only), called every frame, paints
+//! the page in egui's panel colour, so it matches the canvas and follows a
+//! change of theme.
+//!
+//! ```no_run
+//! # #[cfg(target_arch = "wasm32")]
+//! # fn start(canvas: web_sys::HtmlCanvasElement) {
+//! if let Err(error) = eggshell_ui::web::reveal_text_input(&canvas) {
+//!     log::warn!("the keyboard may cover the field being edited: {error:?}");
+//! }
+//! # }
+//! # #[cfg(target_arch = "wasm32")]
+//! # fn ui(ui: &mut egui::Ui) {
+//! eggshell_ui::web::paint_page_background(ui.ctx());
 //! # }
 //! ```
 
@@ -171,11 +230,239 @@ pub fn prevent_claimed_chords(
     Ok(())
 }
 
+/// TODO(prose): whether the page has the window's focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageFocus {
+    /// TODO(prose): the page has the window's focus.
+    Focused,
+    /// TODO(prose): something outside the page has the window's focus.
+    Unfocused,
+}
+
+impl PageFocus {
+    /// TODO(prose): the page's focus as `document.hasFocus()` reports it;
+    /// [`Focused`](Self::Focused) where the browser cannot say.
+    #[cfg(target_arch = "wasm32")]
+    pub fn now() -> Self {
+        let has_focus = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.has_focus().ok());
+        match has_focus {
+            Some(false) => Self::Unfocused,
+            Some(true) | None => Self::Focused,
+        }
+    }
+
+    /// TODO(prose): whether an input event on the canvas should have the
+    /// browser's own action prevented, as eframe does by default.
+    pub fn prevents_default(self) -> bool {
+        match self {
+            Self::Focused => true,
+            Self::Unfocused => false,
+        }
+    }
+}
+
+/// TODO(prose): eframe's `WebOptions::should_prevent_default`: prevents the
+/// browser's own action for every input event, as eframe's default does,
+/// except while the page lacks the window's focus.
+#[cfg(target_arch = "wasm32")]
+pub fn should_prevent_default(_: &egui::Event) -> bool {
+    PageFocus::now().prevents_default()
+}
+
+/// Whether eframe's text input lies outside the part of the page the
+/// keyboard leaves visible.
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reveal {
+    Needed,
+    NotNeeded,
+}
+
+/// `agent` and `visible` in the page's layout-viewport coordinates.
+#[cfg(any(target_arch = "wasm32", test))]
+fn reveal(agent: egui::Rect, visible: egui::Rect) -> Reveal {
+    if visible.contains_rect(agent) {
+        Reveal::NotNeeded
+    } else {
+        Reveal::Needed
+    }
+}
+
+/// A colour as CSS reads it.
+#[cfg(any(target_arch = "wasm32", test))]
+fn css_color(color: egui::Color32) -> String {
+    let [r, g, b, a] = color.to_srgba_unmultiplied();
+    format!("rgba({r}, {g}, {b}, {:.3})", f32::from(a) / 255.0)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn element_rect(rect: &web_sys::DomRect) -> egui::Rect {
+    egui::Rect::from_min_size(
+        egui::pos2(rect.left() as f32, rect.top() as f32),
+        egui::vec2(rect.width() as f32, rect.height() as f32),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+fn visible_rect(viewport: &web_sys::VisualViewport) -> egui::Rect {
+    egui::Rect::from_min_size(
+        egui::pos2(viewport.offset_left() as f32, viewport.offset_top() as f32),
+        egui::vec2(viewport.width() as f32, viewport.height() as f32),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+fn locks_scrolling(window: &web_sys::Window, element: &web_sys::Element) -> bool {
+    window
+        .get_computed_style(element)
+        .ok()
+        .flatten()
+        .and_then(|style| style.get_property_value("overflow-y").ok())
+        .is_some_and(|overflow| overflow == "hidden")
+}
+
+/// TODO(prose): scrolls the page, smoothly, so eframe's text input, which
+/// eframe keeps at the caret, is in view while it has the focus: when the
+/// on-screen keyboard (or anything else) shrinks the visible part of the
+/// page, and when the caret moves, as it does in a field that moves while
+/// it is edited or in a multi-line field. Install it once, after the runner
+/// has the canvas; the listeners live as long as the page.
+///
+/// # Errors
+///
+/// If the page has no visual viewport, if the canvas has no parent, or if
+/// `html` or `body` is `overflow: hidden`, which stops the page scrolling.
+#[cfg(target_arch = "wasm32")]
+pub fn reveal_text_input(canvas: &web_sys::HtmlCanvasElement) -> Result<(), wasm_bindgen::JsValue> {
+    use wasm_bindgen::JsCast as _;
+    use wasm_bindgen::closure::Closure;
+
+    let error = |message: &str| wasm_bindgen::JsValue::from_str(message);
+    let window = web_sys::window().ok_or_else(|| error("no window"))?;
+    let document = window.document().ok_or_else(|| error("no document"))?;
+    let viewport = window
+        .visual_viewport()
+        .ok_or_else(|| error("the browser has no visual viewport"))?;
+    let parent = canvas
+        .parent_node()
+        .ok_or_else(|| error("the canvas has no parent"))?;
+    let locked = [document.document_element(), document.body().map(Into::into)]
+        .into_iter()
+        .flatten()
+        .any(|element| locks_scrolling(&window, &element));
+    if locked {
+        return Err(error(
+            "`html` or `body` is `overflow: hidden`, so the page cannot scroll the field into view",
+        ));
+    }
+    let canvas = canvas.clone();
+    let watched = viewport.clone();
+    let check = Closure::<dyn Fn()>::new(move || {
+        let Some(agent) = canvas
+            .next_sibling()
+            .and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok())
+        else {
+            return;
+        };
+        let focused = document
+            .active_element()
+            .is_some_and(|active| AsRef::<web_sys::Element>::as_ref(&agent) == &active);
+        if !focused {
+            return;
+        }
+        let at = element_rect(&agent.get_bounding_client_rect());
+        if reveal(at, visible_rect(&watched)) == Reveal::Needed {
+            let options = web_sys::ScrollIntoViewOptions::new();
+            options.set_behavior(web_sys::ScrollBehavior::Smooth);
+            options.set_block(web_sys::ScrollLogicalPosition::Center);
+            agent.scroll_into_view_with_scroll_into_view_options(&options);
+        }
+    });
+    let callback = check.as_ref().unchecked_ref();
+    viewport.add_event_listener_with_callback("resize", callback)?;
+    // eframe moves its text input with the caret by rewriting its `style`.
+    let moves = web_sys::MutationObserverInit::new();
+    moves.set_attributes(true);
+    moves.set_subtree(true);
+    web_sys::MutationObserver::new(callback)?.observe_with_options(&parent, &moves)?;
+    // The listeners are the page's for good: dropping the closure would
+    // detach them. The observer stays registered on `parent` without a handle.
+    check.forget();
+    Ok(())
+}
+
+/// TODO(prose): paints the page behind the canvas in `ctx`'s panel colour,
+/// which the on-screen keyboard shows through. Call it every frame: it
+/// writes to the page only when the colour changes.
+#[cfg(target_arch = "wasm32")]
+pub fn paint_page_background(ctx: &Context) {
+    let color = ctx.global_style().visuals.panel_fill;
+    let painted = Id::NULL.with("eggshell-page-background");
+    if ctx.data(|data| data.get_temp::<egui::Color32>(painted)) == Some(color) {
+        return;
+    }
+    let Some(body) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.body())
+    else {
+        return;
+    };
+    if body
+        .style()
+        .set_property("background-color", &css_color(color))
+        .is_ok()
+    {
+        ctx.data_mut(|data| data.insert_temp(painted, color));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use egui::{Key, Modifiers};
 
     use super::*;
+
+    /// A 390×781 phone page with the keyboard up, as a device trace saw it:
+    /// 432 points visible above the keyboard.
+    const VISIBLE: egui::Vec2 = egui::vec2(390.0, 432.0);
+
+    fn text_input_at(caret: egui::Pos2) -> egui::Rect {
+        egui::Rect::from_min_size(caret, egui::Vec2::splat(1.0))
+    }
+
+    #[test]
+    fn an_input_under_the_keyboard_is_revealed_and_one_above_it_is_left_alone() {
+        let visible = egui::Rect::from_min_size(egui::Pos2::ZERO, VISIBLE);
+        let under = text_input_at(egui::pos2(34.0, 489.0));
+        let above = text_input_at(egui::pos2(34.0, 189.0));
+        assert!(!visible.contains_rect(under), "precondition: hidden");
+        assert_eq!(reveal(under, visible), Reveal::Needed);
+        assert_eq!(reveal(above, visible), Reveal::NotNeeded);
+    }
+
+    #[test]
+    fn a_page_already_scrolled_to_the_input_needs_nothing() {
+        let scrolled = egui::Rect::from_min_size(egui::pos2(0.0, 229.0), VISIBLE);
+        let input = text_input_at(egui::pos2(34.0, 489.0));
+        assert!(scrolled.contains_rect(input), "precondition: in view");
+        assert_eq!(reveal(input, scrolled), Reveal::NotNeeded);
+    }
+
+    #[test]
+    fn colours_read_as_css_rgba() {
+        assert_eq!(
+            css_color(egui::Color32::from_rgb(9, 9, 11)),
+            "rgba(9, 9, 11, 1.000)"
+        );
+    }
+
+    #[test]
+    fn a_focused_page_prevents_as_eframe_does_and_an_unfocused_one_lets_the_browser_act() {
+        assert!(PageFocus::Focused.prevents_default());
+        assert!(!PageFocus::Unfocused.prevents_default());
+    }
 
     fn down<'e>(key: &'e str, code: &'e str, [alt, ctrl, shift, meta]: [bool; 4]) -> KeyDown<'e> {
         KeyDown {
