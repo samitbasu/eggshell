@@ -784,7 +784,7 @@ mod example {
     }
 
     fn highlight(d: &Driver<State>) -> egui::Color32 {
-        d.shell().style().menu().item.paint.states.hover.fill
+        d.shell().style().tokens.accent
     }
 
     #[test]

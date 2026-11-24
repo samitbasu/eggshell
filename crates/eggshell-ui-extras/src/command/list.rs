@@ -5,14 +5,17 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::owned::{Enablement, InputGroupPart, Mark};
+use eggshell_ui::contract::Colors;
+use eggshell_ui::owned::{Enablement, InputGroupPart, Mark, MenuPart};
 use eggshell_ui::sheet::{Defaults, Key as SheetKey};
 use eggshell_ui::vlist::{ListNav, RowKind};
 use eggshell_ui::{
     Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
     icons, tw,
 };
-use egui::{Context, Id, Role};
+use egui::{Color32, Context, Id, Role};
+
+use crate::styles::{Popover, menu_part};
 
 use super::{ComboboxPart, CommandPart};
 
@@ -399,11 +402,90 @@ impl<A> Listing<A> {
 
 /// The classes of the box a combobox's or an autosuggest's list sits in.
 pub(crate) fn popover_classes(style: &Style) -> Tw {
-    style
-        .menu()
-        .box_classes(style.role(&style.menu().text))
-        .p(0.0)
+    let popover = Popover::of(style);
+    let colors = popover.colors;
+    tw().flex()
+        .flex_col()
+        .min_h_0()
+        .border(popover.border_width)
+        .border_color(colors.border)
+        .bg(colors.fill)
+        .text(colors.text)
+        .rounded_px(f32::from(popover.radius))
+        .role(style.role(&style.menu().text).clone())
+        .shadow(popover.shadow)
         .overflow_hidden()
+}
+
+/// What the list's rows are drawn with, as `style`'s menu items are: the
+/// colours from the tokens, the item's radius and the heading's weight
+/// from the sheet's menu parts.
+struct Rows {
+    radius: f32,
+    text: Color32,
+    highlight: (Color32, Color32),
+    disabled: Color32,
+    muted: Color32,
+    separator: Color32,
+    heading_weight: eggshell_ui::Weight,
+}
+
+impl Rows {
+    fn of(style: &Style) -> Self {
+        let k = &style.tokens;
+        let item = menu_part(
+            style,
+            MenuPart::Item,
+            &[SheetKey::Variant(eggshell_ui::contract::Variant::DEFAULT)],
+        );
+        let heading_role = style
+            .role(&Some(style.menu().shortcut_text.clone()))
+            .clone();
+        let heading = menu_part(style, MenuPart::Label, &[]).text_classes().over(
+            &eggshell_ui::TextStyle::new(heading_role, Color32::PLACEHOLDER),
+        );
+        let rest = Colors {
+            fill: Color32::TRANSPARENT,
+            border: Color32::TRANSPARENT,
+            text: k.popover_foreground,
+        };
+        Self {
+            radius: f32::from(item.paint_classes().radius.nw),
+            text: rest.text,
+            highlight: (k.accent, k.accent_foreground),
+            disabled: rest
+                .faded_over(eggshell_ui::Opacity::new(0.5), k.popover)
+                .text,
+            muted: k.muted_foreground,
+            separator: menu_part(style, MenuPart::Separator, &[])
+                .paint_classes()
+                .background
+                .unwrap_or(k.border),
+            heading_weight: heading.spec.weight,
+        }
+    }
+
+    /// A row's own look in `enablement`, highlighted in `highlight`.
+    fn look(&self, style: &Style, enablement: Enablement, highlight: (Color32, Color32)) -> Tw {
+        let menu = style.menu();
+        let base = tw()
+            .flex()
+            .items_center()
+            .gap_px(menu.item_gap)
+            .px_px(menu.item_padding.x)
+            .h_px(menu.row_height(style.role(&menu.text)))
+            .rounded_px(self.radius)
+            .whitespace_nowrap();
+        match enablement {
+            Enablement::Disabled => base.text(self.disabled),
+            Enablement::Enabled => {
+                let (fill, text) = highlight;
+                base.bg(Color32::TRANSPARENT)
+                    .text(self.text)
+                    .highlighted(move |p| p.bg(fill).text(text))
+            }
+        }
+    }
 }
 
 /// The gap between a combobox's field and its list: shadcn's `sideOffset 6`.
@@ -411,33 +493,28 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
     eggshell_ui::overlay::Distance::new(6.0)
 }
 
-/// The classes of a combobox's box, shadcn's input group: the select's box
-/// with the ring while the field inside has focus. The field's own padding
-/// is the box's left, and the end button sits close to its right.
+/// The classes of a combobox's box, shadcn's input group: the select
+/// trigger's look, with the ring while the field inside has focus. The
+/// field's own padding is the box's left, and the end button sits close to
+/// its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
-    let select = style.select();
-    let metrics = select.sizes.get(eggshell_ui::contract::Size::DEFAULT);
-    let states = select.trigger.paint.states;
-    let classes = tw()
-        .flex()
-        .items_center()
+    let size = eggshell_ui::contract::Size::DEFAULT;
+    let metrics = style.select().sizes.get(size);
+    let trigger = style.sheet.resolve(
+        eggshell_ui::owned::SelectPart::Trigger,
+        &[eggshell_ui::sheet::Key::Size(size)],
+        &style.tokens,
+    );
+    let focus = style.tokens.focus;
+    trigger
+        .w_auto()
+        .justify_start()
         .pl_px(metrics.padding_x)
         .pr(1.0)
-        .h_px(metrics.height)
-        .rounded_px(f32::from(metrics.radius))
-        .border(select.trigger.border_width)
-        .border_color(states.rest.border)
-        .bg(states.rest.fill)
-        .text(states.rest.text)
-        .role(style.role(&select.text).clone())
         .has(Match::focus_visible(), |b| {
-            b.border_color(states.focused.border)
-                .ring(style.tokens.focus.width, style.tokens.focus.color)
-        });
-    match select.trigger.paint.shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
+            b.border_color(style.tokens.ring)
+                .ring(focus.width, focus.color)
+        })
 }
 
 /// The classes of the button at the end of a combobox's box, shadcn's ghost
@@ -451,7 +528,7 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
         .justify_center()
         .size_px(metrics.button_width)
         .shrink_0()
-        .rounded_px(f32::from(style.menu().item_radius))
+        .rounded_px(Rows::of(style).radius)
         .bg(states.rest.fill)
         .sense_click()
         .focusable_none()
@@ -467,23 +544,19 @@ pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
 
 /// The classes of a command dialog's box.
 pub(crate) fn dialog_classes(style: &Style) -> Tw {
-    let menu = style.menu();
-    let rest = menu.popup.paint.states.rest;
-    let classes = tw()
-        .flex()
+    let popover = Popover::of(style);
+    let rest = popover.colors;
+    tw().flex()
         .flex_col()
         .w_px(512.0)
         .max_w_full()
-        .border(menu.popup.border_width)
+        .border(popover.border_width)
         .border_color(rest.border)
         .bg(rest.fill)
         .text(rest.text)
-        .rounded_px(f32::from(menu.radius) + 2.0)
-        .overflow_hidden();
-    match menu.popup.paint.shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
+        .rounded_px(f32::from(popover.radius) + 2.0)
+        .overflow_hidden()
+        .shadow(popover.shadow)
 }
 
 /// Adds the list with its field: the items of `items` that match the query,
@@ -676,16 +749,8 @@ fn search_field<A: 'static>(
     name: Option<String>,
     on_query: Option<super::Heard<A>>,
 ) -> Id {
-    let menu = style.menu();
-    let rest = menu.popup.paint.states.rest;
-    let tint = style
-        .input()
-        .look
-        .paint
-        .states
-        .rest
-        .border
-        .gamma_multiply(0.3);
+    let radius = Popover::of(style).radius;
+    let tint = crate::styles::input_border(style).gamma_multiply(0.3);
     let wrapper = s.part_over(
         CommandPart::InputWrapper,
         &[],
@@ -697,7 +762,7 @@ fn search_field<A: 'static>(
         .pl(2.0)
         .pr(2.5)
         .h_px(32.0)
-        .rounded_px(f32::from(menu.radius) + 2.0)
+        .rounded_px(f32::from(radius) + 2.0)
         .border(1.0)
         .border_color(tint)
         .bg(tint);
@@ -713,7 +778,7 @@ fn search_field<A: 'static>(
         Defaults(
             tw().size_px(16.0)
                 .shrink_0()
-                .text(rest.text.gamma_multiply(0.5)),
+                .text(style.tokens.popover_foreground.gamma_multiply(0.5)),
         ),
         tw(),
     );
@@ -765,20 +830,23 @@ fn search_field<A: 'static>(
 }
 
 fn note_classes(style: &Style) -> Tw {
-    tw().py(6.0).text_center().text(style.menu().shortcut)
+    tw().py(6.0)
+        .text_center()
+        .text(style.tokens.muted_foreground)
 }
 
 fn heading_classes(style: &Style, place: Place) -> Tw {
     let menu = style.menu();
+    let rows = Rows::of(style);
     let classes = tw()
         .px_px(menu.item_padding.x)
         .py(1.5)
         .role(style.role(&Some(menu.shortcut_text.clone())).clone())
-        .font_weight(menu.heading_weight)
-        .text(menu.shortcut);
+        .font_weight(rows.heading_weight)
+        .text(rows.muted);
     match place {
         Place::First => classes,
-        Place::After => classes.mt(1.0).border_t(1.0).border_color(menu.separator),
+        Place::After => classes.mt(1.0).border_t(1.0).border_color(rows.separator),
     }
 }
 
@@ -790,12 +858,11 @@ fn palette_heading<A: 'static>(
     place: Place,
     heading: &str,
 ) {
-    let menu = style.menu();
     if place == Place::After {
         let separator = s.part_over(
             CommandPart::Separator,
             &[],
-            Defaults(tw().h_px(1.0).bg(menu.separator).my(1.0)),
+            Defaults(tw().h_px(1.0).bg(Rows::of(style).separator).my(1.0)),
             tw(),
         );
         s.div(separator, |_| {});
@@ -818,7 +885,7 @@ fn palette_item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Ent
         let classes = s.part_over(
             CommandPart::Shortcut,
             &[],
-            Defaults(tw().text(menu.shortcut).ml_auto()),
+            Defaults(tw().text(style.tokens.muted_foreground).ml_auto()),
             tw(),
         );
         s.text(classes, shortcut.clone());
@@ -841,10 +908,7 @@ const CHECKED: (&str, &str) = ("checked", "true");
 /// the menu item's, highlighted in the palette's selection colours.
 fn palette_item_look(style: &Style, command: &super::CommandStyle, enablement: Enablement) -> Tw {
     let (fill, text) = (command.selected_fill, command.selected_text);
-    match enablement {
-        Enablement::Disabled => item_look(style, enablement),
-        Enablement::Enabled => item_look(style, enablement).highlighted(|p| p.bg(fill).text(text)),
-    }
+    Rows::of(style).look(style, enablement, (fill, text))
 }
 
 /// A combobox's option, in a row that is its `ComboboxPart::Item`: its
@@ -872,26 +936,9 @@ fn combobox_item<A: 'static>(s: &mut Scope<'_, '_, A>, entry: &Entry<A>) {
 /// The look of a combobox's option row in `enablement`, the widget's own:
 /// the menu item's, highlighted as the menu's are.
 fn item_look(style: &Style, enablement: Enablement) -> Tw {
-    let menu = style.menu();
-    let text = style.role(&menu.text);
-    let states = menu.item.paint.states;
-    let base = tw()
-        .flex()
-        .items_center()
-        .gap_px(menu.item_gap)
-        .px_px(menu.item_padding.x)
-        .h_px(menu.row_height(text))
-        .rounded_px(f32::from(menu.item_radius))
-        .whitespace_nowrap();
-    match enablement {
-        Enablement::Disabled => base.text(states.disabled.text),
-        Enablement::Enabled => {
-            let hover = states.hover;
-            base.bg(states.rest.fill)
-                .text(states.rest.text)
-                .highlighted(|p| p.bg(hover.fill).text(hover.text))
-        }
-    }
+    let rows = Rows::of(style);
+    let highlight = rows.highlight;
+    rows.look(style, enablement, highlight)
 }
 
 fn item<A: 'static>(
@@ -901,22 +948,21 @@ fn item<A: 'static>(
     entry: &Entry<A>,
 ) {
     let menu = style.menu();
-    let text = style.role(&menu.text);
-    let states = menu.item.paint.states;
+    let rows = Rows::of(style);
     let base = tw()
         .flex()
         .items_center()
         .gap_px(menu.item_gap)
         .px_px(menu.item_padding.x)
-        .h_px(menu.row_height(text))
-        .rounded_px(f32::from(menu.item_radius))
+        .h_px(menu.row_height(style.role(&menu.text)))
+        .rounded_px(rows.radius)
         .whitespace_nowrap();
     let classes = match entry.enablement {
-        Enablement::Disabled => base.text(states.disabled.text),
+        Enablement::Disabled => base.text(rows.disabled),
         Enablement::Enabled => {
             let (fill, text) = (command.selected_fill, command.selected_text);
-            base.bg(states.rest.fill)
-                .text(states.rest.text)
+            base.bg(Color32::TRANSPARENT)
+                .text(rows.text)
                 .group_hover(|p| p.bg(fill).text(text))
         }
     };
@@ -924,7 +970,7 @@ fn item<A: 'static>(
     s.div(classes, |s| {
         s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
         if let Some(shortcut) = &entry.shortcut {
-            s.text(tw().text(menu.shortcut).ml_auto(), shortcut.clone());
+            s.text(tw().text(rows.muted).ml_auto(), shortcut.clone());
         }
         if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
             s.glyph(tw().size_px(side).shrink_0(), Icon::new(icons::CHECK));

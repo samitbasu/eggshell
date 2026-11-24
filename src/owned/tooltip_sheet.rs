@@ -1,13 +1,8 @@
-//! The tooltip's part, and the sheet rule that gives it today's
-//! [`TooltipStyle`] look.
-//!
-//! TODO(#446): this rule is written from the values `TooltipStyle` holds, as
-//! the step that moves the mechanism onto the sheet; the generated rules of
-//! shadcn's `cn-tooltip-content` replace it.
+//! The tooltip's part, and the look a style without a preset draws it with.
 
-use crate::TextSpec;
-use crate::contract::TooltipStyle;
+use crate::contract::Look;
 use crate::sheet::{Part, Sheet};
+use egui::Vec2;
 
 /// TODO(prose): the anatomy of a tooltip: shadcn's `tooltip`, of which eggshell draws the content. The arrow takes its colour from the content's background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,10 +19,16 @@ impl Part for TooltipPart {
     }
 }
 
-/// Writes the rule that draws `tooltip`'s box, in the text role `text`, at the
-/// sheet's current layer.
-pub(crate) fn write_rules(sheet: &mut Sheet, tooltip: &TooltipStyle, text: &TextSpec) {
-    let (tooltip, text) = (tooltip.clone(), text.clone());
+/// What a style without a preset draws a tooltip's box with.
+pub(crate) struct TooltipDefaults {
+    pub popup: Look,
+    pub radius: u8,
+    pub padding: Vec2,
+    pub max_width: f32,
+}
+
+/// Writes `tooltip` as the tooltip's rule in `sheet`.
+pub(crate) fn tooltip_defaults(sheet: &mut Sheet, tooltip: TooltipDefaults) {
     sheet.replace(TooltipPart::Content, move |t, _| {
         let colors = tooltip.popup.paint.states.rest;
         let classes = t
@@ -40,8 +41,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, tooltip: &TooltipStyle, text: &Text
             .border_color(colors.border)
             .bg(colors.fill)
             .text(colors.text)
-            .rounded_px(f32::from(tooltip.radius))
-            .role(text.clone());
+            .rounded_px(f32::from(tooltip.radius));
         match tooltip.popup.paint.shadow {
             Some(shadow) => classes.shadow(shadow),
             None => classes,

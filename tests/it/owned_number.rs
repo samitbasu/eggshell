@@ -452,7 +452,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     d.click(Target::suffix(REGION)).frames(4);
     assert!(is_open(&d), "a click opens");
 
-    let list = style(Theme::Light).menu().clone();
+    let highlight = style(Theme::Light).tokens.accent;
     // The list's own box: the smallest one around an option of it.
     let option = d
         .harness()
@@ -474,7 +474,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     );
     assert!(
         shapes(&d).iter().any(|shape| matches!(
-            shape, Shape::Rect(r) if r.fill == list.item.paint.states.hover.fill
+            shape, Shape::Rect(r) if r.fill == highlight
         )),
         "the highlighted item is drawn in the item colours"
     );
@@ -874,13 +874,19 @@ fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.sizes.default_entry_mut().track_height = 10.0;
     style.slider.sizes.default_entry_mut().thumb_size = 24.0;
     let mut select = style.select().clone();
-    select.trigger.paint.states.rest.fill = red;
     select.sizes.default_entry_mut().height = 44.0;
     style.set_select(select);
+    style
+        .sheet
+        .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
+            t.bg(red)
+        });
     // The stepper's group is an input group: it follows the input section.
-    let mut input = style.input().clone();
-    input.look.paint.states.rest.fill = red;
-    style.set_input(input);
+    style
+        .sheet
+        .rule(eggshell_ui::owned::InputGroupPart::Root, move |t, _| {
+            t.bg(red)
+        });
     style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));

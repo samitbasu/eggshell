@@ -145,20 +145,32 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     for key in style.toggle.on.keys() {
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
-    look("checkbox off", &style.checkbox().off);
-    look("checkbox on", &style.checkbox().on);
-    look("radio off", &style.radio().off);
-    look("radio on", &style.radio().on);
-    look("switch off", &style.switch().off);
-    look("switch on", &style.switch().on);
-    look("segmented selected", &style.segmented().selected);
-    look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
-    look("select trigger", &style.select().trigger.paint);
-    look("menu popup", &style.menu().popup.paint);
-    look("menu item", &style.menu().item.paint);
     look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
+    let item = crate::support::part_at(
+        style,
+        eggshell_ui::owned::MenuPart::Item,
+        &[
+            eggshell_ui::sheet::Key::Variant(Variant::DEFAULT),
+            eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled),
+        ],
+    );
+    // shadcn fades a disabled item with `opacity-50` and gives it no colours.
+    let text = crate::support::ink(style, &item);
+    if text != Color32::PLACEHOLDER {
+        all.push((
+            "menu item".to_string(),
+            eggshell_ui::contract::Colors {
+                fill: item
+                    .paint_classes()
+                    .background
+                    .unwrap_or(Color32::TRANSPARENT),
+                border: Color32::TRANSPARENT,
+                text,
+            },
+        ));
+    }
     all.push(("slider track".to_string(), style.slider.track.disabled));
     all.push(("slider range".to_string(), style.slider.range.disabled));
     all
@@ -178,7 +190,7 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 18,
+            all.len() >= 8,
             "precondition: the walk reaches every look (a button's is the sheet's)"
         );
         for (name, colors) in all {
@@ -214,48 +226,18 @@ fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
     assert!((i32::from(fill.r()) - 100).abs() <= 8, "{fill:?}");
 }
 
-/// The input section maps onto the node's egui style: a deliberately unusual
-/// one, every field distinct, so a field that is not mapped shows.
+/// The input section and the field's rule map onto the node's egui style: a
+/// deliberately unusual one, every value distinct, so one that is not mapped
+/// shows.
 #[test]
 fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
-    use eggshell_ui::contract::{InputStyle, Look};
+    use eggshell_ui::contract::InputStyle;
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
     let mut input = style.input().clone();
-    input.look = Look::new(eggshell_ui::contract::States {
-        rest: eggshell_ui::contract::Colors {
-            fill: c(10),
-            border: c(20),
-            text: c(30),
-        },
-        hover: eggshell_ui::contract::Colors {
-            fill: c(11),
-            border: c(21),
-            text: c(31),
-        },
-        pressed: eggshell_ui::contract::Colors {
-            fill: c(12),
-            border: c(22),
-            text: c(32),
-        },
-        focused: eggshell_ui::contract::Colors {
-            fill: c(13),
-            border: c(23),
-            text: c(33),
-        },
-        disabled: eggshell_ui::contract::Colors {
-            fill: c(14),
-            border: c(24),
-            text: c(34),
-        },
-    })
-    .bordered(3.0);
     input.sizes = eggshell_ui::contract::Keyed::new(
         eggshell_ui::contract::Size::DEFAULT,
         eggshell_ui::contract::InputMetrics {
-            radius: 7,
-            padding: vec2(9.0, 5.0),
-            height: 41.0,
             text: None,
             icon_size: 15.0,
             icon_gap: 7.0,
@@ -264,6 +246,21 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     input.hint = Some(c(99));
     input.icon = c(55);
     style.set_input(input);
+    style
+        .sheet
+        .as_app()
+        .rule(eggshell_ui::owned::InputPart::Root, move |t, _| {
+            t.bg(c(10))
+                .border(3.0)
+                .border_color(c(20))
+                .text(c(30))
+                .rounded_px(7.0)
+                .h_px(41.0)
+                .px_px(9.0)
+                .py(1.25)
+                .hover(|p| p.border_color(c(21)))
+                .focus(|p| p.border_color(c(23)))
+        });
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
     let _: &InputStyle = style.input();
@@ -287,7 +284,11 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
         egui::Stroke::new(3.0, c(23)),
         "the focus border is the focused one, whatever the selected text's colour"
     );
-    assert_eq!(egui_style.spacing.button_padding, vec2(9.0, 5.0));
+    assert_eq!(
+        egui_style.spacing.button_padding,
+        vec2(9.0, 5.0),
+        "`py-1.25` at 4 points a unit"
+    );
     assert_eq!(egui_style.spacing.interact_size.y, 41.0);
 }
 

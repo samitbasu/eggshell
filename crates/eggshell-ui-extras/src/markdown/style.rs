@@ -1,7 +1,9 @@
 //! How the Markdown widget looks.
 
-use eggshell_ui::contract::Em;
-use eggshell_ui::{Style, TextSpec, Tracking, Weight};
+use eggshell_ui::contract::{Em, Tokens};
+use eggshell_ui::owned::TablePart;
+use eggshell_ui::sheet::Sheet;
+use eggshell_ui::{Style, TextSpec, Tracking, Tw, Weight};
 use egui::{Color32, FontFamily};
 
 use super::parse::Level;
@@ -90,6 +92,37 @@ pub struct RichLook {
     pub code_padding_y: f32,
 }
 
+impl TableLook {
+    /// Writes the document's tables' rules at the sheet's layer, over the
+    /// page's: a rule under the header and every row, the cells' padding and
+    /// the head's weight.
+    fn write_rules(&self, sheet: &mut Sheet) {
+        let TableLook {
+            padding_x,
+            padding_y,
+            header_padding_y,
+            first_column_inset,
+            header_weight,
+            rule,
+            ..
+        } = self.clone();
+        let ruled = move |t: Tw, _: &Tokens| t.border_b(1.0).border_b_color(rule);
+        sheet.replace(TablePart::Root, |t, _| t.grid().w_full());
+        sheet.replace(TablePart::Header, ruled);
+        sheet.replace(TablePart::Row, ruled);
+        let cell = move |t: Tw| t.flex().items_center().px_px(padding_x);
+        sheet.replace(TablePart::Cell, move |t, _| cell(t).py_px(padding_y));
+        sheet.replace(TablePart::Head, move |t, _| {
+            cell(t).font_weight(header_weight).py_px(header_padding_y)
+        });
+        for part in [TablePart::Head, TablePart::Cell] {
+            sheet.rule_when(part, TablePart::first_column(), move |t, _| {
+                t.pl_px(first_column_inset)
+            });
+        }
+    }
+}
+
 impl eggshell_ui::contract::Extension for MarkdownStyle {
     fn derive(style: &Style) -> Self {
         Self::from_style(style)
@@ -100,24 +133,7 @@ impl MarkdownStyle {
     /// The page's style with this document's tables and rich text over it.
     pub(super) fn restyle(&self, style: &mut Style) {
         if let Some(look) = &self.table {
-            let mut table = style.table().clone();
-            table.cell_padding = look.padding_x;
-            table.cell_padding_y = Some(look.padding_y);
-            table.header_padding_y = Some(look.header_padding_y);
-            table.first_column_inset = Some(look.first_column_inset);
-            table.header_weight = look.header_weight;
-            table.rule = look.rule;
-            table.rule_width = 1.0;
-            table.rule_below_last = true;
-            for fill in [
-                &mut table.header_fill,
-                &mut table.hover,
-                &mut table.selected,
-                &mut table.footer_fill,
-            ] {
-                *fill = Color32::TRANSPARENT;
-            }
-            style.at_current_layer(|style| style.set_table(table));
+            look.write_rules(&mut style.sheet);
         }
         if let Some(look) = &self.rich {
             let rich = &mut style.rich;
@@ -251,7 +267,7 @@ pub struct UnsupportedStyle {
 impl MarkdownStyle {
     /// TODO(prose)
     pub fn from_style(style: &Style) -> Self {
-        let border = style.input().look.paint.states.rest.border;
+        let border = crate::styles::input_border(style);
         let muted = style.input().hint.unwrap_or(style.label().disabled.text);
         let body = &style.text;
         let mono = |scale: f32| TextSpec {

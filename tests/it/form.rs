@@ -3,6 +3,8 @@
 //! preset's invariant that a control's track is as visible on a section as
 //! on the page.
 
+use eggshell_ui::contract::Size;
+use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_extras::form::{FormExt, FormStyle};
 use eggshell_ui_shadcn::{
@@ -154,7 +156,17 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                     let tracks = [
                         ("slider", style.slider.track.rest.fill),
                         ("segmented", style.segmented().track_fill),
-                        ("switch off", style.switch().off.states.rest.fill),
+                        (
+                            "switch off",
+                            support::part_at(
+                                &style,
+                                SwitchPart::Root,
+                                &SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled),
+                            )
+                            .paint_classes()
+                            .background
+                            .expect("a switch's track is filled"),
+                        ),
                         ("progress", style.progress.track.fill),
                     ];
                     for (name, track) in tracks {

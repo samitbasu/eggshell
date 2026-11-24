@@ -15,9 +15,10 @@ use std::hash::Hash;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use eggshell_ui::contract::Themed;
-use eggshell_ui::owned::Cell;
+use eggshell_ui::contract::{Themed, Variant};
+use eggshell_ui::owned::{Cell, MenuPart};
 use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::sheet::Key as SheetKey;
 use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};
 use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
@@ -652,9 +653,9 @@ pub fn text_box<S, K>(
         tw().flex()
             .items_center()
             .w_full()
-            .min_h_px(t.control_height)
-            .px_px(t.input_padding.x)
-            .py_px(t.input_padding.y)
+            .min_h(t.control_units)
+            .px(t.input_padding.x)
+            .py(t.input_padding.y)
             .border(1.0)
             .border_color(t.input)
             .rounded_px(f32::from(t.radius_md()))
@@ -667,7 +668,7 @@ pub fn text_box<S, K>(
         |b| {
             b.text_field_with("field", field)
                 .invalid(error)
-                .classes(tw().w_full().min_h_px(t.control_height))
+                .classes(tw().w_full().min_h(t.control_units))
                 .on_response(move |_, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
                 })
@@ -676,35 +677,43 @@ pub fn text_box<S, K>(
     );
 }
 
+/// The radius the style's sheet gives a menu's `part`.
+fn menu_radius<S>(b: &Builder<'_, '_, S>, part: MenuPart, keys: &[SheetKey]) -> f32 {
+    let style = b.style();
+    let classes = style.sheet.resolve(part, keys, &style.tokens);
+    f32::from(classes.paint_classes().radius.nw)
+}
+
 /// The box of a hand-built list: the menu look.
 pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = b.style().menu();
-    let colors = menu.popup.paint.states.rest;
-    let classes = tw()
-        .flex()
+    let style = b.style();
+    let k = &style.tokens;
+    tw().flex()
         .flex_col()
         .min_h_0()
-        .bg(colors.fill)
-        .border(menu.popup.border_width)
-        .border_color(colors.border)
-        .rounded_px(f32::from(menu.radius))
-        .p_px(menu.padding)
-        .text(colors.text);
-    match menu.popup.paint.shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
+        .bg(k.popover)
+        .border(1.0)
+        .border_color(k.border)
+        .rounded_px(menu_radius(b, MenuPart::Content, &[]))
+        .p_px(style.menu().padding)
+        .text(k.popover_foreground)
+        .shadow(k.shadow_md)
 }
 
 /// An item of a hand-built list: the menu item look.
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = b.style().menu();
-    let hover = menu.item.paint.states.hover;
+    let style = b.style();
+    let menu = style.menu();
+    let (fill, text) = (style.tokens.accent, style.tokens.accent_foreground);
     tw().px_px(menu.item_padding.x)
         .py_px(menu.item_padding.y)
-        .rounded_px(f32::from(menu.item_radius))
+        .rounded_px(menu_radius(
+            b,
+            MenuPart::Item,
+            &[SheetKey::Variant(Variant::DEFAULT)],
+        ))
         .sense_click()
-        .hover(move |p| p.bg(hover.fill).text(hover.text))
+        .hover(move |p| p.bg(fill).text(text))
 }
 
 /// Prints eggshell's `eggshell::input` trace (debug level) and every crate's

@@ -244,8 +244,8 @@ pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshel
     })
 }
 
-/// `style` without its preset's generated looks: its sections, drawn by the
-/// widgets' own rules, which is what a change to a section restyles.
+/// `style` without its preset's generated looks: only the rules its sections
+/// give, which is what a change to a section restyles.
 pub fn sections_of(mut style: eggshell_ui::Style) -> eggshell_ui::Style {
     style.sheet = eggshell_ui::sheet::Sheet::defaults();
     style.rewrite_rules();
@@ -975,4 +975,63 @@ pub fn recorded<A: 'static>(builder: DriverBuilder<A>) -> Driver<A> {
     let d = builder.build();
     eggshell_ui::testing::record(d.ctx());
     d
+}
+
+/// The classes `style`'s sheet gives `part` with no keys.
+pub fn part<P: eggshell_ui::sheet::Part>(style: &eggshell_ui::Style, part: P) -> eggshell_ui::Tw {
+    style.sheet.resolve(part, &[], &style.tokens)
+}
+
+/// The text colour `classes` give text in `style`.
+pub fn ink(style: &eggshell_ui::Style, classes: &eggshell_ui::Tw) -> Color32 {
+    classes
+        .text_classes()
+        .over(&TextStyle::new(style.text.clone(), Color32::PLACEHOLDER))
+        .color
+}
+
+/// The classes `style`'s sheet gives `part` under `keys`.
+pub fn part_at<P: eggshell_ui::sheet::Part>(
+    style: &eggshell_ui::Style,
+    part: P,
+    keys: &[eggshell_ui::sheet::Key],
+) -> eggshell_ui::Tw {
+    style.sheet.resolve(part, keys, &style.tokens)
+}
+
+/// The border width and rest colour `style`'s sheet gives a text field.
+pub fn input_border(style: &eggshell_ui::Style) -> (f32, Color32) {
+    let classes = part(style, eggshell_ui::owned::InputPart::Root);
+    let width = classes.style_at(style.tokens.spacing).border.left;
+    let color = classes.paint_classes().border_colors.top;
+    (
+        width.into_raw().value(),
+        color.unwrap_or(Color32::TRANSPARENT),
+    )
+}
+
+/// What `style`'s sheet gives a text field of `size`: its height, padding
+/// and radius.
+pub struct FieldBox {
+    pub height: f32,
+    pub padding: Vec2,
+    pub radius: u8,
+}
+
+/// The [`FieldBox`] `style`'s sheet gives a text field of `size`.
+pub fn field_box(style: &eggshell_ui::Style, size: eggshell_ui::contract::Size) -> FieldBox {
+    let classes = part_at(
+        style,
+        eggshell_ui::owned::InputPart::Root,
+        &[eggshell_ui::sheet::Key::Size(size)],
+    );
+    let layout = classes.style_at(style.tokens.spacing);
+    FieldBox {
+        height: layout.size.height.into_raw().value(),
+        padding: Vec2::new(
+            layout.padding.left.into_raw().value(),
+            layout.padding.top.into_raw().value(),
+        ),
+        radius: classes.paint_classes().radius.nw,
+    }
 }

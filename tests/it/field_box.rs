@@ -111,18 +111,20 @@ fn spacing(size: Size) -> (f32, f32) {
     if size == Size::DEFAULT {
         (8.0, 6.0)
     } else {
-        let metrics = *input().sizes.get(size);
-        (metrics.padding.x, metrics.icon_gap)
+        let style = Shadcn::for_theme(Theme::Light).style();
+        (
+            support::field_box(&style, size).padding.x,
+            input().sizes.get(size).icon_gap,
+        )
     }
 }
 
 #[test]
 fn a_field_box_is_the_inputs_box_at_its_size() {
     let d = driver(Size::DEFAULT);
-    let input = input();
-    let metrics = *input.sizes.get(size::SM);
+    let field = support::field_box(&Shadcn::for_theme(Theme::Light).style(), size::SM);
     let rect = d.rect(Target::suffix(CUSTOM));
-    assert_eq!(rect.height(), metrics.height);
+    assert_eq!(rect.height(), field.height);
     assert_eq!(rect.width(), 200.0);
     let shape = box_at(&d, rect);
     assert_eq!(
@@ -130,11 +132,11 @@ fn a_field_box_is_the_inputs_box_at_its_size() {
         Color32::TRANSPARENT,
         "cn-input-group: no fill in light"
     );
-    assert_eq!(shape.stroke.color, input.look.paint.states.rest.border);
     assert_eq!(
-        shape.corner_radius,
-        egui::CornerRadius::same(metrics.radius)
+        shape.stroke.color,
+        support::input_border(&Shadcn::for_theme(Theme::Light).style()).1
     );
+    assert_eq!(shape.corner_radius, egui::CornerRadius::same(field.radius));
 }
 
 #[test]
@@ -171,10 +173,8 @@ fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
         width: 5.0,
         color: Color32::from_rgb(200, 30, 30),
     };
-    let mut style = support::sections_of(Shadcn::for_theme(Theme::Light).style());
-    let mut input = style.input().clone();
-    input.look.paint.focus = None;
-    style.set_input(input);
+    // The widgets' own look, whose input has no ring of its own.
+    let mut style = eggshell_ui::Style::from_egui(&egui::Context::default().style_of(Theme::Light));
     style.tokens.focus = ring;
     let mut d = support::driver(
         vec2(340.0, 360.0),
@@ -194,6 +194,8 @@ fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
     let drawn = ring_at(&d, d.rect(Target::suffix(CUSTOM))).expect("a focus ring");
     assert_eq!(drawn.stroke.width, ring.width);
     assert_eq!(drawn.stroke.color, ring.color);
+    // The widgets' own look has one size: the view's small box draws at it.
+    d.expect_reported(eggshell_ui::Problem::MissingStyleEntry);
 }
 
 #[test]
@@ -216,14 +218,18 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
     ] {
         let d = driver(size);
         let metrics = *input().sizes.get(size);
-        let border = input().look.border_width;
+        let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
         let (boxed, icon, field) = (
             d.rect(Target::suffix(SEARCH)),
             d.rect(Target::suffix(&format!("{SEARCH}/Leading"))),
             d.rect(Target::suffix(&format!("{SEARCH}/Field"))),
         );
         let (edge, gap) = spacing(size);
-        assert_eq!(boxed.height(), metrics.height, "{label}");
+        assert_eq!(
+            boxed.height(),
+            support::field_box(&Shadcn::for_theme(Theme::Light).style(), size).height,
+            "{label}"
+        );
         assert_eq!(
             icon.size(),
             vec2(metrics.icon_size, metrics.icon_size),
@@ -246,7 +252,7 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
 #[test]
 fn a_trailing_icon_sits_inside_the_box_after_the_field() {
     let d = driver(Size::DEFAULT);
-    let border = input().look.border_width;
+    let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
     let (boxed, icon, field) = (
         d.rect(Target::suffix(CLEAR)),
         d.rect(Target::suffix(&format!("{CLEAR}/Trailing"))),
@@ -433,7 +439,7 @@ fn a_rule_on_the_input_group_part_restyles_the_box() {
     assert_eq!(shape.fill, Color32::from_rgb(200, 10, 10));
     assert_eq!(
         shape.stroke.color,
-        input().look.paint.states.rest.border,
+        support::input_border(&Shadcn::for_theme(Theme::Light).style()).1,
         "the preset's other properties stand"
     );
 }

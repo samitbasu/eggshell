@@ -363,14 +363,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// context's, so a scope cannot change which faces exist.
     ///
     /// ```
+    /// use eggshell_ui::owned::TablePart;
     /// use eggshell_ui::{Builder, tw};
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.styled(
     ///         |style| {
-    ///             let mut table = style.table().clone();
-    ///             table.cell_padding = 16.0;
-    ///             style.set_table(table);
+    ///             style.sheet.rule(TablePart::Cell, |t, _| t.p(4.0));
     ///         },
     ///         |b| {
     ///             b.text(tw(), "Tables built here are roomier.");
@@ -2821,7 +2820,7 @@ fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, r
 
 /// The points `side` is, when it is a length; a percentage or `auto` counts
 /// as none.
-fn length_px(side: taffy::CompactLength) -> f32 {
+pub(crate) fn length_px(side: taffy::CompactLength) -> f32 {
     match side {
         side if side.tag() == taffy::CompactLength::LENGTH_TAG => side.value(),
         _ => 0.0,

@@ -82,14 +82,15 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
 pub(crate) use choices_sheet::{
-    write_checkbox_rules, write_exceptions as write_choice_exceptions, write_field_rules,
-    write_radio_rules, write_switch_rules,
+    ChoiceDefaults, Painted as ChoicePaint, choice_defaults, write_checkbox_rules,
+    write_exceptions as write_choice_exceptions, write_field_rules, write_radio_rules,
+    write_switch_rules,
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
 pub(crate) use input_sheet::{
-    Frame, keys as input_keys, write_exceptions as write_input_exceptions,
-    write_rules as write_input_rules,
+    Frame, InputDefaults, input_defaults, keys as input_keys,
+    write_exceptions as write_input_exceptions, write_rules as write_input_rules,
 };
 pub(crate) use input_sheet::{INLINE_END, INLINE_START};
 pub use input_sheet::{InputGroupPart, InputPart};
@@ -97,7 +98,8 @@ pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Ra
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use menu_sheet::MenuPart;
 pub(crate) use menu_sheet::{
-    write_exceptions as write_menu_exceptions, write_rules as write_menu_rules,
+    MenuDefaults, menu_defaults, write_exceptions as write_menu_exceptions,
+    write_rules as write_menu_rules,
 };
 pub use number::{Edit, Step, ValueRange};
 pub use options::IntoTip;
@@ -107,9 +109,37 @@ pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::{SelectChain, SelectPart};
-pub(crate) use select::{write_select_exceptions, write_select_rules};
+pub(crate) use select::{
+    SelectDefaults, select_defaults, write_select_exceptions, write_select_rules,
+};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
+
+/// What `style` draws a text field of `size` with.
+pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
+    let keys = input_keys(style.input().sizes.key_for(size), false);
+    let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
+    Frame::of(&classes, style.tokens.spacing)
+}
+
+/// Writes `text`, the style's text role, as the role of the controls that
+/// take it by default: an enabled button, a tooltip's box, a tab's trigger
+/// and a select's trigger, at the sheet's current layer.
+pub(crate) fn write_text_roles(sheet: &mut crate::sheet::Sheet, text: &crate::TextSpec) {
+    use crate::sheet::When;
+    let role = text.clone();
+    sheet.rule_when(
+        ButtonPart::Root,
+        When::always().not_aria(crate::Aria::Disabled),
+        move |t, _| t.role(role.clone()),
+    );
+    let role = text.clone();
+    sheet.rule(TooltipPart::Content, move |t, _| t.role(role.clone()));
+    let role = text.clone();
+    sheet.rule(TabsPart::Trigger, move |t, _| t.role(role.clone()));
+    let role = text.clone();
+    sheet.rule(SelectPart::Trigger, move |t, _| t.role(role.clone()));
+}
 
 /// Writes the recorded exception of the tracks over a preset's look (#132):
 /// a slider's and a progress bar's track are the style's fill (the input
@@ -137,16 +167,18 @@ pub use table::{
 };
 pub use table_sheet::TablePart;
 pub(crate) use table_sheet::{
-    write_exceptions as write_table_exceptions, write_rules as write_table_rules,
+    TableDefaults, table_defaults, write_exceptions as write_table_exceptions,
+    write_rules as write_table_rules,
 };
 pub use tabs_sheet::TabsPart;
 pub(crate) use tabs_sheet::{
-    Roles as TabsRoles, write_exceptions as write_tabs_exceptions, write_rules as write_tabs_rules,
+    TabsDefaults, tabs_defaults, write_exceptions as write_tabs_exceptions,
+    write_rules as write_tabs_rules,
 };
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 pub use tooltip_sheet::TooltipPart;
-pub(crate) use tooltip_sheet::write_rules as write_tooltip_rules;
+pub(crate) use tooltip_sheet::{TooltipDefaults, tooltip_defaults};
 
 use crate::contract::{Colors, Disabled, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
@@ -507,7 +539,14 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.select().trigger;
+    ///     let look = eggshell_ui::contract::Look::new(eggshell_ui::contract::States::still(
+    ///         eggshell_ui::contract::Colors {
+    ///             fill: style.tokens.secondary,
+    ///             border: style.tokens.border,
+    ///             text: style.tokens.secondary_foreground,
+    ///         },
+    ///         style.tokens.background,
+    ///     ));
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)
@@ -541,7 +580,8 @@ impl Paint {
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let paint = style.checkbox().off;
+    ///     let toggles = &style.toggle.off;
+    ///     let paint = *toggles.get(toggles.default_key());
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
     /// }

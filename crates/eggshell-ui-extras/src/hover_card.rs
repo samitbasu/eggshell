@@ -99,11 +99,12 @@ impl eggshell_ui::contract::Extension for HoverCardStyle {
 impl HoverCardStyle {
     /// TODO(prose): Radix's delays, and the box of `style`'s menus.
     pub fn from_style(style: &Style) -> Self {
+        let popover = crate::styles::Popover::of(style);
         Self {
             open_delay: Duration::from_millis(700),
             close_delay: Duration::from_millis(300),
-            look: style.menu().popup,
-            radius: style.menu().radius,
+            look: popover.look(),
+            radius: popover.radius,
             padding: 16.0,
             width: 256.0,
             offset: style.menu().offset,

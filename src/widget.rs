@@ -316,14 +316,8 @@ impl TextEdit {
                 edit = edit.frame(Self::inset_frame(&Sizer::for_ui(ui), self.size))
             }
             (Framing::Framed, _) => {
-                edit = edit.margin(Margin::from(
-                    Sizer::for_ui(ui)
-                        .contract
-                        .input()
-                        .sizes
-                        .get(self.size)
-                        .padding,
-                ));
+                let frame = crate::owned::input_frame(&Sizer::for_ui(ui).contract, self.size);
+                edit = edit.margin(Margin::from(frame.padding));
             }
         }
         if self.enter() == Enter::KeepFocus {
@@ -384,7 +378,7 @@ impl TextEdit {
     }
 
     fn inset_frame(sizer: &Sizer<'_>, size: ControlSize) -> Frame {
-        let padding = sizer.contract.input().sizes.get(size).padding;
+        let padding = crate::owned::input_frame(&sizer.contract, size).padding;
         Frame::NONE.inner_margin(Margin::from(vec2(padding.x, 0.0)))
     }
 
@@ -392,7 +386,7 @@ impl TextEdit {
     /// would be if the cap did not stop it.
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
-        let input = sizer.contract.input().sizes.get(self.size);
+        let input = crate::owned::input_frame(&sizer.contract, self.size);
         let (frame, floor) = match self.framing {
             Framing::Framed => (
                 Frame::new().inner_margin(Margin::from(input.padding)),

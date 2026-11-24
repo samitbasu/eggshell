@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Radius, Spacing, TextSize, Themed};
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Match, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
+use eggshell_ui::{Builder, Icon, Match, TextStyle, icons, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::epaint::Shape;
 use egui::{Rect, vec2};
 
@@ -53,6 +53,15 @@ fn controls(b: &mut Builder<'_, '_, ()>, _: &()) {
         s.switch("air", "Airplane mode", false).on_change(|_, _| {});
         s.text_field("field", "Typed")
             .named("Field")
+            .on_change(|_, _| {});
+        s.text_field("small", "Small")
+            .named("Small")
+            .size(size::SM)
+            .on_change(|_, _| {});
+        s.text_field("found", "Found")
+            .named("Found")
+            .size(size::SM)
+            .leading(Icon::new(icons::SEARCH))
             .on_change(|_, _| {});
     });
 }
@@ -107,10 +116,20 @@ fn a_dense_vega_input_has_6_point_corners_and_draws_13_point_text() {
         13.0,
         "the TextEdit's own glyphs"
     );
+    assert_eq!(field.height(), 31.5, "h-9 at 3.5 points a unit");
+}
+
+#[test]
+fn a_dense_small_field_is_a_unit_shorter_and_padded_in_units() {
+    let d = driver(ShadcnStyle::Vega, dense);
+    assert_eq!(rect(&d, "/\"small\"").height(), 28.0, "h-8 at 3.5 a unit");
+    let (boxed, icon) = (rect(&d, "/\"found\""), rect(&d, "/\"found\"/Leading"));
+    assert_eq!(boxed.height(), 28.0, "the box is the field's height");
+    let border = 1.0;
     assert_eq!(
-        field.height(),
-        36.0,
-        "TODO(#482): egui's field is `control_height` tall, not h-9 at 3.5 a unit"
+        icon.left() - boxed.left(),
+        border + 3.0 * 3.5,
+        "own_input_padding_x, 3 units at 3.5"
     );
 }
 
@@ -129,6 +148,30 @@ fn a_call_sites_spacing_units_follow_the_theme_and_its_points_do_not() {
     let d = driver(ShadcnStyle::Vega, dense);
     assert_eq!(rect(&d, "/\"Padded\"").height(), 28.0, "p-4: 14 a side");
     assert_eq!(rect(&d, "/\"Pointed\"").height(), 8.0, "4 points a side");
+}
+
+#[test]
+fn the_presets_unit_tokens_scale_the_metrics_they_feed() {
+    let d = driver(ShadcnStyle::Vega, dense);
+    let style = d.shell().style();
+    let u = |units: f32| units * 3.5;
+    assert_eq!(style.menu().padding, u(1.0), "p-1");
+    assert_eq!(
+        style.menu().item_padding,
+        vec2(u(2.0), u(1.5)),
+        "px-2 py-1.5"
+    );
+    let slider = style.slider.sizes.get(eggshell_ui::contract::Size::DEFAULT);
+    assert_eq!(
+        (slider.track_height, slider.thumb_size),
+        (u(1.5), u(4.0)),
+        "h-1.5, size-4"
+    );
+    assert_eq!(
+        style.tokens.button_padding,
+        vec2(u(4.0), u(2.0)),
+        "px-4 py-2, as egui's button padding"
+    );
 }
 
 #[test]

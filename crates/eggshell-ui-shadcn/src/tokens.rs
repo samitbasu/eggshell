@@ -90,38 +90,38 @@ pub struct Tokens {
     pub text: TextScale,
     /// TODO(prose): the step of `text` every control's text is: `text-sm`, or `text-xs`.
     pub control_text: TextStep,
-    /// The height of buttons, inputs and selects (`h-9`).
-    pub control_height: f32,
-    /// A button's padding (`px-4 py-2`).
+    /// TODO(prose): the height of buttons, inputs and selects in spacing units (`h-9`).
+    pub control_units: f32,
+    /// TODO(prose): a button's padding in spacing units (`px-4 py-2`).
     pub button_padding: Vec2,
-    /// An input's and a select's padding (`px-3 py-1`).
+    /// TODO(prose): an input's and a select's padding in spacing units (`px-2.5 py-1`).
     pub input_padding: Vec2,
     /// TODO(prose): the inline padding of eggshell's own smaller fields, which
     /// shadcn does not name, in spacing units: a `sm` field's and a stepper's
     /// value's, and one unit more than an `xs` field's.
     pub own_input_padding_x: f32,
-    /// The gap between a control's children (`gap-2`).
+    /// TODO(prose): the gap between a control's children in spacing units (`gap-2`).
     pub control_gap: f32,
-    /// The side of an icon in a button or a segmented cell (`size-4`).
+    /// TODO(prose): the side of an icon in a button or a segmented cell in spacing units (`size-4`).
     pub icon_size: f32,
-    /// The left and right padding of a toggle.
+    /// TODO(prose): the left and right padding of a toggle in spacing units.
     pub toggle_padding_x: f32,
     /// The width of the focus ring (`ring-[3px]`).
     pub ring_width: f32,
     /// The corner radius of a checkbox.
     pub checkbox_radius: u8,
-    /// The thickness of the slider's track.
+    /// TODO(prose): the thickness of the slider's track in spacing units (`h-1.5`).
     pub slider_track: f32,
     /// The corner radius of the slider's track and thumb; `u8::MAX` is round.
     pub slider_radius: u8,
     /// The width of the ring around the slider thumb under the pointer and
     /// with focus (`hover:ring-4`).
     pub slider_halo: f32,
-    /// The padding of a tab list cell.
+    /// TODO(prose): the padding of a tab list cell in spacing units.
     pub cell_padding: Vec2,
-    /// The padding between a popup and its items.
+    /// TODO(prose): the padding between a popup and its items in spacing units (`p-1`).
     pub popup_padding: f32,
-    /// The padding of an item in a popup.
+    /// TODO(prose): the padding of an item in a popup in spacing units (`px-2 py-1.5`).
     pub item_padding: Vec2,
     /// The surface of a ghost or outline button under the pointer.
     pub hover_surface: HoverSurface,
@@ -129,9 +129,9 @@ pub struct Tokens {
     pub elevation: Elevation,
     /// A switch's track (`h-[1.15rem] w-8`).
     pub switch_track: Vec2,
-    /// A switch's thumb diameter at the default track (`size-4`).
+    /// TODO(prose): a switch's thumb diameter at the default track in spacing units (`size-4`).
     pub switch_thumb: f32,
-    /// The slider thumb's diameter: shadcn's `size-4`.
+    /// TODO(prose): the slider thumb's diameter in spacing units: shadcn's `size-4`.
     pub slider_thumb: f32,
     /// The track of a checked switch.
     pub switch_track_on: Color32,
@@ -246,7 +246,7 @@ impl Tokens {
             radius: Radius::new(0.0),
             text: TextScale::default(),
             control_text: TextStep::Sm,
-            control_height: 0.0,
+            control_units: 0.0,
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
             own_input_padding_x: 0.0,
@@ -264,7 +264,7 @@ impl Tokens {
             hover_surface: HoverSurface::Accent,
             elevation: Elevation::Raised,
             switch_track: vec2(32.0, 18.4),
-            switch_thumb: 16.0,
+            switch_thumb: 4.0,
             slider_thumb: 0.0,
             switch_track_on: none,
             switch_track_off: none,
@@ -309,6 +309,21 @@ impl Tokens {
     pub fn in_style(mut self, style: ShadcnStyle) -> Self {
         style.shape(&mut self);
         self
+    }
+
+    /// TODO(prose): the height of buttons, inputs and selects in points at the tokens' spacing.
+    pub fn control_height(&self) -> f32 {
+        self.points(self.control_units)
+    }
+
+    /// TODO(prose): `units` spacing units in points at the tokens' spacing.
+    pub fn points(&self, units: f32) -> f32 {
+        self.spacing.points(units)
+    }
+
+    /// TODO(prose): [`points`](Self::points) of both of `units`.
+    pub fn points_vec(&self, units: Vec2) -> Vec2 {
+        Vec2::new(self.points(units.x), self.points(units.y))
     }
 
     /// `rounded-md`: the radius of buttons, inputs and selects.
@@ -484,6 +499,6 @@ impl Tokens {
     /// The thumb of a switch whose track is `track`: the default thumb's
     /// proportion of the track's height.
     pub fn switch_thumb_for(&self, track: Vec2) -> f32 {
-        track.y * self.switch_thumb / self.switch_track.y
+        track.y * self.points(self.switch_thumb) / self.switch_track.y
     }
 }

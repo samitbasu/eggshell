@@ -858,14 +858,16 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
         let t = common::tokens(b.ctx());
         b.styled(
             |style| {
-                let mut tooltip = style.tooltip().clone();
-                tooltip.padding = vec2(24.0, 12.0);
-                tooltip.popup.paint.states.rest = Colors {
-                    fill: t.primary,
-                    border: t.primary,
-                    text: t.primary_foreground,
-                };
-                style.set_tooltip(tooltip);
+                style
+                    .sheet
+                    .rule(owned::TooltipPart::Content, move |classes, _| {
+                        classes
+                            .px(6.0)
+                            .py(3.0)
+                            .bg(t.primary)
+                            .border_color(t.primary)
+                            .text(t.primary_foreground)
+                    });
             },
             |b| tooltip_row(b, "Scoped tooltip"),
         );

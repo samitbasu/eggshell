@@ -133,8 +133,7 @@ impl Readout {
                 });
             return;
         }
-        let input = *style.input().sizes.lookup(b.ctx(), size);
-        let border = style.input().look.border_width;
+        let frame = super::input_frame(&style, size);
         let field = Field::singleline("").sized(size).inset();
         let measured = field.clone();
         let slot = b.slot(&Part::Readout);
@@ -142,7 +141,7 @@ impl Readout {
             .ctx()
             .data(|data| data.get_temp::<f32>(editing.with("width")))
             .unwrap_or(0.0);
-        let outset = input.padding.x + border;
+        let outset = frame.padding.x + frame.border_width;
         let width = shown_width.max(MIN_FIELD) + 2.0 * outset;
         // The box grows past the readout's edge so its text stays where the readout drew it.
         FieldBoxChain::new(b.reborrow(), slot)

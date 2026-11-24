@@ -80,6 +80,46 @@ fn the_presets_look_replaces_the_combobox_defaults() {
     );
 }
 
+/// The fills of `d`'s open list drawn in `fill`.
+fn drawn_in(d: &Driver<App>, fill: Color32) -> usize {
+    let list = content(d);
+    support::shapes(d)
+        .into_iter()
+        .filter(
+            |shape| matches!(shape, Shape::Rect(r) if r.fill == fill && list.contains_rect(r.rect)),
+        )
+        .count()
+}
+
+#[test]
+fn without_a_preset_the_highlighted_option_takes_the_accent_token() {
+    let style = Style::default();
+    let accent = style.tokens.accent;
+    assert_ne!(
+        accent, style.selection.fill,
+        "precondition: the accent is not the selection's colour"
+    );
+    let d = opened(Some(style));
+    assert_eq!(drawn_in(&d, accent), 1, "one highlighted option");
+}
+
+#[test]
+fn without_a_preset_the_box_takes_the_menus_radius_from_the_sheet() {
+    let mut style = Style::default();
+    style
+        .sheet
+        .as_app()
+        .rule(eggshell_ui::owned::MenuPart::Content, |t, _| {
+            t.rounded_px(11.0)
+        });
+    let d = opened(Some(style));
+    let boxed = content(&d);
+    assert_eq!(
+        support::box_at(&d, boxed).corner_radius,
+        egui::CornerRadius::same(11)
+    );
+}
+
 #[test]
 fn the_highlighted_option_takes_shadcns_accent() {
     let d = opened(None);

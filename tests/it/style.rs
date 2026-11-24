@@ -138,7 +138,7 @@ fn every_token_can_be_overridden() {
     let mut preset = Shadcn::light();
     preset.tokens.primary = rgb(0x12, 0x34, 0x56);
     preset.tokens.radius = eggshell_ui::contract::Radius::new(6.0);
-    preset.tokens.control_height = 40.0;
+    preset.tokens.control_units = 10.0;
     preset.apply(&ctx);
     let style = ctx.style_of(Theme::Light);
     assert_eq!(
@@ -675,21 +675,44 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 
 #[test]
 fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varies() {
+    use eggshell_ui::contract::Size;
+    use eggshell_ui::owned::{Cell, Enablement, SegmentedRows, TabsPart};
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
-        let seg = style.segmented();
         let tokens = Tokens::for_theme(theme);
-        assert_eq!(seg.cell_border_width, 1.0, "border, {theme:?}");
-        assert_eq!(
-            seg.unselected.states.rest.border,
-            Color32::TRANSPARENT,
-            "border-transparent, {theme:?}"
-        );
+        let trigger = |cell| {
+            crate::support::part_at(
+                &style,
+                TabsPart::Trigger,
+                &TabsPart::trigger_keys(
+                    Size::DEFAULT,
+                    SegmentedRows::One,
+                    cell,
+                    Enablement::Enabled,
+                ),
+            )
+        };
+        let border = |cell| {
+            let classes = trigger(cell);
+            let width = classes
+                .style_at(style.tokens.spacing)
+                .border
+                .top
+                .into_raw()
+                .value();
+            let color = classes.paint_classes().border_colors.top;
+            (width, color.unwrap_or(Color32::TRANSPARENT))
+        };
         let selected = match theme {
             Theme::Dark => tokens.input,
             Theme::Light => Color32::TRANSPARENT,
         };
-        assert_eq!(seg.selected.states.rest.border, selected, "{theme:?}");
+        assert_eq!(
+            border(Cell::Released),
+            (1.0, Color32::TRANSPARENT),
+            "border-transparent, {theme:?}"
+        );
+        assert_eq!(border(Cell::Pressed), (1.0, selected), "{theme:?}");
     }
 }
 
@@ -757,44 +780,27 @@ fn a_section_metric_an_exception_reads_lands_after_the_preset() {
     assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
 }
 
-/// Sections set inside `at_current_layer` write their looks at the sheet's
-/// layer, over the preset's, for every family: a tooltip's padding and a
-/// table's cells both land, where a plain setter keeps the preset's look.
+/// With no preset, a changed text role reaches the controls that take it by
+/// default once the rules are written again: an enabled button, a tooltip's
+/// box and a tab's trigger.
 #[test]
-fn sections_set_at_the_current_layer_restyle_over_the_preset() {
-    use eggshell_ui::owned::{TablePart, TooltipPart};
-    let padding = |style: &eggshell_ui::Style| {
-        let tip = style
-            .sheet
-            .resolve(TooltipPart::Content, &[], &style.tokens);
-        let cell = style.sheet.resolve(TablePart::Cell, &[], &style.tokens);
-        (
-            tip.style_at(style.tokens.spacing).padding.left,
-            cell.style_at(style.tokens.spacing).padding.left,
-        )
+fn a_new_text_role_reaches_the_widgets_own_looks() {
+    use eggshell_ui::owned::{ButtonPart, TabsPart, TooltipPart};
+    let mut style = eggshell_ui::Style::default();
+    let size = |style: &eggshell_ui::Style, classes: eggshell_ui::Tw| {
+        let page = eggshell_ui::TextStyle::new(style.text.clone(), Color32::PLACEHOLDER);
+        classes.text_classes().over(&page).spec.size
     };
-    let preset = Shadcn::for_theme(Theme::Light).style();
-    let mut tooltip = preset.tooltip().clone();
-    tooltip.padding = vec2(40.0, 20.0);
-    let mut table = preset.table().clone();
-    table.cell_padding = 36.0;
-    let want = (
-        tw().px_px(40.0).style().padding.left,
-        tw().px_px(36.0).style().padding.left,
-    );
-    let mut plain = preset.clone();
-    plain.set_tooltip(tooltip.clone());
-    plain.set_table(table.clone());
-    assert_ne!(
-        padding(&plain),
-        want,
-        "precondition: a plain setter keeps the preset's"
-    );
-    let mut over = preset.clone();
-    over.sheet.as_app();
-    over.at_current_layer(|style| {
-        style.set_tooltip(tooltip);
-        style.set_table(table);
-    });
-    assert_eq!(padding(&over), want);
+    let sizes = |style: &eggshell_ui::Style| {
+        [
+            size(style, crate::support::part(style, ButtonPart::Root)),
+            size(style, crate::support::part(style, TooltipPart::Content)),
+            size(style, crate::support::part(style, TabsPart::Trigger)),
+        ]
+    };
+    assert_ne!(style.text.size, 31.0, "precondition");
+    style.text.size = 31.0;
+    assert_ne!(sizes(&style), [31.0; 3], "precondition: not yet written");
+    style.rewrite_rules();
+    assert_eq!(sizes(&style), [31.0; 3]);
 }

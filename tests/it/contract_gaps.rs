@@ -6,8 +6,11 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
-use eggshell_ui::owned::{Choice, Enablement, Face};
-use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::owned::{
+    Cell, CheckboxPart, Choice, Enablement, Face, Mark, SegmentedRows, TabsPart,
+};
+use eggshell_ui::sheet::When;
+use eggshell_ui::{Aria, Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
@@ -333,7 +336,6 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             },
             icon_cells,
         );
-        let seg = d.app().style.segmented().clone();
         let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         for pair in cells.windows(2) {
             assert!(
@@ -344,12 +346,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
         for (index, (mode, label)) in MODES.into_iter().enumerate() {
             let cell = cells[index];
             let text = text_box(&d, cell, label);
-            let selected = mode == Mode::Light;
-            let colors = if selected {
-                seg.selected.states.rest
-            } else {
-                seg.unselected.states.rest
-            };
+            let ink = text_color(&d, cell, label);
             if mode == Mode::System {
                 assert!(
                     shapes(&d).into_iter().all(|shape| !matches!(
@@ -366,7 +363,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
                 (text.min.x - icon.max.x - 7.0).abs() < 0.75,
                 "{theme:?} {shadcn:?} {label}: icon_gap ({icon:?} then {text:?})"
             );
-            assert_eq!(tint, colors.text, "{theme:?} {shadcn:?} {label}: tint");
+            assert_eq!(tint, ink, "{theme:?} {shadcn:?} {label}: tint");
             assert!(
                 (icon.center().y - cell.center().y).abs() <= 0.75,
                 "the icon is centred in the cell"
@@ -383,14 +380,10 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
-            let hover = style.segmented().unselected.states.hover;
-            let mut segmented = style.segmented().clone();
-            segmented.unselected.states.hover.text = Color32::from_rgb(200, 30, 30);
-            style.set_segmented(segmented);
-            assert_ne!(
-                hover.text,
-                Color32::from_rgb(200, 30, 30),
-                "precondition: the hover colour differs"
+            style.sheet.rule_when(
+                TabsPart::Trigger,
+                When::always().not_aria(Aria::Selected),
+                |t, _| t.hover(|p| p.text(Color32::from_rgb(200, 30, 30))),
             );
         },
         icon_cells,
@@ -445,8 +438,17 @@ fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
             "flex-1 shares the track equally: {widths:?}"
         );
         assert!(widths[0] > 100.0, "precondition: the cells are wide");
-        let selected = box_at(&d, cells[0]);
-        assert_eq!(selected.fill, seg.selected.states.rest.fill, "styled paint");
+        let keys = TabsPart::trigger_keys(
+            Size::DEFAULT,
+            SegmentedRows::One,
+            Cell::Pressed,
+            Enablement::Enabled,
+        );
+        let style = &d.app().style;
+        let fill = support::part_at(style, TabsPart::Trigger, &keys)
+            .paint_classes()
+            .background;
+        assert_eq!(Some(box_at(&d, cells[0]).fill), fill, "styled paint");
         for (mode, label) in MODES {
             let cell = d.rect(Target::suffix(&cell_path(mode)));
             let text = text_box(&d, cell, label);
@@ -582,12 +584,14 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     eggshell_ui::sheet::When::always(),
                     |t, _| t.role(spec(21.0)),
                 );
-                let mut segmented = style.segmented().clone();
-                segmented.text = Some(spec(17.0));
-                style.set_segmented(segmented);
-                let mut select = style.select().clone();
-                select.text = Some(spec(19.0));
-                style.set_select(select);
+                style
+                    .sheet
+                    .rule(TabsPart::Trigger, |t, _| t.role(spec(17.0)));
+                style
+                    .sheet
+                    .rule(eggshell_ui::owned::SelectPart::Trigger, |t, _| {
+                        t.role(spec(19.0))
+                    });
                 let mut checkbox = style.checkbox().clone();
                 checkbox.text = Some(spec(23.0));
                 style.set_checkbox(checkbox);
@@ -787,13 +791,36 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 
 #[test]
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let d = sections_with(Theme::Light, ShadcnStyle::Vega, |_| {}, disabled_row);
+    let neutral = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
+    let d = drive(
+        Theme::Light,
+        ShadcnStyle::Vega,
+        neutral,
+        |_| {},
+        disabled_row,
+    );
     let style = &d.app().style;
     assert_eq!(style.tokens.disabled, Disabled::Colors);
+    let disabled = support::part_at(
+        style,
+        CheckboxPart::Root,
+        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Disabled),
+    );
+    let enabled = support::part_at(
+        style,
+        CheckboxPart::Root,
+        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled),
+    );
+    let fill = disabled.paint_classes().background;
+    assert_ne!(
+        fill,
+        enabled.paint_classes().background,
+        "precondition: disabled has colours of its own"
+    );
     let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
     assert_eq!(
-        box_at(&d, checked).fill,
-        style.checkbox().on.states.disabled.fill,
+        Some(box_at(&d, checked).fill),
+        fill,
         "a checkbox still draws the style's disabled colours"
     );
 }
@@ -1169,14 +1196,20 @@ fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
             Theme::Light,
             ShadcnStyle::default(),
             |style| {
-                let text = style.role(&style.segmented().text).clone();
-                let mut segmented = style.segmented().clone();
-                segmented.text = Some(TextSpec {
+                let text = TextSpec {
                     weight: Weight::Medium,
-                    ..text
-                });
-                segmented.selected_weight = selected_weight;
-                style.set_segmented(segmented);
+                    ..style.text.clone()
+                };
+                style
+                    .sheet
+                    .rule(TabsPart::Trigger, move |t, _| t.role(text.clone()));
+                if let Some(weight) = selected_weight {
+                    style.sheet.rule_when(
+                        TabsPart::Trigger,
+                        When::always().aria(Aria::Selected),
+                        move |t, _| t.font_weight(weight),
+                    );
+                }
             },
             plain_segmented,
         );

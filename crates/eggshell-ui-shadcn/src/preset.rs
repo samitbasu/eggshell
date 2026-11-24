@@ -6,14 +6,44 @@ use eggshell_ui::contract::{
     SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::owned::FieldPart;
-use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
+use eggshell_ui::owned::{FieldPart, InputGroupPart, InputPart, TablePart};
+use eggshell_ui::sheet::{Sheet, When};
+use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{HoverSurface, ShadcnStyle};
 #[cfg(feature = "extras")]
 use crate::variant;
 use crate::{ContrastPair, FontSet, Palette, Tokens, size};
+
+/// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
+/// field a unit shorter than the preset's controls and a `xs` one three, each
+/// with its own inline padding, over the generated look.
+fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
+    let own = t.own_input_padding_x;
+    for (size, height, padding_x) in [
+        (size::SM, t.control_units - 1.0, own),
+        (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
+    ] {
+        let when = When::always().size(size);
+        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
+        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
+        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-start"),
+            move |c, _| c.pl(padding_x),
+        );
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-end"),
+            move |c, _| c.pr(padding_x),
+        );
+    }
+    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
+        c.py(0.5)
+    });
+}
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -230,16 +260,16 @@ impl Shadcn {
             flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
         );
         let control = Metrics {
-            height: t.control_height,
+            height: t.control_height(),
             min_width: 0.0,
-            padding_x: t.button_padding.x,
-            gap: t.control_gap,
+            padding_x: t.points(t.button_padding.x),
+            gap: t.points(t.control_gap),
             radius: t.radius_md(),
-            glyph: t.icon_size,
+            glyph: t.points(t.icon_size),
             text: None,
         };
         let xs_text = Some(t.text.xs);
-        let u = |units: f32| t.spacing.points(units);
+        let u = |units: f32| t.points(units);
         let small = |m: Metrics| Metrics {
             height: m.height - u(1.0),
             min_width: if m.min_width == 0.0 {
@@ -265,12 +295,12 @@ impl Shadcn {
             ..m
         };
         let toggle_metrics = Metrics {
-            min_width: t.control_height,
-            padding_x: t.toggle_padding_x,
+            min_width: t.control_height(),
+            padding_x: t.points(t.toggle_padding_x),
             ..control
         };
         let square = |metrics: Metrics| Metrics {
-            min_width: t.control_height,
+            min_width: t.control_height(),
             padding_x: 0.0,
             ..metrics
         };
@@ -285,54 +315,7 @@ impl Shadcn {
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
 
-        let box_rest = Colors {
-            fill: self.input_fill(),
-            border: t.input,
-            text: t.primary_foreground,
-        };
-        let box_on = Colors {
-            fill: t.primary,
-            border: t.primary,
-            text: t.primary_foreground,
-        };
-        let boxed = |colors| raised(Paint::new(states(colors, colors)), t.shadow_xs);
-        let radio_colors = Colors {
-            text: t.primary,
-            ..box_rest
-        };
-
-        let switch_paint = |track, thumb| {
-            let colors = Colors {
-                fill: track,
-                border: clear,
-                text: thumb,
-            };
-            Paint::new(states(colors, colors))
-        };
-        let thumb = t.switch_thumb;
-        let (selected_cell, released_cell) = (
-            if dark {
-                Colors {
-                    fill: t.input_30(),
-                    border: t.input,
-                    text: t.foreground,
-                }
-            } else {
-                Colors {
-                    fill: t.background,
-                    border: clear,
-                    text: t.foreground,
-                }
-            },
-            flat(
-                clear,
-                if dark {
-                    t.muted_foreground
-                } else {
-                    t.foreground.gamma_multiply(0.6)
-                },
-            ),
-        );
+        let thumb = t.points(t.switch_thumb);
         let input_rest = Colors {
             fill: self.input_fill(),
             border: t.input,
@@ -353,24 +336,10 @@ impl Shadcn {
             .bordered(1.0),
             t.shadow_xs,
         );
-        let field_rest = Colors {
-            text: t.secondary_foreground,
-            ..input_rest
-        };
-        let field_look = BoxLook::new(States {
-            focused: focused(field_rest),
-            ..States::new(field_rest, field_rest, t.background)
-        })
-        .bordered(1.0);
         let thumb_colors = Colors {
             fill: Color32::WHITE,
             border: t.primary,
             text: t.foreground,
-        };
-        let popup_colors = Colors {
-            fill: t.popover,
-            border: t.border,
-            text: t.popover_foreground,
         };
         let mut style = contract::Style::default();
         style.text = t.text_role();
@@ -406,10 +375,6 @@ impl Shadcn {
             checkbox.sizes = Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
                 .with(size::SM, box_at(u(3.5), u(3.0), u(1.5), None))
                 .with(size::XS, box_at(u(3.0), u(2.5), u(1.5), xs_text));
-            checkbox.border_width = 1.0;
-            checkbox.off = boxed(box_rest);
-            checkbox.on = boxed(box_on);
-            checkbox.transition = transition;
             checkbox
         };
         style.set_checkbox(checkbox);
@@ -425,10 +390,6 @@ impl Shadcn {
             radio.sizes = Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
                 .with(size::SM, circle(u(3.5), u(1.75), u(1.5), None))
                 .with(size::XS, circle(u(3.0), u(1.5), u(1.5), xs_text));
-            radio.border_width = 1.0;
-            radio.off = boxed(radio_colors);
-            radio.on = boxed(radio_colors);
-            radio.transition = transition;
             radio
         };
         style.set_radio(radio);
@@ -445,17 +406,12 @@ impl Shadcn {
                 .with(size::SM, switch_at(0.75, None))
                 .with(size::XS, switch_at(0.625, xs_text));
             switch.gap = 8.0;
-            switch.border_width = 0.0;
-            switch.off = switch_paint(t.switch_track_off, t.switch_thumb_off);
-            switch.on = switch_paint(t.switch_track_on, t.switch_thumb_on);
-            switch.transition = transition;
             switch
         };
         style.set_switch(switch);
         let segmented = {
             const CELL_TRIM: f32 = 1.0;
             let mut segmented = style.segmented().clone();
-            segmented.text = Some(t.text_role_at(t.control_weight));
             // The one exception to tabs.tsx, whose list is `bg-muted`: on a
             // `muted` panel that fill is the panel's own colour and the track
             // disappears, so the list keeps `input` (the user's pick, #346).
@@ -470,53 +426,42 @@ impl Shadcn {
                 // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
                 // the list's inside, which overflows its `text-sm` by 1 px;
                 // the trimmed point comes out of the padding instead.
-                cell_padding: vec2(padding_x, t.cell_padding.y - CELL_TRIM / 2.0),
+                cell_padding: vec2(padding_x, t.points(t.cell_padding.y) - CELL_TRIM / 2.0),
                 column_gap: 0.0,
                 row_gap: 2.0,
                 icon_size: icon,
-                icon_gap: 6.0,
+                icon_gap: u(1.5),
                 text,
                 // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
                 cell_trim: CELL_TRIM,
             };
             segmented.sizes = Keyed::new(
                 Size::DEFAULT,
-                track_at(t.control_height, t.cell_padding.x, t.icon_size, None),
+                track_at(
+                    t.control_height(),
+                    t.points(t.cell_padding.x),
+                    t.points(t.icon_size),
+                    None,
+                ),
             )
             .with(
                 size::SM,
                 track_at(
-                    t.control_height - u(1.0),
-                    t.cell_padding.x,
-                    t.icon_size,
+                    t.control_height() - u(1.0),
+                    t.points(t.cell_padding.x),
+                    t.points(t.icon_size),
                     None,
                 ),
             )
             .with(
                 size::XS,
                 track_at(
-                    t.control_height - u(3.0),
-                    (t.cell_padding.x - u(1.0)).max(0.0),
+                    t.control_height() - u(3.0),
+                    (t.points(t.cell_padding.x) - u(1.0)).max(0.0),
                     u(3.0),
                     xs_text,
                 ),
             );
-            segmented.cell_border_width = 1.0;
-            segmented.selected = raised(
-                Paint::new(States::still(selected_cell, t.muted)),
-                t.shadow_sm,
-            );
-            // tabs.tsx, trigger: `text-foreground/60 hover:text-foreground`,
-            // `dark:text-muted-foreground dark:hover:text-foreground`.
-            segmented.unselected = Paint::new(States::new(
-                released_cell,
-                Colors {
-                    text: t.foreground,
-                    ..released_cell
-                },
-                t.muted,
-            ));
-            segmented.transition = transition;
             segmented
         };
         style.set_segmented(segmented);
@@ -534,13 +479,18 @@ impl Shadcn {
             };
             slider.sizes = Keyed::new(
                 Size::DEFAULT,
-                slider_at(t.slider_track, t.slider_thumb, None, 8.0),
+                slider_at(
+                    t.points(t.slider_track),
+                    t.points(t.slider_thumb),
+                    None,
+                    8.0,
+                ),
             )
             .with(
                 size::SM,
                 slider_at(
-                    t.slider_track.min(u(1.0)),
-                    t.slider_thumb - u(0.5),
+                    t.points(t.slider_track).min(u(1.0)),
+                    t.points(t.slider_thumb) - u(0.5),
                     None,
                     u(1.5),
                 ),
@@ -548,8 +498,8 @@ impl Shadcn {
             .with(
                 size::XS,
                 slider_at(
-                    t.slider_track.min(u(0.75)),
-                    t.slider_thumb - u(1.0),
+                    t.points(t.slider_track).min(u(0.75)),
+                    t.points(t.slider_thumb) - u(1.0),
                     xs_text,
                     u(1.0),
                 ),
@@ -579,72 +529,34 @@ impl Shadcn {
         };
         style.set_select({
             let mut select = style.select().clone();
-            select.trigger = input_box;
             select.sizes = Keyed::new(Size::DEFAULT, control)
                 .with(size::SM, small(control))
                 .with(size::XS, tiny(control));
             select.chevron = 16.0;
             select.chevron_opacity = Opacity::new(0.5);
-            select.transition = transition;
             select
         });
-        // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
-        // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
+        // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
+        // check and chevron, and a `text-xs` shortcut. The look is the
+        // generated sheet's.
         style.set_menu({
             let mut menu = style.menu().clone();
-            menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
-                .bordered(1.0)
-                .shadowed(t.shadow_md);
-            menu.radius = t.radius_md();
-            menu.padding = t.popup_padding;
-            menu.min_width = 128.0;
+            menu.padding = t.points(t.popup_padding);
             menu.offset = Distance::new(4.0);
-            menu.item = BoxLook::new(States::new(
-                flat(clear, t.popover_foreground),
-                accented,
-                t.popover,
-            ));
-            menu.item_radius = t.radius_sm();
-            menu.item_padding = t.item_padding;
-            menu.item_gap = t.item_padding.x;
-            let tint = if dark { 0.2 } else { 0.1 };
-            menu.destructive = States::new(
-                flat(clear, t.destructive),
-                flat(t.destructive.gamma_multiply(tint), t.destructive),
-                t.popover,
-            );
-            menu.separator = t.border;
-            menu.separator_margin = 4.0;
-            menu.heading = t.popover_foreground;
-            menu.heading_weight = t.label_weight;
-            menu.shortcut = t.muted_foreground;
+            menu.item_padding = t.points_vec(t.item_padding);
+            menu.item_gap = t.points(t.item_padding.x);
             menu.shortcut_text = TextSpec {
                 size: 12.0,
                 line_height: 16.0,
                 family: egui::FontFamily::Proportional,
                 weight: Weight::Normal,
             };
-            menu.shortcut_tracking = Tracking::points(1.2);
             menu.indicator = 16.0;
             menu
         });
-        // shadcn's TooltipContent: `bg-foreground text-background rounded-md
-        // px-3 py-1.5 text-xs` with a 10 pt arrow.
+        // shadcn's TooltipContent: a 10 pt arrow, flush with the trigger.
         style.set_tooltip({
             let mut tooltip = style.tooltip().clone();
-            tooltip.popup = BoxLook::new(States::still(
-                flat(t.foreground, t.background),
-                t.foreground,
-            ));
-            tooltip.radius = t.radius_md();
-            tooltip.padding = vec2(12.0, 6.0);
-            tooltip.text = Some(TextSpec {
-                size: 12.0,
-                line_height: 16.0,
-                family: egui::FontFamily::Proportional,
-                weight: Weight::Normal,
-            });
-            tooltip.max_width = 320.0;
             tooltip.arrow = Some(Arrow { size: 10.0 });
             tooltip.offset = Distance::new(0.0);
             // Radix's default delay, deliberately not shadcn's 0 ms, which
@@ -725,15 +637,19 @@ impl Shadcn {
             let own = u(t.own_input_padding_x);
             stepper.sizes = Keyed::new(
                 Size::DEFAULT,
-                group_at(t.control_height, (t.input_padding.x, u(6.0), u(3.0)), None),
+                group_at(
+                    t.control_height(),
+                    (t.points(t.input_padding.x), u(6.0), u(3.0)),
+                    None,
+                ),
             )
             .with(
                 size::SM,
-                group_at(t.control_height - u(1.0), (own, u(5.0), u(3.0)), None),
+                group_at(t.control_height() - u(1.0), (own, u(5.0), u(3.0)), None),
             )
             .with(
                 size::XS,
-                group_at(t.control_height - u(3.0), (own, u(4.0), u(2.5)), xs_text),
+                group_at(t.control_height() - u(3.0), (own, u(4.0), u(2.5)), xs_text),
             );
             stepper.button = ghost_button;
             stepper.divider = t.input;
@@ -742,43 +658,14 @@ impl Shadcn {
         };
         let input = {
             let mut input = style.input().clone();
-            input.look = field_look;
-            let field_at =
-                |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
-                    InputMetrics {
-                        radius: t.radius_md(),
-                        padding,
-                        height,
-                        text,
-                        icon_size,
-                        icon_gap,
-                    }
-                };
-            input.sizes = Keyed::new(
-                Size::DEFAULT,
-                field_at(t.control_height, t.input_padding, None, (16.0, 8.0)),
-            )
-            .with(
-                size::SM,
-                field_at(
-                    t.control_height - u(1.0),
-                    vec2(u(t.own_input_padding_x), t.input_padding.y),
-                    None,
-                    (u(3.5), u(1.5)),
-                ),
-            )
-            .with(
-                size::XS,
-                field_at(
-                    t.control_height - u(3.0),
-                    vec2(
-                        u((t.own_input_padding_x - 1.0).max(0.0)),
-                        t.input_padding.y.min(u(0.5)),
-                    ),
-                    xs_text,
-                    (u(3.0), u(1.5)),
-                ),
-            );
+            let field_at = |text, (icon_size, icon_gap): (f32, f32)| InputMetrics {
+                text,
+                icon_size,
+                icon_gap,
+            };
+            input.sizes = Keyed::new(Size::DEFAULT, field_at(None, (u(4.0), u(2.0))))
+                .with(size::SM, field_at(None, (u(3.5), u(1.5))))
+                .with(size::XS, field_at(xs_text, (u(3.0), u(1.5))));
             // input.tsx: `placeholder:text-muted-foreground`.
             input.hint = Some(t.muted_foreground);
             input.icon = t.muted_foreground;
@@ -816,30 +703,17 @@ impl Shadcn {
         };
         style.splitter.grip = None;
         style.splitter.transition = Duration::from_millis(150);
-        // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
-        // `border-b` rows (none under the last), `hover:bg-muted/50`,
-        // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
-        // and `transition-colors`.
+        // shadcn's Table: `border-b` rows, none under the last; the stripes
+        // and groups are eggshell's own.
         let mut table = style.table().clone();
-        table.header_fill = clear;
-        table.header_weight = Weight::Medium;
-        table.header_height = 40.0;
-        table.cell_padding = 8.0;
         table.rule = t.border;
         table.rule_width = 1.0;
         table.stripe = t.muted.gamma_multiply(0.3);
-        table.group_fill = t.muted.gamma_multiply(0.5);
-        table.group_text = Some(t.muted_foreground);
         table.group_text_size = Some(TextSize {
             size: 12.0,
             line_height: 16.0,
         });
         table.group_weight = Weight::Medium;
-        table.hover = t.muted.gamma_multiply(0.5);
-        table.selected = t.muted;
-        table.footer_fill = t.muted.gamma_multiply(0.5);
-        table.footer_weight = Weight::Medium;
-        table.transition = Duration::from_millis(150);
         table.group_end = GroupEnd::Gap(12.0);
         style.set_table(table);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
@@ -888,7 +762,13 @@ impl Shadcn {
                 })
             });
         }
+        // A table's group rows are eggshell's own: shadcn's footer band.
+        style
+            .sheet
+            .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
+            .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
+        write_field_sizes(&mut style.sheet, t);
         style.write_exceptions();
         #[cfg(feature = "extras")]
         {
@@ -924,10 +804,10 @@ impl Shadcn {
         core.spacing = t.spacing;
         core.radius = t.radius;
         core.text = t.text;
-        core.control_height = t.control_height;
-        core.button_padding = t.button_padding;
+        core.control_height = t.control_height();
+        core.button_padding = t.points_vec(t.button_padding);
         core.text_size = t.control_text_size().size;
-        core.switch_thumb = t.switch_thumb;
+        core.switch_thumb = t.points(t.switch_thumb);
         core.shadow_xs = t.shadow_xs;
         core.shadow_sm = t.shadow_sm;
         core.shadow_md = t.shadow_md;
@@ -1137,7 +1017,7 @@ impl Shadcn {
         );
         badge.height = 20.0;
         badge.padding_x = 8.0;
-        badge.icon_padding = 6.0;
+        badge.icon_padding = self.tokens.points(1.5);
         badge.gap = 4.0;
         badge.radius = match t.style {
             ShadcnStyle::Vega => u8::MAX,
@@ -1277,7 +1157,7 @@ impl Shadcn {
         form.title_color = t.foreground;
         form.title_gap = if vega { 12.0 } else { 10.0 };
         form.row_gap = if vega { 12.0 } else { 8.0 };
-        form.row_min_height = t.control_height;
+        form.row_min_height = t.control_height();
         form.label_color = t.foreground;
         form.value_color = t.muted_foreground;
         form.section_gap = if vega { 24.0 } else { 16.0 };
