@@ -59,6 +59,7 @@ pub(crate) struct Popover {
     feature = "skeleton"
 ))]
 impl Popover {
+    #[cfg(feature = "command")]
     pub(crate) fn of(style: &crate::Style) -> Self {
         let k = &style.tokens;
         Self {
@@ -76,6 +77,24 @@ impl Popover {
         }
     }
 
+    /// The box from the tokens alone: the generated menu's radius is
+    /// `rounded-md`, and `rounded-none` in Lyra.
+    pub(crate) fn of_tokens(k: &crate::theme::Tokens) -> Self {
+        Self {
+            colors: crate::contract::Colors {
+                fill: k.popover,
+                border: k.border,
+                text: k.popover_foreground,
+            },
+            border_width: 1.0,
+            radius: match k.style {
+                crate::theme::ShadcnStyle::Vega => k.radius_md(),
+                crate::theme::ShadcnStyle::Lyra => 0,
+            },
+            shadow: k.shadow_md,
+        }
+    }
+
     /// The box as a [`Look`](crate::contract::Look), the same in every
     /// state.
     #[cfg(feature = "hover-card")]
@@ -89,14 +108,7 @@ impl Popover {
     }
 }
 
-#[cfg(any(
-    feature = "command",
-    feature = "dialog",
-    feature = "form",
-    feature = "hover-card",
-    feature = "notify",
-    feature = "skeleton"
-))]
+#[cfg(feature = "command")]
 /// The classes `style`'s sheet gives the menu's `part` under `keys`.
 pub(crate) fn menu_part(
     style: &crate::Style,

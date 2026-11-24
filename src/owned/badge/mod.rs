@@ -252,7 +252,7 @@ impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
     #[track_caller]
     pub fn add(self) {
         let Self { b, key, mut face } = self;
-        let style = b.style().extension::<BadgeStyle>();
+        let style = b.style().badge.clone();
         let look = face.look(b.ctx(), &style);
         let rest = look.paint.states.rest;
         let own = face

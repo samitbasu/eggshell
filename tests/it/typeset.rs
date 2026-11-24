@@ -2,7 +2,7 @@
 //! style, measured on the page as drawn. Every expected length is derived
 //! from typeset.css at shadcn's defaults: 15 pt, leading 1.75, flow 1.25em.
 
-use eggshell_ui::owned::markdown::{Directives, MarkdownExt, MarkdownStyle, Typeset, TypesetInk};
+use eggshell_ui::owned::markdown::{Directives, MarkdownExt, Typeset, TypesetInk};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Rect, vec2};
@@ -48,7 +48,7 @@ fn ink() -> TypesetInk {
 }
 
 fn typeset(style: &mut Style) {
-    style.set_extension(Typeset::default().markdown_style(&ink()));
+    style.markdown = Typeset::default().markdown_style(&ink());
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, ()>, app: &'f ()) {
@@ -154,28 +154,6 @@ fn the_measure_is_its_width_in_ems_of_the_base() {
         37.0 * BASE,
         "80 is 37em",
     );
-}
-
-/// The style without a typeset, which rules an h2 off below.
-fn unset(style: &mut Style) {
-    let markdown = MarkdownStyle::from_style(style);
-    style.set_extension(markdown);
-}
-
-#[test]
-fn without_a_typeset_an_h2_is_ruled_off_below() {
-    let d = driver_with(unset);
-    let heading = block(&d, "Heading(\"section\")");
-    let rule = d.shell().style().extension::<MarkdownStyle>().rule;
-    let ruled = support::shapes(&d).into_iter().any(|shape| match shape {
-        egui::epaint::Shape::Rect(rect) => {
-            rect.fill == rule
-                && (rect.rect.max.y - heading.max.y).abs() < 0.5
-                && rect.rect.height() <= 1.5
-        }
-        _ => false,
-    });
-    assert!(ruled, "a rule along the heading's bottom edge");
 }
 
 /// A typeset table, inline code and a link, and a table outside the

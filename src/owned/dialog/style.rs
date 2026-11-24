@@ -1,7 +1,7 @@
 //! How dialogs, sheets and popovers look.
 
 use crate::contract::{Size, Variant};
-use crate::{Style, TextSpec, Tw, Weight, tw};
+use crate::{TextSpec, Tw, Weight, tw};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -107,8 +107,8 @@ impl DialogStyle {
     /// A look derived from the core `style` and egui's `visuals`: the panel
     /// fill and window stroke for the box, the menu's popup for the popover,
     /// and the style's default button variant everywhere.
-    pub fn from_style(style: &Style) -> Self {
-        let popup = crate::owned::styles::Popover::of(style);
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
+        let popup = crate::owned::styles::Popover::of_tokens(style.tokens);
         let colors = popup.colors;
         let k = &style.tokens;
         let text = |size: f32, line_height: f32, weight: Weight| TextSpec {
@@ -138,11 +138,5 @@ impl DialogStyle {
             close_size: Size::DEFAULT,
             close_inset: 4.0,
         }
-    }
-}
-
-impl crate::contract::Extension for DialogStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
     }
 }

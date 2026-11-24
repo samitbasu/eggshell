@@ -430,7 +430,7 @@ fn a_sections_header_keeps_its_gap_and_its_chevrons_nudge() {
     let d = driver_with(|_| {});
     let style = eggshell_ui::theme::Shadcn::for_theme(egui::Theme::Light)
         .style()
-        .extension::<eggshell_ui::owned::disclosure::DisclosureStyle>();
+        .disclosure;
     let header = d.rect(Target::suffix(HEADER));
     let (title, chevron) = title_and_chevron(&d);
     assert_eq!(chevron.left() - title.right(), style.header.gap, "the gap");

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use crate::contract::Focus;
-use crate::{Angle, Icon, Opacity, Style, TextSpec, Weight, icons};
+use crate::{Angle, Icon, Opacity, TextSpec, Weight, icons};
 use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
@@ -15,10 +15,10 @@ use egui::Color32;
 /// use eggshell_ui::owned::disclosure::DisclosureStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
-/// let mut look = (*style.extension::<DisclosureStyle>()).clone();
+/// let mut look = style.disclosure.clone();
 /// look.header.padding_y = 8.0;
-/// style.set_extension(look);
-/// assert_eq!(style.extension::<DisclosureStyle>().header.padding_y, 8.0);
+/// style.disclosure = look;
+/// assert_eq!(style.disclosure.header.padding_y, 8.0);
 /// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -102,17 +102,11 @@ pub enum Hover {
     None,
 }
 
-impl crate::contract::Extension for DisclosureStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl DisclosureStyle {
     /// TODO(prose): headers in the style's text, medium, with a muted
     /// `chevron-down` that turns over trailing a section's title and a
     /// `chevron-right` that turns down in a disclosure button.
-    pub fn from_style(style: &Style) -> Self {
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         let glyph = style.select.chevron;
         Self {
             section: Glyph::new(Icon::new(icons::CHEVRON_DOWN), glyph, Angle::degrees(180.0)),

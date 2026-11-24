@@ -38,7 +38,7 @@ fn main() {
                 }
             }
             let core = preset.style();
-            let badge = core.extension::<eggshell_ui::owned::badge::BadgeStyle>();
+            let badge = core.badge;
             println!(
                 "badge {at} size=default height={} min_width=0 padding_x={} gap={} radius={} glyph={} text={}/{}",
                 badge.height,

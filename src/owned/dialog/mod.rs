@@ -278,7 +278,7 @@ fn surface<'c, 'f, A: 'static, M>(
     };
     content(&mut parts);
     chain.children(move |s| {
-        let style = s.style().extension::<DialogStyle>();
+        let style = s.style().dialog.clone();
         let shape = Shape::of(modal, kind);
         let classes = shape.part(
             s,
@@ -557,7 +557,7 @@ pub trait PopoverExt<'f, A> {
 impl<'f, A, M> PopoverExt<'f, A> for OverlayChain<'_, 'f, A, Floating, M> {
     fn popover(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         self.children(|s| {
-            let style = s.style().extension::<DialogStyle>();
+            let style = s.style().dialog.clone();
             let own = style
                 .popover
                 .classes()

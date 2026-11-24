@@ -152,7 +152,6 @@ mod splitter;
 mod state;
 mod state_stable;
 mod style;
-mod style_extensions;
 mod style_switch;
 mod styled;
 mod support;

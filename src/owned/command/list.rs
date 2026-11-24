@@ -566,7 +566,7 @@ pub(crate) fn show<'f, A: 'static>(
 ) {
     let style = Arc::clone(b.style());
     let ctx = b.ctx().clone();
-    let command = b.style().extension::<super::CommandStyle>();
+    let command = Arc::new(b.style().command.clone());
     let (field, query) = match &shape.field {
         Field::Own => (None, Query::get(&ctx, key)),
         Field::Theirs { id, text } => (Some(*id), text.clone()),

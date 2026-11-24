@@ -1,6 +1,6 @@
 //! How notifications look: the card, the stack and the buttons in it.
 
-use crate::{Distance, Style, TextSpec, Weight};
+use crate::{Distance, TextSpec, Weight};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -83,18 +83,12 @@ pub struct CloseStyle {
     pub hover_border: Color32,
 }
 
-impl crate::contract::Extension for NotifyStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl NotifyStyle {
     /// TODO(prose): the page's popover surface, at sonner's sizes: 356 points
     /// wide, 16 points of padding, 6 between a card's parts, 14 between
     /// cards, 3 on show and 24 points from the window's edges.
-    pub fn from_style(style: &Style) -> Self {
-        let popup = crate::owned::styles::Popover::of(style);
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
+        let popup = crate::owned::styles::Popover::of_tokens(style.tokens);
         let colors = popup.colors;
         Self {
             fill: colors.fill,

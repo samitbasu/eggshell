@@ -165,61 +165,6 @@ impl Shadcn {
         self.style()
     }
 
-    /// Sets each opt-in widget's style in `style`, from its tokens: shadcn's
-    /// component in the tokens' style and theme.
-    pub(crate) fn widget_styles(style: &mut contract::Style) {
-        #[cfg_attr(
-            not(any(
-                feature = "badge",
-                feature = "command",
-                feature = "dialog",
-                feature = "disclosure",
-                feature = "form",
-                feature = "hover-card",
-                feature = "markdown",
-                feature = "notify",
-                feature = "skeleton"
-            )),
-            allow(unused_variables)
-        )]
-        let t = &style.tokens.clone();
-        // keep sorted
-        #[cfg(feature = "badge")]
-        let badge = Self::badge(t, style);
-        #[cfg(feature = "command")]
-        let command = Self::command(t, style);
-        #[cfg(feature = "dialog")]
-        let dialog = Self::dialog(t, style);
-        #[cfg(feature = "disclosure")]
-        let disclosure = Self::disclosure(t, style);
-        #[cfg(feature = "form")]
-        let form = Self::form(t, style);
-        #[cfg(feature = "notify")]
-        let notify = Self::notify(t, style);
-        #[cfg(feature = "skeleton")]
-        let skeleton = Self::skeleton(t, style);
-        #[cfg(feature = "hover-card")]
-        let hover_card = Self::hover_card(t, style);
-        #[cfg(feature = "badge")]
-        style.set_extension(badge);
-        #[cfg(feature = "command")]
-        style.set_extension(command);
-        #[cfg(feature = "dialog")]
-        style.set_extension(dialog);
-        #[cfg(feature = "disclosure")]
-        style.set_extension(disclosure);
-        #[cfg(feature = "form")]
-        style.set_extension(form);
-        #[cfg(feature = "hover-card")]
-        style.set_extension(hover_card);
-        #[cfg(feature = "markdown")]
-        style.set_extension(Self::markdown(t));
-        #[cfg(feature = "notify")]
-        style.set_extension(notify);
-        #[cfg(feature = "skeleton")]
-        style.set_extension(skeleton);
-    }
-
     /// This preset as the [`Style`](crate::Style) contract.
     pub fn style(&self) -> contract::Style {
         contract::Style::new(&self.tokens)
@@ -296,8 +241,11 @@ impl Shadcn {
     ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
     ///   536).
     #[cfg(feature = "notify")]
-    pub(crate) fn notify(t: &Tokens, style: &contract::Style) -> crate::owned::notify::NotifyStyle {
-        let mut notify = crate::owned::notify::NotifyStyle::from_style(style);
+    pub(crate) fn notify(
+        t: &Tokens,
+        style: &contract::Base<'_>,
+    ) -> crate::owned::notify::NotifyStyle {
+        let mut notify = crate::owned::notify::NotifyStyle::from_base(style);
         notify.fill = t.popover;
         notify.border = t.border;
         notify.text = t.popover_foreground;
@@ -346,9 +294,9 @@ impl Shadcn {
     #[cfg(feature = "skeleton")]
     pub(crate) fn skeleton(
         t: &Tokens,
-        style: &contract::Style,
+        style: &contract::Base<'_>,
     ) -> crate::owned::skeleton::SkeletonStyle {
-        let mut skeleton = crate::owned::skeleton::SkeletonStyle::from_style(style);
+        let mut skeleton = crate::owned::skeleton::SkeletonStyle::from_base(style);
         skeleton.fill = t.muted;
         skeleton.radius = t.radius_md();
         skeleton
@@ -370,12 +318,12 @@ impl Shadcn {
     /// let shadcn = Shadcn::light();
     /// let badge = shadcn
     ///     .style()
-    ///     .extension::<eggshell_ui::owned::badge::BadgeStyle>();
+    ///     .badge;
     /// assert_eq!(badge.variants.default_key(), variant::PRIMARY);
     /// assert_eq!(badge.height, 20.0);
     /// ```
     #[cfg(feature = "badge")]
-    pub(crate) fn badge(t: &Tokens, style: &contract::Style) -> crate::owned::badge::BadgeStyle {
+    pub(crate) fn badge(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::badge::BadgeStyle {
         let dark = t.theme == Theme::Dark;
         let clear = Color32::TRANSPARENT;
         let flat = |fill, text| Colors {
@@ -401,7 +349,7 @@ impl Shadcn {
             border: t.border,
             text: t.foreground,
         };
-        let mut badge = crate::owned::badge::BadgeStyle::from_style(style);
+        let mut badge = crate::owned::badge::BadgeStyle::from_base(style);
         badge.variants = Keyed::new(
             variant::PRIMARY,
             look(
@@ -467,9 +415,9 @@ impl Shadcn {
     #[cfg(feature = "command")]
     pub(crate) fn command(
         t: &Tokens,
-        style: &contract::Style,
+        style: &contract::Base<'_>,
     ) -> crate::owned::command::CommandStyle {
-        let mut command = crate::owned::command::CommandStyle::from_style(style);
+        let mut command = crate::owned::command::CommandStyle::from_base(style);
         command.selected_fill = t.muted;
         command.selected_text = t.foreground;
         command
@@ -505,16 +453,16 @@ impl Shadcn {
     /// let shadcn = Shadcn::light();
     /// let disclosure = shadcn
     ///     .style()
-    ///     .extension::<eggshell_ui::owned::disclosure::DisclosureStyle>();
+    ///     .disclosure;
     /// assert_eq!(disclosure.header.padding_y, 16.0);
     /// ```
     #[cfg(feature = "disclosure")]
     pub(crate) fn disclosure(
         t: &Tokens,
-        style: &contract::Style,
+        style: &contract::Base<'_>,
     ) -> crate::owned::disclosure::DisclosureStyle {
         let lyra = t.style == ShadcnStyle::Lyra;
-        let mut disclosure = crate::owned::disclosure::DisclosureStyle::from_style(style);
+        let mut disclosure = crate::owned::disclosure::DisclosureStyle::from_base(style);
         disclosure.section.size = 16.0;
         disclosure.tree.size = 16.0;
         disclosure.tone = Some(t.muted_foreground);
@@ -559,14 +507,14 @@ impl Shadcn {
     /// let shadcn = Shadcn::light();
     /// let form = shadcn
     ///     .style()
-    ///     .extension::<eggshell_ui::owned::form::FormStyle>();
+    ///     .form;
     /// assert_eq!(form.fill, shadcn.tokens.card);
     /// assert_eq!(form.radius, 14);
     /// ```
     #[cfg(feature = "form")]
-    pub(crate) fn form(t: &Tokens, style: &contract::Style) -> crate::owned::form::FormStyle {
+    pub(crate) fn form(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::form::FormStyle {
         let vega = t.style == ShadcnStyle::Vega;
-        let mut form = crate::owned::form::FormStyle::from_style(style);
+        let mut form = crate::owned::form::FormStyle::from_base(style);
         form.fill = t.card;
         form.border = t.border;
         form.border_width = 1.0;
@@ -601,9 +549,9 @@ impl Shadcn {
     #[cfg(feature = "hover-card")]
     pub(crate) fn hover_card(
         t: &Tokens,
-        style: &contract::Style,
+        style: &contract::Base<'_>,
     ) -> crate::owned::hover_card::HoverCardStyle {
-        let mut card = crate::owned::hover_card::HoverCardStyle::from_style(style);
+        let mut card = crate::owned::hover_card::HoverCardStyle::from_base(style);
         card.radius = t.radius_lg();
         card.transition = Duration::from_millis(100);
         card
@@ -620,9 +568,12 @@ impl Shadcn {
     /// popover: shadcn's `DialogContent`, `SheetContent` and
     /// `PopoverContent`. Placeholder values until the render round.
     #[cfg(feature = "dialog")]
-    pub(crate) fn dialog(t: &Tokens, style: &contract::Style) -> crate::owned::dialog::DialogStyle {
+    pub(crate) fn dialog(
+        t: &Tokens,
+        style: &contract::Base<'_>,
+    ) -> crate::owned::dialog::DialogStyle {
         use crate::owned::dialog::{DialogStyle, Surface, shadow_lg};
-        let mut dialog = DialogStyle::from_style(style);
+        let mut dialog = DialogStyle::from_base(style);
         dialog.surface = Surface::new(t.background, t.foreground, t.border)
             .rounded(t.radius_lg())
             .shadow(shadow_lg());

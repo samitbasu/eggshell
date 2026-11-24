@@ -1,6 +1,6 @@
 //! How form sections and labelled rows look.
 
-use crate::{Style, TextSpec, Weight};
+use crate::{TextSpec, Weight};
 use egui::Color32;
 
 /// TODO(prose): the look of [`form_section`](super::FormExt::form_section)s
@@ -11,10 +11,10 @@ use egui::Color32;
 /// use eggshell_ui::owned::form::FormStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
-/// let mut look = (*style.extension::<FormStyle>()).clone();
+/// let mut look = style.form.clone();
 /// look.radius = 4;
-/// style.set_extension(look);
-/// assert_eq!(style.extension::<FormStyle>().radius, 4);
+/// style.form = look;
+/// assert_eq!(style.form.radius, 4);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -58,17 +58,11 @@ pub struct FormStyle {
     pub section_gap: f32,
 }
 
-impl crate::contract::Extension for FormStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl FormStyle {
     /// TODO(prose): a form in `style`'s colours: the menu's surface as the
     /// box, the table's rule as its border and rules, a control's height as
     /// a row's.
-    pub fn from_style(style: &Style) -> Self {
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         let buttons = &style.toggle.sizes;
         Self {
             fill: style.tokens.popover,

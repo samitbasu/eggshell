@@ -4,7 +4,7 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::form::{FormExt, FormStyle};
+use eggshell_ui::owned::form::FormExt;
 use eggshell_ui::owned::{Enablement, Mark, ProgressPart, SliderPart, SwitchPart};
 use eggshell_ui::theme::{
     BaseColor, ContrastRatio, Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens,
@@ -89,7 +89,7 @@ fn a_text_row_is_as_tall_as_a_control_row() {
 #[test]
 fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
     let harness = harness();
-    let style = harness.view_shell().style().extension::<FormStyle>();
+    let style = harness.view_shell().style().form.clone();
     let frame = rect_of(&harness, BOX);
     let row = rect_of(&harness, RATE);
     let value = rect_of(&harness, &format!("{RATE}/\"Value\""));
@@ -146,9 +146,7 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                         .with_style(look)
                         .with_palette(Palette::new().base(base).theme(colour));
                     let style = preset.style();
-                    let section = style
-                        .extension::<eggshell_ui::owned::form::FormStyle>()
-                        .fill;
+                    let section = style.form.fill;
                     let page = preset.tokens.background;
                     assert_ne!(
                         section,
@@ -274,7 +272,7 @@ fn a_choice_field_fills_a_form_and_is_its_contents_width_inline() {
 #[test]
 fn a_sections_frame_is_shadcns_card_with_the_sections_padding() {
     let harness = harness();
-    let style = harness.view_shell().style().extension::<FormStyle>();
+    let style = harness.view_shell().style().form.clone();
     let frame = rect_of(&harness, BOX);
     let drawn = support::box_at(&harness, frame);
     assert_eq!(drawn.stroke.width, 0.0, "a ring, not a border");

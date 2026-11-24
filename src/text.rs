@@ -640,10 +640,9 @@ mod weight_tests {
         let chain = fonts.families[&FontFamily::Proportional].clone();
         fonts.families.insert(named("medium"), chain);
         ctx.set_fonts(fonts);
-        let mut style = crate::Style::default();
-        style.faces =
+        let faces =
             Faces::default().with(FontFamily::Proportional, Weight::Medium, named("medium"));
-        apply_faces(&ctx, &style.faces);
+        apply_faces(&ctx, &faces);
         ctx.run_ui(egui::RawInput::default(), |_| {})
             .drop_without_applying_deltas();
         ctx
