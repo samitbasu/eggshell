@@ -12,7 +12,7 @@ use eggshell_ui_shadcn::{
 use egui::{Color32, Context, Theme};
 
 fn tokens(theme: Theme, base: BaseColor, colour: ThemeColor) -> Tokens {
-    Tokens::for_theme(theme).with_palette(Palette::new().base(base).theme(colour), theme)
+    Tokens::for_theme(theme).with_palette(Palette::new().base(base).theme(colour))
 }
 
 fn every_combination() -> impl Iterator<Item = (Theme, BaseColor, ThemeColor)> {

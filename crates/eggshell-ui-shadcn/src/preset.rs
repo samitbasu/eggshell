@@ -48,14 +48,17 @@ fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shadcn {
-    /// The egui theme whose style [`apply`](Self::apply) sets.
-    pub theme: Theme,
     /// The values; override any of them before applying. `tokens.style` is
     /// the [`ShadcnStyle`] they belong to.
     pub tokens: Tokens,
 }
 
 impl Shadcn {
+    /// TODO(prose): the egui theme whose style [`apply`](Self::apply) sets: the tokens'.
+    pub fn theme(&self) -> Theme {
+        self.tokens.theme
+    }
+
     /// The light preset, for egui's light theme.
     pub fn light() -> Self {
         Self::for_theme(Theme::Light)
@@ -69,7 +72,6 @@ impl Shadcn {
     /// The preset that goes with `theme`, in the default style.
     pub fn for_theme(theme: Theme) -> Self {
         Self {
-            theme,
             tokens: Tokens::for_theme(theme),
         }
     }
@@ -84,7 +86,7 @@ impl Shadcn {
     /// TODO(prose): this preset in `palette`'s colours.
     #[must_use]
     pub fn with_palette(mut self, palette: Palette) -> Self {
-        self.tokens = self.tokens.with_palette(palette, self.theme);
+        self.tokens = self.tokens.with_palette(palette);
         self
     }
 
@@ -101,7 +103,6 @@ impl Shadcn {
     /// The preset applied to `ctx` for its current theme, if one was.
     pub fn applied(ctx: &Context) -> Option<Self> {
         Some(Self {
-            theme: ctx.theme(),
             tokens: tokens(ctx)?,
         })
     }
@@ -202,7 +203,7 @@ impl Shadcn {
 
     /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.
     fn input_fill(&self) -> Color32 {
-        match self.theme {
+        match self.theme() {
             Theme::Light => self.tokens.background,
             Theme::Dark => self.tokens.input_30(),
         }
@@ -228,7 +229,7 @@ impl Shadcn {
     /// This preset as the [`eggshell_ui::Style`] contract.
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
-        let dark = self.theme == Theme::Dark;
+        let dark = self.theme() == Theme::Dark;
         let clear = Color32::TRANSPARENT;
         let focused = |rest: Colors| self.focused(rest);
         let flat = |fill, text| Colors {
@@ -762,7 +763,7 @@ impl Shadcn {
             .sheet
             .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
             .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
-        crate::sheets::write(&mut style.sheet, t.style, self.theme);
+        crate::sheets::write(&mut style.sheet, t.style, self.theme());
         write_field_sizes(&mut style.sheet, t);
         style.write_exceptions();
         #[cfg(feature = "extras")]
@@ -796,13 +797,13 @@ impl Shadcn {
     /// unless the tokens accept it or it is shadcn's own colour; it never
     /// changes a colour.
     pub fn apply(&self, ctx: &Context) {
-        eggshell_ui::theme::warn_low_contrast(ctx, self.theme, &self.tokens);
+        eggshell_ui::theme::warn_low_contrast(ctx, &self.tokens);
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }
         let style = self.style();
-        ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
-        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
+        ctx.style_mut_of(self.theme(), |egui| style.egui_style(self.theme(), egui));
+        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme()), self.tokens.clone()));
     }
 
     /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
@@ -853,7 +854,7 @@ impl Shadcn {
             line_height: 19.5,
             ..t.text_role_at(Weight::Medium)
         };
-        let dark = self.theme == Theme::Dark;
+        let dark = self.theme() == Theme::Dark;
         let gray = Color32::from_gray;
         notify.action.fill = t.popover_foreground;
         notify.action.text = t.popover;
@@ -908,7 +909,7 @@ impl Shadcn {
     #[cfg(feature = "extras")]
     pub fn badge(&self, style: &contract::Style) -> eggshell_ui_extras::badge::BadgeStyle {
         let t = &self.tokens;
-        let dark = self.theme == Theme::Dark;
+        let dark = self.theme() == Theme::Dark;
         let clear = Color32::TRANSPARENT;
         let flat = |fill, text| Colors {
             fill,

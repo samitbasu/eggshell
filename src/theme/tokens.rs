@@ -165,6 +165,8 @@ pub struct Tokens {
     pub label_weight: Weight,
     /// TODO(prose): how disabled controls are drawn. Not a shadcn variable.
     pub disabled: Disabled,
+    /// TODO(prose): the egui theme these colours are for: light or dark.
+    pub theme: Theme,
 }
 
 impl Tokens {
@@ -179,9 +181,10 @@ impl Tokens {
             warning_foreground: rgb(0xfafafa),
             info: rgb(0x0069a8),
             info_foreground: rgb(0xfafafa),
+            theme: Theme::Light,
             ..Self::sizes()
         }
-        .with_palette(Palette::new(), Theme::Light)
+        .with_palette(Palette::new())
     }
 
     /// The neutral dark palette.
@@ -195,9 +198,10 @@ impl Tokens {
             warning_foreground: rgb(0x461901),
             info: rgb(0x00bcff),
             info_foreground: rgb(0x052f4a),
+            theme: Theme::Dark,
             ..Self::sizes()
         }
-        .with_palette(Palette::new(), Theme::Dark)
+        .with_palette(Palette::new())
     }
 
     /// The tokens for `theme`.
@@ -302,6 +306,7 @@ impl Tokens {
             label_weight: Weight::Normal,
             accepted_contrast: Vec::new(),
             disabled: Disabled::Colors,
+            theme: Theme::Light,
         };
         ShadcnStyle::Vega.shape(&mut tokens);
         tokens
@@ -415,12 +420,13 @@ impl Tokens {
         self.input.gamma_multiply(0.5)
     }
 
-    /// TODO(prose): these tokens with `palette`'s colours for `theme`, which
-    /// must be the theme they were made for: every colour shadcn's base and
+    /// TODO(prose): these tokens with `palette`'s colours for their
+    /// [`theme`](Self::theme): every colour shadcn's base and
     /// theme colours set, and the switch's, which follow them. The semantic
     /// colours (`destructive`, `success`, `warning`, `info`) are kept.
     #[must_use]
-    pub fn with_palette(self, palette: Palette, theme: Theme) -> Self {
+    pub fn with_palette(self, palette: Palette) -> Self {
+        let theme = self.theme;
         let Scheme {
             background,
             foreground,

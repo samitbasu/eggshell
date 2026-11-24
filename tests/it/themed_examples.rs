@@ -244,12 +244,12 @@ fn controls_gallery_applies_the_chosen_base_and_theme_colour() {
         let tokens = Shadcn::of(&ctx).tokens;
         assert_eq!(
             tokens.foreground,
-            Tokens::for_theme(theme).with_palette(palette, theme).foreground,
+            Tokens::for_theme(theme).with_palette(palette).foreground,
             "{theme:?}"
         );
         assert_eq!(
             tokens.primary,
-            Tokens::for_theme(theme).with_palette(palette, theme).primary
+            Tokens::for_theme(theme).with_palette(palette).primary
         );
         assert_ne!(
             tokens.foreground,
@@ -269,7 +269,7 @@ fn controls_gallery_uses_the_example_accent() {
         assert_eq!(
             primary,
             Tokens::for_theme(theme)
-                .with_palette(Palette::new().theme(ThemeColor::Blue), theme)
+                .with_palette(Palette::new().theme(ThemeColor::Blue))
                 .primary,
             "{theme:?}"
         );

@@ -141,7 +141,7 @@ fn every_pair_is_the_registry_s_under_the_documented_departures() {
         for theme_color in ThemeColor::ALL {
             for theme in [Theme::Light, Theme::Dark] {
                 let tokens = Tokens::for_theme(theme)
-                    .with_palette(Palette::new().base(base).theme(theme_color), theme);
+                    .with_palette(Palette::new().base(base).theme(theme_color));
                 let pick = |(light, dark): &(Vars, Vars)| match theme {
                     Theme::Light => light.clone(),
                     Theme::Dark => dark.clone(),
@@ -178,8 +178,7 @@ fn every_pair_is_the_registry_s_under_the_documented_departures() {
 #[test]
 fn the_charts_follow_the_theme_colour() {
     for theme in [Theme::Light, Theme::Dark] {
-        let teal =
-            Tokens::for_theme(theme).with_palette(Palette::new().theme(ThemeColor::Teal), theme);
+        let teal = Tokens::for_theme(theme).with_palette(Palette::new().theme(ThemeColor::Teal));
         assert_eq!(
             [teal.chart_1, teal.chart_5],
             [
