@@ -124,7 +124,7 @@ pub fn index_html(example: &str) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>eggshell: {example}</title>
 <style>
-html, body {{ margin: 0; height: 100%; overflow: hidden; }}
+html, body {{ margin: 0; height: 100%; }}
 canvas {{ display: block; width: 100%; height: 100%; }}
 </style>
 </head>
@@ -243,6 +243,16 @@ mod tests {
             content_type(Path::new("app.js")),
             "text/javascript; charset=utf-8"
         );
+    }
+
+    #[test]
+    fn index_lets_the_page_scroll_the_edited_field_above_the_keyboard() {
+        let index = index_html("hello");
+        assert!(
+            index.contains("html, body {"),
+            "precondition: the rule exists"
+        );
+        assert!(!index.contains("overflow: hidden"));
     }
 
     #[test]

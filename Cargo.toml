@@ -36,12 +36,13 @@ snapshots = ["screenshots", "egui_kittest/snapshot"]
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3.6", optional = true, default-features = false, features = ["image-data", "wayland-data-control"] }
 
-# The web build's key listener (`web::prevent_claimed_chords`) and its
-# window-focus check (`web::PageFocus`); eframe's web runner already brings
-# both.
+# The web build's key listener (`web::prevent_claimed_chords`), its
+# window-focus check (`web::PageFocus`) and its keyboard reveal and page
+# background (`web::reveal_text_input`, `web::paint_page_background`);
+# eframe's web runner already brings both crates.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.126"
-web-sys = { version = "0.3.103", features = ["Document", "Event", "EventTarget", "HtmlCanvasElement", "KeyboardEvent", "Node", "Window"] }
+web-sys = { version = "0.3.103", features = ["CssStyleDeclaration", "Document", "DomRect", "Element", "Event", "EventTarget", "HtmlCanvasElement", "HtmlElement", "KeyboardEvent", "Node", "ScrollBehavior", "ScrollIntoViewOptions", "ScrollLogicalPosition", "VisualViewport", "Window"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 egui-wgpu = { version = "0.37", optional = true, default-features = false }
