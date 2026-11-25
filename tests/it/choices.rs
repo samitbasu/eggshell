@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, tw};

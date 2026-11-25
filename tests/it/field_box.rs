@@ -234,7 +234,7 @@ fn a_trailing_icon_sits_inside_the_box_after_the_field() {
     );
     let style = Shadcn::for_theme(Theme::Light).style();
     let beside = style.sheet.resolve(
-        eggshell_ui::owned::InputGroupPart::Input,
+        eggshell_ui::owned::input::InputGroupPart::Input,
         &[
             eggshell_ui::sheet::Key::Size(Size::DEFAULT),
             eggshell_ui::sheet::Key::Attr("addon", "inline-end"),
@@ -362,7 +362,7 @@ fn restyled(b: &mut Builder<'_, '_, App>, _: &App) {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::InputGroupPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::input::InputGroupPart::Root, |t, _| {
                     t.bg(Color32::from_rgb(200, 10, 10))
                 });
         },
@@ -448,7 +448,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
 
 #[test]
 fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
-    use eggshell_ui::owned::InputGroupPart;
+    use eggshell_ui::owned::input::InputGroupPart;
     use eggshell_ui::sheet::Key;
     let style = Shadcn::for_theme(Theme::Light).style();
     let addon = |disabled: bool| {

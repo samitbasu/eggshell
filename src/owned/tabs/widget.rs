@@ -25,7 +25,12 @@ use std::rc::Rc;
 
 use crate::contract::Size;
 use crate::overlay::{Nav, Wrap};
-use crate::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows, TabsPart};
+use crate::owned::{
+    Enablement, Mark,
+    choice::{Choice, IntoChoice},
+    segmented::{Cell, SegmentedRows},
+    tabs::TabsPart,
+};
 use crate::{Builder, Key, Tw, tw};
 use egui::Role;
 

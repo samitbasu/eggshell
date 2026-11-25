@@ -860,7 +860,7 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
             |style| {
                 style
                     .sheet
-                    .rule(owned::TooltipPart::Content, move |classes, _| {
+                    .rule(owned::tooltip::TooltipPart::Content, move |classes, _| {
                         classes
                             .px(6.0)
                             .py(3.0)
@@ -923,8 +923,9 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 "segmented",
                 state.unit,
                 [
-                    owned::Choice::new(Unit::Metric, "Metric"),
-                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                    owned::choice::Choice::new(Unit::Metric, "Metric"),
+                    owned::choice::Choice::new(Unit::Imperial, "Imperial")
+                        .tooltip("Feet and pounds"),
                 ],
             )
             .tooltip("The units every reading is shown in")
@@ -948,8 +949,8 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 "segmented-merged",
                 state.unit,
                 [
-                    owned::Choice::new(Unit::Metric, "Light").icon(monitor),
-                    owned::Choice::new(Unit::Imperial, "Dark"),
+                    owned::choice::Choice::new(Unit::Metric, "Light").icon(monitor),
+                    owned::choice::Choice::new(Unit::Imperial, "Dark"),
                 ],
             )
             .track(tw().w_full())
@@ -961,8 +962,9 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 "segmented-refused",
                 state.unit,
                 [
-                    owned::Choice::new(Unit::Metric, "Metric"),
-                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                    owned::choice::Choice::new(Unit::Metric, "Metric"),
+                    owned::choice::Choice::new(Unit::Imperial, "Imperial")
+                        .tooltip("Feet and pounds"),
                 ],
             )
             .refused("Units follow the project")
@@ -973,8 +975,9 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 "segmented-choice-refused",
                 state.unit,
                 [
-                    owned::Choice::new(Unit::Metric, "Metric"),
-                    owned::Choice::new(Unit::Imperial, "Imperial").refused("Not in this region"),
+                    owned::choice::Choice::new(Unit::Metric, "Metric"),
+                    owned::choice::Choice::new(Unit::Imperial, "Imperial")
+                        .refused("Not in this region"),
                 ],
             )
             .on_change(|s: &mut State, unit| s.unit = unit);

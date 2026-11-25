@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/dropdown-menu.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use crate::contract::{Variant};
-use crate::owned::MenuPart;
+use crate::owned::menu::MenuPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity, Tracking};
 

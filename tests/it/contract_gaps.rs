@@ -6,7 +6,13 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Paint, Size, Themed, Variant};
-use eggshell_ui::owned::{Cell, Choice, Enablement, Face, SegmentedRows, TabsPart};
+use eggshell_ui::owned::{
+    Enablement,
+    button::Face,
+    choice::Choice,
+    segmented::{Cell, SegmentedRows},
+    tabs::TabsPart,
+};
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
 use eggshell_ui::{Aria, Builder, Icon, Style, TextSpec, TextStyle, Weight, tw};
@@ -570,7 +576,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             shadcn,
             |style| {
                 style.sheet.as_app().rule_when(
-                    eggshell_ui::owned::ButtonPart::Root,
+                    eggshell_ui::owned::button::ButtonPart::Root,
                     eggshell_ui::sheet::When::always(),
                     |t, _| t.role(spec(21.0)),
                 );
@@ -579,7 +585,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     .rule(TabsPart::Trigger, |t, _| t.role(spec(17.0)));
                 style
                     .sheet
-                    .rule(eggshell_ui::owned::SelectPart::Trigger, |t, _| {
+                    .rule(eggshell_ui::owned::select::SelectPart::Trigger, |t, _| {
                         t.role(spec(19.0))
                     });
                 let mut checkbox = style.checkbox.clone();
@@ -840,7 +846,7 @@ fn a_renamed_dropdown_names_its_trigger_and_its_menu() {
 }
 
 fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
-    let named = || eggshell_ui::owned::ButtonOptions::new().named("From options");
+    let named = || eggshell_ui::owned::button::ButtonOptions::new().named("From options");
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.button("icon", (app.icon(), "Search")).named("Find").add();
         b.button("empty", Face::Empty("Card".into()))
@@ -856,7 +862,7 @@ fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
             .with_options(named())
             .add();
         b.toggle_item(
-            &eggshell_ui::owned::ToggleGroup::new("group", 0u8),
+            &eggshell_ui::owned::toggle_group::ToggleGroup::new("group", 0u8),
             1,
             "One",
         )

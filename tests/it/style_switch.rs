@@ -285,7 +285,7 @@ fn a_harness_switched_to_lyra_draws_lyra() {
 /// The classes `style`'s sheet gives a button that names no variant or size.
 fn default_button(style: &Style) -> eggshell_ui::Tw {
     style.sheet.resolve(
-        eggshell_ui::owned::ButtonPart::Root,
+        eggshell_ui::owned::button::ButtonPart::Root,
         &[
             eggshell_ui::sheet::Key::Variant(eggshell_ui::contract::Variant::DEFAULT),
             eggshell_ui::sheet::Key::Size(Size::DEFAULT),

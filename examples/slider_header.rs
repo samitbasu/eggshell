@@ -6,7 +6,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::owned::Step;
+use eggshell_ui::owned::number::Step;
 use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
 

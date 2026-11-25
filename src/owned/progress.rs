@@ -3,7 +3,7 @@
 
 use egui::{Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 
-use super::{Gate, IntoTip, options, tipped};
+use super::{options, options::Gate, options::IntoTip, tipped};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Progress, Tw, tw};
 

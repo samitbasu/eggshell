@@ -44,25 +44,42 @@
 pub mod accordion;
 #[cfg(feature = "badge")]
 pub mod badge;
+pub mod button;
+pub mod checkbox;
+pub mod choice;
 #[cfg(feature = "command")]
 pub mod command;
+pub mod custom;
 #[cfg(feature = "dialog")]
 pub mod dialog;
 #[cfg(feature = "disclosure")]
 pub mod disclosure;
+pub mod drag_chip;
+pub mod field;
+pub mod field_box;
 #[cfg(feature = "form")]
 pub mod form;
 #[cfg(feature = "hover-card")]
 pub mod hover_card;
+pub mod input;
 #[cfg(feature = "markdown")]
 pub mod markdown;
+pub mod menu;
 #[cfg(feature = "notify")]
 pub mod notify;
+pub mod number;
+pub mod options;
+pub mod progress;
+pub mod radio;
+pub mod segmented;
+pub mod select;
 #[cfg(feature = "skeleton")]
 pub mod skeleton;
+pub mod slider;
 #[cfg(feature = "spinner")]
 pub mod spinner;
-// keep sorted
+pub mod splitter;
+pub mod stepper;
 #[cfg(any(
     feature = "badge",
     feature = "command",
@@ -75,33 +92,12 @@ pub mod spinner;
     feature = "tabs"
 ))]
 mod styles;
+pub mod switch;
+pub mod table;
 pub mod tabs;
-
-mod drag_chip;
-pub use drag_chip::{DragChip, drag_chip};
-
-mod button;
-mod checkbox;
-mod choice;
-mod custom;
-mod field;
-mod field_box;
-mod input;
-mod menu;
-mod number;
-pub(crate) mod options;
-mod progress;
-mod radio;
-mod segmented;
-mod select;
-mod slider;
-mod splitter;
-mod stepper;
-mod switch;
-mod table;
-mod toggle;
-mod toggle_group;
-mod tooltip;
+pub mod toggle;
+pub mod toggle_group;
+pub mod tooltip;
 
 use crate::overlay_input::Blur;
 use crate::widget::Enter;
@@ -111,37 +107,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
-
-pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
-pub use checkbox::CheckboxChain;
-pub use checkbox::CheckboxPart;
-pub use choice::{Choice, IntoChoice};
-pub use custom::CustomChain;
-pub use field::FieldPart;
-pub(crate) use field::{write_dark_card_label, write_exceptions as write_choice_exceptions};
-pub use field_box::FieldBoxChain;
-pub(crate) use input::{
-    Frame, keys as input_keys, write_exceptions as write_input_exceptions, write_field_sizes,
-};
-pub(crate) use input::{INLINE_END, INLINE_START};
-pub use input::{InputGroupPart, InputPart};
-pub use menu::MenuPart;
-pub(crate) use menu::write_menu_exceptions;
-pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
-pub(crate) use menu::{Menus, context, open_on_secondary_click};
-pub use number::NumberChain;
-pub use number::{Edit, Step, ValueRange};
-pub use options::IntoTip;
-pub(crate) use options::{Gate, Validity};
-pub use progress::ProgressChain;
-pub use radio::RadioGroupChain;
-pub use radio::RadioGroupPart;
-pub use segmented::{Cell, SegmentedChain, SegmentedRows};
-pub(crate) use select::write_select_exceptions;
-pub use select::{SelectChain, SelectPart};
-pub(crate) use slider::write_exceptions as write_slider_exceptions;
-pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
-pub use switch::SwitchPart;
 
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
@@ -158,26 +123,30 @@ pub(crate) fn write_track_exceptions(sheet: &mut crate::sheet::Sheet) {
     sheet.rule(SliderPart::Track, |t, k| t.bg(k.input));
     sheet.rule(ProgressPart::Root, |t, k| t.bg(k.input));
 }
-pub use progress::ProgressPart;
-pub use slider::{SliderChain, SliderPart};
-pub(crate) use splitter::Side;
-pub use splitter::{PaneSize, SplitterChain, SplitterStart};
-pub use stepper::StepperChain;
-pub use switch::SwitchChain;
-pub use table::TablePart;
-pub use table::{
-    Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
-};
-pub(crate) use table::{write_group_band, write_table_exceptions};
-pub use tabs::TabsPart;
-pub(crate) use tabs::write_exceptions as write_tabs_exceptions;
-pub use toggle::{ToggleChain, ToggleItemChain};
-pub use toggle_group::{Member, ToggleGroup};
-pub use tooltip::TooltipPart;
 
 use crate::contract::{Colors, Focus, Look, Paint, Size, States, Style};
-pub(crate) use crate::tooltip::{Content, Tooltip};
+use crate::tooltip::{Content, Tooltip};
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
+use button::{ButtonChain, Face};
+use checkbox::CheckboxChain;
+use choice::IntoChoice;
+use custom::CustomChain;
+use field::FieldPart;
+use input::{Frame, InputPart, keys as input_keys};
+use menu::DropdownChain;
+use number::ValueRange;
+use options::Validity;
+use progress::{ProgressChain, ProgressPart};
+use radio::RadioGroupChain;
+use segmented::SegmentedChain;
+use select::SelectChain;
+use slider::{SliderChain, SliderPart};
+use splitter::SplitterStart;
+use stepper::StepperChain;
+use switch::SwitchChain;
+use table::TableChain;
+use toggle::{ToggleChain, ToggleItemChain};
+use toggle_group::ToggleGroup;
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.

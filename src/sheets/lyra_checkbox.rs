@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::owned::CheckboxPart;
+use crate::owned::checkbox::CheckboxPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

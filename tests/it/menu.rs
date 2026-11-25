@@ -691,7 +691,7 @@ mod custom_item {
 }
 
 mod trigger {
-    use eggshell_ui::owned::Face;
+    use eggshell_ui::owned::button::Face;
     use eggshell_ui::{Icon, Opacity};
 
     use super::*;
@@ -762,14 +762,14 @@ mod trigger {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
-                style
-                    .sheet
-                    .as_app()
-                    .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
+                style.sheet.as_app().rule(
+                    eggshell_ui::owned::select::SelectPart::Trigger,
+                    move |t, _| {
                         t.descendants(eggshell_ui::Match::glyph(), |g| {
                             g.size_px(chevron).opacity(Opacity::new(opacity))
                         })
-                    });
+                    },
+                );
             }));
             d.frames(4);
             d

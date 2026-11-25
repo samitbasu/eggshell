@@ -9,8 +9,8 @@ use egui::{Role, Vec2};
 
 use super::Mark;
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, choice_card, choice_label,
-    choice_row, described, flip, options,
+    Card, Enablement, Form, OnResponse, Unset, choice_card, choice_label, choice_row, described,
+    flip, options, options::Gate, options::IntoTip, options::Validity,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -425,7 +425,7 @@ impl SwitchPart {
     ///
     /// ```
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
+    /// use eggshell_ui::owned::{Enablement, Mark, switch::SwitchPart};
     ///
     /// let keys = SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
     /// assert_eq!(keys.len(), 1);

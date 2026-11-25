@@ -9,8 +9,8 @@ use egui::Role;
 
 use super::Mark;
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, check, choice_card,
-    choice_label, choice_row, described, flip, options,
+    Card, Enablement, Form, OnResponse, Unset, check, choice_card, choice_label, choice_row,
+    described, flip, options, options::Gate, options::IntoTip, options::Validity,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -362,7 +362,7 @@ impl CheckboxPart {
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{CheckboxPart, Enablement, Mark};
+    /// use eggshell_ui::owned::{checkbox::CheckboxPart, Enablement, Mark};
     /// use eggshell_ui::sheet::Key;
     ///
     /// let keys = CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);

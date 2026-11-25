@@ -73,7 +73,7 @@ impl FieldPart {
     /// TODO(prose): the keys of a horizontal field and its label, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
-    /// use eggshell_ui::owned::{Enablement, FieldPart};
+    /// use eggshell_ui::owned::{Enablement, field::FieldPart};
     ///
     /// assert_eq!(FieldPart::keys(Enablement::Disabled).len(), 2);
     /// ```

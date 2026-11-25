@@ -14,8 +14,11 @@ use crate::contract::{Colors, Size};
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
 use crate::owned::{
-    Enablement, FieldBoxChain, Gate, IntoTip, Tip, described, options, painted, tip_describes,
-    tipped_whole,
+    Enablement, Tip, described,
+    field_box::FieldBoxChain,
+    options,
+    options::{Gate, IntoTip},
+    painted, tip_describes, tipped_whole,
 };
 use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, Tw, tw};
@@ -159,9 +162,9 @@ impl Readout {
                     .tabular_nums(),
             )
             .children(|s| {
-                let keys = crate::owned::input_keys(style.input.sizes.key_for(size), false);
+                let keys = crate::owned::input::keys(style.input.sizes.key_for(size), false);
                 let leaf = s.part(
-                    crate::owned::InputGroupPart::Input,
+                    crate::owned::input::InputGroupPart::Input,
                     &keys,
                     // The field is inset by egui's margin already, so its
                     // text stays where the readout drew it.

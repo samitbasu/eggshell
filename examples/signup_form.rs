@@ -228,7 +228,7 @@ fn field<'f>(
     classes: eggshell_ui::Tw,
     body: impl FnOnce(&mut B<'_, 'f>),
 ) {
-    use eggshell_ui::owned::FieldPart;
+    use eggshell_ui::owned::field::FieldPart;
     use eggshell_ui::sheet::Key;
     let keys: &[Key] = match error {
         Some(_) => &[Key::Attr("invalid", "true")],

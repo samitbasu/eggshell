@@ -3,7 +3,7 @@
 //! note's text in a tooltip, and a label column of row headers. Through the
 //! real draw path and AccessKit, in the shadcn preset the rig applies.
 
-use eggshell_ui::owned::Column;
+use eggshell_ui::owned::table::Column;
 use eggshell_ui::testing::assert_reported;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Problem, TextStyle, Track, tw};

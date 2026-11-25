@@ -9,8 +9,9 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::field::Session;
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::{
-    ButtonPart, Chevron, Enablement, FieldHooks, Gate, InputGroupPart, IntoTip, Tip, Validity,
-    centered, described, options, text_sized, tip_describes, tipped_whole,
+    Chevron, Enablement, FieldHooks, Tip, button::ButtonPart, centered, described,
+    input::InputGroupPart, options, options::Gate, options::IntoTip, options::Validity, text_sized,
+    tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Size, StepperStyle};
@@ -271,7 +272,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         };
         // shadcn has no number field: the stepper is an input group (its
         // one source), the field its input and the buttons its addon's.
-        let mut keys = super::input_keys(style.input.sizes.key_for(b.size_of(size)), false);
+        let mut keys = super::input::keys(style.input.sizes.key_for(b.size_of(size)), false);
         keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(crate::Aria::Disabled));
@@ -294,7 +295,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             .justify_start()
             .grow()
             .min_w_0();
-        let mut control_keys = super::input_keys(style.input.sizes.key_for(b.size_of(size)), false);
+        let mut control_keys =
+            super::input::keys(style.input.sizes.key_for(b.size_of(size)), false);
         control_keys.push(SheetKey::Attr("addon", "inline-end"));
         control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         control_keys.extend(invalid);

@@ -38,7 +38,7 @@ pub use parts::{AlertDialogPart, DialogPart, PopoverPart, SheetPart};
 pub use style::{DialogStyle, Surface, shadow_lg};
 
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
-use crate::owned::{ButtonChain, Face};
+use crate::owned::button::{ButtonChain, Face};
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, Icon, Scope, Tw, icons, tw};
 use egui::Role;

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use egui::Id;
 
 use super::toggle::{ToggleChain, ToggleItemChain};
-use super::{ButtonOptions, Face};
+use super::{button::ButtonOptions, button::Face};
 use crate::key::child_id;
 use crate::{Builder, Key};
 
@@ -15,7 +15,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 
 /// A set of toggles of which exactly one is on, as Radix's ToggleGroup of
 /// `type="single"`: radio semantics with toggle looks, with icons, labels or
-/// any [`children`](super::ButtonChain::children) as the members' content.
+/// any [`children`](super::button::ButtonChain::children) as the members' content.
 ///
 /// A group is a plain value: its key, the application's current value and
 /// the options and handler the members share. A member is on exactly when the
@@ -40,7 +40,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
-/// use eggshell_ui::owned::{ButtonOptions, ToggleGroup};
+/// use eggshell_ui::owned::{button::ButtonOptions, toggle_group::ToggleGroup};
 /// use eggshell_ui::{Builder, tw};
 ///
 /// #[derive(Clone, Copy, Debug, Hash, PartialEq)]

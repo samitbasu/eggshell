@@ -1,6 +1,6 @@
 //! The middle pane: title bar, conversation and composer.
 
-use eggshell_ui::owned::Cell;
+use eggshell_ui::owned::segmented::Cell;
 use eggshell_ui::scroll::Focusable;
 use eggshell_ui::{Builder, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};

@@ -32,7 +32,7 @@ use crate::owned::accordion::AccordionPart;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
-use crate::owned::{Enablement, Face};
+use crate::owned::{Enablement, button::Face};
 use crate::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
 use egui::{Color32, Role};
 

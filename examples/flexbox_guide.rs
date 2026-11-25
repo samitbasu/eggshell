@@ -16,7 +16,7 @@
 mod common;
 
 use common::{mono, sized};
-use eggshell_ui::owned::Cell;
+use eggshell_ui::owned::segmented::Cell;
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 

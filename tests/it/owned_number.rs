@@ -2,7 +2,7 @@
 //! key events and the accessibility check the support harness switches on.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{Enablement, SliderPart, Step};
+use eggshell_ui::owned::{Enablement, number::Step, slider::SliderPart};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -937,7 +937,7 @@ fn an_app_rule_restyles_a_sliders_range() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::SliderPart::Range, |t, _| {
+            .rule(eggshell_ui::owned::slider::SliderPart::Range, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))
@@ -961,7 +961,7 @@ fn an_app_rule_restyles_a_disabled_sliders_thumb() {
     )
     .style(support::shadcn_with(|style| {
         style.sheet.as_app().rule_when(
-            eggshell_ui::owned::SliderPart::Thumb,
+            eggshell_ui::owned::slider::SliderPart::Thumb,
             eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
             |t, _| t.bg(egui::Color32::RED),
         );
@@ -985,7 +985,7 @@ fn an_app_rule_restyles_a_steppers_group() {
     )
     .style(support::shadcn_with(|style| {
         style.sheet.as_app().rule_when(
-            eggshell_ui::owned::InputGroupPart::Root,
+            eggshell_ui::owned::input::InputGroupPart::Root,
             eggshell_ui::sheet::When::always().attr("stepper", "true"),
             |t, _| t.bg(egui::Color32::RED),
         );

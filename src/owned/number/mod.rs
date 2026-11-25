@@ -94,10 +94,10 @@ impl<A> Edits<A> {
 /// A range converted from `start..=end` that is not one is mended: an end
 /// that is not finite becomes the other end (both, `0.0`), and reversed ends
 /// are swapped. A widget given a mended range reports
-/// [`Problem::BadRange`](crate::Problem::BadRange).
+/// [`Problem::BadRange`].
 ///
 /// ```
-/// use eggshell_ui::owned::ValueRange;
+/// use eggshell_ui::owned::number::ValueRange;
 ///
 /// let range = ValueRange::from(0.0..=10.0);
 /// assert_eq!((range.start(), range.end()), (0.0, 10.0));
@@ -123,7 +123,7 @@ impl ValueRange {
     /// TODO(prose): the range from `start` to `end`, if both are finite and `start` is not past `end`.
     ///
     /// ```
-    /// use eggshell_ui::owned::ValueRange;
+    /// use eggshell_ui::owned::number::ValueRange;
     ///
     /// assert!(ValueRange::new(0.0, 1.0).is_some());
     /// assert!(ValueRange::new(0.0, f64::INFINITY).is_none());
@@ -139,7 +139,7 @@ impl ValueRange {
     /// TODO(prose): the lowest value.
     ///
     /// ```
-    /// use eggshell_ui::owned::ValueRange;
+    /// use eggshell_ui::owned::number::ValueRange;
     ///
     /// assert_eq!(ValueRange::from(2.0..=3.0).start(), 2.0);
     /// ```
@@ -150,7 +150,7 @@ impl ValueRange {
     /// TODO(prose): the highest value.
     ///
     /// ```
-    /// use eggshell_ui::owned::ValueRange;
+    /// use eggshell_ui::owned::number::ValueRange;
     ///
     /// assert_eq!(ValueRange::from(2.0..=3.0).end(), 3.0);
     /// ```

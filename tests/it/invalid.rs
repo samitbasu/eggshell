@@ -248,7 +248,7 @@ fn a_choices_field_label_turns_destructive_when_it_is_invalid() {
 }
 
 fn hinted(b: &mut Builder<'_, '_, ()>, _: &()) {
-    use eggshell_ui::owned::FieldPart;
+    use eggshell_ui::owned::field::FieldPart;
     use eggshell_ui::sheet::Key;
     b.div_id(
         "Page",

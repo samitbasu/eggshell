@@ -10,7 +10,7 @@ mod common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::tabs::TabsExt;
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::{Builder, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

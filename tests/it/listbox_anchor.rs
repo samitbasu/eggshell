@@ -4,7 +4,7 @@
 //! keys, and the accessibility tree the frame hands the platform.
 
 use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
-use eggshell_ui::owned::Choice;
+use eggshell_ui::owned::choice::Choice;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Role as AccessRole};
 use egui::{Color32, FontFamily, Key, Role, vec2};

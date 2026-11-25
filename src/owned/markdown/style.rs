@@ -1,7 +1,7 @@
 //! How the Markdown widget looks.
 
 use crate::contract::Em;
-use crate::owned::TablePart;
+use crate::owned::table::TablePart;
 use crate::sheet::Sheet;
 use crate::theme::Tokens;
 use crate::{Style, TextSpec, Tracking, Tw, Weight};

@@ -7,8 +7,9 @@ use egui::Role;
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Validity, announce_group, choice_card,
-    choice_label, choice_row, described, options, tip_describes, tipped_whole,
+    Card, Enablement, Form, OnResponse, announce_group, choice_card, choice_label, choice_row,
+    described, options, options::Gate, options::IntoTip, options::Validity, tip_describes,
+    tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -340,7 +341,7 @@ impl RadioGroupPart {
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, RadioGroupPart};
+    /// use eggshell_ui::owned::{Enablement, Mark, radio::RadioGroupPart};
     /// use eggshell_ui::sheet::Key;
     ///
     /// let keys = RadioGroupPart::item_keys(Size::DEFAULT, Mark::Off, Enablement::Disabled);

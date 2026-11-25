@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::overlay::{Nav, Shown, Wrap};
-use crate::owned::{Enablement, Face};
+use crate::owned::{Enablement, button::Face};
 use crate::{Builder, Key, Scope, Tw, tw};
 
 use crate::owned::disclosure::SectionExt;

@@ -28,7 +28,7 @@
 
 mod style;
 
-use crate::owned::FieldPart;
+use crate::owned::field::FieldPart;
 use crate::sheet::Part;
 use crate::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};

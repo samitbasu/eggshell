@@ -564,7 +564,7 @@ pub struct Metrics {
 
 /// TODO(prose): toggle buttons: their sizes and their looks off and on. A
 /// plain button's look is the [`sheet`](Style::sheet)'s
-/// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with
+/// ([`ButtonPart`](crate::owned::button::ButtonPart)); a toggle's moves there with
 /// its own shadcn source, `toggle.tsx`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -575,7 +575,7 @@ pub struct ToggleStyle {
     /// Border width of a toggle, off or on.
     pub border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
-    /// with [`ButtonChain::variant`](crate::owned::ButtonChain::variant) for toggles as
+    /// with [`ButtonChain::variant`](crate::owned::button::ButtonChain::variant) for toggles as
     /// for buttons.
     pub off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.
@@ -686,7 +686,7 @@ pub struct ProgressStyle {
     pub range: Colors,
 }
 
-/// TODO(prose): Select triggers: each size's metrics and the chevron. The trigger's look is the sheet's [`SelectPart::Trigger`](crate::owned::SelectPart::Trigger); the list it opens is drawn from [`MenuStyle`].
+/// TODO(prose): Select triggers: each size's metrics and the chevron. The trigger's look is the sheet's [`SelectPart::Trigger`](crate::owned::select::SelectPart::Trigger); the list it opens is drawn from [`MenuStyle`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
@@ -701,7 +701,7 @@ pub struct SelectStyle {
     pub chevron_opacity: Opacity,
 }
 
-/// TODO(prose): Menus: the metrics of a dropdown's, a context menu's and a submenu's box, items and shortcuts, and of the list a select opens. Their look is the sheet's [`MenuPart`](crate::owned::MenuPart)s and [`SelectPart`](crate::owned::SelectPart)s.
+/// TODO(prose): Menus: the metrics of a dropdown's, a context menu's and a submenu's box, items and shortcuts, and of the list a select opens. Their look is the sheet's [`MenuPart`](crate::owned::menu::MenuPart)s and [`SelectPart`](crate::owned::select::SelectPart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MenuStyle {
@@ -737,7 +737,7 @@ pub struct Arrow {
     pub size: f32,
 }
 
-/// TODO(prose): Tooltips: the optional arrow, where the box sits and the timing. The box's look is the sheet's [`TooltipPart::Content`](crate::owned::TooltipPart::Content); how one enters and leaves is [`MotionStyle::tooltip`].
+/// TODO(prose): Tooltips: the optional arrow, where the box sits and the timing. The box's look is the sheet's [`TooltipPart::Content`](crate::owned::tooltip::TooltipPart::Content); how one enters and leaves is [`MotionStyle::tooltip`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TooltipStyle {
@@ -885,7 +885,7 @@ pub struct InputMetrics {
 
 /// TODO(prose): Text fields, which are egui's `TextEdit` wrapped: egui paints them from
 /// fixed widget slots, so [`Style::map_input`] approximates the sheet's
-/// [`InputPart::Root`](crate::owned::InputPart::Root) and this section on
+/// [`InputPart::Root`](crate::owned::input::InputPart::Root) and this section on
 /// the field's own `Ui`, and the library's size estimate reads the same
 /// values.
 ///
@@ -1056,7 +1056,7 @@ pub enum GroupEnd {
     },
 }
 
-/// TODO(prose): Tables: a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::TablePart)s.
+/// TODO(prose): Tables: a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::table::TablePart)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableStyle {
@@ -1850,11 +1850,11 @@ impl Style {
     /// exceptions over them.
     fn write_look(&mut self) {
         if self.tokens.theme == Theme::Dark {
-            crate::owned::write_dark_card_label(&mut self.sheet);
+            crate::owned::field::write_dark_card_label(&mut self.sheet);
         }
-        crate::owned::write_group_band(&mut self.sheet);
+        crate::owned::table::write_group_band(&mut self.sheet);
         crate::sheets::write(&mut self.sheet, self.tokens.style, self.tokens.theme);
-        crate::owned::write_field_sizes(&mut self.sheet, &self.tokens);
+        crate::owned::input::write_field_sizes(&mut self.sheet, &self.tokens);
         self.write_exceptions();
         #[cfg(feature = "disclosure")]
         {
@@ -1885,7 +1885,7 @@ impl Style {
         size: Size,
         aria: Option<crate::Aria>,
     ) {
-        use crate::owned::{Frame, InputPart, input_keys};
+        use crate::owned::input::{Frame, InputPart, keys as input_keys};
         let input = &self.input;
         let size = input.sizes.key_for(size);
         let mut keys = input_keys(size, false);
@@ -1918,16 +1918,16 @@ impl Style {
 
     /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. The tabs': the track keeps its fill, the trigger's 1 px trim comes out of its padding, the sizes other than the default keep their metrics, and wrapping lists keep their rows. The menu's: an item of the default variant keeps the generated look. The table's: its bands' borders, the last row's, a selected row's fill under the pointer, stripes and the first column's inset. The choice controls': a radio's dot is centred in its circle, and a size their rules leave out keeps its metrics. A preset calls this after its generated look.
     fn write_exceptions(&mut self) {
-        crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
-        crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
-        crate::owned::write_tabs_exceptions(&mut self.sheet);
-        crate::owned::write_menu_exceptions(&mut self.sheet);
+        crate::owned::input::write_exceptions(&mut self.sheet, &self.input);
+        crate::owned::select::write_select_exceptions(&mut self.sheet, &self.select);
+        crate::owned::tabs::write_exceptions(&mut self.sheet);
+        crate::owned::menu::write_exceptions(&mut self.sheet);
         // A disabled slider's blends go over its track's.
         crate::owned::write_track_exceptions(&mut self.sheet);
-        crate::owned::write_slider_exceptions(&mut self.sheet);
-        crate::owned::write_stepper_exceptions(&mut self.sheet, &self.stepper);
-        crate::owned::write_table_exceptions(&mut self.sheet);
-        crate::owned::write_choice_exceptions(
+        crate::owned::slider::write_exceptions(&mut self.sheet);
+        crate::owned::stepper::write_exceptions(&mut self.sheet, &self.stepper);
+        crate::owned::table::write_exceptions(&mut self.sheet);
+        crate::owned::field::write_exceptions(
             &mut self.sheet,
             (&self.checkbox, &self.radio, &self.switch),
         );

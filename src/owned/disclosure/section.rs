@@ -4,7 +4,7 @@ use crate::owned::accordion::AccordionPart;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
-use crate::owned::{Enablement, Face};
+use crate::owned::{Enablement, button::Face};
 use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 

@@ -4,7 +4,7 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::Modal;
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::testing::{After, Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Role, vec2};

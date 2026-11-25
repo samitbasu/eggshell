@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::contract::Themed;
-use eggshell_ui::owned::PaneSize;
+use eggshell_ui::owned::splitter::PaneSize;
 use eggshell_ui::testing::{After, Animation, Driver, Focused, Reports, Target, WindowFocus};
 use eggshell_ui::{Builder, Problem, Style, tw};
 use egui::{Key, Role, vec2};

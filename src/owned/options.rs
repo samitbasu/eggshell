@@ -7,8 +7,9 @@ use std::sync::Arc;
 use egui::text::LayoutJob;
 use egui::{Galley, Id, RichText, WidgetText};
 
-use super::{Content, Enablement, Tip, TipContent, Tooltip};
+use super::{Enablement, Tip, TipContent};
 use crate::Builder;
+use crate::tooltip::{Content, Tooltip};
 
 /// TODO(prose): text for a tooltip or a refusal, or `None` for none.
 ///

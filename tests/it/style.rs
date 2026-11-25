@@ -676,7 +676,11 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 #[test]
 fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varies() {
     use eggshell_ui::contract::Size;
-    use eggshell_ui::owned::{Cell, Enablement, SegmentedRows, TabsPart};
+    use eggshell_ui::owned::{
+        Enablement,
+        segmented::{Cell, SegmentedRows},
+        tabs::TabsPart,
+    };
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
         let tokens = Tokens::for_theme(theme);
@@ -721,7 +725,7 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
 /// preset's.
 #[test]
 fn a_section_set_after_the_preset_keeps_the_presets_look() {
-    use eggshell_ui::owned::TooltipPart;
+    use eggshell_ui::owned::tooltip::TooltipPart;
     let mut style = Shadcn::for_theme(Theme::Light).style();
     let before = style
         .sheet

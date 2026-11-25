@@ -6,7 +6,7 @@ use std::time::Duration;
 use egui::Color32;
 use egui::Shadow;
 use crate::contract::{Size};
-use crate::owned::InputGroupPart;
+use crate::owned::input::InputGroupPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

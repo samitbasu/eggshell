@@ -89,7 +89,7 @@ pub fn classes(
     size: eggshell_ui::contract::Size,
 ) -> eggshell_ui::Tw {
     style.sheet.resolve(
-        eggshell_ui::owned::ButtonPart::Root,
+        eggshell_ui::owned::button::ButtonPart::Root,
         &[
             eggshell_ui::sheet::Key::Variant(variant),
             eggshell_ui::sheet::Key::Size(size),

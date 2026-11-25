@@ -2,7 +2,7 @@
 //! inherits, else the default (#127).
 
 use eggshell_ui::contract::{Size, Style};
-use eggshell_ui::owned::ButtonPart;
+use eggshell_ui::owned::button::ButtonPart;
 use eggshell_ui::sheet::When;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};

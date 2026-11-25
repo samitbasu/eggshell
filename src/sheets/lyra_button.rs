@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Size, Variant};
-use crate::owned::ButtonPart;
+use crate::owned::button::ButtonPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

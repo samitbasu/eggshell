@@ -6,7 +6,12 @@ use core::time::Duration;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed};
-use eggshell_ui::owned::{Cell, Enablement, Mark, SegmentedRows, SwitchPart, TabsPart};
+use eggshell_ui::owned::{
+    Enablement, Mark,
+    segmented::{Cell, SegmentedRows},
+    switch::SwitchPart,
+    tabs::TabsPart,
+};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use egui::epaint::{CircleShape, Shape};
@@ -676,7 +681,9 @@ mod tiling {
 /// An app's rules on the choice controls' parts reach what they draw.
 mod app_rules {
     use eggshell_ui::Aria;
-    use eggshell_ui::owned::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+    use eggshell_ui::owned::{
+        checkbox::CheckboxPart, field::FieldPart, radio::RadioGroupPart, switch::SwitchPart,
+    };
     use eggshell_ui::sheet::When;
     use egui::Color32;
 

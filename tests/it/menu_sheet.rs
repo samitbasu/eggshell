@@ -1,7 +1,7 @@
 //! A menu's parts are drawn from the style's sheet, so a rule on a part
 //! restyles every menu that builds it.
 
-use eggshell_ui::owned::{Mark, MenuPart};
+use eggshell_ui::owned::{Mark, menu::MenuPart};
 use eggshell_ui::testing::Target;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};

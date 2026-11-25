@@ -12,7 +12,7 @@ use crate::sheet::{Key, Part, Sheet, When};
 use crate::theme::{Tokens, size};
 use crate::{Aria, Builder, Match};
 
-use super::{Cell, Enablement, SegmentedRows};
+use super::{Enablement, segmented::Cell, segmented::SegmentedRows};
 
 /// TODO(prose): the anatomy of tabs: shadcn's `tabs`. A segmented control is
 /// a list of triggers alone.
@@ -75,7 +75,7 @@ impl TabsPart {
     ///
     /// ```
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, SegmentedRows, TabsPart};
+    /// use eggshell_ui::owned::{Enablement, segmented::SegmentedRows, tabs::TabsPart};
     ///
     /// let keys = TabsPart::list_keys(Size::DEFAULT, SegmentedRows::One, Enablement::Enabled);
     /// assert_eq!(keys.len(), 2);
@@ -91,7 +91,7 @@ impl TabsPart {
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Cell, Enablement, SegmentedRows, TabsPart};
+    /// use eggshell_ui::owned::{segmented::{Cell, SegmentedRows}, Enablement, tabs::TabsPart};
     /// use eggshell_ui::sheet::Key;
     ///
     /// let keys = TabsPart::trigger_keys(

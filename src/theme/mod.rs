@@ -129,7 +129,7 @@ pub mod size {
 }
 
 /// The names of shadcn's button variants, as the preset's sheet names them
-/// for [`ButtonPart`](crate::owned::ButtonPart). shadcn's `default` is
+/// for [`ButtonPart`](crate::owned::button::ButtonPart). shadcn's `default` is
 /// [`PRIMARY`](variant::PRIMARY); a button that names no variant is
 /// [`SECONDARY`](variant::SECONDARY).
 pub mod variant {

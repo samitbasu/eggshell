@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/input.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use egui::Color32;
-use crate::owned::InputPart;
+use crate::owned::input::InputPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 

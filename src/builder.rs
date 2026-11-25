@@ -318,7 +318,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// context's, so a scope cannot change which faces exist.
     ///
     /// ```
-    /// use eggshell_ui::owned::TablePart;
+    /// use eggshell_ui::owned::table::TablePart;
     /// use eggshell_ui::{Builder, tw};
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
@@ -2345,7 +2345,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
-    pub(crate) fn sizes_pane(mut self, side: crate::owned::Side) -> Self {
+    pub(crate) fn sizes_pane(mut self, side: crate::owned::splitter::Side) -> Self {
         self.edit(|context| context.pane = Some(side));
         self
     }
@@ -2357,7 +2357,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     #[track_caller]
     pub fn context_menu(
         mut self,
-        items: impl for<'m> FnOnce(&mut crate::owned::Menu<'m, 'f, A>),
+        items: impl for<'m> FnOnce(&mut crate::owned::menu::Menu<'m, 'f, A>),
     ) -> Self {
         let (owner, path) = (self.id, self.path());
         self.edit(|context| {
@@ -2369,8 +2369,8 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         });
         let kept = self.b.kept().clone();
         let mut this =
-            self.draw(move |_, ui| crate::owned::open_on_secondary_click(ui, &kept, owner));
-        crate::owned::context(this.b.reborrow(), owner, &path, items);
+            self.draw(move |_, ui| crate::owned::menu::open_on_secondary_click(ui, &kept, owner));
+        crate::owned::menu::context(this.b.reborrow(), owner, &path, items);
         this
     }
 
@@ -2683,7 +2683,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```
 /// use eggshell_ui::Scope;
-/// use eggshell_ui::owned::ButtonChain;
+/// use eggshell_ui::owned::button::ButtonChain;
 ///
 /// struct App { saves: u32 }
 ///
@@ -2704,7 +2704,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::ButtonChain;
+/// use eggshell_ui::owned::button::ButtonChain;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     let mut later: Option<ButtonChain<'_, '_, ()>> = None;

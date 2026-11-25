@@ -60,7 +60,7 @@ const COMPONENTS: [&str; 28] = [
 const WIDGETS: [emit::Widget; 27] = [
     emit::Widget {
         component: "button",
-        home: Home::Core,
+        home: Home::Core("button"),
         checked_in: true,
         variants: &[
             ("default", &["primary"]),
@@ -79,7 +79,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "input",
-        home: Home::Core,
+        home: Home::Core("input"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -95,7 +95,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "input-group",
-        home: Home::Core,
+        home: Home::Core("input"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -131,7 +131,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "select",
-        home: Home::Core,
+        home: Home::Core("select"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -196,7 +196,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "dropdown-menu",
-        home: Home::Core,
+        home: Home::Core("menu"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -212,7 +212,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "tooltip",
-        home: Home::Core,
+        home: Home::Core("tooltip"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -231,7 +231,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "checkbox",
-        home: Home::Core,
+        home: Home::Core("checkbox"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -255,7 +255,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "radio-group",
-        home: Home::Core,
+        home: Home::Core("radio"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -278,7 +278,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "switch",
-        home: Home::Core,
+        home: Home::Core("switch"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -303,7 +303,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "field",
-        home: Home::Core,
+        home: Home::Core("field"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -328,7 +328,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "table",
-        home: Home::Core,
+        home: Home::Core("table"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -481,7 +481,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "slider",
-        home: Home::Core,
+        home: Home::Core("slider"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -573,7 +573,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "progress",
-        home: Home::Core,
+        home: Home::Core("progress"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -592,7 +592,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "tabs",
-        home: Home::Core,
+        home: Home::Core("tabs"),
         checked_in: true,
         variants: &[("line", &[])],
         sizes: &[],
@@ -1411,8 +1411,8 @@ mod tests {
     #[test]
     fn the_sheets_index_declares_and_writes_every_migrated_widget_in_each_style() {
         let index = index(&[
-            ("button", Home::Core),
-            ("input-group", Home::Core),
+            ("button", Home::Core("button")),
+            ("input-group", Home::Core("input")),
             (
                 "combobox",
                 Home::Feature {

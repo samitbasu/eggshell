@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 
 use eggshell_ui::Progress;
-use eggshell_ui::owned::PaneSize;
+use eggshell_ui::owned::splitter::PaneSize;
 use eggshell_ui::theme::ThemeColor;
 use egui::Vec2;
 

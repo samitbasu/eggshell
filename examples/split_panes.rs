@@ -6,7 +6,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::owned::PaneSize;
+use eggshell_ui::owned::splitter::PaneSize;
 use eggshell_ui::{Builder, tw};
 
 const FILES: [&str; 6] = [

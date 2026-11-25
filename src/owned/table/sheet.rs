@@ -93,7 +93,7 @@ impl TablePart {
     }
 
     /// TODO(prose): every second body row of a table with
-    /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), the ones a stripe fills.
+    /// [`Stripes::Alternate`](crate::owned::table::Stripes::Alternate), the ones a stripe fills.
     pub fn striped_row() -> When {
         When::always().attr(STRIPE.0, STRIPE.1)
     }

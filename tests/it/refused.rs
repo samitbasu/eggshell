@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Command, Commands, Style, TextStyle, tw};
@@ -441,7 +441,7 @@ fn a_refused_field_takes_the_disabled_look() {
     let enabled_border = style
         .sheet
         .resolve(
-            eggshell_ui::owned::InputGroupPart::Root,
+            eggshell_ui::owned::input::InputGroupPart::Root,
             &[eggshell_ui::sheet::Key::Size(
                 eggshell_ui::contract::Size::DEFAULT,
             )],

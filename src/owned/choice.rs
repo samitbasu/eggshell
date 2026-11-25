@@ -6,14 +6,15 @@ use std::fmt::Display;
 use egui::WidgetText;
 
 use super::options::Refused;
-use super::{Enablement, IntoTip, Tooltip};
+use super::{Enablement, options::IntoTip};
 use crate::Icon;
+use crate::tooltip::Tooltip;
 
 /// One option of a radio group, a segmented control or a select: the `value`
 /// it chooses and how it is shown.
 ///
 /// ```
-/// # use eggshell_ui::owned::{Choice, Enablement};
+/// # use eggshell_ui::owned::{choice::Choice, Enablement};
 /// let beta = Choice::new(2, "Beta")
 ///     .tooltip("Not final")
 ///     .enablement(Enablement::Disabled);
@@ -63,7 +64,7 @@ impl<T> Choice<T> {
     /// TODO(prose): shows `text` under the label of a card.
     ///
     /// ```
-    /// # use eggshell_ui::owned::Choice;
+    /// # use eggshell_ui::owned::choice::Choice;
     /// let pro = Choice::new(2, "Pro").description("For teams");
     /// assert_eq!(pro.description.as_deref(), Some("For teams"));
     /// ```

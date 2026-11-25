@@ -15,9 +15,12 @@ pub use crate::focus::Select;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
+use crate::owned::input::{INLINE_END, INLINE_START};
 use crate::owned::options::{self, Gate, Validity};
-use crate::owned::{Enablement, FieldBoxChain, InputGroupPart, IntoTip, text_sized, tipped};
-use crate::owned::{INLINE_END, INLINE_START};
+use crate::owned::{
+    Enablement, field_box::FieldBoxChain, input::InputGroupPart, options::IntoTip, text_sized,
+    tipped,
+};
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
 use crate::{Builder, Icon, Key, Measure, Tw, tw};
@@ -474,7 +477,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             });
         }
         let icons = leading.is_some() || trailing.is_some();
-        let mut control_keys = crate::owned::input_keys(
+        let mut control_keys = crate::owned::input::keys(
             style.input.sizes.key_for(size),
             enablement == Enablement::Disabled,
         );

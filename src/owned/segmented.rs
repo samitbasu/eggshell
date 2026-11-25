@@ -9,8 +9,8 @@ use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::options::Refused;
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, TabsPart, Tip, announce_group, described, options,
-    tip_describes, tipped_whole,
+    Enablement, OnResponse, Tip, announce_group, described, options, options::Gate,
+    options::IntoTip, tabs::TabsPart, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;

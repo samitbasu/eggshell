@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::owned::{Cells, Column};
+use crate::owned::table::{Cells, Column};
 use crate::{Builder, Key, Scope, Shell, Spans, Track, Tw, child_id, tw};
 use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};

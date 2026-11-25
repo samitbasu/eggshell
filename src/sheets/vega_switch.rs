@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Size};
-use crate::owned::SwitchPart;
+use crate::owned::switch::SwitchPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 

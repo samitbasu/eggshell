@@ -2234,15 +2234,16 @@ mod tooltip_candidates {
             tokens.popover_foreground,
             tokens.shadow_md,
         );
-        style
-            .sheet
-            .rule(eggshell_ui::owned::TooltipPart::Content, move |t, _| {
+        style.sheet.rule(
+            eggshell_ui::owned::tooltip::TooltipPart::Content,
+            move |t, _| {
                 t.bg(fill)
                     .border(1.0)
                     .border_color(border)
                     .text(text)
                     .shadow(shadow)
-            });
+            },
+        );
         let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);

@@ -184,7 +184,7 @@ const SHIFT_STEP: f32 = 50.0;
 ///
 /// ```compile_fail
 /// # use eggshell_ui::Builder;
-/// # use eggshell_ui::owned::PaneSize;
+/// # use eggshell_ui::owned::splitter::PaneSize;
 /// # fn view(b: &mut Builder<'_, '_, f32>) {
 /// b.splitter("left")
 ///     .before(PaneSize::new(240.0))
@@ -196,7 +196,7 @@ const SHIFT_STEP: f32 = 50.0;
 /// ```compile_fail
 /// #![deny(unused_must_use)]
 /// # use eggshell_ui::Builder;
-/// # use eggshell_ui::owned::PaneSize;
+/// # use eggshell_ui::owned::splitter::PaneSize;
 /// # fn view(b: &mut Builder<'_, '_, f32>) {
 /// b.splitter("left").before(PaneSize::new(240.0)).range(160.0..=480.0);
 /// # }
@@ -230,7 +230,7 @@ impl<'a, 'f, A: 'static> SplitterStart<'a, 'f, A> {
 /// [`on_resize`](Self::on_resize).
 ///
 /// ```
-/// use eggshell_ui::owned::PaneSize;
+/// use eggshell_ui::owned::splitter::PaneSize;
 /// use eggshell_ui::{Builder, tw};
 ///
 /// struct App {

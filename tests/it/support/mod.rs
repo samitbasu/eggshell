@@ -999,7 +999,7 @@ pub fn part_at<P: eggshell_ui::sheet::Part>(
 
 /// The border width and rest colour `style`'s sheet gives a text field.
 pub fn input_border(style: &eggshell_ui::Style) -> (f32, Color32) {
-    let classes = part(style, eggshell_ui::owned::InputPart::Root);
+    let classes = part(style, eggshell_ui::owned::input::InputPart::Root);
     let width = classes.style_at(style.tokens.spacing).border.left;
     let color = classes.paint_classes().border_colors.top;
     (
@@ -1020,7 +1020,7 @@ pub struct FieldBox {
 pub fn field_box(style: &eggshell_ui::Style, size: eggshell_ui::contract::Size) -> FieldBox {
     let classes = part_at(
         style,
-        eggshell_ui::owned::InputPart::Root,
+        eggshell_ui::owned::input::InputPart::Root,
         &[eggshell_ui::sheet::Key::Size(size)],
     );
     let layout = classes.style_at(style.tokens.spacing);

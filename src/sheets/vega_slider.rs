@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/slider.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use egui::Color32;
-use crate::owned::SliderPart;
+use crate::owned::slider::SliderPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 
