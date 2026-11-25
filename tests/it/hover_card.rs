@@ -3,7 +3,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::hover_card::{HoverCardExt as _, HoverCardStyle};
+use eggshell_ui::owned::hover_card::HoverCardExt as _;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
@@ -76,9 +76,9 @@ fn shown(d: &Driver<App>, card: &str) -> Option<egui::Rect> {
 #[test]
 fn the_shadcn_preset_gives_shadcns_hover_card() {
     let d = harness();
-    let given = d.shell().style().extension::<HoverCardStyle>();
+    let given = d.shell().style().hover_card.clone();
     let preset = Shadcn::of(d.ctx());
-    assert_eq!(*given, preset.hover_card());
+    assert_eq!(given, preset.style().hover_card);
     assert_eq!(given.width, 256.0, "w-64");
     assert_eq!(given.padding, 16.0, "p-4");
     assert_eq!(given.radius, preset.tokens.radius_lg(), "rounded-lg");

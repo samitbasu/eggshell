@@ -5,7 +5,7 @@ use crate::owned::TablePart;
 use crate::sheet::Sheet;
 use crate::theme::Tokens;
 use crate::{Style, TextSpec, Tracking, Tw, Weight};
-use egui::{Color32, FontFamily};
+use egui::Color32;
 
 use super::parse::Level;
 
@@ -121,12 +121,6 @@ impl TableLook {
                 t.pl_px(first_column_inset)
             });
         }
-    }
-}
-
-impl crate::contract::Extension for MarkdownStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
     }
 }
 
@@ -266,87 +260,6 @@ pub struct UnsupportedStyle {
 }
 
 impl MarkdownStyle {
-    /// TODO(prose)
-    pub fn from_style(style: &Style) -> Self {
-        let border = crate::owned::styles::input_border(style);
-        let muted = style.input.hint.unwrap_or(style.label.disabled.text);
-        let body = &style.text;
-        let mono = |scale: f32| TextSpec {
-            size: body.size * scale,
-            line_height: body.line_height * scale,
-            family: FontFamily::Monospace,
-            weight: Weight::Normal,
-        };
-        let heading = |size: f32, line_height: f32, weight, margin_top, rule| HeadingStyle {
-            text: TextSpec {
-                size,
-                line_height,
-                family: body.family.clone(),
-                weight,
-            },
-            tracking: Tracking::points(-0.025 * size),
-            margin_top,
-            after_heading: margin_top,
-            after_rule: margin_top,
-            color: None,
-            case: Case::AsWritten,
-            rule,
-        };
-        let block_gap = 6.0;
-        Self {
-            body: None,
-            color: None,
-            block_gap,
-            after_heading: block_gap,
-            rule_gap: block_gap,
-            headings: [
-                heading(36.0, 40.0, Weight::Bold, 6.0, HeadingRule::None),
-                heading(
-                    30.0,
-                    36.0,
-                    Weight::SemiBold,
-                    10.0,
-                    HeadingRule::Below { padding: 2.0 },
-                ),
-                heading(24.0, 32.0, Weight::SemiBold, 8.0, HeadingRule::None),
-                heading(20.0, 28.0, Weight::SemiBold, 6.0, HeadingRule::None),
-                heading(18.0, 28.0, Weight::SemiBold, 6.0, HeadingRule::None),
-                heading(16.0, 24.0, Weight::SemiBold, 6.0, HeadingRule::None),
-            ],
-            list: ListStyle {
-                indent: 6.0,
-                marker_gap: 2.0,
-                item_gap: 2.0,
-                marker: muted,
-            },
-            quote: QuoteStyle {
-                border,
-                border_width: 2.0,
-                padding: 6.0,
-                text: style.label.rest.text,
-                font_style: crate::FontStyle::Italic,
-            },
-            code: CodeBlockStyle {
-                fill: style.rich.code.fill,
-                border,
-                border_width: 0.0,
-                radius: 8.0,
-                padding_x: 4.0,
-                padding_y: 4.0,
-                text: mono(0.875),
-            },
-            rule: border,
-            unsupported: UnsupportedStyle {
-                fill: Color32::TRANSPARENT,
-                border,
-                label: muted,
-                text: mono(0.875),
-            },
-            table: None,
-            rich: None,
-        }
-    }
-
     /// The style of `level`'s headings.
     pub fn heading(&self, level: Level) -> &HeadingStyle {
         let [h1, h2, h3, h4, h5, h6] = &self.headings;

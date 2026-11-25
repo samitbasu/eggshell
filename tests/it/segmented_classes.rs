@@ -3,10 +3,10 @@
 //! their keys draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
-use eggshell_ui::contract::{Disabled, Size, Style};
+use eggshell_ui::contract::{Size, Style};
 use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
 use eggshell_ui::theme::Tokens;
-use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
+use eggshell_ui::{Builder, Icon, TextStyle, tw};
 use egui::{Theme, vec2};
 use egui_kittest::Harness;
 
@@ -27,8 +27,6 @@ enum Ambient {
     Plain,
     Small,
     Inert,
-    /// Inert, under a style that draws disabled controls faded.
-    InertFaded,
 }
 
 struct App {
@@ -37,12 +35,8 @@ struct App {
 }
 
 fn edit(style: &mut Style, ambient: Ambient) {
-    // The disabled token reaches the widgets' own look, not the preset's.
-    if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
+    if ambient == Ambient::Inert {
         *style = Style::default();
-    }
-    if ambient == Ambient::InertFaded {
-        style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
     style.sheet.as_app();
 }
@@ -52,7 +46,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     let around = match app.ambient {
         Ambient::Plain => tw(),
         Ambient::Small => tw().control_size(SM),
-        Ambient::Inert | Ambient::InertFaded => tw().inert(),
+        Ambient::Inert => tw().inert(),
     };
     let rows = app.rows;
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {

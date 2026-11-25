@@ -2,6 +2,7 @@
 
 mod filter;
 mod list;
+pub(crate) use list::write_exceptions;
 mod parts;
 mod style;
 
@@ -11,7 +12,6 @@ use std::sync::Arc;
 use crate::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
 use crate::owned::Mark;
 use crate::prim::text_field::Select;
-use crate::sheet::Defaults;
 use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
@@ -220,13 +220,7 @@ impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
                     .named(name)
                     .on_dismiss(move |app| dismiss(app))
                     .children(|s| {
-                        let style = Arc::clone(s.style());
-                        let classes = s.part_over(
-                            CommandPart::Dialog,
-                            &[],
-                            Defaults(list::dialog_classes(&style)),
-                            tw(),
-                        );
+                        let classes = s.part(CommandPart::Dialog, &[], tw());
                         s.div_id(Part::Box, classes, |s| {
                             list::show(s, key, given, options, ListOptions::palette(Some(close)));
                         });
@@ -315,7 +309,7 @@ impl Typing {
     };
 
     fn id(combobox: Id) -> Id {
-        combobox.with("eggshell-ui-extras-typing")
+        combobox.with("eggshell-ui-typing")
     }
 
     fn load(ctx: &egui::Context, combobox: Id) -> Self {
@@ -427,12 +421,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         let group_id = b.id_of((key, Part::Group));
         let mut field_id = Id::NULL;
         let caller = std::mem::replace(&mut options.classes, tw());
-        let group_classes = b.part_over(
-            ComboboxPart::Input,
-            &[],
-            Defaults(list::group_classes(&style)),
-            caller,
-        );
+        let group_classes = b.part(ComboboxPart::Input, &[], caller);
         let (placeholder, name) = (options.placeholder.clone(), options.name.clone());
         let error = options.error.take();
         let open = state.open;
@@ -497,12 +486,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             match clearing {
                 Some(clear) => {
                     let cleared = ctx.clone();
-                    let icon = s.part_over(
-                        ComboboxPart::ClearIcon,
-                        &[],
-                        Defaults(list::end_glyph_classes(&style)),
-                        tw(),
-                    );
+                    let icon = s.part(ComboboxPart::ClearIcon, &[], tw());
                     s.div_id((key, Part::Clear), list::end_button_classes(&style), |s| {
                         s.glyph(icon, Icon::new(icons::CLOSE));
                     })
@@ -514,12 +498,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                     });
                 }
                 None => {
-                    let icon = s.part_over(
-                        ComboboxPart::TriggerIcon,
-                        &[],
-                        Defaults(list::end_glyph_classes(&style)),
-                        tw(),
-                    );
+                    let icon = s.part(ComboboxPart::TriggerIcon, &[], tw());
                     s.div_id(
                         (key, Part::Chevron),
                         list::end_button_classes(&style),
@@ -560,12 +539,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             .focus(Focus::Stay)
             .on_dismiss(move |_| Typing::CLOSED.store(&dismiss, key))
             .children(|s| {
-                let content = s.part_over(
-                    ComboboxPart::Content,
-                    &[],
-                    Defaults(list::popover_classes(&style)),
-                    tw().flex().flex_col().min_h_0(),
-                );
+                let content = s.part(ComboboxPart::Content, &[], tw().flex().flex_col().min_h_0());
                 s.div_id(Part::Box, content, |s| {
                     list::show(
                         s,
@@ -608,7 +582,7 @@ enum Suggesting {
 
 impl Suggesting {
     fn id(field: Id) -> Id {
-        field.with("eggshell-ui-extras-suggesting")
+        field.with("eggshell-ui-suggesting")
     }
 
     fn load(ctx: &egui::Context, field: Id) -> Self {

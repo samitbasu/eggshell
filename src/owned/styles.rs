@@ -22,18 +22,6 @@ pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
     keyed.get(key)
 }
 
-#[cfg(any(feature = "command", feature = "markdown"))]
-/// The border colour `style`'s sheet gives a text field at rest.
-pub(crate) fn input_border(style: &crate::Style) -> egui::Color32 {
-    style
-        .sheet
-        .resolve(crate::owned::InputPart::Root, &[], &style.tokens)
-        .paint_classes()
-        .border_colors
-        .top
-        .unwrap_or(egui::Color32::TRANSPARENT)
-}
-
 #[cfg(any(
     feature = "command",
     feature = "dialog",
@@ -43,6 +31,7 @@ pub(crate) fn input_border(style: &crate::Style) -> egui::Color32 {
     feature = "skeleton"
 ))]
 /// TODO(prose): the box a widget draws as `style`'s menus draw theirs: the popover's colours and shadow from the tokens, a 1 pt border, and the radius of the sheet's menu box.
+#[derive(Clone, Copy)]
 pub(crate) struct Popover {
     pub colors: crate::contract::Colors,
     pub border_width: f32,
@@ -59,6 +48,7 @@ pub(crate) struct Popover {
     feature = "skeleton"
 ))]
 impl Popover {
+    #[cfg(feature = "command")]
     pub(crate) fn of(style: &crate::Style) -> Self {
         let k = &style.tokens;
         Self {
@@ -76,6 +66,24 @@ impl Popover {
         }
     }
 
+    /// The box from the tokens alone: the generated menu's radius is
+    /// `rounded-md`, and `rounded-none` in Lyra.
+    pub(crate) fn of_tokens(k: &crate::theme::Tokens) -> Self {
+        Self {
+            colors: crate::contract::Colors {
+                fill: k.popover,
+                border: k.border,
+                text: k.popover_foreground,
+            },
+            border_width: 1.0,
+            radius: match k.style {
+                crate::theme::ShadcnStyle::Vega => k.radius_md(),
+                crate::theme::ShadcnStyle::Lyra => 0,
+            },
+            shadow: k.shadow_md,
+        }
+    }
+
     /// The box as a [`Look`](crate::contract::Look), the same in every
     /// state.
     #[cfg(feature = "hover-card")]
@@ -89,14 +97,7 @@ impl Popover {
     }
 }
 
-#[cfg(any(
-    feature = "command",
-    feature = "dialog",
-    feature = "form",
-    feature = "hover-card",
-    feature = "notify",
-    feature = "skeleton"
-))]
+#[cfg(feature = "command")]
 /// The classes `style`'s sheet gives the menu's `part` under `keys`.
 pub(crate) fn menu_part(
     style: &crate::Style,

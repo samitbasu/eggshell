@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::owned::skeleton::{SkeletonExt as _, SkeletonStyle};
+use eggshell_ui::owned::skeleton::SkeletonExt as _;
 use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
@@ -76,20 +76,20 @@ fn step_to_phase(d: &mut Driver<App>, phase: f64) {
 fn the_preset_gives_the_skeleton_shadcns_look() {
     let light = Shadcn::light();
     let style = light.style();
-    let skeleton = light.skeleton(&style);
+    let skeleton = style.skeleton.clone();
     assert_eq!(skeleton.fill, light.tokens.muted, "bg-muted");
     assert_eq!(skeleton.radius, light.tokens.radius_md(), "rounded-md");
     assert_eq!(skeleton.period, Duration::from_secs(2), "animate-pulse");
     assert_eq!(f32::from(skeleton.low), 0.5);
     let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
-    assert_eq!(lyra.skeleton(&lyra.style()).radius, 0, "rounded-none");
+    assert_eq!(lyra.style().skeleton.radius, 0, "rounded-none");
 }
 
 #[test]
 fn a_skeleton_pulses_from_full_fill_down_to_half() {
     let mut d = harness(App, Animation::Full);
     assert_eq!(
-        d.shell().style().extension::<SkeletonStyle>().fill,
+        d.shell().style().skeleton.fill,
         muted(),
         "precondition: the preset's"
     );

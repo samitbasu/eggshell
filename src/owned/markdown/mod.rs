@@ -98,7 +98,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
         let doc = self.b.id_of(self.key.clone());
         report_malformed(&ctx, doc, &parsed.malformed);
         let context = build::Context {
-            style: self.b.style().extension::<MarkdownStyle>(),
+            style: Arc::new(self.b.style().markdown.clone()),
             links: Rc::new(build::Links::new(self.on_link, self.b.shell(), doc)),
             directives: self.directives,
             ctx,

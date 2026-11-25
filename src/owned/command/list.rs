@@ -7,11 +7,11 @@ use std::sync::Arc;
 
 use crate::contract::Colors;
 use crate::owned::{Enablement, InputGroupPart, Mark, MenuPart};
-use crate::sheet::{Defaults, Key as SheetKey};
+use crate::sheet::Key as SheetKey;
 use crate::vlist::{ListNav, RowKind};
 use crate::{
-    Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
-    icons, tw,
+    Builder, Command, CommandState, Commands, Icon, Key, Scope, Shell, Style, Tw, child_id, icons,
+    tw,
 };
 use egui::{Color32, Context, Id, Role};
 
@@ -160,7 +160,7 @@ pub(crate) struct Query;
 
 impl Query {
     fn id(list: Id) -> Id {
-        list.with("eggshell-ui-extras-query")
+        list.with("eggshell-ui-query")
     }
 
     pub(crate) fn get(ctx: &Context, list: Id) -> String {
@@ -246,8 +246,8 @@ impl Looks {
         call_site: Tw,
     ) -> Tw {
         match self {
-            Self::Combobox => b.part_over(part.combobox(), keys, Defaults(own), call_site),
-            Self::Command => b.part_over(part.command(), keys, Defaults(own), call_site),
+            Self::Combobox => b.part(part.combobox(), keys, call_site),
+            Self::Command => b.part(part.command(), keys, call_site),
             Self::Own => own.merge(call_site),
         }
     }
@@ -262,7 +262,7 @@ impl Looks {
         call_site: Tw,
     ) -> Tw {
         match self {
-            Self::Command => b.part_over(part, keys, Defaults(own), call_site),
+            Self::Command => b.part(part, keys, call_site),
             Self::Combobox | Self::Own => own.merge(call_site),
         }
     }
@@ -420,6 +420,7 @@ pub(crate) fn popover_classes(style: &Style) -> Tw {
 /// What the list's rows are drawn with, as `style`'s menu items are: the
 /// colours from the tokens, the item's radius and the heading's weight
 /// from the sheet's menu parts.
+#[derive(Clone, Copy)]
 struct Rows {
     radius: f32,
     text: Color32,
@@ -489,30 +490,6 @@ pub(crate) fn list_offset() -> crate::overlay::Distance {
     crate::overlay::Distance::new(6.0)
 }
 
-/// The classes of a combobox's box, shadcn's input group: the select
-/// trigger's look, with the ring while the field inside has focus. The
-/// field's own padding is the box's left, and the end button sits close to
-/// its right.
-pub(crate) fn group_classes(style: &Style) -> Tw {
-    let size = crate::contract::Size::DEFAULT;
-    let metrics = style.select.sizes.get(size);
-    let trigger = style.sheet.resolve(
-        crate::owned::SelectPart::Trigger,
-        &[crate::sheet::Key::Size(size)],
-        &style.tokens,
-    );
-    let focus = style.tokens.focus();
-    trigger
-        .w_auto()
-        .justify_start()
-        .pl_px(metrics.padding_x)
-        .pr(1.0)
-        .has(Match::focus_visible(), |b| {
-            b.border_color(style.tokens.ring)
-                .ring(focus.width, focus.color)
-        })
-}
-
 /// The classes of the button at the end of a combobox's box, shadcn's ghost
 /// `icon-xs`: the stepper's button.
 pub(crate) fn end_button_classes(style: &Style) -> Tw {
@@ -531,16 +508,8 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
         .hover(|p| p.bg(states.hover.fill))
 }
 
-/// The classes of the glyph in the end button: muted, `size-4`.
-pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
-    tw().size_px(style.select.chevron)
-        .shrink_0()
-        .text(style.input.icon)
-}
-
-/// The classes of a command dialog's box.
-pub(crate) fn dialog_classes(style: &Style) -> Tw {
-    let popover = Popover::of(style);
+/// The classes of a command dialog's box, as `popover` draws.
+fn dialog_box(popover: &Popover) -> Tw {
     let rest = popover.colors;
     tw().flex()
         .flex_col()
@@ -566,7 +535,7 @@ pub(crate) fn show<'f, A: 'static>(
 ) {
     let style = Arc::clone(b.style());
     let ctx = b.ctx().clone();
-    let command = b.style().extension::<super::CommandStyle>();
+    let command = Arc::new(b.style().command.clone());
     let (field, query) = match &shape.field {
         Field::Own => (None, Query::get(&ctx, key)),
         Field::Theirs { id, text } => (Some(*id), text.clone()),
@@ -592,7 +561,7 @@ pub(crate) fn show<'f, A: 'static>(
     b.div_id(key, root, |s| {
         let field = match field {
             Some(field) => field,
-            None => search_field(s, &style, key, &query, placeholder, name.clone(), on_query),
+            None => search_field(s, key, &query, placeholder, name.clone(), on_query),
         };
         let rows = listing.rows.clone();
         if rows.is_empty() {
@@ -713,7 +682,7 @@ pub(crate) fn show<'f, A: 'static>(
             .items(move |s, row| {
                 if let Some((heading, place)) = rows_of.headings.get(&row) {
                     match looks {
-                        Looks::Command => palette_heading(s, &style_of, *place, heading),
+                        Looks::Command => palette_heading(s, *place, heading),
                         Looks::Combobox | Looks::Own => {
                             let classes = looks.part(
                                 s,
@@ -728,7 +697,7 @@ pub(crate) fn show<'f, A: 'static>(
                 if let Some(entry) = rows_of.entries.get(&row) {
                     match looks {
                         Looks::Combobox => combobox_item(s, entry),
-                        Looks::Command => palette_item(s, &style_of, entry),
+                        Looks::Command => palette_item(s, entry),
                         Looks::Own => item(s, &style_of, &command_of, entry),
                     }
                 }
@@ -738,63 +707,30 @@ pub(crate) fn show<'f, A: 'static>(
 
 fn search_field<A: 'static>(
     s: &mut Scope<'_, '_, A>,
-    style: &Style,
     list: Id,
     query: &str,
     placeholder: Option<String>,
     name: Option<String>,
     on_query: Option<super::Heard<A>>,
 ) -> Id {
-    let radius = Popover::of(style).radius;
-    let tint = crate::owned::styles::input_border(style).gamma_multiply(0.3);
-    let wrapper = s.part_over(
-        CommandPart::InputWrapper,
-        &[],
-        Defaults(tw().p(1.0).pb(0.0)),
-        tw(),
-    );
-    let look = tw()
-        .gap(2.0)
-        .pl(2.0)
-        .pr(2.5)
-        .h_px(32.0)
-        .rounded_px(f32::from(radius) + 2.0)
-        .border(1.0)
-        .border_color(tint)
-        .bg(tint);
-    let classes = s.part_over(
-        CommandPart::InputGroup,
-        &[],
-        Defaults(look),
-        tw().flex().items_center(),
-    );
-    let icon = s.part_over(
-        CommandPart::InputIcon,
-        &[],
-        Defaults(
-            tw().size_px(16.0)
-                .shrink_0()
-                .text(style.tokens.popover_foreground.gamma_multiply(0.5)),
-        ),
-        tw(),
-    );
+    let wrapper = s.part(CommandPart::InputWrapper, &[], tw());
+    let classes = s.part(CommandPart::InputGroup, &[], tw().flex().items_center());
+    let icon = s.part(CommandPart::InputIcon, &[], tw());
     // shadcn's `CommandInput` is an `InputGroup` holding its icon in an
     // `InputGroupAddon` and its field as the group's input: core's parts.
     let start = SheetKey::Attr("align", "inline-start");
-    let addon = s.part_over(
+    let addon = s.part(
         InputGroupPart::Addon,
         &[start],
-        Defaults(tw()),
         tw().attr("align", "inline-start"),
     );
     let input = s
-        .part_over(
+        .part(
             InputGroupPart::Input,
             &[SheetKey::Attr("addon", "inline-start")],
-            Defaults(tw()),
             tw().grow().min_w_0(),
         )
-        .merge(s.part_over(CommandPart::Input, &[], Defaults(tw()), tw()));
+        .merge(s.part(CommandPart::Input, &[], tw()));
     let ctx = s.ctx().clone();
     let mut field = Id::NULL;
     s.div_id(Part::Wrapper, wrapper, |s| {
@@ -833,11 +769,16 @@ fn note_classes(style: &Style) -> Tw {
 
 fn heading_classes(style: &Style, place: Place) -> Tw {
     let menu = &style.menu;
-    let rows = Rows::of(style);
+    let role = style.role(&Some(menu.shortcut_text.clone())).clone();
+    heading_from(menu.item_padding.x, role, &Rows::of(style), place)
+}
+
+/// A heading's classes, inset by `padding_x`, in `role`, as `rows` draw.
+fn heading_from(padding_x: f32, role: crate::TextSpec, rows: &Rows, place: Place) -> Tw {
     let classes = tw()
-        .px_px(menu.item_padding.x)
+        .px_px(padding_x)
         .py(1.5)
-        .role(style.role(&Some(menu.shortcut_text.clone())).clone())
+        .role(role)
         .font_weight(rows.heading_weight)
         .text(rows.muted);
     match place {
@@ -848,49 +789,27 @@ fn heading_classes(style: &Style, place: Place) -> Tw {
 
 /// A palette's group heading, with a `CommandSeparator` before every group
 /// but the first.
-fn palette_heading<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
-    style: &Style,
-    place: Place,
-    heading: &str,
-) {
+fn palette_heading<A: 'static>(s: &mut Scope<'_, '_, A>, place: Place, heading: &str) {
     if place == Place::After {
-        let separator = s.part_over(
-            CommandPart::Separator,
-            &[],
-            Defaults(tw().h_px(1.0).bg(Rows::of(style).separator).my(1.0)),
-            tw(),
-        );
+        let separator = s.part(CommandPart::Separator, &[], tw());
         s.div(separator, |_| {});
     }
-    let classes = s.part_over(
-        CommandPart::GroupHeading,
-        &[],
-        Defaults(heading_classes(style, Place::First)),
-        tw(),
-    );
+    let classes = s.part(CommandPart::GroupHeading, &[], tw());
     s.div(classes, |s| s.text(tw(), heading.to_owned()));
 }
 
 /// A palette's command, in a row that is its `CommandPart::Item`: its
 /// label, its shortcut and its check.
-fn palette_item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Entry<A>) {
-    let menu = &style.menu;
+fn palette_item<A: 'static>(s: &mut Scope<'_, '_, A>, entry: &Entry<A>) {
     s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
     if let Some(shortcut) = &entry.shortcut {
-        let classes = s.part_over(
-            CommandPart::Shortcut,
-            &[],
-            Defaults(tw().text(style.tokens.muted_foreground).ml_auto()),
-            tw(),
-        );
+        let classes = s.part(CommandPart::Shortcut, &[], tw());
         s.text(classes, shortcut.clone());
     }
     if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
-        let indicator = s.part_over(
+        let indicator = s.part(
             CommandPart::ItemIndicator,
             &[SheetKey::Attr(CHECKED.0, CHECKED.1)],
-            Defaults(tw().size_px(menu.indicator).shrink_0()),
             tw(),
         );
         s.glyph(indicator, Icon::new(icons::CHECK));
@@ -914,14 +833,8 @@ fn combobox_item<A: 'static>(s: &mut Scope<'_, '_, A>, entry: &Entry<A>) {
     if let Some(shortcut) = &entry.shortcut {
         s.text(tw().ml_auto(), shortcut.clone());
     }
-    let side = s.style().menu.indicator;
-    let indicator = s.part_over(
-        ComboboxPart::ItemIndicator,
-        &[],
-        Defaults(tw().size_px(side).shrink_0()),
-        tw(),
-    );
-    let check = s.part_over(ComboboxPart::ItemIndicatorIcon, &[], Defaults(tw()), tw());
+    let indicator = s.part(ComboboxPart::ItemIndicator, &[], tw());
+    let check = s.part(ComboboxPart::ItemIndicatorIcon, &[], tw());
     s.div(indicator, |s| {
         if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
             s.glyph(check, Icon::new(icons::CHECK));
@@ -972,4 +885,19 @@ fn item<A: 'static>(
             s.glyph(tw().size_px(side).shrink_0(), Icon::new(icons::CHECK));
         }
     });
+}
+
+/// Writes the command palette's recorded exceptions: its dialog's box and
+/// its group headings, which shadcn draws through classes the generated
+/// look does not carry, in the palette's colours from `style`.
+pub(crate) fn write_exceptions(style: &mut Style) {
+    let popover = Popover::of(style);
+    let (padding_x, rows) = (style.menu.item_padding.x, Rows::of(style));
+    let role = style.role(&Some(style.menu.shortcut_text.clone())).clone();
+    style
+        .sheet
+        .rule_under(CommandPart::Dialog, move |_, _| dialog_box(&popover))
+        .rule_under(CommandPart::GroupHeading, move |_, _| {
+            heading_from(padding_x, role.clone(), &rows, Place::First)
+        });
 }

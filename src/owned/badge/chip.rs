@@ -194,7 +194,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             name,
         } = self;
         let ctx = b.ctx().clone();
-        let (style, core) = (b.style().extension::<BadgeStyle>(), b.style().clone());
+        let (style, core) = (b.style().badge.clone(), b.style().clone());
         let look = face.look(&ctx, &style);
         let name = name.unwrap_or_else(|| face.label.clone());
         #[cfg(debug_assertions)]
@@ -212,28 +212,23 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             Some(_) => Stop::Chip,
             None => Stop::Remove,
         };
-        let end = match remove {
+        let _end = match remove {
             Some(_) => End::Remove,
             None => End::Label,
-        };
-        let paint = match stop {
-            Stop::Chip => look.classes(&core, style.radius, enablement, style.transition),
-            Stop::Remove => still(look).classes(&core, style.radius, enablement, style.transition),
         };
         // The ring while the × has the focus is the chip's own, not a look.
         let ring = match stop {
             Stop::Chip => tw(),
             Stop::Remove => focus_ring(look, &core, enablement),
         };
-        let classes = face.part(
-            b,
-            &style,
-            (face.frame(&style, end).merge(paint), stop == Stop::Chip),
-            ring,
-        );
+        let root = match stop {
+            Stop::Chip => super::Root::Clickable,
+            Stop::Remove => super::Root::Static,
+        };
+        let classes = face.part(b, &style, root, ring);
         let removes = remove.map(|Handler(remove)| remove);
         let node = b.div_id(key, classes, |s| {
-            face.content(s, &style);
+            face.content(s);
             if let Some(remove) = &removes {
                 remove_button(s, &style, &name, stop, remove.clone());
             }
@@ -248,16 +243,6 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             }
         }
     }
-}
-
-/// `look` without its hover and pressed colours: the box of a chip that is
-/// not itself clicked.
-fn still(mut look: Look) -> Look {
-    let states = &mut look.paint.states;
-    states.hover = states.rest;
-    states.pressed = states.rest;
-    look.paint.hover_ring = None;
-    look
 }
 
 /// The ring of a chip whose × is its Tab stop, shown while the × has focus.

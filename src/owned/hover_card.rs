@@ -41,8 +41,8 @@ use core::time::Duration;
 
 use crate::contract::Look;
 use crate::overlay::{Align, Distance, HoverIntent, Placement};
-use crate::sheet::{Defaults, Part};
-use crate::{Builder, Key, Scope, Style, Tw, tw};
+use crate::sheet::Part;
+use crate::{Builder, Key, Scope, Tw, tw};
 
 /// TODO(prose): the anatomy of a hover card for the style's sheet: shadcn's
 /// `hover-card`.
@@ -90,16 +90,10 @@ pub struct HoverCardStyle {
     pub transition: Duration,
 }
 
-impl crate::contract::Extension for HoverCardStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl HoverCardStyle {
     /// TODO(prose): Radix's delays, and the box of `style`'s menus.
-    pub fn from_style(style: &Style) -> Self {
-        let popover = crate::owned::styles::Popover::of(style);
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
+        let popover = crate::owned::styles::Popover::of_tokens(style.tokens);
         Self {
             open_delay: Duration::from_millis(700),
             close_delay: Duration::from_millis(300),
@@ -109,23 +103,6 @@ impl HoverCardStyle {
             width: 256.0,
             offset: style.menu.offset,
             transition: style.motion.popover.enter,
-        }
-    }
-
-    /// The look of the card's box, the widget's own.
-    fn classes(&self) -> Tw {
-        let colors = self.look.paint.states.rest;
-        let classes = tw()
-            .w_px(self.width)
-            .p_px(self.padding)
-            .border(self.look.border_width)
-            .border_color(colors.border)
-            .bg(colors.fill)
-            .text(colors.text)
-            .rounded_px(f32::from(self.radius));
-        match self.look.paint.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
         }
     }
 
@@ -235,7 +212,7 @@ where
             open_delay,
             close_delay,
         } = card;
-        let style = b.style().extension::<HoverCardStyle>();
+        let style = b.style().hover_card.clone();
         let trigger = b.id_of(key.clone());
         let mut intent = HoverIntent::new(
             open_delay.unwrap_or(style.open_delay),
@@ -254,12 +231,7 @@ where
                 .exit_transition(style.transition)
                 .placement(placement)
                 .children(|c| {
-                    let card = c.part_over(
-                        HoverCardPart::Content,
-                        &[],
-                        Defaults(style.classes()),
-                        tw().flex().flex_col(),
-                    );
+                    let card = c.part(HoverCardPart::Content, &[], tw().flex().flex_col());
                     c.div_id("Box", card, |c| content(c));
                 });
         });

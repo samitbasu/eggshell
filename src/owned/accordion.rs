@@ -29,9 +29,7 @@ use crate::overlay::{Nav, Shown, Wrap};
 use crate::owned::{Enablement, Face};
 use crate::{Builder, Key, Scope, Tw, tw};
 
-use crate::sheet::Defaults;
-
-use crate::owned::disclosure::{DisclosureStyle, SectionExt};
+use crate::owned::disclosure::SectionExt;
 
 /// What an accordion runs with what a header asked for.
 type OnItems<A, C> = Rc<dyn Fn(&mut A, C)>;
@@ -217,7 +215,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             on_change,
             value: _,
         } = self;
-        let style = b.style().extension::<DisclosureStyle>();
+        let style = b.style().disclosure.clone();
         // shadcn's `not-last:border-b` on each item, which the importer
         // cannot say, is the column's `divide-y`: the accordion's own.
         let column = tw().flex().flex_col();
@@ -225,10 +223,9 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        let column = b.part_over(
+        let column = b.part(
             crate::owned::disclosure::AccordionPart::Root,
             &[],
-            Defaults(tw()),
             column.merge(classes),
         );
         b.div_id(key, column, |b| {

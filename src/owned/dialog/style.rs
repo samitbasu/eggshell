@@ -1,7 +1,7 @@
 //! How dialogs, sheets and popovers look.
 
 use crate::contract::{Size, Variant};
-use crate::{Style, TextSpec, Tw, Weight, tw};
+use crate::{TextSpec, Weight};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -18,8 +18,6 @@ pub struct DialogStyle {
     pub title: TextSpec,
     /// The description's text role.
     pub description: TextSpec,
-    /// The description's colour.
-    pub description_color: Color32,
     /// The variant of the footer's cancel button.
     pub cancel: Variant,
     /// The variant of the footer's default button.
@@ -28,9 +26,6 @@ pub struct DialogStyle {
     pub close: Variant,
     /// The size of the close button (×).
     pub close_size: Size,
-    /// How far the close button sits from the box's top and right edges, in
-    /// Tailwind spacing units.
-    pub close_inset: f32,
 }
 
 /// A box's paint.
@@ -77,20 +72,6 @@ impl Surface {
             ..self
         }
     }
-
-    /// The classes that paint the box, with its border on every side.
-    pub(super) fn classes(&self) -> Tw {
-        let classes = tw()
-            .bg(self.fill)
-            .text(self.text)
-            .border(self.border_width)
-            .border_color(self.border)
-            .rounded_px(f32::from(self.radius));
-        match self.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
-        }
-    }
 }
 
 /// Tailwind's `shadow-lg`, without its negative spread.
@@ -107,8 +88,8 @@ impl DialogStyle {
     /// A look derived from the core `style` and egui's `visuals`: the panel
     /// fill and window stroke for the box, the menu's popup for the popover,
     /// and the style's default button variant everywhere.
-    pub fn from_style(style: &Style) -> Self {
-        let popup = crate::owned::styles::Popover::of(style);
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
+        let popup = crate::owned::styles::Popover::of_tokens(style.tokens);
         let colors = popup.colors;
         let k = &style.tokens;
         let text = |size: f32, line_height: f32, weight: Weight| TextSpec {
@@ -131,18 +112,10 @@ impl DialogStyle {
             },
             title: text(18.0, 18.0, Weight::SemiBold),
             description: text(14.0, 20.0, Weight::Normal),
-            description_color: k.muted_foreground,
             cancel: Variant::DEFAULT,
             default: Variant::DEFAULT,
             close: Variant::DEFAULT,
             close_size: Size::DEFAULT,
-            close_inset: 4.0,
         }
-    }
-}
-
-impl crate::contract::Extension for DialogStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
     }
 }

@@ -29,7 +29,7 @@
 mod style;
 
 use crate::owned::FieldPart;
-use crate::sheet::{Defaults, Part};
+use crate::sheet::Part;
 use crate::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
@@ -89,7 +89,7 @@ enum Rules {
 /// How many sections enclose what is being built now, so a row inside one
 /// takes its inset. Building is synchronous, so the count is exact.
 fn depth_id() -> Id {
-    Id::NULL.with("eggshell-ui-extras-form-section-depth")
+    Id::NULL.with("eggshell-ui-form-section-depth")
 }
 
 fn depth(ctx: &Context) -> u32 {
@@ -104,7 +104,7 @@ fn set_depth(ctx: &Context, depth: u32) {
 /// The ordinal of the next keyless row under the parent `b` builds into,
 /// counted afresh each pass: a row's positional key.
 fn next_row<A>(b: &Builder<'_, '_, A>) -> u32 {
-    let id = b.id_of("eggshell-ui-extras-labeled-rows");
+    let id = b.id_of("eggshell-ui-labeled-rows");
     let pass = b.ctx().cumulative_pass_nr();
     b.ctx().data_mut(|data| {
         let (seen, next) = data.get_temp::<(u64, u32)>(id).unwrap_or((pass, 0));
@@ -135,12 +135,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             title,
             rules,
         } = self;
-        let style = b.style().extension::<FormStyle>();
-        let surface = tw()
-            .bg(style.fill)
-            .border(style.border_width)
-            .border_color(style.border)
-            .rounded_px(f32::from(style.radius));
+        let style = b.style().form.clone();
         // Recorded exception (#446): the section keeps its own padding and
         // row spacing, not the card's `py`/`gap`, which space a card's
         // header, content and footer.
@@ -153,7 +148,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
         if rules == Rules::Between {
             own = own.divide_y(style.rule_width, style.rule);
         }
-        let frame = b.part_over(CardPart::Root, &[], Defaults(surface), own);
+        let frame = b.part(CardPart::Root, &[], own);
         let section = b.div_id(key, tw().flex().flex_col().sense_hover(), |b| {
             if let Some(title) = &title {
                 b.text(
@@ -194,7 +189,7 @@ impl<'b, 'f, A: 'static> FormExt<'b, 'f, A> for Builder<'b, 'f, A> {
 
     fn labeled_text(&mut self, label: impl Into<String>, text: impl Into<String>) {
         let text = text.into();
-        let color = self.style().extension::<FormStyle>().value_color;
+        let color = self.style().form.value_color;
         let shown = text.clone();
         row(self, label.into(), Some(text), |b| {
             b.text(tw().text(color), shown)
@@ -211,7 +206,7 @@ fn row<'f, A: 'static>(
     description: Option<String>,
     value: impl FnOnce(&mut Builder<'_, 'f, A>),
 ) {
-    let style = b.style().extension::<FormStyle>();
+    let style = b.style().form.clone();
     // The least height holds a control, inside the row's padding, so a
     // text row is as tall as a control row.
     let (classes, padding_y) = match depth(b.ctx()) {

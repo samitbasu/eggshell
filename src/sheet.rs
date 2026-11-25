@@ -44,12 +44,6 @@ pub trait Part: Copy + Eq + Ord + Debug + Send + Sync + 'static {
 /// TODO(prose): who wrote a rule, which decides whose wins. A later layer's classes win per property over an earlier one's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
-    // #497 stage 5: delete, with Builder::part_over, when the extensions'
-    // looks are sheet rules.
-    /// TODO(prose): an extension's own look, under the sheet; see
-    /// [`Builder::part_over`](crate::Builder::part_over). No sheet rule is
-    /// written at it.
-    Defaults,
     /// TODO(prose): the widgets' look: the generated sheets and the recorded
     /// exceptions.
     Base,
@@ -173,14 +167,6 @@ impl When {
         })
     }
 }
-
-// #497 stage 5: delete, with Builder::part_over.
-/// TODO(prose): a widget's own look for a part, given at its call site:
-/// [`Builder::part_over`](crate::Builder::part_over) puts it under every
-/// layer of the sheet, as the widgets' defaults, for a widget whose looks
-/// no style's sections write, such as an extension crate's.
-#[derive(Clone, Debug)]
-pub struct Defaults(pub Tw);
 
 /// What a part is named by: its widget's parts, and its slot.
 type PartKey = (TypeId, &'static str);
@@ -377,6 +363,32 @@ impl Sheet {
         self
     }
 
+    /// A rule for every node of `part`, under the part's rules so far: a
+    /// widget's own look, which its generated look's classes win over and a
+    /// rule that replaces drops.
+    #[cfg(any(feature = "command", feature = "notify"))]
+    pub(crate) fn rule_under<P: Part>(
+        &mut self,
+        part: P,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
+    ) -> &mut Self {
+        let layer = self.layer;
+        Arc::make_mut(&mut self.rules)
+            .entry(part_key(part))
+            .or_default()
+            .insert(
+                0,
+                Stored {
+                    when: When::always(),
+                    layer,
+                    replace: false,
+                    body: Arc::new(body),
+                },
+            );
+        self.version = next_version();
+        self
+    }
+
     /// The rules of the part at `at` that a later rule replacing all of
     /// its nodes leaves standing, the lowest layer's first.
     fn live(&self, at: PartKey) -> impl Iterator<Item = &Stored> {
@@ -387,16 +399,6 @@ impl Sheet {
             .rposition(|rule| rule.replace && rule.when == When::always())
             .unwrap_or(0);
         rules.into_iter().skip(from)
-    }
-
-    /// Whether a rule that holds for a node of `part` with `keys` replaces
-    /// what is under it.
-    pub(crate) fn replaces<P: Part>(&self, part: P, keys: &[Key]) -> bool {
-        self.rules
-            .get(&part_key(part))
-            .into_iter()
-            .flatten()
-            .any(|rule| rule.replace && rule.when.holds(keys))
     }
 
     /// TODO(prose): the classes of `part` for a node with `keys`: the rules that hold, the lowest layer's first, each over the last, their bodies given `tokens`. The node's `data-slot` is the part's.
@@ -601,25 +603,6 @@ mod tests {
             sheet.resolve(Test::Root, &keys, &tokens()).style(),
             tw().style()
         );
-    }
-
-    #[test]
-    fn core_writes_no_rule_at_the_defaults_layer() {
-        for theme in [crate::theme::Tokens::light(), crate::theme::Tokens::dark()] {
-            let style = crate::Style::new(&theme);
-            assert!(
-                !style.sheet.rules.is_empty(),
-                "precondition: core writes rules"
-            );
-            assert!(
-                style
-                    .sheet
-                    .rules
-                    .values()
-                    .flatten()
-                    .all(|rule| rule.layer != Layer::Defaults)
-            );
-        }
     }
 
     #[test]

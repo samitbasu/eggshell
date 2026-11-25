@@ -1,6 +1,5 @@
-//! The combobox, an extension crate's widget, drawn from the style's sheet:
-//! its own look is the defaults of its parts (`Builder::part_over`), the
-//! preset's generated look replaces them, and an App rule restyles them.
+//! TODO(prose): the combobox drawn from the style's sheet: the generated
+//! look, and an App rule that restyles it.
 
 use eggshell_ui::Style;
 use eggshell_ui::contract::Themed;

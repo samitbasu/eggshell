@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use crate::contract::Focus;
-use crate::{Angle, Icon, Opacity, Style, TextSpec, Weight, icons};
+use crate::{Angle, Icon, Opacity, TextSpec, Weight, icons};
 use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
@@ -15,10 +15,10 @@ use egui::Color32;
 /// use eggshell_ui::owned::disclosure::DisclosureStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
-/// let mut look = (*style.extension::<DisclosureStyle>()).clone();
+/// let mut look = style.disclosure.clone();
 /// look.header.padding_y = 8.0;
-/// style.set_extension(look);
-/// assert_eq!(style.extension::<DisclosureStyle>().header.padding_y, 8.0);
+/// style.disclosure = look;
+/// assert_eq!(style.disclosure.header.padding_y, 8.0);
 /// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -36,8 +36,6 @@ pub struct DisclosureStyle {
     pub nudge: f32,
     /// A section's header.
     pub header: HeaderStyle,
-    /// Bottom padding of a section's content.
-    pub content_padding_bottom: f32,
     /// Side of a disclosure button.
     pub button: f32,
     /// A disclosure button's fill under the pointer, if it has one.
@@ -102,17 +100,11 @@ pub enum Hover {
     None,
 }
 
-impl crate::contract::Extension for DisclosureStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl DisclosureStyle {
     /// TODO(prose): headers in the style's text, medium, with a muted
     /// `chevron-down` that turns over trailing a section's title and a
     /// `chevron-right` that turns down in a disclosure button.
-    pub fn from_style(style: &Style) -> Self {
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         let glyph = style.select.chevron;
         Self {
             section: Glyph::new(Icon::new(icons::CHEVRON_DOWN), glyph, Angle::degrees(180.0)),
@@ -134,7 +126,6 @@ impl DisclosureStyle {
                 disabled: Opacity::new(0.5),
                 transition: style.toggle.transition,
             },
-            content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
             separator: Some(style.tokens.border),

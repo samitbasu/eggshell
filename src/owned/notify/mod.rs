@@ -327,9 +327,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
             on_action,
             on_dismiss,
         } = self;
-        let dwells = b
-            .id_of(key.clone())
-            .with("eggshell-ui-extras-notify-dwells");
+        let dwells = b.id_of(key.clone()).with("eggshell-ui-notify-dwells");
         if items.is_empty() {
             b.ctx().data_mut(|data| data.remove::<Dwells>(dwells));
             return;
@@ -342,7 +340,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
             on_action,
             on_dismiss,
         };
-        let look = Look::new(b.style().extension::<NotifyStyle>());
+        let look = Look::new(std::sync::Arc::new(b.style().notify.clone()));
         let inset = inset.unwrap_or(look.style.inset);
         let items = items
             .get(items.len().saturating_sub(look.style.visible)..)
@@ -441,12 +439,7 @@ fn card<A: 'static, Act: Clone + 'static>(
     handlers: &Handlers<A, Act>,
 ) {
     let id = notice.id;
-    let classes = s.part_over(
-        NotifyPart::Toast,
-        &[],
-        crate::sheet::Defaults(look.card()),
-        tw(),
-    );
+    let classes = s.part(NotifyPart::Toast, &[], tw());
     let card = s.div_id(id, classes, |s| {
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
@@ -499,7 +492,7 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
     let Some(node) = ui.node_id() else {
         return false;
     };
-    let mark = node.with("eggshell-ui-extras-notify-focus");
+    let mark = node.with("eggshell-ui-notify-focus");
     let now = ui.has_focus_within();
     let before = ui.data_mut(|data| {
         let before = data.remove_temp::<FocusInside>(mark).is_some();
@@ -509,4 +502,13 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
         before
     });
     now || before
+}
+
+/// Writes the notice's recorded exception: its card, sonner's toast, which
+/// the generated look does not carry, from `notify`.
+pub(crate) fn write_exceptions(notify: &NotifyStyle, sheet: &mut crate::sheet::Sheet) {
+    let notify = std::sync::Arc::new(notify.clone());
+    sheet.rule_under(NotifyPart::Toast, move |_, _| {
+        look::Look::new(notify.clone()).card()
+    });
 }

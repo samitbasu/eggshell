@@ -562,39 +562,6 @@ pub struct Metrics {
     pub text: Option<TextSize>,
 }
 
-/// How a disabled control is drawn.
-///
-/// Both forms make the control inert. They differ in what they paint.
-///
-/// * [`Colors`](Self::Colors) draws every box in the `disabled` colours of its
-///   [`States`]. The colours are the style's, so a disabled control can be
-///   anything, and each shape is painted once: nothing shows through a fill
-///   that [`Colors::faded_over`] made opaque. The result is exactly CSS
-///   `opacity` only if the style computed those colours against the surface
-///   the control really sits on.
-/// * [`Faded`](Self::Faded) draws the control in its `rest` colours with the
-///   node opacity of its root, which every shape inside multiplies into its own
-///   alpha. It needs no knowledge of the surface, so it is the form for a
-///   translucent one, which no opaque colour can stand in for.
-///
-/// **Faded is not CSS group opacity.** CSS draws the element into
-/// a group, composites its shapes there, and fades the group over the page
-/// once. This library fades each shape separately, so where one shape lies on
-/// another, such as text on its own fill, the lower one shows through the
-/// upper by `1 - opacity`: a faded fill under faded text mixes a little of the
-/// fill into the glyphs. [`Faded`](Self::Faded) is exact when no shapes
-/// overlap: text or glyphs over the backdrop, a border-only or fill-only box,
-/// a ghost button. Over an opaque fill, [`Colors`](Self::Colors) with colours
-/// from [`Colors::faded_over`] is the exact form.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum Disabled {
-    /// The `disabled` colours of each state.
-    #[default]
-    Colors,
-    /// The `rest` colours at this node opacity.
-    Faded(Opacity),
-}
-
 /// TODO(prose): toggle buttons: their sizes and their looks off and on. A
 /// plain button's look is the [`sheet`](Style::sheet)'s
 /// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with
@@ -1229,49 +1196,33 @@ impl<T> Themed<T> {
     }
 }
 
-/// TODO(prose): a widget's own look, kept in a [`Style`] beside the core-painted fields and scoped with it.
-///
-/// ```
-/// use eggshell_ui::Style;
-/// use eggshell_ui::contract::Extension;
-///
-/// #[derive(Clone)]
-/// struct Gap(f32);
-///
-/// impl Extension for Gap {
-///     fn derive(style: &Style) -> Self {
-///         Gap(style.scroll.width)
-///     }
-/// }
-///
-/// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.scroll.width);
-/// style.set_extension(Gap(12.0));
-/// assert_eq!(style.extension::<Gap>().0, 12.0);
-/// ```
-pub trait Extension: Clone + Send + Sync + 'static {
-    /// TODO(prose): the look a style that sets none gives the widget.
-    fn derive(style: &Style) -> Self;
-}
-
-/// The extensions of a style, by type.
-#[derive(Clone, Debug, Default)]
-struct Extensions {
-    map: egui::util::IdTypeMap,
-}
-
-fn extensions_id() -> egui::Id {
-    crate::key::root_id().with("extensions")
-}
-
-/// TODO(prose): the fonts a style is drawn in, added to egui as a layout first builds with the style.
-#[derive(Clone, Debug, Default)]
-pub struct Fonts(pub Vec<egui::FontInsert>);
-
-impl Extension for Fonts {
-    fn derive(_: &Style) -> Self {
-        Self::default()
-    }
+/// What an opt-in widget's style is built from: the tokens and the core
+/// sections it follows.
+#[cfg(any(
+    feature = "badge",
+    feature = "command",
+    feature = "dialog",
+    feature = "disclosure",
+    feature = "form",
+    feature = "hover-card",
+    feature = "markdown",
+    feature = "notify",
+    feature = "skeleton",
+    feature = "spinner"
+))]
+pub(crate) struct Base<'a> {
+    pub tokens: &'a Tokens,
+    pub text: &'a TextSpec,
+    pub toggle: &'a ToggleStyle,
+    #[cfg(any(feature = "form", feature = "markdown"))]
+    pub label: &'a States,
+    #[cfg(feature = "form")]
+    pub slider: &'a SliderStyle,
+    pub select: &'a SelectStyle,
+    #[cfg(feature = "hover-card")]
+    pub menu: &'a MenuStyle,
+    #[cfg(feature = "hover-card")]
+    pub motion: &'a MotionStyle,
 }
 
 /// The look of every widget eggshell draws.
@@ -1333,8 +1284,39 @@ pub struct Style {
     pub tokens: Tokens,
     /// TODO(prose): the classes of every widget's parts, by layer.
     pub sheet: crate::sheet::Sheet,
-    /// The widgets' own looks, beside the core-painted fields.
-    extensions: Extensions,
+    /// TODO(prose): the fonts the style is drawn in, added to egui as a
+    /// layout first builds with the style.
+    pub fonts: Vec<egui::FontInsert>,
+    /// TODO(prose): badges and chips.
+    #[cfg(feature = "badge")]
+    pub badge: crate::owned::badge::BadgeStyle,
+    /// TODO(prose): the command palette, the combobox and the autosuggest.
+    #[cfg(feature = "command")]
+    pub command: crate::owned::command::CommandStyle,
+    /// TODO(prose): dialogs, alert dialogs, sheets and popovers.
+    #[cfg(feature = "dialog")]
+    pub dialog: crate::owned::dialog::DialogStyle,
+    /// TODO(prose): disclosures and accordions.
+    #[cfg(feature = "disclosure")]
+    pub disclosure: crate::owned::disclosure::DisclosureStyle,
+    /// TODO(prose): form sections.
+    #[cfg(feature = "form")]
+    pub form: crate::owned::form::FormStyle,
+    /// TODO(prose): hover cards.
+    #[cfg(feature = "hover-card")]
+    pub hover_card: crate::owned::hover_card::HoverCardStyle,
+    /// TODO(prose): Markdown.
+    #[cfg(feature = "markdown")]
+    pub markdown: crate::owned::markdown::MarkdownStyle,
+    /// TODO(prose): notifications.
+    #[cfg(feature = "notify")]
+    pub notify: crate::owned::notify::NotifyStyle,
+    /// TODO(prose): skeletons.
+    #[cfg(feature = "skeleton")]
+    pub skeleton: crate::owned::skeleton::SkeletonStyle,
+    /// TODO(prose): spinners.
+    #[cfg(feature = "spinner")]
+    pub spinner: crate::owned::spinner::SpinnerStyle,
 }
 
 impl Style {
@@ -1349,21 +1331,6 @@ impl Style {
             },
             None => role,
         }
-    }
-
-    /// TODO(prose): the widget look `T` this style sets, else the one `T` derives from it.
-    pub fn extension<T: Extension>(&self) -> Arc<T> {
-        self.extensions
-            .map
-            .get_temp::<Arc<T>>(extensions_id())
-            .unwrap_or_else(|| Arc::new(T::derive(self)))
-    }
-
-    /// TODO(prose): sets the widget look `T`, in place of any set before.
-    pub fn set_extension<T: Extension>(&mut self, value: T) {
-        self.extensions
-            .map
-            .insert_temp(extensions_id(), Arc::new(value));
     }
 
     /// The text role of a widget section: its own, or [`Style::text`].
@@ -1622,14 +1589,105 @@ impl Style {
                 easing: crate::Easing::InOut,
             },
         };
+        let text = t.text_role();
+        let label = States::still(flat(clear, t.foreground), t.background);
+        let select = SelectStyle {
+            sizes: Keyed::new(Size::DEFAULT, control)
+                .with(size::SM, small(control))
+                .with(size::XS, tiny(control)),
+            chevron: 16.0,
+            chevron_opacity: Opacity::new(0.5),
+        };
+        // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
+        // check and chevron, and a `text-xs` shortcut. The look is the
+        // generated sheet's.
+        let menu = MenuStyle {
+            padding: t.points(t.popup_padding),
+            item_padding: t.points_vec(t.item_padding),
+            item_gap: t.points(t.item_padding.x),
+            offset: Distance::new(4.0),
+            text: None,
+            shortcut_text: TextSpec {
+                size: 12.0,
+                line_height: 16.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            indicator: 16.0,
+        };
+        // shadcn's typography: a link is `font-medium text-primary underline`,
+        // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
+        let rich = RichTextStyle {
+            link: t.primary,
+            link_underline: None,
+            link_weight: Weight::Medium,
+            code: InlineCode {
+                fill: t.muted,
+                radius: t.radius_sm(),
+                padding_x: 4.8,
+                padding_y: 3.2,
+                size: Em::new(0.875),
+            },
+        };
+        #[cfg(any(
+            feature = "badge",
+            feature = "command",
+            feature = "dialog",
+            feature = "disclosure",
+            feature = "form",
+            feature = "hover-card",
+            feature = "markdown",
+            feature = "notify",
+            feature = "skeleton",
+            feature = "spinner"
+        ))]
+        let base = Base {
+            tokens: t,
+            text: &text,
+            toggle: &toggle,
+            #[cfg(any(feature = "form", feature = "markdown"))]
+            label: &label,
+            #[cfg(feature = "form")]
+            slider: &slider,
+            select: &select,
+            #[cfg(feature = "hover-card")]
+            menu: &menu,
+            #[cfg(feature = "hover-card")]
+            motion: &motion,
+        };
+        let fonts = t
+            .font
+            .as_ref()
+            .map(crate::theme::FontSet::inserts)
+            .unwrap_or_default();
+        #[cfg(feature = "badge")]
+        let badge = crate::theme::Shadcn::badge(t, &base);
+        #[cfg(feature = "command")]
+        let command = crate::theme::Shadcn::command(t, &base);
+        #[cfg(feature = "dialog")]
+        let dialog = crate::theme::Shadcn::dialog(t, &base);
+        #[cfg(feature = "disclosure")]
+        let disclosure = crate::theme::Shadcn::disclosure(t, &base);
+        #[cfg(feature = "form")]
+        let form = crate::theme::Shadcn::form(t, &base);
+        #[cfg(feature = "hover-card")]
+        let hover_card = crate::theme::Shadcn::hover_card(t, &base);
+        #[cfg(feature = "markdown")]
+        let markdown = crate::theme::Shadcn::markdown(t);
+        #[cfg(feature = "notify")]
+        let notify = crate::theme::Shadcn::notify(t, &base);
+        #[cfg(feature = "skeleton")]
+        let skeleton = crate::theme::Shadcn::skeleton(t, &base);
+        #[cfg(feature = "spinner")]
+        let spinner = crate::owned::spinner::SpinnerStyle::from_base(&base);
         let mut style = Self {
-            text: t.text_role(),
+            text,
             faces: t
                 .font
                 .as_ref()
                 .map(crate::theme::FontSet::declared)
                 .unwrap_or_default(),
-            label: States::still(flat(clear, t.foreground), t.background),
+            label,
             toggle,
             checkbox,
             radio,
@@ -1639,30 +1697,8 @@ impl Style {
                 radius: u8::MAX,
                 range: flat(t.primary, t.primary_foreground),
             },
-            select: SelectStyle {
-                sizes: Keyed::new(Size::DEFAULT, control)
-                    .with(size::SM, small(control))
-                    .with(size::XS, tiny(control)),
-                chevron: 16.0,
-                chevron_opacity: Opacity::new(0.5),
-            },
-            // shadcn's DropdownMenu: `p-1`, items `px-2 py-1.5 gap-2`, a 16 pt
-            // check and chevron, and a `text-xs` shortcut. The look is the
-            // generated sheet's.
-            menu: MenuStyle {
-                padding: t.points(t.popup_padding),
-                item_padding: t.points_vec(t.item_padding),
-                item_gap: t.points(t.item_padding.x),
-                offset: Distance::new(4.0),
-                text: None,
-                shortcut_text: TextSpec {
-                    size: 12.0,
-                    line_height: 16.0,
-                    family: FontFamily::Proportional,
-                    weight: Weight::Normal,
-                },
-                indicator: 16.0,
-            },
+            select,
+            menu,
             // shadcn's TooltipContent: a 10 pt arrow, flush with the trigger.
             // Radix's default delay, deliberately not shadcn's 0 ms, which
             // assumes tooltips are rare (desktop apps use them densely); the
@@ -1710,20 +1746,7 @@ impl Style {
                 bare_padding: 8.0,
                 selected_ring: t.primary,
             },
-            // shadcn's typography: a link is `font-medium text-primary underline`,
-            // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
-            rich: RichTextStyle {
-                link: t.primary,
-                link_underline: None,
-                link_weight: Weight::Medium,
-                code: InlineCode {
-                    fill: t.muted,
-                    radius: t.radius_sm(),
-                    padding_x: 4.8,
-                    padding_y: 3.2,
-                    size: Em::new(0.875),
-                },
-            },
+            rich,
             stepper,
             input,
             selection: Selection {
@@ -1777,13 +1800,49 @@ impl Style {
             tones: t.tones(),
             tokens: t.clone(),
             sheet: crate::sheet::Sheet::new(),
-            extensions: Extensions::default(),
+            fonts,
+            #[cfg(feature = "badge")]
+            badge,
+            #[cfg(feature = "command")]
+            command,
+            #[cfg(feature = "dialog")]
+            dialog,
+            #[cfg(feature = "disclosure")]
+            disclosure,
+            #[cfg(feature = "form")]
+            form,
+            #[cfg(feature = "hover-card")]
+            hover_card,
+            #[cfg(feature = "markdown")]
+            markdown,
+            #[cfg(feature = "notify")]
+            notify,
+            #[cfg(feature = "skeleton")]
+            skeleton,
+            #[cfg(feature = "spinner")]
+            spinner,
         };
-        if let Some(font) = &t.font {
-            style.set_extension(Fonts(font.inserts()));
-        }
         style.write_look();
         style
+    }
+
+    /// What an opt-in widget's style is built from, from this style.
+    #[cfg(feature = "disclosure")]
+    fn base(&self) -> Base<'_> {
+        Base {
+            tokens: &self.tokens,
+            text: &self.text,
+            toggle: &self.toggle,
+            #[cfg(any(feature = "form", feature = "markdown"))]
+            label: &self.label,
+            #[cfg(feature = "form")]
+            slider: &self.slider,
+            select: &self.select,
+            #[cfg(feature = "hover-card")]
+            menu: &self.menu,
+            #[cfg(feature = "hover-card")]
+            motion: &self.motion,
+        }
     }
 
     /// Writes the widgets' look: the generated sheets of the tokens' style
@@ -1799,9 +1858,15 @@ impl Style {
         self.write_exceptions();
         #[cfg(feature = "disclosure")]
         {
-            let disclosure = self.extension::<crate::owned::disclosure::DisclosureStyle>();
+            // The section's own look, not its preset's: what the generated
+            // look's exceptions have always been written from.
+            let disclosure = crate::owned::disclosure::DisclosureStyle::from_base(&self.base());
             crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
         }
+        #[cfg(feature = "command")]
+        crate::owned::command::write_exceptions(self);
+        #[cfg(feature = "notify")]
+        crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

@@ -34,8 +34,8 @@ fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
     d
 }
 
-fn style(d: &Driver<page::State>) -> std::sync::Arc<MarkdownStyle> {
-    d.shell().style().extension::<MarkdownStyle>()
+fn style(d: &Driver<page::State>) -> MarkdownStyle {
+    d.shell().style().markdown.clone()
 }
 
 fn doc(path: &str) -> String {
@@ -273,7 +273,7 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     let tokens = common::tokens(d.ctx());
     let preset = eggshell_ui::theme::Shadcn::of(d.ctx());
     let installed = style(&d);
-    assert_eq!(*installed, preset.markdown());
+    assert_eq!(installed, preset.style().markdown);
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
 }

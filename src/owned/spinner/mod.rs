@@ -14,7 +14,7 @@
 use std::time::Duration;
 
 use crate::contract::{Keyed, Size};
-use crate::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, cycle, tw};
+use crate::{Angle, Builder, Icon, Key, NodeUi as _, Tw, cycle, tw};
 use egui::{Context, ImageSource, Role, WidgetInfo, include_image};
 
 /// Lucide's `loader-circle` (ISC, `LUCIDE-LICENSE` beside it), the icon of
@@ -28,10 +28,10 @@ const LOADER: ImageSource<'static> = include_image!("loader-circle.svg");
 /// use eggshell_ui::owned::spinner::SpinnerStyle;
 ///
 /// let mut style = eggshell_ui::Style::default();
-/// let mut look = (*style.extension::<SpinnerStyle>()).clone();
+/// let mut look = style.spinner.clone();
 /// look.period = Duration::from_secs(2);
-/// style.set_extension(look);
-/// assert_eq!(style.extension::<SpinnerStyle>().period, Duration::from_secs(2));
+/// style.spinner = look;
+/// assert_eq!(style.spinner.period, Duration::from_secs(2));
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -58,16 +58,10 @@ impl crate::sheet::Part for SpinnerPart {
     }
 }
 
-impl crate::contract::Extension for SpinnerStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl SpinnerStyle {
     /// TODO(prose): a spinner as large as a control's icon at each of the
     /// style's sizes, turning once a second, as Tailwind's `animate-spin`.
-    pub fn from_style(style: &Style) -> Self {
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         let buttons = &style.toggle.sizes;
         let mut sizes = Keyed::new(
             buttons.default_key(),
@@ -151,16 +145,15 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
             classes,
         } = self;
         let ctx = b.ctx().clone();
-        let style = b.style().extension::<SpinnerStyle>();
+        let style = b.style().spinner.clone();
         let size = size.unwrap_or_else(|| b.control_size());
         let side = *crate::owned::styles::entry(&ctx, &style.sizes, size);
         let name = name.unwrap_or_else(|| "Loading".to_owned());
         // The size is the widget's, from its size's entry (#348), over the
         // sheet's `size-4`.
-        let classes = b.part_over(
+        let classes = b.part(
             SpinnerPart::Root,
             &[],
-            crate::sheet::Defaults(tw()),
             tw().size_px(side)
                 .shrink_0()
                 .sense_hover()

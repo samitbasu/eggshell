@@ -13,7 +13,7 @@
 
 use std::time::Duration;
 
-use crate::{Builder, Easing, Opacity, Progress, Style, Tw, cycle, tw};
+use crate::{Builder, Easing, Opacity, Progress, Tw, cycle, tw};
 use egui::Color32;
 
 /// TODO(prose): how skeletons look: their fill, corners and pulse.
@@ -31,20 +31,14 @@ pub struct SkeletonStyle {
     pub low: Opacity,
 }
 
-impl crate::contract::Extension for SkeletonStyle {
-    fn derive(style: &Style) -> Self {
-        Self::from_style(style)
-    }
-}
-
 impl SkeletonStyle {
     /// TODO(prose): a translucent grey over any ground, `rounded-md` of the
     /// style's menus, and Tailwind's `animate-pulse`: two seconds down to
     /// half.
-    pub fn from_style(style: &Style) -> Self {
+    pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         Self {
             fill: Color32::from_gray(128).gamma_multiply(0.2),
-            radius: crate::owned::styles::Popover::of(style).radius,
+            radius: crate::owned::styles::Popover::of_tokens(style.tokens).radius,
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }
@@ -77,14 +71,12 @@ pub trait SkeletonExt {
 
 impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
     fn skeleton(&mut self, classes: Tw) {
-        let style = self.style().extension::<SkeletonStyle>();
+        let style = self.style().skeleton.clone();
         let opacity = cycle(self.ctx(), style.period)
             .map_or(Opacity::OPAQUE, |phase| pulse(phase, style.low));
-        let look = tw().bg(style.fill).rounded_px(f32::from(style.radius));
-        let styled = self.part_over(
+        let styled = self.part(
             SkeletonPart::Root,
             &[],
-            crate::sheet::Defaults(look),
             tw().shrink_0().opacity(opacity).merge(classes),
         );
         self.div(styled, |_| {});

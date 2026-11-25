@@ -7,7 +7,6 @@
 //! source gives.
 
 mod classes;
-mod compare;
 mod emit;
 mod source;
 
@@ -1134,35 +1133,15 @@ pub fn run(plan: &Plan) -> Result<()> {
     let (rows, _) = extract(&registry, &plan.style, &classifier, &mut sources)?;
     let diagnostics = diagnostics(&rows, &sources);
     eprint!("{diagnostics}");
-    let dump = compare::Dump::parse(&preset_dump(&root)?);
     let mut report = report(plan, &rows, &tw, radius);
     for style in STYLES {
         let mut scratch = Sources::default();
-        let (rows, rules) = extract(&registry, style, &classifier, &mut scratch)?;
-        let radius = Radius { base: radius };
+        let (rows, _) = extract(&registry, style, &classifier, &mut scratch)?;
         let _ = writeln!(
             report,
-            "## 3. `{style}`: shadcn against today's preset
+            "## 3. `{style}`: sheets
 "
         );
-        let _ = writeln!(
-            report,
-            "### Badge
-"
-        );
-        compare::badge_metrics(&mut report, style, &rows, &dump, &radius);
-        let _ = writeln!(
-            report,
-            "### Combobox parts
-"
-        );
-        compare::combobox_parts(&mut report, style, &rules, &dump, &radius);
-        let _ = writeln!(
-            report,
-            "### Colours, button and badge variants
-"
-        );
-        compare::colours(&mut report, style, &rows, &dump);
         let sheets = root.join(&plan.out).join("sheets").join(style);
         fs::create_dir_all(&sheets)?;
         for widget in &WIDGETS {
@@ -1269,23 +1248,6 @@ fn diagnostics(rows: &[Row], sources: &Sources) -> String {
         out.push('\n');
     }
     out
-}
-
-/// The output of `examples/preset_dump.rs`: what the preset makes of
-/// shadcn, one fact a line.
-fn preset_dump(root: &Path) -> Result<String> {
-    duct::cmd!(
-        "cargo",
-        "run",
-        "-q",
-        "--features",
-        "badge,command,dialog,disclosure,form,hover-card,markdown,notify,skeleton",
-        "--example",
-        "preset_dump"
-    )
-    .dir(root)
-    .read()
-    .context("running the preset_dump example")
 }
 
 fn report(plan: &Plan, rows: &[Row], tw: &TwTable, radius: f32) -> String {

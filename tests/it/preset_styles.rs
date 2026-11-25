@@ -2,7 +2,7 @@
 //! `style-lyra.css`, and both fill the same contract.
 
 use eggshell_ui::Tw;
-use eggshell_ui::contract::{Fonts, Size, Style, TextScale, TextSize, TextStep, Variant};
+use eggshell_ui::contract::{Size, Style, TextScale, TextSize, TextStep, Variant};
 use eggshell_ui::owned::{ButtonPart, Enablement, InputPart, SegmentedRows, SliderPart, TabsPart};
 use eggshell_ui::sheet::Key;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
@@ -236,10 +236,10 @@ fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
             assert_eq!(half.text, core.text, "{at}");
             assert_eq!(half.toggle, core.toggle, "{at}");
             assert_eq!(half.menu, core.menu, "{at}");
-            let fonts = half.extension::<Fonts>();
+            let fonts = &half.fonts;
             assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
-            assert!(!fonts.0.is_empty(), "{at}");
-            assert!(fonts.0.iter().all(|font| !font.families.is_empty()), "{at}");
+            assert!(!fonts.is_empty(), "{at}");
+            assert!(fonts.iter().all(|font| !font.families.is_empty()), "{at}");
         }
     }
 }

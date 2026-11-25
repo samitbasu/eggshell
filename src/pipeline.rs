@@ -653,7 +653,7 @@ fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
         ctx.style_mut_of(theme, |egui| half.egui_style(theme, egui));
     }
     for half in [&style.light, &style.dark] {
-        for font in &half.extension::<crate::contract::Fonts>().0 {
+        for font in &half.fonts {
             ctx.add_font(font.clone());
         }
     }

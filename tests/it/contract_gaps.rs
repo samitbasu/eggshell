@@ -5,11 +5,11 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
+use eggshell_ui::contract::{Paint, Size, Themed, Variant};
 use eggshell_ui::owned::{Cell, Choice, Enablement, Face, SegmentedRows, TabsPart};
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
-use eggshell_ui::{Aria, Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Aria, Builder, Icon, Style, TextSpec, TextStyle, Weight, tw};
 use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
@@ -683,101 +683,6 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
 }
 
 // ----- #43 item 9: disabled as node opacity -----
-
-fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
-    b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            b.button(("button", enablement), "Save")
-                .variant(eggshell_ui::theme::variant::PRIMARY)
-                .enablement(enablement)
-                .on_click(|app: &mut App| app.clicks += 1);
-            b.checkbox(("check", enablement), "Agree", true)
-                .enablement(enablement)
-                .on_change(|app: &mut App, _| app.clicks += 1);
-        }
-    });
-}
-
-#[test]
-fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
-    for (theme, shadcn) in COMBINATIONS {
-        let opacity = 0.4;
-        let mut d = harness_with(
-            theme,
-            shadcn,
-            move |style| {
-                style.tokens.disabled = Disabled::Faded(Opacity::new(opacity));
-                style.sheet.as_app().rule_when(
-                    eggshell_ui::owned::ButtonPart::Root,
-                    eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
-                    move |t, _| t.opacity(Opacity::new(opacity)),
-                );
-            },
-            disabled_row,
-        );
-        let rest = support::button::look(theme, eggshell_ui::theme::variant::PRIMARY);
-        let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
-        let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
-        assert_eq!(box_at(&d, enabled).fill, rest.fill, "precondition");
-        let fill = box_at(&d, disabled).fill;
-        assert_eq!(
-            fill,
-            rest.fill.gamma_multiply(opacity),
-            "{theme:?} {shadcn:?}: the rest fill at node opacity, translucent not opaque"
-        );
-        assert!(fill.a() < 255 && fill.a() > 0);
-        assert_eq!(
-            text_color(&d, disabled, "Save"),
-            rest.text.gamma_multiply(opacity),
-            "the label fades with its node"
-        );
-        // Under the preset a choice's label fades as shadcn's field label
-        // does, `group-data-[disabled=true]/field:opacity-50`, whatever the
-        // token says.
-        let label = d.rect(Target::suffix("/(\"check\", Disabled)/<div>"));
-        let foreground = Tokens::for_theme(theme).in_style(shadcn).foreground;
-        assert_eq!(
-            text_color(&d, label, "Agree"),
-            foreground.gamma_multiply(0.5),
-            "a choice's label fades with its field"
-        );
-        d.click(Target::suffix("/(\"button\", Disabled)"));
-        d.click(Target::suffix("/(\"check\", Disabled)/<div>"));
-        assert_eq!(d.app().clicks, 0, "still inert");
-        d.click(Target::suffix("/(\"button\", Enabled)"));
-        assert_eq!(d.app().clicks, 1);
-    }
-}
-
-#[test]
-fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
-    let translucent = Color32::from_rgba_unmultiplied(20, 20, 220, 128);
-    let mut d = harness_with(
-        Theme::Light,
-        ShadcnStyle::Vega,
-        |style| {
-            style.sheet.as_app().rule_when(
-                eggshell_ui::owned::ButtonPart::Root,
-                eggshell_ui::sheet::When::always().variant(eggshell_ui::theme::variant::PRIMARY),
-                move |t, _| t.bg(translucent),
-            );
-            style.sheet.as_app().rule_when(
-                eggshell_ui::owned::ButtonPart::Root,
-                eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
-                |t, _| t.opacity(Opacity::new(0.3)),
-            );
-        },
-        disabled_row,
-    );
-    let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
-    let fill = box_at(&d, disabled).fill;
-    assert_eq!(fill, translucent.gamma_multiply(0.3));
-    assert!(
-        fill.a() < translucent.a(),
-        "fainter than the enabled fill, so the surface shows through"
-    );
-    d.frames(1);
-}
 
 // ----- #43 item 10: icon buttons -----
 

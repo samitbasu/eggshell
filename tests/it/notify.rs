@@ -370,7 +370,7 @@ fn the_preset_gives_sonners_notification_look() {
     use eggshell_ui::Weight;
     use eggshell_ui::theme::{Shadcn, ShadcnStyle};
     let vega = Shadcn::light();
-    let notify = vega.notify(&vega.style());
+    let notify = vega.style().notify;
     assert_eq!(notify.fill, vega.tokens.popover, "--normal-bg");
     assert_eq!(notify.border, vega.tokens.border, "--normal-border");
     assert_eq!(notify.text, vega.tokens.popover_foreground, "--normal-text");
@@ -415,7 +415,7 @@ fn the_preset_gives_sonners_notification_look() {
     assert_eq!(notify.close.border, Color32::from_gray(237), "gray4");
     assert_eq!(notify.close.hover_fill, Color32::from_gray(248), "gray2");
     let dark = Shadcn::dark();
-    let notify_dark = dark.notify(&dark.style());
+    let notify_dark = dark.style().notify;
     assert_eq!(
         notify_dark.close.border, dark.tokens.border,
         "--normal-border"
@@ -426,7 +426,7 @@ fn the_preset_gives_sonners_notification_look() {
         "hsl(0 0% 12%)"
     );
     let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
-    assert_eq!(lyra.notify(&lyra.style()).radius, 0, "rounded-none");
+    assert_eq!(lyra.style().notify.radius, 0, "rounded-none");
 }
 
 #[test]

@@ -254,15 +254,14 @@ mod tests {
     use super::*;
     use crate::tw::tw;
 
-    fn rust(origin: Option<Origin>) -> (Layer, u32) {
-        let Some(Origin {
-            layer,
-            source: Source::Rust(at),
-        }) = origin
-        else {
-            return (Layer::Defaults, 0);
-        };
-        (layer, at.line())
+    fn rust(origin: Option<Origin>) -> Option<(Layer, u32)> {
+        match origin? {
+            Origin {
+                layer,
+                source: Source::Rust(at),
+            } => Some((layer, at.line())),
+            _ => None,
+        }
     }
 
     fn shadcn(origin: Option<Origin>) -> Option<(u32, &'static str)> {
@@ -309,7 +308,7 @@ mod tests {
         let (classes, line) = (tw().px(2.0), line!());
         assert_eq!(
             rust(classes.origin_of(Property::padding_left)),
-            (Layer::CallSite, line)
+            Some((Layer::CallSite, line))
         );
         assert_eq!(classes.origin_of(Property::padding_top), None, "only px");
         assert_eq!(classes.origin_of(Property::width), None);
@@ -331,7 +330,7 @@ mod tests {
         ] {
             assert_eq!(
                 rust(classes.origin_of(property)),
-                (Layer::CallSite, line + extra),
+                Some((Layer::CallSite, line + extra)),
                 "{property:?}"
             );
         }
@@ -345,11 +344,11 @@ mod tests {
         let merged = first.merge(second);
         assert_eq!(
             rust(merged.origin_of(Property::padding_left)),
-            (Layer::CallSite, second_line)
+            Some((Layer::CallSite, second_line))
         );
         assert_eq!(
             rust(merged.origin_of(Property::gap_width)),
-            (Layer::CallSite, first_line)
+            Some((Layer::CallSite, first_line))
         );
     }
 
@@ -431,7 +430,7 @@ mod tests {
         let (classes, line) = (tw().hover(|p| p.bg(Color32::RED)), line!());
         assert_eq!(
             rust(classes.origin_of(Property::VariantHover)),
-            (Layer::CallSite, line)
+            Some((Layer::CallSite, line))
         );
         assert_eq!(classes.origin_of(Property::VariantActive), None);
     }

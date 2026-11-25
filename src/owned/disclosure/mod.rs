@@ -99,9 +99,9 @@ pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &DisclosureStyle
 ///
 /// ```
 /// use eggshell_ui::Progress;
-/// use eggshell_ui::owned::disclosure::{DisclosureStyle, chevron};
+/// use eggshell_ui::owned::disclosure::chevron;
 ///
-/// let style = DisclosureStyle::from_style(&eggshell_ui::Style::default());
+/// let style = eggshell_ui::Style::default().disclosure;
 /// let open = chevron(&style.section, Progress::END);
 /// # let _ = open;
 /// ```
@@ -290,7 +290,7 @@ impl<A: 'static, K: Key> DisclosureChain<'_, '_, '_, A, K> {
             enablement,
         } = self;
         let _ctx = b.ctx().clone();
-        let style = b.style().extension::<DisclosureStyle>();
+        let style = b.style().disclosure.clone();
         let enablement = enablement_in(b, enablement);
         let box_classes = box_classes(&style, enablement);
         let box_classes = match (style.button_hover, enablement) {
