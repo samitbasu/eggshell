@@ -28,7 +28,7 @@ fn styled(style: ShadcnStyle, edit: fn(&mut Tokens)) -> Themed<Arc<eggshell_ui::
     let half = |mut preset: Shadcn| {
         preset = preset.with_style(style);
         edit(&mut preset.tokens);
-        Arc::new(preset.layout_style())
+        Arc::new(preset.style())
     };
     Themed {
         light: half(Shadcn::light()),

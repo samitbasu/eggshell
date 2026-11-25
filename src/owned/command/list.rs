@@ -160,7 +160,7 @@ pub(crate) struct Query;
 
 impl Query {
     fn id(list: Id) -> Id {
-        list.with("eggshell-ui-extras-query")
+        list.with("eggshell-ui-query")
     }
 
     pub(crate) fn get(ctx: &Context, list: Id) -> String {

@@ -309,7 +309,7 @@ impl Typing {
     };
 
     fn id(combobox: Id) -> Id {
-        combobox.with("eggshell-ui-extras-typing")
+        combobox.with("eggshell-ui-typing")
     }
 
     fn load(ctx: &egui::Context, combobox: Id) -> Self {
@@ -582,7 +582,7 @@ enum Suggesting {
 
 impl Suggesting {
     fn id(field: Id) -> Id {
-        field.with("eggshell-ui-extras-suggesting")
+        field.with("eggshell-ui-suggesting")
     }
 
     fn load(ctx: &egui::Context, field: Id) -> Self {

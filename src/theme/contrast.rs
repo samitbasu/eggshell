@@ -255,7 +255,7 @@ pub(crate) fn warn_low_contrast(ctx: &Context, tokens: &Tokens) {
         {
             continue;
         }
-        let subject = egui::Id::NULL.with(("eggshell-ui-shadcn-contrast", theme, pair));
+        let subject = egui::Id::NULL.with(("eggshell-ui-theme-contrast", theme, pair));
         crate::report(ctx, crate::Problem::LowContrast, Some(subject), || {
             format!(
                 "{} is {ratio} in {theme:?} (AA text needs {})",

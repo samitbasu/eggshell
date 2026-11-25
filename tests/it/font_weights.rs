@@ -33,7 +33,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 fn harness(fonts: impl Fn(Shadcn) -> Shadcn) -> Driver<()> {
-    let half = |preset: Shadcn| Arc::new(fonts(preset).layout_style());
+    let half = |preset: Shadcn| Arc::new(fonts(preset).style());
     let mut d = support::driver(
         Vec2::new(300.0, 300.0),
         common::base_text(Theme::Light),

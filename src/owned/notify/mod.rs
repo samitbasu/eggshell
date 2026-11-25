@@ -327,9 +327,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
             on_action,
             on_dismiss,
         } = self;
-        let dwells = b
-            .id_of(key.clone())
-            .with("eggshell-ui-extras-notify-dwells");
+        let dwells = b.id_of(key.clone()).with("eggshell-ui-notify-dwells");
         if items.is_empty() {
             b.ctx().data_mut(|data| data.remove::<Dwells>(dwells));
             return;
@@ -494,7 +492,7 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
     let Some(node) = ui.node_id() else {
         return false;
     };
-    let mark = node.with("eggshell-ui-extras-notify-focus");
+    let mark = node.with("eggshell-ui-notify-focus");
     let now = ui.has_focus_within();
     let before = ui.data_mut(|data| {
         let before = data.remove_temp::<FocusInside>(mark).is_some();

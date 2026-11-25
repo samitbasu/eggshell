@@ -89,7 +89,7 @@ enum Rules {
 /// How many sections enclose what is being built now, so a row inside one
 /// takes its inset. Building is synchronous, so the count is exact.
 fn depth_id() -> Id {
-    Id::NULL.with("eggshell-ui-extras-form-section-depth")
+    Id::NULL.with("eggshell-ui-form-section-depth")
 }
 
 fn depth(ctx: &Context) -> u32 {
@@ -104,7 +104,7 @@ fn set_depth(ctx: &Context, depth: u32) {
 /// The ordinal of the next keyless row under the parent `b` builds into,
 /// counted afresh each pass: a row's positional key.
 fn next_row<A>(b: &Builder<'_, '_, A>) -> u32 {
-    let id = b.id_of("eggshell-ui-extras-labeled-rows");
+    let id = b.id_of("eggshell-ui-labeled-rows");
     let pass = b.ctx().cumulative_pass_nr();
     b.ctx().data_mut(|data| {
         let (seen, next) = data.get_temp::<(u64, u32)>(id).unwrap_or((pass, 0));

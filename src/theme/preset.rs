@@ -134,35 +134,12 @@ impl Shadcn {
         palette: Palette,
     ) -> crate::contract::Themed<std::sync::Arc<contract::Style>> {
         let half = |preset: Self| {
-            std::sync::Arc::new(
-                preset
-                    .with_style(style)
-                    .with_palette(palette)
-                    .layout_style(),
-            )
+            std::sync::Arc::new(preset.with_style(style).with_palette(palette).style())
         };
         crate::contract::Themed {
             light: half(Self::light()),
             dark: half(Self::dark()),
         }
-    }
-
-    /// TODO(prose): this preset's style with its fonts and the extras' looks, as one half of a layout's style.
-    ///
-    /// ```
-    /// use eggshell_ui::LayoutState;
-    /// use eggshell_ui::contract::Themed;
-    /// use eggshell_ui::theme::Shadcn;
-    /// use std::sync::Arc;
-    ///
-    /// let style = Themed {
-    ///     light: Arc::new(Shadcn::light().with_fonts(None).layout_style()),
-    ///     dark: Arc::new(Shadcn::dark().with_fonts(None).layout_style()),
-    /// };
-    /// let _layout = LayoutState::new().with_style(style);
-    /// ```
-    pub fn layout_style(&self) -> contract::Style {
-        self.style()
     }
 
     /// This preset as the [`Style`](crate::Style) contract.
@@ -597,7 +574,7 @@ impl Shadcn {
 }
 
 fn tokens_id(theme: Theme) -> Id {
-    Id::NULL.with(("eggshell-ui-shadcn-tokens", theme))
+    Id::NULL.with(("eggshell-ui-theme-tokens", theme))
 }
 
 /// The tokens a preset was applied with for the context's current theme, if
