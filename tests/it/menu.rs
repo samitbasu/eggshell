@@ -865,10 +865,7 @@ mod open_query {
         let mut bar = support::Bar::new(base_text());
         let mut d = Driver::whole_frame(app, move |ui, app, layout| {
             let area = ui.max_rect();
-            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-            }
-            bar.show(ui);
+            bar.show(ui, layout.style());
             let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
             if let Some(observe) = observe.borrow_mut().as_mut() {
                 observe(&placed);

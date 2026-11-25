@@ -2,7 +2,7 @@
 //!
 //! Core defines what its widgets need and a preset (such as the `eggshell-ui-shadcn` crate) fills it, so a design
 //! system is data: an app gives a layout its [`Style`] with
-//! [`LayoutState::with_style`](crate::LayoutState::with_style) and the widgets
+//! [`LayoutState::new`](crate::LayoutState::new) and the widgets
 //! follow, with no code change. [`Style::default`] is derived from egui's
 //! visuals, so core looks coherent with no preset at all.
 //!
@@ -1338,26 +1338,11 @@ impl Style {
         section.as_ref().unwrap_or(&self.text)
     }
 
-    /// [`Style::default`] in egui's own fonts, built once: the style of a
-    /// layout given none, which gives egui nothing. With no font of its own,
-    /// it draws every weight in egui's regular face, which every font has.
-    pub(crate) fn fallback() -> Arc<Self> {
-        static FALLBACK: std::sync::LazyLock<Arc<Style>> = std::sync::LazyLock::new(|| {
-            let mut style = Style::new(&Tokens {
-                font: None,
-                control_weight: Weight::Normal,
-                label_weight: Weight::Normal,
-                ..Tokens::light()
-            });
-            style.faces = Weight::ALL
-                .into_iter()
-                .filter(|weight| *weight != Weight::Normal)
-                .fold(Faces::default(), |faces, weight| {
-                    faces.with(FontFamily::Proportional, weight, FontFamily::Proportional)
-                });
-            Arc::new(style)
-        });
-        FALLBACK.clone()
+    /// [`Style::default`], built once: the style of a `Ui` that is no node's.
+    pub(crate) fn shared_default() -> Arc<Self> {
+        static DEFAULT: std::sync::LazyLock<Arc<Style>> =
+            std::sync::LazyLock::new(|| Arc::new(Style::default()));
+        DEFAULT.clone()
     }
 
     /// TODO(prose): every section filled from `tokens` the way shadcn draws

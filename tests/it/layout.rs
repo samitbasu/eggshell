@@ -61,7 +61,7 @@ fn ctx() -> &'static Context {
 }
 
 fn fixed_state() -> LayoutState {
-    LayoutState::new().with_base_text(base())
+    LayoutState::new(crate::support::shadcn()).with_base_text(base())
 }
 
 fn place(f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
@@ -159,7 +159,11 @@ fn kaolin_hello_world() {
     let div_node = placed.nodes().find(|n| n.kind() == NodeKind::Div).unwrap();
     assert_eq!(
         div_node.paint().background,
-        Some(eggshell_ui::theme::Shadcn::of(ctx()).tokens.background)
+        Some(
+            eggshell_ui::theme::Shadcn::for_theme(ctx().theme())
+                .tokens
+                .background
+        )
     );
 }
 
@@ -1161,21 +1165,9 @@ fn fresh_ctx() -> Context {
 }
 
 #[test]
-fn the_default_root_text_style_is_eguis() {
-    let ctx = fresh_ctx();
-    let expected = TextStyle::from_egui(&ctx);
-    assert_ne!(
-        expected,
-        base(),
-        "the default must differ from the override"
-    );
-    assert_eq!(root_text(&mut LayoutState::new(), &ctx), expected);
-}
-
-#[test]
 fn the_override_replaces_the_default() {
     let ctx = fresh_ctx();
-    let mut state = LayoutState::new().with_base_text(base());
+    let mut state = LayoutState::new(crate::support::shadcn()).with_base_text(base());
     assert_ne!(TextStyle::from_egui(&ctx), base());
     assert_eq!(root_text(&mut state, &ctx), base());
 }
@@ -1183,7 +1175,7 @@ fn the_override_replaces_the_default() {
 #[test]
 fn the_default_follows_the_theme() {
     let ctx = fresh_ctx();
-    let mut state = LayoutState::new();
+    let mut state = LayoutState::new(crate::support::shadcn());
     ctx.set_visuals(egui::Visuals::dark());
     let dark = root_text(&mut state, &ctx).color;
     ctx.set_visuals(egui::Visuals::light());

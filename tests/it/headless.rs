@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{Headless, PixelsPerPoint};
-use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{Builder, Placed, Style, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
+use egui::{Color32, FontFamily, Theme, vec2};
 
 use crate::support::{self, rect_of};
 
@@ -269,37 +268,13 @@ fn diff_reports_a_node_present_in_one_layout() {
     assert!(removed[0].before().is_some() && removed[0].after().is_none());
 }
 
-fn text_width(mut headless: Headless) -> f32 {
-    headless
-        .layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
-            b.div(tw().flex(), |b| {
-                b.span("t", tw(), "Some words to measure");
-            });
-        })
-        .at("t")
-        .rect()
-        .width()
-}
-
-#[test]
-fn prepare_changes_the_fonts_layout_measures_with() {
-    let plain = text_width(Headless::new(SIZE));
-    let larger = text_width(Headless::new(SIZE).prepare(|ctx| {
-        ctx.all_styles_mut(|style| {
-            style
-                .text_styles
-                .get_mut(&EguiTextStyle::Body)
-                .expect("body style")
-                .size = 40.0;
-        });
-    }));
-    assert!(larger > plain * 1.5, "{larger} vs {plain}");
-}
-
 fn themed_width(theme: Theme) -> f32 {
+    let prepared = egui::Id::NULL.with("themed-width-prepared");
     let mut headless = Headless::new(SIZE)
         .base_text(body())
-        .prepare(Shadcn::apply_both)
+        .prepare(move |ctx| {
+            ctx.data_mut(|data| data.insert_temp(prepared, ()));
+        })
         .style(crate::support::shadcn())
         .theme(theme);
     headless
@@ -309,7 +284,7 @@ fn themed_width(theme: Theme) -> f32 {
                 Theme::Dark => 60.0,
             };
             assert!(
-                eggshell_ui::theme::tokens(b.ctx()).is_some(),
+                b.ctx().data(|data| data.get_temp::<()>(prepared)).is_some(),
                 "prepare ran before the build"
             );
             b.div_id("t", tw().w_px(width), |_| {});
@@ -403,9 +378,7 @@ fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
     let app = Labelled {
         label: "Telemetry".to_owned(),
     };
-    let mut headless = Headless::new(SIZE)
-        .prepare(Shadcn::apply_both)
-        .style(crate::support::shadcn());
+    let mut headless = Headless::new(SIZE).style(crate::support::shadcn());
     let placed: eggshell_ui::testing::Placed<Labelled> =
         headless.layout(&app, |b, app| app.build(b));
     assert!(
@@ -460,7 +433,6 @@ fn text_agrees_at(scale: PixelsPerPoint) {
     let placed = Headless::new(SIZE)
         .pixels_per_point(scale)
         .base_text(shadcn_body())
-        .prepare(Shadcn::apply_both)
         .style(crate::support::shadcn())
         .theme(Theme::Light)
         .layout(&(), wrapping_card);
@@ -532,18 +504,6 @@ fn without_a_base_text_a_layout_reads_its_style() {
         "precondition: the style's text lays out unlike egui's Body"
     );
     assert_eq!(defaulted, given);
-}
-
-#[test]
-fn without_a_base_text_or_a_style_a_layout_reads_egui_body() {
-    let defaulted = card_text_rects(Headless::new(SIZE));
-    let mut probe = Headless::new(SIZE);
-    probe.layout(&(), |_, _| {});
-    let body = TextStyle::from_egui(probe.ctx());
-    assert_eq!(
-        defaulted,
-        card_text_rects(Headless::new(SIZE).base_text(body))
-    );
 }
 
 #[test]

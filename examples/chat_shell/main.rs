@@ -30,7 +30,7 @@ use view::layout;
 
 fn main() -> eframe::Result {
     let mut app = App::default();
-    let mut layout_state = LayoutState::new();
+    let mut layout_state = LayoutState::new(common::initial_style());
     common::launch("chat_shell", Some(egui::vec2(1280.0, 800.0)), move |ui| {
         common::toggle_debug(ui.ctx());
         view::prepare(ui.ctx(), &app);

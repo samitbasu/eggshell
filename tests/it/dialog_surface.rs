@@ -121,9 +121,7 @@ fn content<'c, 'f>(app: &'c App) -> impl FnOnce(&mut dialog::Content<'c, 'f, App
     }
 }
 
-fn prepare(ctx: &egui::Context, _: &App) {
-    eggshell_ui::theme::Shadcn::apply_both(ctx);
-}
+fn prepare(_: &egui::Context, _: &App) {}
 
 fn harness(app: App) -> Harness<'static, Rig<App>> {
     let mut harness = support::harness_prepared(

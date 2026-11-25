@@ -22,7 +22,7 @@
 //!                         .layout(ui.max_rect())
 //!                         .draw(&mut (), ui);
 //!                 },
-//!                 LayoutState::new(),
+//!                 LayoutState::new(eggshell_ui::theme::Shadcn::themed(eggshell_ui::theme::ShadcnStyle::Vega, eggshell_ui::theme::Palette::new())),
 //!             )
 //!     })?;
 //!     assert_eq!(written.len(), Scale::ALL.len() * 2);

@@ -3,8 +3,6 @@
 use crate::{Builder, NodeHandle, TextSpec, Weight, tw};
 use egui::{FontFamily, vec2};
 
-use crate::theme::{Shadcn, tokens};
-
 /// How far the chip sits from the pointer, down and to the right, in points,
 /// so that it does not cover the cursor.
 const OFFSET: f32 = 12.0;
@@ -26,7 +24,7 @@ const TEXT_XS: TextSpec = TextSpec {
 /// <div class="absolute whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">text</div>
 /// ```
 pub fn drag_chip<A>(b: &mut Builder<'_, '_, A>, text: impl Into<String>) {
-    let t = tokens(b.ctx()).unwrap_or_else(|| Shadcn::of(b.ctx()).tokens);
+    let t = b.style().tokens.clone();
     let at = b.shell().drag_grab() + vec2(OFFSET, OFFSET);
     b.div(
         tw().absolute()

@@ -82,7 +82,7 @@
 //!             placed.draw(app, ui);
 //!         },
 //!         (
-//!             LayoutState::new().with_style(Themed::both(Arc::new(Style::default()))),
+//!             LayoutState::new(Themed::both(Arc::new(Style::default()))),
 //!             App::default(),
 //!         ),
 //!     );
@@ -153,7 +153,7 @@
 //! #             let view = |b: &mut Builder<'_, '_, ()>| { b.div_id("card", tw().w_px(80.0).h_px(40.0), |_| {}); };
 //! #             layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
 //! #         },
-//! #         LayoutState::new().with_style(Themed::both(Arc::new(Style::default()))),
+//! #         LayoutState::new(Themed::both(Arc::new(Style::default()))),
 //! #     );
 //! harness.run_steps(10);
 //! eggshell_ui::testing::Timeline::recorded(&harness.ctx).assert_continuous();
@@ -246,7 +246,7 @@ impl Headless {
             size,
             base_text: None,
             style: None,
-            state: LayoutState::new(),
+            state: LayoutState::new(default_style()),
             theme: None,
             pixels_per_point: PixelsPerPoint::default(),
             pending: Vec::new(),
@@ -267,7 +267,7 @@ impl Headless {
         self
     }
 
-    /// TODO(prose): the layout's style, as [`LayoutState::with_style`].
+    /// TODO(prose): the layout's style, as [`LayoutState::set_style`]; the default shadcn style when unset.
     pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
         self.style = Some(style);
         self
@@ -276,7 +276,7 @@ impl Headless {
     /// Names the layout's [`LayoutState`], for a context that other named
     /// layouts share.
     pub fn named(mut self, name: &'static str) -> Self {
-        self.state = LayoutState::named(name);
+        self.state = LayoutState::named(name, default_style());
         self
     }
 
@@ -923,4 +923,13 @@ impl crate::ClipboardSource for FakeClipboard {
         state.written.push(image.clone());
         Ok(())
     }
+}
+
+/// The style a test harness lays out in when the test gives none: shadcn's
+/// default, light and dark.
+pub(crate) fn default_style() -> Themed<Arc<Style>> {
+    crate::theme::Shadcn::themed(
+        crate::theme::ShadcnStyle::default(),
+        crate::theme::Palette::new(),
+    )
 }

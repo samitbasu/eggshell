@@ -193,13 +193,15 @@ fn last_stop_id() -> egui::Id {
 impl Bar {
     pub fn new(base_text: TextStyle) -> Self {
         Self {
-            layout: LayoutState::named("rig-bar").with_base_text(base_text),
+            layout: LayoutState::named("rig-bar", crate::support::shadcn())
+                .with_base_text(base_text),
             last_stop: None,
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.layout.set_style(common::style(ui.ctx()));
+    /// Shows the bar in `style`, the style of the page it sits over.
+    pub fn show(&mut self, ui: &mut egui::Ui, style: Themed<Arc<eggshell_ui::Style>>) {
+        self.layout.set_style(style);
         let window = ui.max_rect();
         let area = Rect::from_min_size(
             Pos2::new(window.min.x, window.min.y - BAR_HEIGHT),
@@ -364,9 +366,7 @@ fn harness_timed<A>(
         page: Page::default(),
         companion: Companion::default(),
         bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new()
-            .with_base_text(base_text)
-            .with_style(shadcn()),
+        layout: LayoutState::new(shadcn()).with_base_text(base_text),
         app,
         view,
         prepare,
@@ -393,20 +393,17 @@ fn harness_timed<A>(
                     ids,
                 } = rig;
                 full_motion(ui.ctx());
-                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-                }
                 if let Some(prepare) = prepare {
                     prepare(ui.ctx(), &*app);
                     layout.set_style(common::style(ui.ctx()));
                 }
                 if *page == Page::Themed {
-                    let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
+                    let background = layout.shell(ui.ctx()).style().tokens.background;
                     ui.painter()
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }
                 if *companion == Companion::Bar {
-                    bar.show(ui);
+                    bar.show(ui, layout.style());
                 }
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
@@ -756,9 +753,7 @@ pub fn frame_harness_scaled<A: 'static>(
     let rig = FrameRig {
         app,
         bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new()
-            .with_base_text(base_text)
-            .with_style(shadcn()),
+        layout: LayoutState::new(shadcn()).with_base_text(base_text),
     };
     let harness = Harness::builder()
         .with_size(size)
@@ -767,13 +762,10 @@ pub fn frame_harness_scaled<A: 'static>(
         .build_ui_state(
             move |ui, rig: &mut FrameRig<A>| {
                 full_motion(ui.ctx());
-                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-                }
-                let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
+                let background = rig.layout.shell(ui.ctx()).style().tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
-                rig.bar.show(ui);
+                rig.bar.show(ui, rig.layout.style());
                 frame(ui, &mut rig.app, &mut rig.layout);
             },
             rig,
@@ -911,20 +903,17 @@ fn rig_driver<A: 'static>(
     Driver::whole_frame(app, move |ui, app, layout| {
         let area = ui.max_rect();
         let Surround { page, companion } = surround(ui.ctx());
-        if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-            eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-        }
         if let Some(prepare) = prepare {
             prepare(ui.ctx(), &*app);
             layout.set_style(common::style(ui.ctx()));
         }
         if page == Page::Themed {
-            let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
+            let background = layout.shell(ui.ctx()).style().tokens.background;
             ui.painter()
                 .rect_filled(ui.ctx().content_rect(), 0.0, background);
         }
         if companion == Companion::Bar {
-            bar.show(ui);
+            bar.show(ui, layout.style());
         }
         layout
             .build(ui.ctx(), |b| view(b, &*app))
@@ -950,13 +939,10 @@ pub fn frame_driver<A: 'static>(
     let mut bar = Bar::new(base_text.clone());
     let step = Duration::from_nanos(1_000_000_000 / 60);
     Driver::whole_frame(app, move |ui, app, layout| {
-        if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-            eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-        }
-        let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
+        let background = layout.shell(ui.ctx()).style().tokens.background;
         ui.painter()
             .rect_filled(ui.ctx().content_rect(), 0.0, background);
-        bar.show(ui);
+        bar.show(ui, layout.style());
         frame(ui, app, layout)
     })
     .size(size)

@@ -9,6 +9,7 @@ input. Each identified node has a key path, which is also its egui id, so
 egui's state for a widget follows the data it shows.
 
 ```rust,no_run
+use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
 use eggshell_ui::{Builder, LayoutState, tw};
 
 struct App {
@@ -23,7 +24,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn main() -> eframe::Result {
-    let mut layout = LayoutState::new();
+    let mut layout = LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
     let mut app = App { count: 0 };
     eframe::run_ui_native("counter", Default::default(), move |ui, _| {
         egui::CentralPanel::default().show(ui, |ui| {
@@ -119,7 +120,7 @@ so lavapipe is needed there too.
 With the default `fonts` feature the preset bundles **Geist**, shadcn's
 default sans-serif, as one variable font, `src/fonts/Geist-Variable.ttf`
 (`Geist[wght].ttf` from [vercel/geist-font](https://github.com/vercel/geist-font)
-v1.9.2, 165 KiB). `Shadcn::apply` registers it at 400, 500, 600 and 700, so
+v1.9.2, 165 KiB). TODO(prose): a `LayoutState` given the preset's style registers it at 400, 500, 600 and 700, so
 `font_medium()`, `font_semibold()` and `font_bold()` draw real faces, and the
 preset's buttons, labels and menu headings take shadcn's weights.
 

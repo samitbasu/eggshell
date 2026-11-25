@@ -62,7 +62,7 @@ pub fn window_frame(
         ui,
         app,
         layout,
-        &mut eggshell_ui::LayoutState::new().with_style(support::shadcn()),
+        &mut eggshell_ui::LayoutState::new(support::shadcn()),
     )
 }
 

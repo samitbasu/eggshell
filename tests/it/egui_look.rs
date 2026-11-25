@@ -1,6 +1,6 @@
-//! egui's own look from a layout's style (#435): a layout given a style of
-//! its own sets egui's visuals, spacing and fonts from it, exactly as the
-//! preset's `apply` does, so raw egui widgets look as they always have.
+//! TODO(prose): egui's own look from a layout's style (#435): a layout sets
+//! egui's visuals, spacing and fonts from its style, exactly as the preset
+//! maps them, so raw egui widgets look as they always have.
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
@@ -43,17 +43,27 @@ fn egui_after(
     )
 }
 
+/// egui's look as the preset in `style` maps it, written straight into the
+/// context: each theme's egui style, and the preset's fonts.
 fn applied(style: ShadcnStyle) -> (String, String, Vec<String>) {
     egui_after(
-        |ctx| Shadcn::apply_both_with(ctx, style, Palette::new()),
-        Some(LayoutState::new()),
+        |ctx| {
+            for theme in [Theme::Light, Theme::Dark] {
+                let half = Shadcn::for_theme(theme).with_style(style).style();
+                ctx.style_mut_of(theme, |egui| half.egui_style(theme, egui));
+                for font in &half.fonts {
+                    ctx.add_font(font.clone());
+                }
+            }
+        },
+        None,
     )
 }
 
 fn themed(style: ShadcnStyle) -> (String, String, Vec<String>) {
     egui_after(
         |_| {},
-        Some(LayoutState::new().with_style(Shadcn::themed(style, Palette::new()))),
+        Some(LayoutState::new(Shadcn::themed(style, Palette::new()))),
     )
 }
 
@@ -86,13 +96,6 @@ fn a_layout_s_style_gives_egui_the_preset_s_fonts() {
 }
 
 #[test]
-fn a_layout_without_a_style_of_its_own_leaves_egui_s_look_alone() {
-    let plain = egui_after(|_| {}, None);
-    let unstyled = egui_after(|_| {}, Some(LayoutState::new()));
-    assert!(plain.0 == unstyled.0 && plain.1 == unstyled.1);
-}
-
-#[test]
 fn set_style_gives_egui_the_new_look_on_the_next_build() {
     let (lyra_light, _, _) = applied(ShadcnStyle::Lyra);
     let (vega_light, _, _) = applied(ShadcnStyle::Vega);
@@ -109,7 +112,7 @@ fn set_style_gives_egui_the_new_look_on_the_next_build() {
                     .layout(ui.max_rect())
                     .draw(&mut (), ui);
             },
-            LayoutState::new().with_style(Shadcn::themed(ShadcnStyle::Vega, Palette::new())),
+            LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new())),
         );
     harness.run_steps(2);
     assert!(

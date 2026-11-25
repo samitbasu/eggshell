@@ -51,17 +51,17 @@ pub fn toggle_debug(ctx: &Context) {
     eggshell_ui::Debug::toggle_on(ctx, Key::F12);
 }
 
-/// The tokens the examples are drawn with: the preset applied to the
-/// context, or the preset's own for its current theme.
+/// The tokens the examples are drawn with: those of [`style`] for the
+/// context's current theme.
 pub fn tokens(ctx: &Context) -> Tokens {
-    Shadcn::of(ctx).tokens
+    style(ctx).get(ctx.theme()).tokens.clone()
 }
 
 /// The shadcn style and palette the examples are drawn in, kept in the
 /// context so that [`style_toggle`] can change the style while they run. Stored
 /// as a tuple of the preset crate's types so that every copy of this module
 /// (each example includes it) shares one entry.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Chosen {
     style: ShadcnStyle,
     palette: Palette,
@@ -98,11 +98,11 @@ pub fn style_of(ctx: &Context) -> ShadcnStyle {
     chosen(ctx).style
 }
 
-/// Applies the shadcn preset in the chosen style and palette to both
-/// egui themes; a no-op while nothing changed.
-pub fn use_preset(ctx: &Context) {
-    let Chosen { style, palette } = chosen(ctx);
-    Shadcn::apply_both_with(ctx, style, palette);
+/// The style an example's layout starts with, before a frame has chosen one:
+/// the preset in its default style and palette.
+pub fn initial_style() -> Themed<Arc<eggshell_ui::Style>> {
+    let Chosen { style, palette } = Chosen::default();
+    Shadcn::themed(style, palette)
 }
 
 /// The style the examples' layouts build with: the preset in the chosen style
@@ -122,7 +122,7 @@ pub fn style(ctx: &Context) -> Themed<Arc<eggshell_ui::Style>> {
     themed
 }
 
-/// [`use_preset`] with `palette`.
+/// Draws the examples in `palette` from the next frame on.
 pub fn use_palette(ctx: &Context, palette: Palette) {
     choose(
         ctx,
@@ -131,10 +131,9 @@ pub fn use_palette(ctx: &Context, palette: Palette) {
             ..chosen(ctx)
         },
     );
-    use_preset(ctx);
 }
 
-/// [`use_preset`] with `theme_color` on the neutral base.
+/// [`use_palette`] with `theme_color` on the neutral base.
 pub fn use_theme_color(ctx: &Context, theme_color: ThemeColor) {
     use_palette(ctx, Palette::new().theme(theme_color));
 }
@@ -271,11 +270,10 @@ fn shell<S: 'static>(
     prepare: fn(&egui::Context, &S),
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
 ) -> eframe::Result {
-    let mut layout_state = LayoutState::new();
+    let mut layout_state = LayoutState::new(initial_style());
     let mut theme_bar = ThemeBar::new();
     launch(title, inner_size, move |ui| {
         let ctx = ui.ctx().clone();
-        use_preset(&ctx);
         prepare(&ctx, &state);
         theme_bar.show(ui);
         layout_state.set_style(style(&ctx));
@@ -393,7 +391,7 @@ where
 }
 
 /// The Vega and Lyra choices as the preset's tab list. The choice lives in
-/// the context, where [`use_preset`] reads it.
+/// the context, where [`style`] reads it.
 pub fn style_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
@@ -434,14 +432,13 @@ impl Default for ThemeBar {
 impl ThemeBar {
     pub fn new() -> Self {
         Self {
-            layout: LayoutState::named("theme-bar"),
+            layout: LayoutState::named("theme-bar", initial_style()),
         }
     }
 
     /// Shows the strip as a top panel of `ui`.
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        use_preset(&ctx);
         toggle_debug(&ctx);
         self.layout.set_style(style(&ctx));
         self.layout.set_base_text(Some(base_text_in(&ctx)));

@@ -537,7 +537,7 @@ mod flight {
         let ctx = egui::Context::default();
         ctx.begin_pass(egui::RawInput::default());
         ctx.end_pass().textures_delta.clear();
-        let mut layout = LayoutState::new().with_base_text(base_text());
+        let mut layout = LayoutState::new(crate::support::shadcn()).with_base_text(base_text());
         let mut app = App::default();
         assert_eq!(pass(&ctx, &mut layout, &app, 0.0), None, "closed");
         app.open[0] = true;

@@ -38,9 +38,7 @@ fn harness(theme: Theme) -> H {
         base,
         Name("Pedro".to_owned()),
         view,
-        |ctx, _| {
-            Shadcn::apply_both(ctx);
-        },
+        |_, _| {},
     )
     .build();
     support::set_page(&d, support::Page::Themed);

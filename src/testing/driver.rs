@@ -382,7 +382,7 @@ impl<A: 'static> DriverBuilder<A> {
         self
     }
 
-    /// TODO(prose): the layout's style, as [`LayoutState::with_style`].
+    /// TODO(prose): the layout's style, as [`LayoutState::set_style`]; the default shadcn style when unset.
     pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
         self.style = Some(style);
         self
@@ -469,13 +469,11 @@ impl<A: 'static> DriverBuilder<A> {
         if let Some(setup) = setup {
             builder = builder.with_context_setup(setup);
         }
-        let mut layout = match base_text {
-            Some(base) => LayoutState::new().with_base_text(base),
-            None => LayoutState::new(),
+        let layout = LayoutState::new(style.unwrap_or_else(super::default_style));
+        let layout = match base_text {
+            Some(base) => layout.with_base_text(base),
+            None => layout,
         };
-        if let Some(style) = style {
-            layout.set_style(style);
-        }
         let stage = Stage {
             app,
             layout,

@@ -9,7 +9,7 @@
     reason = "each crate that includes this file uses a subset of it"
 )]
 
-use eggshell_ui::theme::{Shadcn, Tokens};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextSpec, Tw, Weight, tw};
 use egui::{Color32, FontFamily, ImageSource};
 
@@ -51,7 +51,7 @@ impl Greys {
 }
 
 fn greys<A>(b: &B<'_, '_, A>) -> Greys {
-    Greys::of(&Shadcn::of(b.ctx()).tokens)
+    Greys::of(&b.style().tokens)
 }
 
 /// A proportional text role of `size` points.

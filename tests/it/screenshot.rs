@@ -31,7 +31,7 @@ fn harness(scale: Scale, theme: Theme) -> Harness<'static, Scene> {
                 placed.draw(&mut (), ui);
             },
             Scene {
-                layout: LayoutState::new(),
+                layout: LayoutState::new(crate::support::shadcn()),
                 swatch: None,
             },
         )
@@ -141,7 +141,7 @@ enum Windows {
 fn popped_out(scale: Scale, windows: Windows) -> Harness<'static, PopOut> {
     screenshot::builder(scale, Theme::Light)
         .expect("lavapipe is installed")
-        .with_size(vec2(200.0, 150.0))
+        .with_size(vec2(300.0, 240.0))
         .build_ui_state(
             move |ui, scene: &mut PopOut| {
                 ui.ctx()
@@ -162,7 +162,7 @@ fn popped_out(scale: Scale, windows: Windows) -> Harness<'static, PopOut> {
                     .draw(&mut (), ui);
             },
             PopOut {
-                layout: LayoutState::new(),
+                layout: LayoutState::new(crate::support::shadcn()),
                 pane: None,
             },
         )

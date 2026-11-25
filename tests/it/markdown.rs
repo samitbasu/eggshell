@@ -272,7 +272,8 @@ fn a_registered_directive_mounts_a_live_example() {
 fn the_shadcn_preset_fills_the_markdown_style() {
     let d = driver();
     let tokens = common::tokens(d.ctx());
-    let preset = eggshell_ui::theme::Shadcn::of(d.ctx());
+    let preset = eggshell_ui::theme::Shadcn { tokens };
+    let tokens = &preset.tokens;
     let installed = style(&d);
     assert_eq!(installed, preset.style().markdown);
     assert_eq!(installed.rule, tokens.border);
@@ -508,7 +509,6 @@ fn headless_places_the_table_where_the_frame_draws_it() {
     let d = driver();
     let placed = Headless::new(vec2(720.0, 1700.0) - vec2(16.0, 16.0))
         .base_text(common::base_text(Theme::Light))
-        .prepare(common::use_preset)
         .style(crate::support::shadcn())
         .layout(&page::State::default(), page::layout);
     let drawn: Vec<_> = support::nodes(&d)

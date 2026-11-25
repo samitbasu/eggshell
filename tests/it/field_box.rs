@@ -80,9 +80,7 @@ fn driver(size: Size) -> Driver<App> {
             disabled: false,
         },
         view,
-        |ctx, _| {
-            Shadcn::apply_both(ctx);
-        },
+        |_, _| {},
     )
     .build();
     support::set_page(&d, support::Page::Themed);
@@ -398,7 +396,7 @@ fn a_rule_on_the_input_group_part_restyles_the_box() {
             disabled: false,
         },
         restyled,
-        |ctx, _| Shadcn::apply_both(ctx),
+        |_, _| {},
     )
     .build();
     d.ctx().set_theme(Theme::Light);
@@ -423,7 +421,6 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
     );
     let placed = eggshell_ui::testing::Headless::new(vec2(400.0, 300.0))
         .theme(Theme::Light)
-        .prepare(Shadcn::apply_both)
         .style(support::shadcn())
         .base_text(TextStyle::new(
             Shadcn::for_theme(Theme::Light).tokens.text_role(),

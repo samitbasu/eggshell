@@ -1,8 +1,8 @@
-//! A layout's own style (#435): given to the `LayoutState` as a light and
+//! TODO(prose): a layout's own style (#435): given to the `LayoutState` as a light and
 //! dark pair and swapped through it, in place of the one derived from
 //! egui's, for the build, the draw, the shell, tooltips, the base text and
-//! the faces text is drawn in; and a layout left without one beside a styled
-//! layout is reported (#476).
+//! the faces text is drawn in; and two layouts that give egui different
+//! looks are reported.
 
 use std::sync::Arc;
 
@@ -79,23 +79,16 @@ fn derived() -> f32 {
 }
 
 #[test]
-fn without_a_style_of_its_own_a_layout_builds_with_the_default() {
-    let harness = harness(LayoutState::new());
-    assert_eq!(harness.state().built, Some(derived()));
-    assert_eq!(harness.state().drawn, Some(derived()));
-}
-
-#[test]
 fn a_layout_s_own_style_is_the_one_it_builds_and_draws_with() {
     assert_ne!(derived(), LIGHT, "precondition");
-    let harness = harness(LayoutState::new().with_style(pair()));
+    let harness = harness(LayoutState::new(pair()));
     assert_eq!(harness.state().built, Some(LIGHT));
     assert_eq!(harness.state().drawn, Some(LIGHT));
 }
 
 #[test]
 fn the_pair_follows_the_context_s_theme() {
-    let mut harness = harness(LayoutState::new().with_style(pair()));
+    let mut harness = harness(LayoutState::new(pair()));
     assert_eq!(harness.state().built, Some(LIGHT), "precondition: light");
     harness.ctx.set_theme(Theme::Dark);
     harness.run_steps(2);
@@ -105,7 +98,7 @@ fn the_pair_follows_the_context_s_theme() {
 
 #[test]
 fn set_style_swaps_the_style_from_the_next_build() {
-    let mut harness = harness(LayoutState::new().with_style(pair()));
+    let mut harness = harness(LayoutState::new(pair()));
     harness.state_mut().layout.set_style(Themed {
         light: padded(33.0),
         dark: padded(33.0),
@@ -116,10 +109,10 @@ fn set_style_swaps_the_style_from_the_next_build() {
 
 #[test]
 fn the_shell_reads_the_layout_s_style() {
-    let harness = harness(LayoutState::new().with_style(pair()));
+    let harness = harness(LayoutState::new(pair()));
     let shell = harness.state().layout.shell(&harness.ctx);
     assert_eq!(shell.style().scroll.width, LIGHT);
-    let plain = LayoutState::new();
+    let plain = LayoutState::new(crate::support::shadcn());
     assert_eq!(
         plain.shell(&harness.ctx).style().scroll.width,
         derived(),
@@ -148,7 +141,7 @@ fn without_base_text_the_root_text_is_the_layout_s_style_text() {
                     .data_mut(|data| data.insert_temp(egui::Id::NULL.with("height"), height));
                 placed.draw(&mut (), ui);
             },
-            LayoutState::new().with_style(Themed {
+            LayoutState::new(Themed {
                 light: tall(),
                 dark: tall(),
             }),
@@ -183,7 +176,7 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
                     .layout(ui.max_rect())
                     .draw(&mut (), ui);
             },
-            LayoutState::new().with_style(Themed {
+            LayoutState::new(Themed {
                 light: delayed(std::time::Duration::ZERO),
                 dark: delayed(std::time::Duration::ZERO),
             }),
@@ -255,13 +248,12 @@ fn medium_reports(layout: LayoutState) -> (usize, bool) {
 
 #[test]
 fn text_is_drawn_in_the_faces_the_layout_s_style_declares() {
-    let (missing, _) =
-        medium_reports(LayoutState::new().with_style(Themed::both(Arc::new(fontless()))));
+    let (missing, _) = medium_reports(LayoutState::new(Themed::both(Arc::new(fontless()))));
     assert_eq!(
         missing, 1,
         "precondition: the style declares no medium face"
     );
-    let (missing, _) = medium_reports(LayoutState::new().with_style(Themed {
+    let (missing, _) = medium_reports(LayoutState::new(Themed {
         light: with_medium(),
         dark: with_medium(),
     }));
@@ -270,18 +262,45 @@ fn text_is_drawn_in_the_faces_the_layout_s_style_declares() {
 
 #[test]
 fn the_symbol_face_backs_the_families_the_layout_s_style_declares() {
-    let (_, registered) = medium_reports(LayoutState::new());
+    let (_, registered) = medium_reports(LayoutState::new(crate::support::shadcn()));
     assert!(!registered, "precondition: no layout declares the family");
-    let (_, registered) = medium_reports(LayoutState::new().with_style(Themed {
+    let (_, registered) = medium_reports(LayoutState::new(Themed {
         light: with_medium(),
         dark: with_medium(),
     }));
     assert!(registered, "the build registers the symbol face under it");
 }
 
-/// A styled layout, then `second`, both built on one context for `frames`
-/// frames; the distinct reports of a layout built with no style.
-fn unstyled_reports(second: LayoutState, frames: usize) -> usize {
+fn vega() -> Themed<Arc<Style>> {
+    eggshell_ui::theme::Shadcn::themed(
+        eggshell_ui::theme::ShadcnStyle::Vega,
+        eggshell_ui::theme::Palette::new(),
+    )
+}
+
+fn lyra() -> Themed<Arc<Style>> {
+    eggshell_ui::theme::Shadcn::themed(
+        eggshell_ui::theme::ShadcnStyle::Lyra,
+        eggshell_ui::theme::Palette::new(),
+    )
+}
+
+/// A new style given before the frame `at`: to the second layout, and to
+/// the first too if `both` says so.
+#[derive(Clone, Copy)]
+struct Switch {
+    at: usize,
+    to: fn() -> Themed<Arc<Style>>,
+    both: Both,
+}
+
+/// Two layouts built on one context for `frames` frames, with `switch`;
+/// the reports of layouts giving egui different looks.
+fn clash_reports(
+    layouts: (LayoutState, LayoutState),
+    switch: Option<Switch>,
+    frames: usize,
+) -> usize {
     let mut harness = Harness::builder()
         .with_size(vec2(300.0, 200.0))
         .build_ui_state(
@@ -295,54 +314,78 @@ fn unstyled_reports(second: LayoutState, frames: usize) -> usize {
                         .draw(&mut (), ui);
                 }
             },
-            (LayoutState::new().with_style(pair()), second),
+            layouts,
         );
-    harness.run_steps(frames);
+    for frame in 0..frames {
+        if let Some(Switch { at, to, both }) = switch
+            && at == frame
+        {
+            let (first, second) = harness.state_mut();
+            second.set_style(to());
+            if both == Both::Switched {
+                first.set_style(to());
+            }
+        }
+        harness.step();
+    }
     reports(&harness.ctx)
         .iter()
-        .filter(|report| report.problem == Problem::UnstyledLayout)
+        .filter(|report| report.problem == Problem::EguiStyleClash)
         .count()
 }
 
-#[test]
-fn a_layout_with_no_style_beside_a_styled_one_is_reported_once() {
-    assert_eq!(unstyled_reports(LayoutState::new(), 2), 1);
-    assert_eq!(
-        unstyled_reports(LayoutState::new(), 6),
-        1,
-        "one report, however many frames"
-    );
+/// Whether a switch goes to both layouts or to the second alone.
+#[derive(Clone, Copy, PartialEq)]
+enum Both {
+    Switched,
+    SecondOnly,
 }
 
 #[test]
-fn layouts_that_all_have_a_style_are_not_reported() {
+fn two_layouts_that_give_egui_different_looks_are_reported() {
+    let layouts = (LayoutState::new(vega()), LayoutState::new(lyra()));
+    assert_eq!(clash_reports(layouts, None, 4), 1);
+}
+
+#[test]
+fn the_same_style_given_by_two_layouts_is_not_reported() {
+    let shared = vega();
+    let layouts = (LayoutState::new(shared.clone()), LayoutState::new(shared));
+    assert_eq!(clash_reports(layouts, None, 4), 0, "one style, shared");
+    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
+    assert_eq!(clash_reports(layouts, None, 4), 0, "one style, built twice");
+}
+
+#[test]
+fn a_style_switched_on_every_layout_at_once_is_not_reported() {
+    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
     assert_eq!(
-        unstyled_reports(LayoutState::new().with_style(pair()), 4),
+        clash_reports(
+            layouts,
+            Some(Switch {
+                at: 2,
+                to: lyra,
+                both: Both::Switched
+            }),
+            5
+        ),
         0
     );
 }
 
 #[test]
-fn layouts_that_all_go_without_a_style_are_not_reported() {
-    let mut harness = Harness::builder()
-        .with_size(vec2(300.0, 200.0))
-        .build_ui_state(
-            |ui, layouts: &mut [LayoutState; 2]| {
-                for layout in layouts {
-                    layout
-                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
-                            b.text(tw(), "x");
-                        })
-                        .layout(ui.max_rect())
-                        .draw(&mut (), ui);
-                }
-            },
-            [LayoutState::new(), LayoutState::new()],
-        );
-    harness.run_steps(4);
-    assert!(
-        reports(&harness.ctx)
-            .iter()
-            .all(|report| report.problem != Problem::UnstyledLayout)
+fn a_style_switched_on_one_layout_alone_is_reported() {
+    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
+    assert_eq!(
+        clash_reports(
+            layouts,
+            Some(Switch {
+                at: 2,
+                to: lyra,
+                both: Both::SecondOnly
+            }),
+            5
+        ),
+        1
     );
 }

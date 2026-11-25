@@ -20,7 +20,6 @@ use crate::presence::Presences;
 use crate::stack::Stack;
 use crate::transition::Tracking;
 
-#[derive(Default)]
 pub(crate) struct Kept {
     pub(crate) listbox: Active,
     pub(crate) menus: Menus,
@@ -42,13 +41,38 @@ pub(crate) struct Kept {
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
-    /// The layout's own style, given to its state; the fallback when unset.
-    pub(crate) style: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
+    /// The layout's own style, given to its state.
+    pub(crate) style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
     /// The layout's style as it was last given to egui.
     pub(crate) egui_applied: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
+    /// The egui styles, light and dark, the layout last gave egui.
+    #[cfg(debug_assertions)]
+    pub(crate) egui_look: Option<std::sync::Arc<str>>,
 }
 
 impl Kept {
+    fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+        Self {
+            listbox: Default::default(),
+            menus: Default::default(),
+            animation: Default::default(),
+            presences: Default::default(),
+            lists: Default::default(),
+            scrolls: Default::default(),
+            windows: Default::default(),
+            inline: Default::default(),
+            carried: Default::default(),
+            chrome: Default::default(),
+            mounts: Default::default(),
+            viewports: Default::default(),
+            clipboard: Default::default(),
+            style,
+            egui_applied: Default::default(),
+            #[cfg(debug_assertions)]
+            egui_look: None,
+        }
+    }
+
     /// What the layout keeps of the input of `viewport`.
     pub(crate) fn viewport(&mut self, viewport: ViewportId) -> &mut Viewport {
         self.viewports.entry(viewport).or_default()
@@ -77,10 +101,15 @@ pub(crate) struct Viewport {
 
 /// Shared by a `LayoutState` and the frames it builds, which outlive a borrow
 /// of it.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct Handle(Arc<Mutex<Kept>>);
 
 impl Handle {
+    /// What a layout of `style` keeps, before its first frame.
+    pub(crate) fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+        Self(Arc::new(Mutex::new(Kept::new(style))))
+    }
+
     pub(crate) fn with<R>(&self, f: impl FnOnce(&mut Kept) -> R) -> R {
         f(&mut crate::sync::lock(&self.0))
     }

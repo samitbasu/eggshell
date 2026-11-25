@@ -34,7 +34,9 @@ impl TextSpec {
         if self.weight == Weight::Normal {
             return self.family.clone();
         }
-        let faces = applied(ctx);
+        let Some(faces) = applied(ctx) else {
+            return self.family.clone();
+        };
         let registered = ctx.fonts(|fonts| fonts.families());
         match faces.resolve(&self.family, self.weight, |face| registered.contains(face)) {
             Resolution::Face(face) | Resolution::Pending(face) => face,
@@ -104,10 +106,9 @@ pub(crate) fn apply_faces(ctx: &Context, faces: &Faces) {
     ctx.data_mut(|data| data.insert_temp(faces_id(), std::sync::Arc::new(faces.clone())));
 }
 
-/// The faces the last build applied, else those of the derived style.
-fn applied(ctx: &Context) -> std::sync::Arc<Faces> {
+/// The faces the last build applied, if one has.
+fn applied(ctx: &Context) -> Option<std::sync::Arc<Faces>> {
     ctx.data(|data| data.get_temp::<std::sync::Arc<Faces>>(faces_id()))
-        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::fallback().faces.clone()))
 }
 
 #[derive(Clone, Debug, PartialEq)]

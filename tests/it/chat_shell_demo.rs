@@ -800,7 +800,7 @@ mod accents {
             assert_eq!(text_colors(&d, "Running"), [k[Tok::Accent]]);
             assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
             assert_eq!(
-                eggshell_ui::theme::Shadcn::of(d.ctx()).tokens.primary,
+                d.shell().style().tokens.primary,
                 eggshell_ui::theme::Shadcn::for_theme(theme)
                     .with_palette(eggshell_ui::theme::Palette::new().theme(ThemeColor::Blue))
                     .tokens

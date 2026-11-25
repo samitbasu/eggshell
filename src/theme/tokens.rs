@@ -151,13 +151,13 @@ pub struct Tokens {
     pub shadow_md: Shadow,
     /// `shadow-lg`, without its negative spread.
     pub shadow_lg: Shadow,
-    /// `--font-sans`: the font `Shadcn::apply`
+    /// TODO(prose): `--font-sans`: the font a [`LayoutState`](crate::LayoutState) given these tokens
     /// registers, or `None` to leave egui's fonts alone.
     pub font: Option<FontSet>,
     /// The weight of buttons, toggles, tabs and key chips (`font-medium`).
     pub control_weight: Weight,
     /// TODO(prose): the pairs under AA contrast the application accepts:
-    /// `Shadcn::apply` warns about the others in a
+    /// a [`LayoutState`](crate::LayoutState) given these tokens warns about the others in a
     /// debug build.
     pub accepted_contrast: Vec<ContrastPair>,
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button

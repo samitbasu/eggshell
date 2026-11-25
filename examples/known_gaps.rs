@@ -290,11 +290,10 @@ pub fn window<A>(b: &mut B<'_, '_, A>) {
 }
 
 fn main() -> eframe::Result {
-    let mut layout = LayoutState::new();
+    let mut layout = LayoutState::new(common::initial_style());
     let mut theme_bar = common::ThemeBar::new();
     common::launch("known_gaps", Some(egui::vec2(1100.0, 860.0)), move |ui| {
         let ctx = ui.ctx().clone();
-        common::use_preset(&ctx);
         theme_bar.show(ui);
         layout.set_style(common::style(&ctx));
         layout.set_base_text(Some(base_text(ctx.theme())));

@@ -353,7 +353,7 @@ fn rig_harness() -> Harness<'static, Rig> {
     let base = TextStyle::new(tokens.text_role(), tokens.foreground);
     let rig = Rig {
         app: App::default(),
-        layout: LayoutState::new().with_base_text(base.clone()),
+        layout: LayoutState::new(crate::support::shadcn()).with_base_text(base.clone()),
         bar: Bar::new(base),
         seen: Seen::default(),
         focus_after_bar: Vec::new(),
@@ -372,13 +372,10 @@ fn rig_harness() -> Harness<'static, Rig> {
                     seen,
                     focus_after_bar,
                 } = rig;
-                if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                    eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-                }
-                let background = eggshell_ui::theme::Shadcn::of(ui.ctx()).tokens.background;
+                let background = layout.shell(ui.ctx()).style().tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
-                bar.show(ui);
+                bar.show(ui, layout.style());
                 focus_after_bar.push(ui.ctx().memory(|memory| memory.focused()));
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *seen = Seen::of(&placed);

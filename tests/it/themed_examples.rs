@@ -49,9 +49,8 @@ fn place<A>(
     build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>),
 ) -> (Placed<A>, Tokens) {
     let ctx = ctx_in(theme);
-    let placed = LayoutState::new()
+    let placed = LayoutState::new(crate::support::shadcn())
         .with_base_text(common::base_text(theme))
-        .with_style(crate::support::shadcn())
         .build(&ctx, build)
         .layout(AREA);
     (placed, Tokens::for_theme(theme))

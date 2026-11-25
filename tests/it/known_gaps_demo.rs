@@ -26,7 +26,7 @@ fn draw(build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, ()>)) -> Ve
     let mut build = Some(build);
     let mut output = ctx.run_ui(input, |ui| {
         let build = build.take().expect("one pass");
-        eggshell_ui::LayoutState::new()
+        eggshell_ui::LayoutState::new(crate::support::shadcn())
             .with_base_text(known_gaps::base_text(egui::Theme::Light))
             .build(ui.ctx(), build)
             .layout(SCREEN)

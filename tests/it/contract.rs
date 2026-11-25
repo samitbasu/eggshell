@@ -1,13 +1,11 @@
 //! `eggshell_ui::Style`: the neutral default, installing and caching, and open
 //! keys that fall back to the default entry and are reported.
 
-use std::sync::Arc;
-
 use eggshell_ui::contract::{Keyed, Size, Variant};
 use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
 use eggshell_ui::theme::Shadcn;
-use eggshell_ui::{Builder, LayoutState, Problem, Style, Weight};
-use egui::{Color32, Context, Theme, vec2};
+use eggshell_ui::{Builder, Problem, Style};
+use egui::{Color32, Theme, vec2};
 
 #[test]
 fn unknown_keys_fall_back_to_the_default_entry() {
@@ -58,34 +56,6 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
     keyed.insert(Size("md"), 5);
     assert_eq!(*keyed.get(Size("md")), 5);
     assert!(keyed.get_mut(Size("sm")).is_none());
-}
-
-#[test]
-fn a_layout_given_no_style_draws_with_the_default_in_egui_s_fonts_and_keeps_it() {
-    let ctx = Context::default();
-    let shell = LayoutState::new().shell(&ctx);
-    let style = shell.style();
-    let default = Style::default();
-    let button = |style: &Style| {
-        *crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT).paint_classes()
-    };
-    assert_eq!(button(&style), button(&default));
-    assert_eq!(style.input, default.input);
-    assert_eq!(style.text, default.text);
-    assert!(
-        style.faces.iter().count() > 0
-            && style
-                .faces
-                .iter()
-                .all(|face| face.face == egui::FontFamily::Proportional),
-        "every weight in egui's regular face: {:?}",
-        style.faces
-    );
-    assert_eq!(
-        style.toggle.text.as_ref().map(|text| text.weight),
-        Some(Weight::Normal)
-    );
-    assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {

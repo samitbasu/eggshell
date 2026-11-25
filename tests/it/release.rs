@@ -53,7 +53,10 @@ fn a_duplicate_key_path_is_not_reported() {
 fn two_unnamed_layouts_sharing_a_top_level_key_are_not_reported() {
     let ctx = context();
     let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 100.0));
-    for mut layout in [LayoutState::new(), LayoutState::new()] {
+    for mut layout in [
+        LayoutState::new(crate::support::shadcn()),
+        LayoutState::new(crate::support::shadcn()),
+    ] {
         layout
             .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
                 b.div_id("title", tw(), |_| {});

@@ -83,8 +83,8 @@ pub enum Problem {
     /// TODO(prose): a hover card declared inside another hover card's
     /// content. It never opens.
     NestedHoverCard,
-    /// TODO(prose): a layout built with no style of its own on a context where another layout has one, so it draws egui's look: a forgotten [`with_style`](crate::LayoutState::with_style).
-    UnstyledLayout,
+    /// TODO(prose): two layouts on one context built in the same pass with styles that give egui different looks, so egui's own widgets draw in whichever gave it last.
+    EguiStyleClash,
     /// TODO(prose): an invariant of the library that did not hold, by name.
     Internal(&'static str),
 }

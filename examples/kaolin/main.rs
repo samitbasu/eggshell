@@ -78,12 +78,11 @@ fn logo(ctx: &egui::Context) -> TextureHandle {
 
 fn main() -> eframe::Result {
     let mut gallery = Gallery { selected: 0 };
-    let mut layout = LayoutState::new();
+    let mut layout = LayoutState::new(common::initial_style());
     let mut logo_texture: Option<TextureHandle> = None;
     let mut theme_bar = common::ThemeBar::new();
     common::launch("kaolin", None, move |ui| {
         let ctx = ui.ctx().clone();
-        common::use_preset(&ctx);
         theme_bar.show(ui);
         layout.set_style(common::style(&ctx));
         layout.set_base_text(Some(TextStyle::new(

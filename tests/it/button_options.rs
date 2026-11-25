@@ -3,7 +3,7 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::button;
-use eggshell_ui::theme::{Shadcn, size, variant};
+use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, LayoutState, Scope, tw};
 use egui::epaint::ClippedShape;
 use egui::{RawInput, Rect, pos2};
@@ -26,7 +26,6 @@ enum Part {
 
 fn shapes(view: impl for<'f> FnOnce(&mut Builder<'_, 'f, App>)) -> Vec<ClippedShape> {
     let ctx = egui::Context::default();
-    Shadcn::apply_both(&ctx);
     let input = RawInput {
         screen_rect: Some(SCREEN),
         ..RawInput::default()
@@ -37,8 +36,7 @@ fn shapes(view: impl for<'f> FnOnce(&mut Builder<'_, 'f, App>)) -> Vec<ClippedSh
     let mut app = App::default();
     let mut output = ctx.run_ui(input, |ui| {
         let view = view.take().expect("one pass");
-        LayoutState::new()
-            .with_style(crate::support::shadcn())
+        LayoutState::new(crate::support::shadcn())
             .build(ui.ctx(), view)
             .layout(SCREEN)
             .draw(&mut app, ui);

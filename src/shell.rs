@@ -37,9 +37,7 @@ impl Shell {
     /// TODO(prose): the style the layout builds with: its own for the context's theme, else one derived from egui's.
     pub fn style(&self) -> std::sync::Arc<crate::Style> {
         let theme = self.ctx.theme();
-        self.kept
-            .with(|kept| kept.style.as_ref().map(|style| style.get(theme).clone()))
-            .unwrap_or_else(crate::Style::fallback)
+        self.kept.with(|kept| kept.style.get(theme).clone())
     }
 
     /// The egui context the layout is laid out in, for a handler that holds a
@@ -75,7 +73,7 @@ pub trait ShellExt {
     /// let ctx = egui::Context::default();
     /// ctx.run_ui(Default::default(), |ui| {
     ///     assert!(ui.try_shell().is_none());
-    ///     let mut layout = LayoutState::new();
+    ///     let mut layout = LayoutState::new(eggshell_ui::theme::Shadcn::themed(eggshell_ui::theme::ShadcnStyle::Vega, eggshell_ui::theme::Palette::new()));
     ///     let placed = layout
     ///         .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
     ///             b.div_id("pad", tw(), |_| {}).draw(|_, ui| {

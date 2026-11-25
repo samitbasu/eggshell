@@ -133,9 +133,12 @@ fn context(tweak: &Tweak) -> Tweaked {
     let ctx = Context::default();
     let preset = tweak.preset.map(|(theme, style)| {
         ctx.set_theme(theme);
-        let preset = Shadcn::for_theme(theme).with_style(style);
-        preset.apply(&ctx);
-        preset.style()
+        let style = Shadcn::for_theme(theme).with_style(style).style();
+        ctx.style_mut_of(theme, |egui| style.egui_style(theme, egui));
+        for font in &style.fonts {
+            ctx.add_font(font.clone());
+        }
+        style
     });
     ctx.global_style_mut(tweak.apply);
     ctx.run_ui(egui::RawInput::default(), |_| {})

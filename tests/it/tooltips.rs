@@ -754,7 +754,7 @@ fn closed_builds(accesskit: bool) -> usize {
     if accesskit {
         ctx.enable_accesskit();
     }
-    let mut state = eggshell_ui::LayoutState::new();
+    let mut state = eggshell_ui::LayoutState::new(crate::support::shadcn());
     for _ in 0..4 {
         let mut output = ctx.run_pass(Default::default(), |ctx| {
             let builds = builds.clone();
