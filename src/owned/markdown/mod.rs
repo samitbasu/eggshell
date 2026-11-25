@@ -30,11 +30,76 @@ use crate::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
-pub use style::{
-    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, QuoteStyle, RichLook, Style,
-    TableLook, UnsupportedStyle,
-};
-pub use typeset::{Measure, Typeset, TypesetInk};
+pub use style::{HeadingFlow, RichLook, Style, TableLook};
+pub use typeset::{Measure, Typeset};
+
+/// TODO(prose): a Markdown document's anatomy for the style's sheet. shadcn
+/// has no Markdown component: these are eggshell's, and [`Typeset`] writes
+/// their rules, after typeset.css. A thematic break (`---`) is a
+/// [`separator`](crate::owned::separator).
+///
+/// TODO(prose): the keys its rules see: a heading's `data-[level=1..6]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Part {
+    /// TODO(prose): the document.
+    Root,
+    /// TODO(prose): a paragraph, and a table cell's text.
+    Paragraph,
+    /// TODO(prose): a heading, keyed by its level.
+    Heading,
+    /// TODO(prose)
+    Blockquote,
+    /// TODO(prose): a fenced or indented code block's box.
+    CodeBlock,
+    /// TODO(prose): a code block's text, and the source of what is not shown.
+    Code,
+    /// TODO(prose)
+    List,
+    /// TODO(prose): a list item: its marker and its content.
+    ListItem,
+    /// TODO(prose)
+    ListMarker,
+    /// TODO(prose): the box of a construct the widget does not show.
+    Unsupported,
+    /// TODO(prose): the label naming it, and a pending image's alt text.
+    UnsupportedLabel,
+}
+
+impl crate::sheet::Part for Part {
+    const SOURCE: &'static str = "typeset.css";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "markdown",
+            Self::Paragraph => "markdown-paragraph",
+            Self::Heading => "markdown-heading",
+            Self::Blockquote => "markdown-blockquote",
+            Self::CodeBlock => "markdown-code-block",
+            Self::Code => "markdown-code",
+            Self::List => "markdown-list",
+            Self::ListItem => "markdown-list-item",
+            Self::ListMarker => "markdown-list-marker",
+            Self::Unsupported => "markdown-unsupported",
+            Self::UnsupportedLabel => "markdown-unsupported-label",
+        }
+    }
+}
+
+impl Level {
+    const ALL: [Self; 6] = [Self::H1, Self::H2, Self::H3, Self::H4, Self::H5, Self::H6];
+
+    /// The `level` attribute of a heading at this level.
+    fn attr(self) -> &'static str {
+        match self {
+            Self::H1 => "1",
+            Self::H2 => "2",
+            Self::H3 => "3",
+            Self::H4 => "4",
+            Self::H5 => "5",
+            Self::H6 => "6",
+        }
+    }
+}
 
 /// TODO(prose)
 pub trait Ext<'b, 'f, A> {

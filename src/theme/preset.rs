@@ -339,26 +339,4 @@ impl Shadcn {
         card.transition = Duration::from_millis(100);
         card
     }
-
-    /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
-    /// defaults, in this preset's colours.
-    #[cfg(feature = "markdown")]
-    pub(crate) fn markdown(t: &Tokens) -> crate::owned::markdown::Style {
-        crate::owned::markdown::Typeset::default().markdown_style(&Self::typeset_ink(t))
-    }
-
-    /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
-    /// tokens, for a typeset of other parameters.
-    ///
-    /// [`Typeset`]: crate::owned::markdown::Typeset
-    #[cfg(feature = "markdown")]
-    pub(crate) fn typeset_ink(t: &Tokens) -> crate::owned::markdown::TypesetInk {
-        crate::owned::markdown::TypesetInk {
-            foreground: t.foreground,
-            muted: t.muted_foreground,
-            rule: t.border,
-            code_fill: t.muted,
-            radius: t.radius.lg(),
-        }
-    }
 }

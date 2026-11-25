@@ -8,12 +8,12 @@
 
 use crate::contract::Em;
 use crate::{TextSpec, Tracking, Weight};
-use egui::{Color32, FontFamily};
+use egui::FontFamily;
 
-use super::style::{
-    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, QuoteStyle, RichLook, Style,
-    TableLook, UnsupportedStyle,
-};
+use super::style::{HeadingFlow, RichLook, Style, TableLook};
+use super::{Level, Part};
+use crate::sheet::{Sheet, When};
+use crate::theme::Tokens;
 
 /// TODO(prose): shadcn/typeset's parameters, from which the rest of a
 /// document's look is derived. The defaults are shadcn's.
@@ -89,24 +89,11 @@ impl Measure {
     }
 }
 
-/// TODO(prose): the theme colours a typeset takes, as typeset.css takes
-/// them from the theme's variables.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TypesetInk {
-    /// `--color-foreground`: text and headings.
-    pub foreground: Color32,
-    /// `--color-muted-foreground`: list markers and the minor headings.
-    pub muted: Color32,
-    /// `--color-border`: rules and the quote's border.
-    pub rule: Color32,
-    /// `--color-muted`: behind code.
-    pub code_fill: Color32,
-    /// `--radius`, in points: a code block's corners.
-    pub radius: f32,
-}
-
 /// Points in a Tailwind spacing unit, which [`Style`]'s lengths are in.
 const UNIT: f32 = 4.0;
+
+/// A code block's size, in `em` of the body.
+const CODE: f32 = 0.875;
 
 /// Inline code's size, in `em` of the text around it.
 const INLINE_CODE: f32 = 0.85;
@@ -186,27 +173,123 @@ impl Typeset {
         self.measure.ems() * self.size
     }
 
-    /// TODO(prose): the Markdown widget's style, every length and weight
-    /// derived from these parameters as typeset.css derives them, in
-    /// `ink`'s colours.
-    pub fn markdown_style(&self, ink: &TypesetInk) -> Style {
-        let base = self.size;
-        // One `em` of an element `ratio` times the body's size, in units.
-        let em = |ratio: f32| ratio * base / UNIT;
-        let flow = |ratio: f32| self.flow * em(ratio);
-        let text = |ratio: f32, leading: f32, family: &FontFamily, weight| TextSpec {
-            size: ratio * base,
-            line_height: leading * ratio * base,
+    /// TODO(prose): the Markdown widget's look in `style`: its parts' rules
+    /// in `style`'s sheet, at the layer it writes at, in place of the ones
+    /// there, and the space between its blocks. Every length and weight is
+    /// derived from these parameters as typeset.css derives them, in the
+    /// style's colours.
+    pub fn apply(&self, style: &mut crate::Style) {
+        self.write_rules(&mut style.sheet);
+        style.markdown = self.flow(&style.tokens);
+    }
+
+    /// One `em` of an element `ratio` times the body's size, in units.
+    fn em(&self, ratio: f32) -> f32 {
+        ratio * self.size / UNIT
+    }
+
+    /// The text of an element `ratio` times the body's size.
+    fn text(&self, ratio: f32, leading: f32, family: &FontFamily, weight: Weight) -> TextSpec {
+        TextSpec {
+            size: ratio * self.size,
+            line_height: leading * ratio * self.size,
             family: family.clone(),
             weight,
-        };
-        let heading_family = self.heading.as_ref().unwrap_or(&self.body);
-        let headings = HEADINGS.map(|h| HeadingStyle {
-            text: text(h.size, h.leading, heading_family, h.weight),
-            tracking: match h.minor {
-                Minor::Small => Tracking::points(0.08 * h.size * base),
+        }
+    }
+
+    /// `pre { font-size: 0.875em; line-height: 1.5 }`
+    fn code(&self) -> TextSpec {
+        self.text(CODE, 1.5, &self.mono, Weight::Normal)
+    }
+
+    pub(crate) fn write_rules(&self, sheet: &mut Sheet) {
+        let body = self.text(1.0, self.leading, &self.body, Weight::Normal);
+        let em = |ratio: f32| self.em(ratio);
+        sheet.replace(Part::Root, |t, _| t.flex().flex_col());
+        let text = body.clone();
+        sheet.replace(Part::Paragraph, move |t, k| {
+            t.role(text.clone()).text(k.foreground)
+        });
+        self.write_headings(sheet);
+        // `blockquote { border-inline-start: 2px; padding-inline-start: 1em }`
+        let padding = em(1.0);
+        sheet.replace(Part::Blockquote, move |t, k| {
+            t.flex()
+                .flex_col()
+                .border_l(2.0)
+                .border_color(k.border)
+                .pl(padding)
+                .text(k.foreground)
+        });
+        // `pre { padding: 0.75em 1em }`, in `em` of the code.
+        let (x, y) = (em(CODE), 0.75 * em(CODE));
+        sheet.replace(Part::CodeBlock, move |t, k| {
+            t.bg(k.muted).rounded_px(k.radius.lg()).px(x).py(y)
+        });
+        let code = self.code();
+        sheet.replace(Part::Code, move |t, _| t.role(code.clone()));
+        // `ul, ol { padding-inline-start: 1.5em }`, `li { margin-block-start:
+        // 0.5em; padding-inline-start: 0.4em }`
+        let gap = em(0.5);
+        sheet.replace(Part::List, move |t, _| t.flex().flex_col().gap(gap));
+        let gap = em(0.4);
+        sheet.replace(Part::ListItem, move |t, _| {
+            t.flex().flex_row().items_start().gap(gap)
+        });
+        let indent = em(1.5);
+        sheet.replace(Part::ListMarker, move |t, k| {
+            t.role(body.clone())
+                .text(k.muted_foreground)
+                .w(indent)
+                .shrink_0()
+                .text_right()
+        });
+        sheet.replace(Part::Unsupported, |t, k| {
+            t.flex()
+                .flex_col()
+                .gap(1.0)
+                .p(3.0)
+                .border(1.0)
+                .border_color(k.border)
+                .rounded_px(k.radius.lg())
+        });
+        sheet.replace(Part::UnsupportedLabel, |t, k| t.text(k.muted_foreground));
+    }
+
+    /// Each heading's row of typeset.css, under its level's key.
+    fn write_headings(&self, sheet: &mut Sheet) {
+        let family = self.heading.as_ref().unwrap_or(&self.body);
+        sheet.replace(Part::Heading, |t, _| t);
+        for (level, h) in Level::ALL.into_iter().zip(HEADINGS) {
+            let text = self.text(h.size, h.leading, family, h.weight);
+            let minor = h.minor;
+            let tracking = match minor {
+                Minor::Small => Tracking::points(0.08 * h.size * self.size),
                 Minor::No | Minor::Muted => Tracking::points(0.0),
-            },
+            };
+            sheet.rule_when(
+                Part::Heading,
+                When::always().attr("level", level.attr()),
+                move |t, k| {
+                    let t = t.role(text.clone()).tracking(tracking);
+                    match minor {
+                        Minor::No => t.text(k.foreground),
+                        Minor::Muted => t.text(k.muted_foreground),
+                        Minor::Small => t.text(k.muted_foreground).uppercase(),
+                    }
+                },
+            );
+        }
+    }
+
+    /// The space between a document's blocks, and its tables and rich text
+    /// in `t`'s colours.
+    pub(crate) fn flow(&self, t: &Tokens) -> Style {
+        let base = self.size;
+        let em = |ratio: f32| self.em(ratio);
+        let flow = |ratio: f32| self.flow * em(ratio);
+        let headings = HEADINGS.map(|h| HeadingFlow {
             margin_top: self.flow * h.flows * em(h.size),
             // `h1 + *, … { margin-block-start: 1em }`
             after_heading: em(h.size),
@@ -215,58 +298,14 @@ impl Typeset {
                 Minor::No => flow(h.size),
                 Minor::Muted | Minor::Small => self.flow * h.flows * em(h.size),
             },
-            color: match h.minor {
-                Minor::No => Some(ink.foreground),
-                Minor::Muted | Minor::Small => Some(ink.muted),
-            },
-            case: match h.minor {
-                Minor::Small => Case::Upper,
-                Minor::No | Minor::Muted => Case::AsWritten,
-            },
-            rule: HeadingRule::None,
         });
-        // `pre { font-size: 0.875em; line-height: 1.5; padding: 0.75em 1em }`
-        let code = 0.875;
         Style {
-            body: Some(text(1.0, self.leading, &self.body, Weight::Normal)),
-            color: Some(ink.foreground),
             block_gap: flow(1.0),
             after_heading: em(1.0),
             // `hr { margin-block-start: calc(var(--typeset-flow) * 2.4) }`
             rule_gap: 2.4 * flow(1.0),
             headings,
-            // `ul, ol { padding-inline-start: 1.5em }`, `li { margin-block-start:
-            // 0.5em; padding-inline-start: 0.4em }`
-            list: ListStyle {
-                indent: em(1.5),
-                marker_gap: em(0.4),
-                item_gap: em(0.5),
-                marker: ink.muted,
-            },
-            // `blockquote { border-inline-start: 2px; padding-inline-start: 1em }`
-            quote: QuoteStyle {
-                border: ink.rule,
-                border_width: 2.0,
-                padding: em(1.0),
-                text: ink.foreground,
-                font_style: crate::FontStyle::Normal,
-            },
-            code: CodeBlockStyle {
-                fill: ink.code_fill,
-                border: ink.rule,
-                border_width: 0.0,
-                radius: ink.radius,
-                padding_x: em(code),
-                padding_y: 0.75 * em(code),
-                text: text(code, 1.5, &self.mono, Weight::Normal),
-            },
-            rule: ink.rule,
-            unsupported: UnsupportedStyle {
-                fill: Color32::TRANSPARENT,
-                border: ink.rule,
-                label: ink.muted,
-                text: text(code, 1.5, &self.mono, Weight::Normal),
-            },
+            item_gap: em(0.5),
             // `thead th { padding: 0.65em 1em }`, `td { padding: 0.75em 1em }`,
             // `th:first-child, td:first-child { padding-inline-start: 0 }`,
             // `table { line-height: 1.5 }`.
@@ -276,19 +315,19 @@ impl Typeset {
                 header_padding_y: 0.65 * base,
                 first_column_inset: 0.0,
                 header_weight: Weight::Medium,
-                rule: ink.rule,
-                text: text(1.0, 1.5, &self.body, Weight::Normal),
+                rule: t.border,
+                text: self.text(1.0, 1.5, &self.body, Weight::Normal),
             }),
             // `a { color: inherit; font-weight: 500; text-decoration-color:
             // color-mix(currentColor 30%) }`; `:not(pre) > code { font-size:
             // 0.85em; border-radius: min(var(--radius) * 0.6, 0.35em);
             // padding: 0.125em 0.3em }`, in `em` of the code.
             rich: Some(RichLook {
-                link: ink.foreground,
-                link_underline: ink.foreground.gamma_multiply(0.3),
+                link: t.foreground,
+                link_underline: t.foreground.gamma_multiply(0.3),
                 link_weight: Weight::Medium,
-                code_fill: ink.code_fill,
-                code_radius: (ink.radius * 0.6).min(0.35 * INLINE_CODE * base).round() as u8,
+                code_fill: t.muted,
+                code_radius: (t.radius.lg() * 0.6).min(0.35 * INLINE_CODE * base).round() as u8,
                 code_size: Em::new(INLINE_CODE),
                 code_padding_x: 0.3 * INLINE_CODE * base,
                 code_padding_y: 0.125 * INLINE_CODE * base,
@@ -300,33 +339,34 @@ impl Typeset {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::owned::markdown::Level;
+    use crate::sheet::Key;
+    use crate::{TextCase, TextStyle};
+    use egui::Color32;
 
-    fn ink() -> TypesetInk {
-        TypesetInk {
-            foreground: Color32::BLACK,
-            muted: Color32::GRAY,
-            rule: Color32::LIGHT_GRAY,
-            code_fill: Color32::WHITE,
-            radius: 10.0,
-        }
+    /// The text `typeset` gives `part` under `keys`, in the light tokens.
+    fn text_of(typeset: &Typeset, part: Part, keys: &[Key]) -> TextStyle {
+        let mut sheet = Sheet::new();
+        typeset.write_rules(&mut sheet);
+        let page = TextStyle::new(
+            Typeset::default().text(1.0, 1.0, &FontFamily::Proportional, Weight::Normal),
+            Color32::PLACEHOLDER,
+        );
+        sheet
+            .resolve(part, keys, &Tokens::light())
+            .text_classes()
+            .over(&page)
+    }
+
+    fn heading(typeset: &Typeset, level: Level) -> TextStyle {
+        text_of(typeset, Part::Heading, &[Key::Attr("level", level.attr())])
     }
 
     #[test]
     fn heading_sizes_and_line_heights_are_typesets_ratios_of_the_base() {
-        let style = Typeset::default().markdown_style(&ink());
-        let levels = [
-            Level::H1,
-            Level::H2,
-            Level::H3,
-            Level::H4,
-            Level::H5,
-            Level::H6,
-        ];
-        let sizes: Vec<_> = levels
+        let sizes: Vec<_> = Level::ALL
             .into_iter()
             .map(|level| {
-                let text = &style.heading(level).text;
+                let text = heading(&Typeset::default(), level).spec;
                 (text.size, text.line_height)
             })
             .collect();
@@ -348,25 +388,26 @@ mod tests {
 
     #[test]
     fn a_minor_heading_is_medium_and_muted_and_h6_is_uppercase_and_tracked() {
-        let style = Typeset::default().markdown_style(&ink());
+        let typeset = Typeset::default();
+        let tokens = Tokens::light();
         let (h4, h5, h6) = (
-            style.heading(Level::H4),
-            style.heading(Level::H5),
-            style.heading(Level::H6),
+            heading(&typeset, Level::H4),
+            heading(&typeset, Level::H5),
+            heading(&typeset, Level::H6),
         );
-        assert_eq!(h4.text.weight, Weight::SemiBold);
-        assert_eq!(h5.text.weight, Weight::Medium);
+        assert_eq!(h4.spec.weight, Weight::SemiBold);
+        assert_eq!(h5.spec.weight, Weight::Medium);
         assert_eq!(
             (h4.color, h5.color),
-            (Some(Color32::BLACK), Some(Color32::GRAY))
+            (tokens.foreground, tokens.muted_foreground)
         );
-        assert_eq!((h5.case, h6.case), (Case::AsWritten, Case::Upper));
+        assert_eq!((h5.case, h6.case), (TextCase::Normal, TextCase::Upper));
         assert_eq!(h6.tracking, Tracking::points(0.08 * 12.1875));
     }
 
     #[test]
     fn a_minor_heading_has_one_flow_of_the_body_above_it() {
-        let style = Typeset::default().markdown_style(&ink());
+        let style = Typeset::default().flow(&Tokens::light());
         for level in [Level::H5, Level::H6] {
             assert!((style.heading(level).margin_top - style.block_gap).abs() < 1e-5);
         }
@@ -374,13 +415,22 @@ mod tests {
 
     #[test]
     fn code_is_0_875_em_on_the_themes_muted_fill_and_radius() {
-        let style = Typeset::default().markdown_style(&ink());
-        assert_eq!(style.code.text.size, 13.125);
-        assert_eq!(style.code.text.line_height, 13.125 * 1.5);
-        assert_eq!(style.code.text.family, FontFamily::Monospace);
-        assert_eq!(style.code.padding_x * UNIT, 13.125);
-        assert_eq!(style.code.padding_y * UNIT, 0.75 * 13.125);
-        assert_eq!((style.code.fill, style.code.radius), (Color32::WHITE, 10.0));
+        let typeset = Typeset::default();
+        let code = text_of(&typeset, Part::Code, &[]).spec;
+        assert_eq!(code.size, 13.125);
+        assert_eq!(code.line_height, 13.125 * 1.5);
+        assert_eq!(code.family, FontFamily::Monospace);
+        let mut sheet = Sheet::new();
+        typeset.write_rules(&mut sheet);
+        let tokens = Tokens::light();
+        let block = sheet.resolve(Part::CodeBlock, &[], &tokens);
+        let expected = crate::tw()
+            .bg(tokens.muted)
+            .rounded_px(tokens.radius.lg())
+            .px(13.125 / UNIT)
+            .py(0.75 * 13.125 / UNIT);
+        assert_eq!(block.style(), expected.style());
+        assert_eq!(block.paint_classes(), expected.paint_classes());
     }
 
     #[test]
@@ -389,14 +439,16 @@ mod tests {
             body: FontFamily::Name("Serif".into()),
             ..Typeset::default()
         };
-        let style = typeset.markdown_style(&ink());
-        assert_eq!(style.heading(Level::H1).text.family, typeset.body);
+        assert_eq!(heading(&typeset, Level::H1).spec.family, typeset.body);
         let typeset = Typeset {
             heading: Some(FontFamily::Monospace),
             ..typeset
         };
-        let style = typeset.markdown_style(&ink());
-        assert_eq!(style.heading(Level::H1).text.family, FontFamily::Monospace);
-        assert_eq!(style.body.map(|body| body.family), Some(typeset.body));
+        assert_eq!(
+            heading(&typeset, Level::H1).spec.family,
+            FontFamily::Monospace
+        );
+        let paragraph = text_of(&typeset, Part::Paragraph, &[]);
+        assert_eq!(paragraph.spec.family, typeset.body);
     }
 }

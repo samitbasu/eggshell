@@ -2,7 +2,7 @@
 //! style, measured on the page as drawn. Every expected length is derived
 //! from typeset.css at shadcn's defaults: 15 pt, leading 1.75, flow 1.25em.
 
-use eggshell_ui::owned::markdown::{Directives, Typeset, TypesetInk};
+use eggshell_ui::owned::markdown::{Directives, Typeset};
 use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
@@ -38,18 +38,8 @@ const PAGE_TEXT: TextSpec = TextSpec {
     weight: Weight::Normal,
 };
 
-fn ink() -> TypesetInk {
-    TypesetInk {
-        foreground: Color32::from_gray(10),
-        muted: Color32::from_gray(110),
-        rule: Color32::from_gray(220),
-        code_fill: Color32::from_gray(245),
-        radius: 10.0,
-    }
-}
-
 fn typeset(style: &mut Style) {
-    style.markdown = Typeset::default().markdown_style(&ink());
+    Typeset::default().apply(style);
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, ()>, app: &'f ()) {
@@ -246,8 +236,9 @@ fn inline_code_is_0_85_em_and_a_links_underline_is_a_faint_foreground() {
     let code = support::section_of(&galley, "run()");
     assert_near(code.font_id.size, 0.85 * BASE, "inline code");
     let link = support::section_of(&galley, "the guide");
-    assert_eq!(link.color, ink().foreground, "a link is the text's colour");
-    let faint = ink().foreground.gamma_multiply(0.3);
+    let foreground = d.shell().style().tokens.foreground;
+    assert_eq!(link.color, foreground, "a link is the text's colour");
+    let faint = foreground.gamma_multiply(0.3);
     let underline = support::shapes(&d).into_iter().any(|shape| {
         matches!(shape, egui::epaint::Shape::LineSegment { stroke, .. } if stroke.color == faint)
     });

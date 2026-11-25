@@ -30,7 +30,7 @@ pub enum Orientation {
 }
 
 impl Orientation {
-    fn key(self) -> SheetKey {
+    pub(crate) fn key(self) -> SheetKey {
         match self {
             Self::Horizontal => SheetKey::Attr("orientation", "horizontal"),
             Self::Vertical => SheetKey::Attr("orientation", "vertical"),

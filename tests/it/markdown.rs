@@ -1,7 +1,7 @@
 //! The Markdown widget (#254) through the real path: its test page, built,
 //! laid out and drawn by the rig, clicked as a user would.
 
-use eggshell_ui::owned::markdown::{self, Level, heading_id, headings};
+use eggshell_ui::owned::markdown::{self, heading_id, headings};
 use eggshell_ui::prelude::*;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, Target};
@@ -37,6 +37,21 @@ fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
 
 fn style(d: &Driver<page::State>) -> markdown::Style {
     d.shell().style().markdown.clone()
+}
+
+fn tokens(d: &Driver<page::State>) -> eggshell_ui::theme::Tokens {
+    d.shell().style().tokens.clone()
+}
+
+/// The text size the sheet gives a heading at `level` (`"1"` to `"6"`).
+fn heading_size(d: &Driver<page::State>, level: &'static str) -> f32 {
+    let style = d.shell().style();
+    let keys = [eggshell_ui::sheet::Key::Attr("level", level)];
+    support::part_at(&style, markdown::Part::Heading, &keys)
+        .text_classes()
+        .over(&common::base_text(Theme::Light))
+        .spec
+        .size
 }
 
 fn doc(path: &str) -> String {
@@ -78,21 +93,20 @@ fn the_page_shows_every_text_block() {
 #[test]
 fn headings_take_their_level_style_and_anchor_keys() {
     let d = driver();
-    let style = style(&d);
     assert_ne!(
-        style.heading(Level::H1).text.size,
+        heading_size(&d, "1"),
         common::base_text(Theme::Light).spec.size,
         "precondition: headings are not body text"
     );
     for (level, anchor, text) in [
-        (Level::H1, "markdown-in-eggshell", "Markdown in eggshell"),
-        (Level::H2, "lists", "Lists"),
-        (Level::H6, "what-degrades", "WHAT DEGRADES"),
+        ("1", "markdown-in-eggshell", "Markdown in eggshell"),
+        ("2", "lists", "Lists"),
+        ("6", "what-degrades", "WHAT DEGRADES"),
     ] {
         d.rect(Target::suffix(&doc(&format!("/Heading({anchor:?})"))));
         let galley = d.painted().expect(text).galley().clone();
         let size = galley.job.sections[0].format.font_id.size;
-        assert_eq!(size, style.heading(level).text.size, "{text}");
+        assert_eq!(size, heading_size(&d, level), "{text}");
     }
 }
 
@@ -120,7 +134,7 @@ fn headings_list_the_page_outline() {
 fn a_typeset_h2_has_no_rule_below() {
     let d = driver();
     let heading = d.rect(Target::suffix(&doc("/Heading(\"lists\")")));
-    let rule = filled(&d, style(&d).rule)
+    let rule = filled(&d, tokens(&d).border)
         .into_iter()
         .find(|rect| (rect.max.y - heading.max.y).abs() < 0.5 && rect.height() <= 1.5);
     assert_eq!(rule, None);
@@ -161,23 +175,21 @@ fn an_ordered_list_counts_from_its_start() {
 fn a_quote_has_a_border_on_its_left() {
     let d = driver();
     let quote = d.rect(Target::suffix(&doc("/Block(6)")));
-    let look = &style(&d).quote;
-    let border = filled(&d, look.border)
+    let border = filled(&d, tokens(&d).border)
         .into_iter()
         .find(|rect| {
             (rect.min.x - quote.min.x).abs() < 0.5 && rect.height() >= quote.height() - 0.5
         })
         .expect("a border along the quote's left edge");
-    assert!((border.width() - look.border_width).abs() < 0.5);
+    assert!((border.width() - 2.0).abs() < 0.5, "typeset.css's 2px");
 }
 
 #[test]
 fn a_code_block_is_monospace_on_its_fill() {
     let d = driver();
     let block = d.rect(Target::suffix(&doc("/Block(7)")));
-    let look = &style(&d).code;
     assert!(
-        filled(&d, look.fill)
+        filled(&d, tokens(&d).muted)
             .iter()
             .any(|rect| support::same(*rect, block)),
         "the block is filled"
@@ -275,9 +287,16 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     let preset = eggshell_ui::theme::Shadcn { tokens };
     let tokens = &preset.tokens;
     let installed = style(&d);
-    assert_eq!(installed, preset.style().markdown);
-    assert_eq!(installed.rule, tokens.border);
-    assert_eq!(installed.code.fill, tokens.muted);
+    let style = preset.style();
+    assert_eq!(installed, style.markdown);
+    let rule = support::part_at(
+        &style,
+        eggshell_ui::owned::separator::Part::Root,
+        &[eggshell_ui::sheet::Key::Attr("orientation", "horizontal")],
+    );
+    assert_eq!(rule.paint_classes().background, Some(tokens.border));
+    let code = support::part(&style, markdown::Part::CodeBlock);
+    assert_eq!(code.paint_classes().background, Some(tokens.muted));
 }
 
 /// egui's scroll areas drag to scroll only once a touch has been seen.

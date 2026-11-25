@@ -1634,7 +1634,7 @@ impl Style {
         #[cfg(feature = "hover-card")]
         let hover_card = crate::theme::Shadcn::hover_card(t, &base);
         #[cfg(feature = "markdown")]
-        let markdown = crate::theme::Shadcn::markdown(t);
+        let markdown = crate::owned::markdown::Typeset::default().flow(t);
         #[cfg(feature = "notify")]
         let notify = crate::theme::Shadcn::notify(t, &base);
         #[cfg(feature = "skeleton")]
@@ -1810,6 +1810,8 @@ impl Style {
         crate::owned::badge::write_exceptions(&mut self.sheet);
         #[cfg(feature = "form")]
         crate::owned::form::write_exceptions(&mut self.sheet);
+        #[cfg(feature = "markdown")]
+        crate::owned::markdown::Typeset::default().write_rules(&mut self.sheet);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
