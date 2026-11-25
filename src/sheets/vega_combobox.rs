@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/combobox.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use egui::Shadow;
-use crate::owned::command::ComboboxPart;
+use crate::owned::command;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -13,7 +13,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `combobox` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use ComboboxPart::*;
+    use command::ComboboxPart::*;
     s.replace(Input, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -250,7 +250,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `combobox` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use ComboboxPart::*;
+    use command::ComboboxPart::*;
     s.replace(Input, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

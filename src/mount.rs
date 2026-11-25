@@ -17,9 +17,9 @@ use egui::{Id, Pos2};
 use crate::NodeUi as _;
 use crate::builder::{Builder, NodeHandle, Slot};
 use crate::commands::{Commands, Declared, Table, Within, look_up};
+use crate::owned::tooltip::{BuildBuilt, build_built};
 use crate::pipeline::{DismissFn, DrawFn, FrameCore, Sink, Twice};
 use crate::region::RegionDecl;
-use crate::tooltip::{BuildBuilt, build_built};
 use crate::window::Hooks;
 
 /// The parts of a mount the library adds around its view.

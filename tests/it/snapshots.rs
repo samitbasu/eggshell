@@ -3,6 +3,7 @@
 //! Run them with `cargo xtask snapshots`, which selects a deterministic
 //! software renderer; see the README for reviewing and updating goldens.
 
+use eggshell_ui::prelude::*;
 use std::sync::Once;
 
 use eggshell_ui::theme::{ShadcnStyle, Tokens};
@@ -688,7 +689,7 @@ fn button_children_in(name: &str, theme: egui::Theme) {
     );
 }
 
-/// A tool cluster and a card picker, each one `ToggleGroup`.
+/// A tool cluster and a card picker, each one `toggle_group::Group`.
 #[test]
 fn toggle_group_light() {
     toggle_group_in("toggle_group_light", egui::Theme::Light);
@@ -2234,16 +2235,15 @@ mod tooltip_candidates {
             tokens.popover_foreground,
             tokens.shadow_md,
         );
-        style.sheet.rule(
-            eggshell_ui::owned::tooltip::TooltipPart::Content,
-            move |t, _| {
+        style
+            .sheet
+            .rule(eggshell_ui::owned::tooltip::Part::Content, move |t, _| {
                 t.bg(fill)
                     .border(1.0)
                     .border_color(border)
                     .text(text)
                     .shadow(shadow)
-            },
-        );
+            });
         let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
@@ -2901,8 +2901,6 @@ fn palette_open_dark() {
 /// the rule drew. The inventory is in PHASE2-AUDIT.md.
 mod child_rules {
     use super::*;
-    use eggshell_ui::owned::badge::BadgeExt as _;
-    use eggshell_ui::owned::command::CommandExt as _;
     use eggshell_ui::{Icon, icons};
 
     fn suffix(theme: egui::Theme) -> &'static str {

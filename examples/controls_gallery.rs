@@ -17,15 +17,13 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::prelude::*;
 use std::collections::BTreeMap;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::{Colors, Paint, States, Style, Variant};
 use eggshell_ui::owned;
-use eggshell_ui::owned::badge::BadgeExt;
-use eggshell_ui::owned::skeleton::SkeletonExt;
-use eggshell_ui::owned::spinner::SpinnerExt;
-use eggshell_ui::prim::text_field::{self, Field};
+use eggshell_ui::owned::text_field::{self, Field};
 use eggshell_ui::theme::{BaseColor, Palette, ThemeColor, size, variant};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};
@@ -860,7 +858,7 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
             |style| {
                 style
                     .sheet
-                    .rule(owned::tooltip::TooltipPart::Content, move |classes, _| {
+                    .rule(owned::tooltip::Part::Content, move |classes, _| {
                         classes
                             .px(6.0)
                             .py(3.0)

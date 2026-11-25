@@ -1,8 +1,8 @@
-//! `ButtonOptions`: shared button settings, and the helper-function pattern
+//! `button::Options`: shared button settings, and the helper-function pattern
 //! that returns a chain for the caller to finish.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::button::{ButtonChain, ButtonOptions};
+use eggshell_ui::owned::button;
 use eggshell_ui::theme::{Shadcn, size, variant};
 use eggshell_ui::{Builder, LayoutState, Scope, tw};
 use egui::epaint::ClippedShape;
@@ -48,7 +48,7 @@ fn shapes(view: impl for<'f> FnOnce(&mut Builder<'_, 'f, App>)) -> Vec<ClippedSh
 }
 
 fn one_button(
-    options: impl for<'a, 'f> FnOnce(ButtonChain<'a, 'f, App>) -> ButtonChain<'a, 'f, App>,
+    options: impl for<'a, 'f> FnOnce(button::Chain<'a, 'f, App>) -> button::Chain<'a, 'f, App>,
 ) -> Vec<ClippedShape> {
     let shapes = shapes(|b| {
         b.div(tw().flex().items_start(), |b| {
@@ -59,16 +59,16 @@ fn one_button(
     shapes
 }
 
-fn verb() -> ButtonOptions {
-    ButtonOptions::new()
+fn verb() -> button::Options {
+    button::Options::new()
         .variant(variant::OUTLINE)
         .size(size::ICON)
         .classes(tw().w_px(120.0))
         .tooltip("Does it")
 }
 
-fn toggle_verb() -> ButtonOptions {
-    ButtonOptions::new()
+fn toggle_verb() -> button::Options {
+    button::Options::new()
         .size(size::ICON)
         .classes(tw().w_px(120.0))
         .tooltip("Does it")
@@ -111,8 +111,8 @@ fn a_size_set_after_the_options_wins_and_one_set_before_them_loses_to_them() {
     let icon = one_button(|c| c.size(size::ICON));
     let default = one_button(|c| c.size(Size::DEFAULT));
     differ(&icon, &default, "the two sizes differ");
-    let without_size = ButtonOptions::new().variant(variant::OUTLINE);
-    let with_size = ButtonOptions::new()
+    let without_size = button::Options::new().variant(variant::OUTLINE);
+    let with_size = button::Options::new()
         .variant(variant::OUTLINE)
         .size(size::ICON);
     let outline_icon = one_button(|c| c.variant(variant::OUTLINE).size(size::ICON));
@@ -141,15 +141,15 @@ fn a_size_set_after_the_options_wins_and_one_set_before_them_loses_to_them() {
 
 #[test]
 fn merging_options_lets_the_later_ones_win_and_merges_classes() {
-    let merged = ButtonOptions::new()
+    let merged = button::Options::new()
         .size(size::ICON)
         .classes(tw().w_px(120.0))
         .merge(
-            ButtonOptions::new()
+            button::Options::new()
                 .size(Size::DEFAULT)
                 .classes(tw().h_px(40.0)),
         );
-    let by_hand = ButtonOptions::new()
+    let by_hand = button::Options::new()
         .size(Size::DEFAULT)
         .classes(tw().w_px(120.0).h_px(40.0));
     same(
@@ -169,7 +169,7 @@ fn classes_set_after_shared_options_merge_with_theirs() {
     );
     same(
         &one_button(|c| {
-            c.with_options(ButtonOptions::new().classes(tw().w_px(120.0)))
+            c.with_options(button::Options::new().classes(tw().w_px(120.0)))
                 .classes(tw().h_px(40.0))
         }),
         &both,
@@ -200,7 +200,7 @@ fn a_toggle_takes_options_too() {
     same(&shared, &inline, "shared options match inline settings");
 }
 
-fn labelled<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
+fn labelled<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> button::Chain<'a, 'f, App> {
     s.button(key, "Go").size(Size::DEFAULT).tooltip("Goes")
 }
 

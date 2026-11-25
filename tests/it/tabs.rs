@@ -2,10 +2,10 @@
 //! the arrows, activation on focus or on Enter, the lazy panel, and the look,
 //! which is the segmented control's.
 
+use eggshell_ui::prelude::*;
 use std::cell::RefCell;
 
-use eggshell_ui::owned::tabs::TabsExt;
-use eggshell_ui::owned::{Enablement, choice::Choice, tabs::TabsPart};
+use eggshell_ui::owned::{Enablement, choice::Choice, tabs};
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Aria, Builder, TextStyle, tw};
@@ -479,13 +479,13 @@ mod look {
         style
             .sheet
             .as_app()
-            .rule(TabsPart::List, |t, _| t.bg(TRACK))
+            .rule(tabs::Part::List, |t, _| t.bg(TRACK))
             .rule_when(
-                TabsPart::Trigger,
+                tabs::Part::Trigger,
                 When::always().aria(Aria::Selected),
                 |t, _| t.bg(CHOSEN),
             )
-            .rule(TabsPart::Root, |t, _| t.gap(5.0));
+            .rule(tabs::Part::Root, |t, _| t.gap(5.0));
     }
 
     #[test]

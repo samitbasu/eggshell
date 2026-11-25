@@ -3,7 +3,7 @@
 //! mounts over one field share it; a mount's commands are live while focus is
 //! within it, ahead of the page's.
 
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

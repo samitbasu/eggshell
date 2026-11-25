@@ -9,13 +9,14 @@
 //! `cn-field*` replace them.
 
 use crate::contract::{CheckboxStyle, RadioStyle, Size, SwitchStyle};
-use crate::sheet::{Key, Part, Sheet, When};
+use crate::sheet::Part as _;
+use crate::sheet::{Key, Sheet, When};
 use crate::theme::{Tokens, size};
 use crate::{Aria, Match};
 
-use super::checkbox::CheckboxPart;
-use super::radio::RadioGroupPart;
-use super::switch::SwitchPart;
+use super::checkbox;
+use super::radio;
+use super::switch;
 use super::{Enablement, Mark, centered};
 
 /// TODO(prose): the anatomy of a field: shadcn's `field`. A choice control
@@ -27,7 +28,7 @@ use super::{Enablement, Mark, centered};
 /// field, and `aria-disabled`. shadcn's title shares the label's slot; here it
 /// has its own, as the sheet keeps a part's rules by its slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FieldPart {
+pub enum Part {
     /// TODO(prose): the field, holding a control and its label or content.
     Root,
     /// TODO(prose): the label, which names the control and toggles it; a card when it holds the field.
@@ -40,7 +41,7 @@ pub enum FieldPart {
     Description,
 }
 
-impl Part for FieldPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "field.tsx";
 
     fn slot(self) -> &'static str {
@@ -69,13 +70,13 @@ pub(crate) const CARD: (&str, &str) = ("card", "true");
 /// not fade it.
 const DISABLED_CONTROL: (&str, &str) = ("disabled-control", "true");
 
-impl FieldPart {
+impl Part {
     /// TODO(prose): the keys of a horizontal field and its label, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
-    /// use eggshell_ui::owned::{Enablement, field::FieldPart};
+    /// use eggshell_ui::owned::{Enablement, field::Part};
     ///
-    /// assert_eq!(FieldPart::keys(Enablement::Disabled).len(), 2);
+    /// assert_eq!(Part::keys(Enablement::Disabled).len(), 2);
     /// ```
     pub fn keys(enablement: Enablement) -> Vec<Key> {
         let mut keys = vec![Key::Attr(HORIZONTAL.0, HORIZONTAL.1)];
@@ -127,57 +128,57 @@ pub(crate) fn write_exceptions(
     sheet: &mut Sheet,
     (checkbox, radio, switch): (&CheckboxStyle, &RadioStyle, &SwitchStyle),
 ) {
-    sheet.rule(RadioGroupPart::Indicator, |t, _| t.size_full());
-    sheet.rule(CheckboxPart::Indicator, |t, _| centered(t.size_full()));
-    sheet.rule(FieldPart::Root, |t, _| t.w_auto());
+    sheet.rule(radio::Part::Indicator, |t, _| t.size_full());
+    sheet.rule(checkbox::Part::Indicator, |t, _| centered(t.size_full()));
+    sheet.rule(Part::Root, |t, _| t.w_auto());
     let card = When::always().attr(CARD.0, CARD.1);
-    sheet.rule_when(FieldPart::Label, card, |t, _| {
+    sheet.rule_when(Part::Label, card, |t, _| {
         ["checkbox", "radio-group-item"]
             .into_iter()
             .fold(t, |t, control| {
                 t.descendants(Match::slot(control), |c| c.mt(0.25))
             })
-            .children(Match::slot(FieldPart::Root.slot()), |f| f.w_full())
+            .children(Match::slot(Part::Root.slot()), |f| f.w_full())
     });
-    sheet.rule(RadioGroupPart::IndicatorIcon, |t, _| t.relative());
+    sheet.rule(radio::Part::IndicatorIcon, |t, _| t.relative());
     let default = checkbox.sizes.default_key();
     // The default size keeps the generated look; naming it says so.
-    for part in [CheckboxPart::Root, CheckboxPart::Indicator] {
+    for part in [checkbox::Part::Root, checkbox::Part::Indicator] {
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in checkbox.sizes.keys().filter(|size| *size != default) {
         let when = When::always().size(size);
-        sheet.rule_when(CheckboxPart::Root, when, move |t, k| {
+        sheet.rule_when(checkbox::Part::Root, when, move |t, k| {
             let m = checkbox_box(k, size);
             t.size_px(m.side).rounded_px(f32::from(m.radius))
         });
-        sheet.rule_when(CheckboxPart::Indicator, when, move |t, k| {
+        sheet.rule_when(checkbox::Part::Indicator, when, move |t, k| {
             let m = checkbox_box(k, size);
             t.children(Match::glyph(), |g| g.size_px(m.glyph))
         });
     }
     let default = radio.sizes.default_key();
-    for part in [RadioGroupPart::Item, RadioGroupPart::IndicatorIcon] {
+    for part in [radio::Part::Item, radio::Part::IndicatorIcon] {
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in radio.sizes.keys().filter(|size| *size != default) {
         let when = When::always().size(size);
-        sheet.rule_when(RadioGroupPart::Item, when, move |t, k| {
+        sheet.rule_when(radio::Part::Item, when, move |t, k| {
             t.size_px(radio_circle(k, size).0)
         });
-        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, k| {
+        sheet.rule_when(radio::Part::IndicatorIcon, when, move |t, k| {
             t.size_px(radio_circle(k, size).1)
         });
     }
     for size in switch.sizes.keys() {
         if sheet
-            .unnamed(SwitchPart::Root, &[Key::Size(size)])
+            .unnamed(switch::Part::Root, &[Key::Size(size)])
             .is_none()
         {
             continue;
         }
         let when = When::always().size(size);
-        sheet.rule_when(SwitchPart::Root, when, move |t, k| {
+        sheet.rule_when(switch::Part::Root, when, move |t, k| {
             let track = switch_track(k, size);
             t.w_px(track.x).h_px(track.y)
         });
@@ -186,7 +187,7 @@ pub(crate) fn write_exceptions(
                 Mark::Off => when.not_aria(Aria::Checked),
                 Mark::On => when.aria(Aria::Checked),
             };
-            sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
+            sheet.rule_when(switch::Part::Thumb, when, move |t, k| {
                 t.size_px(switch_thumb(k, size))
             });
         }
@@ -250,7 +251,7 @@ fn switch_thumb(k: &Tokens, size: Size) -> f32 {
 /// field.tsx, a choice card's label in the dark theme:
 /// `dark:has-data-checked:bg-primary/10 dark:has-data-checked:border-primary/20`.
 pub(crate) fn write_dark_card_label(sheet: &mut Sheet) {
-    sheet.rule(FieldPart::Label, |t, k| {
+    sheet.rule(Part::Label, |t, k| {
         t.has(Match::aria(Aria::Checked), |b| {
             b.bg(k.primary.gamma_multiply(0.1))
                 .border_color(k.primary.gamma_multiply(0.2))

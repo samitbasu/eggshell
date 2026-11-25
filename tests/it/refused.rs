@@ -441,7 +441,7 @@ fn a_refused_field_takes_the_disabled_look() {
     let enabled_border = style
         .sheet
         .resolve(
-            eggshell_ui::owned::input::InputGroupPart::Root,
+            eggshell_ui::owned::input::GroupPart::Root,
             &[eggshell_ui::sheet::Key::Size(
                 eggshell_ui::contract::Size::DEFAULT,
             )],

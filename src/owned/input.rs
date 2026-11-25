@@ -8,18 +8,18 @@
 use egui::{Color32, Vec2};
 
 use crate::contract::{InputStyle, Size, Spacing};
-use crate::sheet::{Key, Part, Sheet, When};
+use crate::sheet::{Key, Sheet, When};
 use crate::theme::Tokens;
 use crate::{Aria, Match, Tw};
 
 /// TODO(prose): the anatomy of a text field: shadcn's `input`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InputPart {
+pub enum Part {
     /// TODO(prose): the field.
     Root,
 }
 
-impl Part for InputPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "input.tsx";
 
     fn slot(self) -> &'static str {
@@ -29,7 +29,7 @@ impl Part for InputPart {
 
 /// TODO(prose): the anatomy of a box that holds a field and what goes beside it: shadcn's `input-group`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InputGroupPart {
+pub enum GroupPart {
     /// TODO(prose): the box.
     Root,
     /// TODO(prose): what sits beside the field.
@@ -44,7 +44,7 @@ pub enum InputGroupPart {
     Textarea,
 }
 
-impl Part for InputGroupPart {
+impl crate::sheet::Part for GroupPart {
     const SOURCE: &'static str = "input-group.tsx";
 
     fn slot(self) -> &'static str {
@@ -81,14 +81,10 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, input: &InputStyle) {
 /// control and the addon, so those take back their own fade inside it.
 fn write_disabled_exception(sheet: &mut Sheet) {
     let disabled = When::always().aria(Aria::Disabled);
-    sheet.rule_when(InputGroupPart::Root, disabled, |t, _| {
+    sheet.rule_when(GroupPart::Root, disabled, |t, _| {
         t.opacity(crate::Opacity::new(0.5))
     });
-    for part in [
-        InputGroupPart::Input,
-        InputGroupPart::Textarea,
-        InputGroupPart::Addon,
-    ] {
+    for part in [GroupPart::Input, GroupPart::Textarea, GroupPart::Addon] {
         sheet.rule_when(part, disabled, |t, _| t.opacity(crate::Opacity::new(1.0)));
     }
 }
@@ -103,30 +99,28 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
     // The default size keeps the generated look. Naming it says so, for the
     // check that a size its parts' rules leave out is a mistake.
     let keeps = When::always().size(default);
-    sheet.rule_when(InputPart::Root, keeps, |t, _| t);
-    sheet.rule_when(InputGroupPart::Root, keeps, |t, _| t);
-    sheet.rule_when(InputGroupPart::Input, keeps, |t, _| t);
-    sheet.rule_when(InputGroupPart::Addon, keeps, |t, _| t);
+    sheet.rule_when(Part::Root, keeps, |t, _| t);
+    sheet.rule_when(GroupPart::Root, keeps, |t, _| t);
+    sheet.rule_when(GroupPart::Input, keeps, |t, _| t);
+    sheet.rule_when(GroupPart::Addon, keeps, |t, _| t);
     for size in input.sizes.keys().filter(|size| *size != default) {
         let m = *input.sizes.get(size);
         let when = When::always().size(size);
         if let Some(text) = m.text {
-            sheet.rule_when(InputGroupPart::Input, when, move |t, _| {
+            sheet.rule_when(GroupPart::Input, when, move |t, _| {
                 t.text_size(text.size, text.line_height)
             });
         }
-        sheet.rule_when(InputGroupPart::Addon, when, move |t, k| {
+        sheet.rule_when(GroupPart::Addon, when, move |t, k| {
             t.children(Match::glyph(), |g| g.size_px(addon_icon(k, size).0))
         });
         for (side, pad) in [
             (INLINE_START, Tw::pl_px as fn(Tw, f32) -> Tw),
             (INLINE_END, Tw::pr_px),
         ] {
-            sheet.rule_when(
-                InputGroupPart::Input,
-                when.attr("addon", side),
-                move |t, k| pad(t, addon_icon(k, size).1),
-            );
+            sheet.rule_when(GroupPart::Input, when.attr("addon", side), move |t, k| {
+                pad(t, addon_icon(k, size).1)
+            });
         }
     }
 }
@@ -195,21 +189,19 @@ pub(crate) fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
         (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
     ] {
         let when = When::always().size(size);
-        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
-        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
-        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
+        sheet.rule_when(Part::Root, when, move |c, _| c.h(height).px(padding_x));
+        sheet.rule_when(GroupPart::Root, when, move |c, _| c.h(height));
+        sheet.rule_when(GroupPart::Input, when, move |c, _| c.px(padding_x));
         sheet.rule_when(
-            InputGroupPart::Addon,
+            GroupPart::Addon,
             when.attr("align", "inline-start"),
             move |c, _| c.pl(padding_x),
         );
         sheet.rule_when(
-            InputGroupPart::Addon,
+            GroupPart::Addon,
             when.attr("align", "inline-end"),
             move |c, _| c.pr(padding_x),
         );
     }
-    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
-        c.py(0.5)
-    });
+    sheet.rule_when(Part::Root, When::always().size(size::XS), |c, _| c.py(0.5));
 }

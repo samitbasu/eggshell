@@ -405,7 +405,7 @@ pub(crate) struct Frame<'f, A> {
     pub windows: HashMap<Id, crate::window::Hooks<A>>,
     /// What to run for the overlays that finished leaving this frame.
     pub exited: Vec<DismissFn<A>>,
-    pub build_built: Option<crate::tooltip::BuildBuilt<A>>,
+    pub build_built: Option<crate::owned::tooltip::BuildBuilt<A>>,
     /// The command tables each root declared, by the root's index.
     pub tables: Vec<(usize, Commands<A>)>,
     /// The application data the commands' enablement is read from.
@@ -502,8 +502,8 @@ pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
     fn on_dismiss(&mut self, overlay: Id, then: DismissFn<A>);
     fn on_exited(&mut self, then: DismissFn<A>);
     fn window_hooks(&mut self, window: Id, hooks: crate::window::Hooks<A>);
-    fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>>;
-    fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>);
+    fn build_built(&self) -> Option<crate::owned::tooltip::BuildBuilt<A>>;
+    fn set_build_built(&mut self, build: crate::owned::tooltip::BuildBuilt<A>);
     /// Declares the command table of the root being built, or returns it if
     /// that root has one.
     fn declare_commands(&mut self, table: &Commands<A>, app: &'f A) -> Result<(), Twice>;
@@ -558,11 +558,11 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
         self.windows.insert(window, hooks);
     }
 
-    fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
+    fn build_built(&self) -> Option<crate::owned::tooltip::BuildBuilt<A>> {
         self.build_built
     }
 
-    fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
+    fn set_build_built(&mut self, build: crate::owned::tooltip::BuildBuilt<A>) {
         self.build_built = Some(build);
     }
 
@@ -813,7 +813,7 @@ impl LayoutState {
             (&base, crate::builder::Ambient::PAGE, &style),
         );
         f(&mut builder);
-        crate::tooltip::declare(&mut builder);
+        crate::owned::tooltip::declare(&mut builder);
         let root = st.tree.new_node(
             Style::default(),
             &kids,

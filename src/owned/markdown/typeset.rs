@@ -11,8 +11,8 @@ use crate::{TextSpec, Tracking, Weight};
 use egui::{Color32, FontFamily};
 
 use super::style::{
-    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, MarkdownStyle, QuoteStyle,
-    RichLook, TableLook, UnsupportedStyle,
+    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, QuoteStyle, RichLook, Style,
+    TableLook, UnsupportedStyle,
 };
 
 /// TODO(prose): shadcn/typeset's parameters, from which the rest of a
@@ -105,7 +105,7 @@ pub struct TypesetInk {
     pub radius: f32,
 }
 
-/// Points in a Tailwind spacing unit, which [`MarkdownStyle`]'s lengths are in.
+/// Points in a Tailwind spacing unit, which [`Style`]'s lengths are in.
 const UNIT: f32 = 4.0;
 
 /// Inline code's size, in `em` of the text around it.
@@ -189,7 +189,7 @@ impl Typeset {
     /// TODO(prose): the Markdown widget's style, every length and weight
     /// derived from these parameters as typeset.css derives them, in
     /// `ink`'s colours.
-    pub fn markdown_style(&self, ink: &TypesetInk) -> MarkdownStyle {
+    pub fn markdown_style(&self, ink: &TypesetInk) -> Style {
         let base = self.size;
         // One `em` of an element `ratio` times the body's size, in units.
         let em = |ratio: f32| ratio * base / UNIT;
@@ -227,7 +227,7 @@ impl Typeset {
         });
         // `pre { font-size: 0.875em; line-height: 1.5; padding: 0.75em 1em }`
         let code = 0.875;
-        MarkdownStyle {
+        Style {
             body: Some(text(1.0, self.leading, &self.body, Weight::Normal)),
             color: Some(ink.foreground),
             block_gap: flow(1.0),

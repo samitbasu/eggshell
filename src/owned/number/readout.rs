@@ -1,5 +1,5 @@
 //! A number shown as text that a click edits: the readout of a slider's
-//! header and the standalone [`NumberChain`]. One implementation serves both.
+//! header and the standalone [`Chain`]. One implementation serves both.
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -13,14 +13,12 @@ use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
+use crate::owned::text_field::{self, Field, Opening};
 use crate::owned::{
-    Enablement, Tip, described,
-    field_box::FieldBoxChain,
-    options,
+    Enablement, Tip, described, field_box, options,
     options::{Gate, IntoTip},
     painted, tip_describes, tipped_whole,
 };
-use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -152,7 +150,7 @@ impl Readout {
         let outset = frame.padding.x + frame.border_width;
         let width = shown_width.max(MIN_FIELD) + 2.0 * outset;
         // The box grows past the readout's edge so its text stays where the readout drew it.
-        FieldBoxChain::new(b.reborrow(), slot)
+        field_box::Chain::new(b.reborrow(), slot)
             .size(size)
             .classes(
                 tw().w_px(width)
@@ -164,7 +162,7 @@ impl Readout {
             .children(|s| {
                 let keys = crate::owned::input::keys(style.input.sizes.key_for(size), false);
                 let leaf = s.part(
-                    crate::owned::input::InputGroupPart::Input,
+                    crate::owned::input::GroupPart::Input,
                     &keys,
                     // The field is inset by egui's margin already, so its
                     // text stays where the readout drew it.
@@ -241,7 +239,7 @@ fn opening_of(ui: &Ui, response: &egui::Response, shown: &str) -> Opening {
 /// }
 /// ```
 #[must_use = "a number is not added until you call `.on_change(..)` or `.add()`"]
-pub struct NumberChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     value: f64,
@@ -258,14 +256,14 @@ pub struct NumberChain<'a, 'f, A> {
 }
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
-    /// TODO(prose): `value` within `range`, shown as text; see [`NumberChain`].
+    /// TODO(prose): `value` within `range`, shown as text; see [`Chain`].
     pub fn number<K: crate::Key>(
         &mut self,
         key: K,
         value: f64,
         range: impl Into<ValueRange>,
-    ) -> NumberChain<'_, 'f, A> {
-        NumberChain {
+    ) -> Chain<'_, 'f, A> {
+        Chain {
             slot: self.slot(&key),
             b: self.reborrow(),
             value,
@@ -283,7 +281,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 }
 
-impl<A: 'static> NumberChain<'_, '_, A> {
+impl<A: 'static> Chain<'_, '_, A> {
     /// TODO(prose): the value as `format` writes it; the step's decimals until then.
     pub fn format(mut self, format: impl Fn(f64) -> String + 'static) -> Self {
         self.format = Some(Rc::new(format));

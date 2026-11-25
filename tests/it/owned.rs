@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::owned::button::ButtonPart;
+use eggshell_ui::owned::button;
 use eggshell_ui::sheet::{Key as Keyed, When};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens, variant};
@@ -150,7 +150,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
     let light_style = style(Theme::Light);
     let light = light_style
         .sheet
-        .resolve(ButtonPart::Root, &primary, &light_style.tokens);
+        .resolve(button::Part::Root, &primary, &light_style.tokens);
     assert_eq!(
         light.paint_classes().background,
         Some(Color32::from_rgb(0x17, 0x17, 0x17))
@@ -183,7 +183,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
     let dark_style = style(Theme::Dark);
     let dark = dark_style
         .sheet
-        .resolve(ButtonPart::Root, &outline, &dark_style.tokens);
+        .resolve(button::Part::Root, &outline, &dark_style.tokens);
     assert_eq!(
         dark.paint_classes().background,
         Some(Tokens::dark().input.gamma_multiply(0.3)),
@@ -529,7 +529,7 @@ fn an_app_rule_changes_the_drawing() {
     let mut style = style(Theme::Light);
     let red = Color32::from_rgb(200, 30, 30);
     style.sheet.as_app().rule_when(
-        ButtonPart::Root,
+        button::Part::Root,
         When::always().variant(variant::PRIMARY),
         move |t, _| t.bg(red).rounded_px(0.0).h_px(40.0),
     );
@@ -680,7 +680,7 @@ fn an_app_rule_can_take_the_press_shift_away() {
     style
         .sheet
         .as_app()
-        .rule_when(ButtonPart::Root, When::always(), |t, _| {
+        .rule_when(button::Part::Root, When::always(), |t, _| {
             t.active(|p| p.translate_y(0.0))
         });
     let mut d = harness(Theme::Light);

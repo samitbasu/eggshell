@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/input.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use egui::Color32;
-use crate::owned::input::InputPart;
+use crate::owned::input;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 
@@ -12,7 +12,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `input` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use InputPart::*;
+    use input::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -75,7 +75,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `input` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use InputPart::*;
+    use input::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

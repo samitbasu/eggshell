@@ -2,8 +2,7 @@
 //! shadcn preset the rig applies.
 
 use eggshell_ui::contract::Variant;
-use eggshell_ui::owned::badge::BadgeExt;
-use eggshell_ui::owned::spinner::SpinnerExt;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::theme::{Tokens, size, variant};
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
@@ -293,7 +292,7 @@ fn an_app_rule_restyles_a_badge() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::badge::BadgePart::Root, |t, _| {
+                .rule(eggshell_ui::owned::badge::Part::Root, |t, _| {
                     t.bg(egui::Color32::RED)
                 });
         }))
@@ -339,7 +338,7 @@ fn an_app_rule_restyles_a_spinner() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::spinner::SpinnerPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::spinner::Part::Root, |t, _| {
                     t.bg(egui::Color32::RED).size(10.0)
                 });
         }))

@@ -8,9 +8,8 @@ use std::sync::Arc;
 use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::{
     Enablement, Mark,
-    segmented::{Cell, SegmentedRows},
-    switch::SwitchPart,
-    tabs::TabsPart,
+    segmented::{self, Cell},
+    switch, tabs,
 };
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -114,14 +113,14 @@ fn style(theme: Theme) -> Style {
 /// The fills `style` gives an enabled switch's track and thumb, `on` or not.
 fn switch_look(style: &Style, on: bool) -> (egui::Color32, egui::Color32) {
     let mark = if on { Mark::On } else { Mark::Off };
-    let keys = SwitchPart::keys(Size::DEFAULT, mark, Enablement::Enabled);
+    let keys = switch::Part::keys(Size::DEFAULT, mark, Enablement::Enabled);
     let fill = |part| {
         support::part_at(style, part, &keys)
             .paint_classes()
             .background
             .expect("filled")
     };
-    (fill(SwitchPart::Root), fill(SwitchPart::Thumb))
+    (fill(switch::Part::Root), fill(switch::Part::Thumb))
 }
 
 fn circle_in(d: &Driver<App>, rect: Rect) -> Option<CircleShape> {
@@ -429,10 +428,10 @@ fn segmented_track_and_cells_are_the_styles() {
         let selected = box_at(&d, metric);
         let trigger = support::part_at(
             &style(theme),
-            TabsPart::Trigger,
-            &TabsPart::trigger_keys(
+            tabs::Part::Trigger,
+            &tabs::Part::trigger_keys(
                 Size::DEFAULT,
-                SegmentedRows::One,
+                segmented::Rows::One,
                 Cell::Pressed,
                 Enablement::Enabled,
             ),
@@ -681,9 +680,7 @@ mod tiling {
 /// An app's rules on the choice controls' parts reach what they draw.
 mod app_rules {
     use eggshell_ui::Aria;
-    use eggshell_ui::owned::{
-        checkbox::CheckboxPart, field::FieldPart, radio::RadioGroupPart, switch::SwitchPart,
-    };
+    use eggshell_ui::owned::{checkbox, field, radio, switch};
     use eggshell_ui::sheet::When;
     use egui::Color32;
 
@@ -717,12 +714,12 @@ mod app_rules {
         style
             .sheet
             .as_app()
-            .rule_when(CheckboxPart::Root, checked, |t, _| t.bg(RED))
-            .rule_when(RadioGroupPart::Item, checked, |t, _| t.bg(RED))
-            .rule(RadioGroupPart::IndicatorIcon, |t, _| t.size_px(12.0))
-            .rule_when(SwitchPart::Root, checked, |t, _| t.bg(RED))
-            .rule_when(SwitchPart::Thumb, checked, |t, _| t.bg(BLUE))
-            .rule(FieldPart::Label, |t, _| t.text(GREEN));
+            .rule_when(checkbox::Part::Root, checked, |t, _| t.bg(RED))
+            .rule_when(radio::Part::Item, checked, |t, _| t.bg(RED))
+            .rule(radio::Part::IndicatorIcon, |t, _| t.size_px(12.0))
+            .rule_when(switch::Part::Root, checked, |t, _| t.bg(RED))
+            .rule_when(switch::Part::Thumb, checked, |t, _| t.bg(BLUE))
+            .rule(field::Part::Label, |t, _| t.text(GREEN));
         style
     }
 

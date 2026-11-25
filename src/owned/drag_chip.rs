@@ -43,12 +43,12 @@ pub fn drag_chip<A>(b: &mut Builder<'_, '_, A>, text: impl Into<String>) {
 }
 
 /// [`drag_chip`] as a drag source's image.
-pub trait DragChip {
+pub trait Chip {
     /// Makes a chip reading `text` the image of the drag of this source.
     fn with_drag_chip(self, text: impl Into<String>) -> Self;
 }
 
-impl<'f, A: 'static, Kind> DragChip for NodeHandle<'_, 'f, A, Kind> {
+impl<'f, A: 'static, Kind> Chip for NodeHandle<'_, 'f, A, Kind> {
     fn with_drag_chip(self, text: impl Into<String>) -> Self {
         let text = text.into();
         self.drag_preview(move |b| drag_chip(b, text))

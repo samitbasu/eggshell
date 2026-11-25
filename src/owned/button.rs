@@ -13,19 +13,19 @@ use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
 use crate::focus::{Autofocus, Select};
-use crate::sheet::{Key, Part};
+use crate::sheet::Key;
 use crate::{Builder, Icon, Scope, Tw, tw};
 
 /// TODO(prose): a button's anatomy for the [`Sheet`](crate::sheet::Sheet): its box. shadcn styles
 /// the icons inside it from the box (`[&_svg]:size-4`), so an icon is not a
 /// part of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ButtonPart {
+pub enum Part {
     /// TODO(prose): the button's box.
     Root,
 }
 
-impl Part for ButtonPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "button.tsx";
 
     fn slot(self) -> &'static str {
@@ -47,8 +47,8 @@ enum Press {
 /// A `&str` or `String` is a label, read by its text. An [`Icon`] with a
 /// name is an icon-only face, which assistive technology reads by the name.
 /// [`Face::Empty`] shows nothing, for a button whose content is all
-/// [`children`](ButtonChain::children), and is named too. The button's
-/// [`named`](ButtonChain::named) overrides any of these.
+/// [`children`](Chain::children), and is named too. The button's
+/// [`named`](Chain::named) overrides any of these.
 ///
 /// ```
 /// use eggshell_ui::owned::button::Face;
@@ -66,21 +66,21 @@ enum Press {
 ///
 /// TODO(prose): an icon alone has no name, and a button showing one is
 /// reported as [`Unnamed`](crate::Problem::Unnamed) in debug builds unless
-/// it is [`named`](ButtonChain::named).
+/// it is [`named`](Chain::named).
 #[derive(Clone, Debug)]
 pub enum Face {
-    /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
+    /// Text, with no icon unless [`icon`](Chain::icon) adds one.
     Label(String),
     /// An icon and no text, and the accessible name, empty for none.
     Icon(Icon, String),
-    /// Nothing: the content is the button's [`children`](ButtonChain::children).
+    /// Nothing: the content is the button's [`children`](Chain::children).
     /// Holds the accessible name.
     Empty(String),
 }
 
 impl Face {
     /// What assistive technology reads, unless the button is
-    /// [`named`](ButtonChain::named).
+    /// [`named`](Chain::named).
     pub(crate) fn name(&self) -> &str {
         match self {
             Self::Label(name) | Self::Icon(_, name) | Self::Empty(name) => name,
@@ -133,14 +133,14 @@ impl<S: Into<String>> From<(Icon, S)> for Face {
 /// }
 /// ```
 #[must_use = "a button is not added until you call `.on_click(..)` or `.add()`"]
-pub struct ButtonChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: String,
     name: String,
     toggle: Option<Mark>,
     role: Role,
-    opts: ButtonOptions,
+    opts: Options,
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
     action: Option<Action>,
@@ -161,19 +161,19 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 
 /// The settings of a button or toggle that do not depend on its key or its
 /// face, as a plain value that can be built once and applied to many buttons
-/// with [`with_options`](ButtonChain::with_options).
+/// with [`with_options`](Chain::with_options).
 ///
 /// A setting that was never set leaves the button's own (or the style's) in
 /// place. When two sets of options meet in [`merge`](Self::merge), a setting
 /// the second one has set wins, and classes merge as [`Tw::merge`] does.
 ///
 /// ```
-/// use eggshell_ui::owned::button::ButtonOptions;
+/// use eggshell_ui::owned::button::Options;
 /// use eggshell_ui::Builder;
 /// use eggshell_ui::contract::Size;
 ///
-/// fn verb() -> ButtonOptions {
-///     ButtonOptions::new().size(Size::DEFAULT).tooltip("Does the thing")
+/// fn verb() -> Options {
+///     Options::new().size(Size::DEFAULT).tooltip("Does the thing")
 /// }
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
@@ -182,7 +182,7 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 /// }
 /// ```
 #[derive(Clone)]
-pub struct ButtonOptions {
+pub struct Options {
     icon: Option<Icon>,
     variant: Option<Variant>,
     size: Option<Size>,
@@ -193,13 +193,13 @@ pub struct ButtonOptions {
     classes: Tw,
 }
 
-impl Default for ButtonOptions {
+impl Default for Options {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ButtonOptions {
+impl Options {
     /// Options that set nothing.
     pub fn new() -> Self {
         Self {
@@ -310,7 +310,7 @@ impl ButtonOptions {
     }
 }
 
-impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
         let name = face.name().to_owned();
         let (label, icon) = match face {
@@ -325,9 +325,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             name,
             toggle: None,
             role: Role::Button,
-            opts: ButtonOptions {
+            opts: Options {
                 icon,
-                ..ButtonOptions::new()
+                ..Options::new()
             },
             on_response: OnResponse::default(),
             children: None,
@@ -433,7 +433,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
 
     /// Applies shared `options`: what they set overrides what the chain has
     /// so far, and what is set after them overrides them.
-    pub fn with_options(mut self, options: ButtonOptions) -> Self {
+    pub fn with_options(mut self, options: Options) -> Self {
         self.opts = self.opts.merge(options);
         self
     }
@@ -631,7 +631,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             toggle,
             role,
             opts:
-                ButtonOptions {
+                Options {
                     icon,
                     variant,
                     size,
@@ -680,11 +680,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 keys.extend(expanded);
                 let own = tw().relative().sense_click();
                 let own = if disabled { own.inert() } else { own };
-                (
-                    b.part(ButtonPart::Root, &keys, own.merge(caller)),
-                    None,
-                    None,
-                )
+                (b.part(Part::Root, &keys, own.merge(caller)), None, None)
             }
             Some(mark) => {
                 let toggles = &style.toggle;
@@ -747,5 +743,13 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             }
             on_response.run(app, &response);
         });
+    }
+}
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
+    /// Assistive technology sees a `Role::Button`.
+    pub fn button<K: crate::Key>(&mut self, key: K, face: impl Into<Face>) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, face.into())
     }
 }

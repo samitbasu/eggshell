@@ -1,12 +1,12 @@
 //! The segmented control's look as public parts: a track and cells built
-//! from `Builder::part` with `TabsPart::List` and `TabsPart::Trigger` and
+//! from `Builder::part` with `tabs::Part::List` and `tabs::Part::Trigger` and
 //! their keys draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
 use eggshell_ui::contract::{Size, Style};
 use eggshell_ui::owned::{
-    segmented::{Cell, SegmentedRows},
-    tabs::TabsPart,
+    segmented::{self, Cell},
+    tabs,
 };
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, tw};
@@ -34,7 +34,7 @@ enum Ambient {
 
 struct App {
     ambient: Ambient,
-    rows: SegmentedRows,
+    rows: segmented::Rows,
 }
 
 fn edit(style: &mut Style, ambient: Ambient) {
@@ -59,7 +59,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 .enumerate()
                 .map(|(index, label)| (index, icon(), label));
             let chain = b.segmented("library", 1, options);
-            let chain = if rows == SegmentedRows::Wrapping {
+            let chain = if rows == segmented::Rows::Wrapping {
                 chain.wrapping()
             } else {
                 chain
@@ -67,11 +67,11 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             chain.on_change(|_: &mut App, _| {});
         });
         b.div(around, |b| {
-            let size = TabsPart::size_key(b, b.control_size());
+            let size = tabs::Part::size_key(b, b.control_size());
             let enablement = b.enablement();
             let track = b.part(
-                TabsPart::List,
-                &TabsPart::list_keys(size, rows, enablement),
+                tabs::Part::List,
+                &tabs::Part::list_keys(size, rows, enablement),
                 tw(),
             );
             b.div_id("public", track, |b| {
@@ -81,8 +81,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     } else {
                         Cell::Released
                     };
-                    let keys = TabsPart::trigger_keys(size, rows, cell, enablement);
-                    let classes = b.part(TabsPart::Trigger, &keys, tw().sense_click());
+                    let keys = tabs::Part::trigger_keys(size, rows, cell, enablement);
+                    let classes = b.part(tabs::Part::Trigger, &keys, tw().sense_click());
                     b.div_id(index, classes, |b| {
                         b.glyph(tw(), icon());
                         b.text(tw(), label);
@@ -93,7 +93,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(ambient: Ambient, rows: SegmentedRows) -> Harness<'static, Rig<App>> {
+fn harness(ambient: Ambient, rows: segmented::Rows) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut harness = support::harness(
         vec2(500.0, 300.0),
@@ -110,7 +110,7 @@ fn harness(ambient: Ambient, rows: SegmentedRows) -> Harness<'static, Rig<App>> 
     harness
 }
 
-fn same_look(ambient: Ambient, rows: SegmentedRows) {
+fn same_look(ambient: Ambient, rows: segmented::Rows) {
     let harness = harness(ambient, rows);
     let (library, public) = ("/\"library\"", "/\"public\"");
     let nodes = &harness.state().nodes;
@@ -160,27 +160,27 @@ fn same_look(ambient: Ambient, rows: SegmentedRows) {
 
 #[test]
 fn public_classes_draw_the_library_s_control() {
-    same_look(Ambient::Plain, SegmentedRows::One);
+    same_look(Ambient::Plain, segmented::Rows::One);
 }
 
 #[test]
 fn they_follow_the_size_a_subtree_gives() {
-    let small = harness(Ambient::Small, SegmentedRows::One);
-    let plain = harness(Ambient::Plain, SegmentedRows::One);
+    let small = harness(Ambient::Small, segmented::Rows::One);
+    let plain = harness(Ambient::Plain, segmented::Rows::One);
     assert_ne!(
         rect_of(&small, "/\"public\"").height(),
         rect_of(&plain, "/\"public\"").height(),
         "precondition: the small size is another height"
     );
-    same_look(Ambient::Small, SegmentedRows::One);
+    same_look(Ambient::Small, segmented::Rows::One);
 }
 
 #[test]
 fn they_follow_an_inert_subtree() {
-    same_look(Ambient::Inert, SegmentedRows::One);
+    same_look(Ambient::Inert, segmented::Rows::One);
 }
 
 #[test]
 fn a_wrapping_track_matches_too() {
-    same_look(Ambient::Plain, SegmentedRows::Wrapping);
+    same_look(Ambient::Plain, segmented::Rows::Wrapping);
 }

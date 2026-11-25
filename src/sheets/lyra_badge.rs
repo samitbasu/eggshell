@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Variant};
-use crate::owned::badge::BadgePart;
+use crate::owned::badge;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match};
 
@@ -15,7 +15,7 @@ const REGISTRY: &str = "registry/bases/radix/registry.ts";
 
 /// TODO(prose): shadcn's `badge` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use BadgePart::*;
+    use badge::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -145,7 +145,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `badge` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use BadgePart::*;
+    use badge::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

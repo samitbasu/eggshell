@@ -9,7 +9,7 @@ use egui::{Galley, Id, RichText, WidgetText};
 
 use super::{Enablement, Tip, TipContent};
 use crate::Builder;
-use crate::tooltip::{Content, Tooltip};
+use crate::owned::tooltip::{Content, Tooltip};
 
 /// TODO(prose): text for a tooltip or a refusal, or `None` for none.
 ///

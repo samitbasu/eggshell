@@ -73,12 +73,12 @@ fn paint_fill(painter: &Painter, track: Rect, radius: f32, value: Progress, colo
 /// fill is painted, to end straight at the value and follow the track's
 /// rounded end, in the style's range colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ProgressPart {
+pub enum Part {
     /// TODO(prose): the track.
     Root,
 }
 
-impl crate::sheet::Part for ProgressPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "progress.tsx";
 
     fn slot(self) -> &'static str {
@@ -98,7 +98,7 @@ impl crate::sheet::Part for ProgressPart {
 /// </div>
 /// ```
 #[must_use = "a progress bar is not added until you call `.add()`"]
-pub struct ProgressChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     progress: Progress,
@@ -107,7 +107,7 @@ pub struct ProgressChain<'a, 'f, A> {
     classes: Tw,
 }
 
-impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, progress: Progress) -> Self {
         Self {
             slot: b.slot(&key),
@@ -174,7 +174,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         let (_, tooltip) = gate.resolve(&mut b, slot.id, super::Enablement::Enabled);
         let style = b.style().clone();
         let bar = &style.progress;
-        let track = b.part(ProgressPart::Root, &[], classes);
+        let track = b.part(Part::Root, &[], classes);
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);
         let percent = f64::from(f32::from(progress) * 100.0);
         let name = name.unwrap_or_default();
@@ -194,6 +194,18 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
                 node.set_max_numeric_value(100.0);
             });
         });
+    }
+}
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A progress bar filled to `progress`, drawn like a slider's track.
+    /// Assistive technology sees a `Role::ProgressIndicator`.
+    pub fn progress<K: crate::Key>(
+        &mut self,
+        key: K,
+        progress: crate::Progress,
+    ) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, progress)
     }
 }
 

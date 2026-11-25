@@ -104,24 +104,16 @@ impl<T: Value, F: Fn(T) -> Shown> Mode<T> for Multiple<F> {
 }
 
 /// TODO(prose): adds [`accordion`](Self::accordion) to the builder.
-pub trait AccordionExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): an accordion whose items are open as `mode` says. It is
     /// built by [`items`](BoundAccordion::items) once it has an
-    /// [`on_change`](AccordionChain::on_change).
-    fn accordion<'s, K: Key, M>(
-        &'s mut self,
-        key: K,
-        mode: M,
-    ) -> AccordionChain<'s, 'b, 'f, A, K, M>;
+    /// [`on_change`](Chain::on_change).
+    fn accordion<'s, K: Key, M>(&'s mut self, key: K, mode: M) -> Chain<'s, 'b, 'f, A, K, M>;
 }
 
-impl<'b, 'f, A: 'static> AccordionExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn accordion<'s, K: Key, M>(
-        &'s mut self,
-        key: K,
-        mode: M,
-    ) -> AccordionChain<'s, 'b, 'f, A, K, M> {
-        AccordionChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn accordion<'s, K: Key, M>(&'s mut self, key: K, mode: M) -> Chain<'s, 'b, 'f, A, K, M> {
+        Chain {
             b: self,
             key,
             mode,
@@ -132,14 +124,14 @@ impl<'b, 'f, A: 'static> AccordionExt<'b, 'f, A> for Builder<'b, 'f, A> {
 
 /// TODO(prose): an accordion not yet given its `on_change`.
 #[must_use = "an accordion is built by `.on_change(..).items(..)`"]
-pub struct AccordionChain<'s, 'b, 'f, A, K, M> {
+pub struct Chain<'s, 'b, 'f, A, K, M> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     mode: M,
     classes: Tw,
 }
 
-impl<'s, 'b, 'f, A: 'static, K: Key, M> AccordionChain<'s, 'b, 'f, A, K, M> {
+impl<'s, 'b, 'f, A: 'static, K: Key, M> Chain<'s, 'b, 'f, A, K, M> {
     /// TODO(prose): classes merged over the column's styled ones.
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
@@ -199,7 +191,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        let column = b.part(super::AccordionPart::Root, &[], column.merge(classes));
+        let column = b.part(super::Part::Root, &[], column.merge(classes));
         b.div_id(key, column, |b| {
             items(&mut Items {
                 b,

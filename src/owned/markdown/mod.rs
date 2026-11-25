@@ -2,7 +2,8 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::markdown::{Directives, MarkdownExt};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::markdown::Directives;
 //!
 //! struct Docs {
 //!     page: String,
@@ -30,13 +31,13 @@ use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
 pub use style::{
-    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, MarkdownStyle, QuoteStyle,
-    RichLook, TableLook, UnsupportedStyle,
+    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, QuoteStyle, RichLook, Style,
+    TableLook, UnsupportedStyle,
 };
 pub use typeset::{Measure, Typeset, TypesetInk};
 
 /// TODO(prose)
-pub trait MarkdownExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose)
     fn markdown<'s, K: Key + Clone>(
         &'s mut self,
@@ -45,7 +46,7 @@ pub trait MarkdownExt<'b, 'f, A> {
     ) -> Markdown<'s, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A: 'static> MarkdownExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn markdown<'s, K: Key + Clone>(
         &'s mut self,
         key: K,
@@ -174,7 +175,8 @@ impl<A> Directives<A> {
 ///
 /// ```
 /// # use eggshell_ui::{Builder, Shell};
-/// # use eggshell_ui::owned::markdown::{MarkdownExt, heading_id};
+/// # use eggshell_ui::prelude::*;
+/// # use eggshell_ui::owned::markdown::heading_id;
 /// fn page(b: &mut Builder<'_, '_, ()>, land_on: Option<&str>) {
 ///     let shell: Shell = b.shell();
 ///     if let Some(anchor) = land_on {

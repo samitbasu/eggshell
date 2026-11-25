@@ -1,9 +1,9 @@
 //! The extras' skeleton, through the real draw, in the shadcn preset the
 //! rig applies.
 
+use eggshell_ui::prelude::*;
 use std::time::Duration;
 
-use eggshell_ui::owned::skeleton::SkeletonExt as _;
 use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
@@ -139,7 +139,7 @@ fn an_app_rule_restyles_a_skeleton() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::skeleton::SkeletonPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::skeleton::Part::Root, |t, _| {
                     t.bg(Color32::RED)
                 });
         }))

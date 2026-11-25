@@ -2,7 +2,7 @@
 //! columns line up across rows, a band per row for its rule, hover and
 //! selection, and the accessibility tree.
 
-use eggshell_ui::owned::table::{Align, Column, Stripes, TablePart};
+use eggshell_ui::owned::table::{self, Align, Column, Stripes};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
@@ -160,7 +160,7 @@ fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
 
 /// The padding beside a body cell's content in `style`.
 fn cell_padding(style: &Style) -> f32 {
-    let padding = support::part(style, TablePart::Cell)
+    let padding = support::part(style, table::Part::Cell)
         .style_at(style.tokens.spacing)
         .padding;
     padding.left.into_raw().value()
@@ -168,7 +168,7 @@ fn cell_padding(style: &Style) -> f32 {
 
 /// The height of a header cell in `style`.
 fn header_height(style: &Style) -> f32 {
-    let size = support::part(style, TablePart::Head)
+    let size = support::part(style, table::Part::Head)
         .style_at(style.tokens.spacing)
         .size;
     size.height.into_raw().value()
@@ -318,7 +318,7 @@ mod stripe {
         style
             .sheet
             .as_app()
-            .rule_when(TablePart::Row, TablePart::striped_row(), |t, _| {
+            .rule_when(table::Part::Row, table::Part::striped_row(), |t, _| {
                 t.bg(STRIPE)
             });
     }
@@ -422,7 +422,7 @@ mod selection {
         )
         .style(support::shadcn_with(|style| {
             style.sheet.as_app().rule_when(
-                eggshell_ui::owned::table::TablePart::Row,
+                eggshell_ui::owned::table::Part::Row,
                 eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Selected),
                 |b, _| b.bg(Color32::RED),
             );
@@ -640,7 +640,7 @@ mod preset {
         assert_eq!(cell_padding(&style), 8.0);
         let stripe = support::part_at(
             &style,
-            TablePart::Row,
+            table::Part::Row,
             &[eggshell_ui::sheet::Key::Attr("stripe", "odd")],
         )
         .paint_classes()
@@ -832,11 +832,15 @@ mod spacing {
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
         let d = harness(|style| {
-            for part in [TablePart::Head, TablePart::Cell, TablePart::FooterCell] {
+            for part in [
+                table::Part::Head,
+                table::Part::Cell,
+                table::Part::FooterCell,
+            ] {
                 style
                     .sheet
                     .as_app()
-                    .rule_when(part, TablePart::first_column(), |t, _| t.pl_px(0.0));
+                    .rule_when(part, table::Part::first_column(), |t, _| t.pl_px(0.0));
             }
         });
         let padding = cell_padding(&d.shell().style());
@@ -877,7 +881,7 @@ mod spacing {
             style
                 .sheet
                 .as_app()
-                .rule_when(TablePart::Row, TablePart::last_row(), |t, _| {
+                .rule_when(table::Part::Row, table::Part::last_row(), |t, _| {
                     t.border_b(1.0)
                 });
         })));
@@ -940,7 +944,7 @@ mod groups {
     const GROUP: Color32 = Color32::from_rgb(220, 240, 200);
 
     fn group_filled(style: &mut Style) {
-        style.sheet.rule(TablePart::Group, |t, _| t.bg(GROUP));
+        style.sheet.rule(table::Part::Group, |t, _| t.bg(GROUP));
     }
 
     fn harness_of(app: App) -> Driver<App> {

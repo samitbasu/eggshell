@@ -234,7 +234,7 @@ fn a_trailing_icon_sits_inside_the_box_after_the_field() {
     );
     let style = Shadcn::for_theme(Theme::Light).style();
     let beside = style.sheet.resolve(
-        eggshell_ui::owned::input::InputGroupPart::Input,
+        eggshell_ui::owned::input::GroupPart::Input,
         &[
             eggshell_ui::sheet::Key::Size(Size::DEFAULT),
             eggshell_ui::sheet::Key::Attr("addon", "inline-end"),
@@ -362,7 +362,7 @@ fn restyled(b: &mut Builder<'_, '_, App>, _: &App) {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::input::InputGroupPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::input::GroupPart::Root, |t, _| {
                     t.bg(Color32::from_rgb(200, 10, 10))
                 });
         },
@@ -434,7 +434,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
                 b.span("line", tw(), "1.234");
                 b.text_field_with(
                     "bare",
-                    eggshell_ui::prim::text_field::Field::singleline("1.234").bare(),
+                    eggshell_ui::owned::text_field::Field::singleline("1.234").bare(),
                 )
                 .on_change(|_, _| {});
             });
@@ -448,7 +448,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
 
 #[test]
 fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
-    use eggshell_ui::owned::input::InputGroupPart;
+    use eggshell_ui::owned::input;
     use eggshell_ui::sheet::Key;
     let style = Shadcn::for_theme(Theme::Light).style();
     let addon = |disabled: bool| {
@@ -458,14 +458,14 @@ fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
         }
         style
             .sheet
-            .resolve(InputGroupPart::Addon, &keys, &style.tokens)
+            .resolve(input::GroupPart::Addon, &keys, &style.tokens)
             .paint_classes()
             .opacity
     };
     let root = |keys: &[Key]| {
         style
             .sheet
-            .resolve(InputGroupPart::Root, keys, &style.tokens)
+            .resolve(input::GroupPart::Root, keys, &style.tokens)
             .paint_classes()
             .opacity
     };

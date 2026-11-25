@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::skeleton::SkeletonExt;
+//! use eggshell_ui::prelude::*;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.skeleton(tw().h_px(16.0).w_px(250.0));
@@ -19,7 +19,7 @@ use egui::Color32;
 /// TODO(prose): how skeletons look: their fill, corners and pulse.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct SkeletonStyle {
+pub struct Style {
     /// TODO(prose): the fill at full opacity.
     pub fill: Color32,
     /// TODO(prose): the corner radius.
@@ -31,7 +31,7 @@ pub struct SkeletonStyle {
     pub low: Opacity,
 }
 
-impl SkeletonStyle {
+impl Style {
     /// TODO(prose): a translucent grey over any ground, `rounded-md` of the
     /// style's menus, and Tailwind's `animate-pulse`: two seconds down to
     /// half.
@@ -48,12 +48,12 @@ impl SkeletonStyle {
 /// TODO(prose): a skeleton for the style's sheet, as shadcn's
 /// `skeleton.tsx` names it. Its pulse is the widget's own motion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SkeletonPart {
+pub enum Part {
     /// TODO(prose): the box.
     Root,
 }
 
-impl crate::sheet::Part for SkeletonPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "skeleton.tsx";
 
     fn slot(self) -> &'static str {
@@ -62,20 +62,20 @@ impl crate::sheet::Part for SkeletonPart {
 }
 
 /// TODO(prose): the skeleton, added to a [`Builder`].
-pub trait SkeletonExt {
+pub trait Ext {
     /// TODO(prose): a skeleton box laid out by `classes` (its size), drawn in
     /// the style's fill and pulsing. It is not announced to assistive
     /// technology, and under reduced motion it stands still at full opacity.
     fn skeleton(&mut self, classes: Tw);
 }
 
-impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
+impl<A: 'static> Ext for Builder<'_, '_, A> {
     fn skeleton(&mut self, classes: Tw) {
         let style = self.style().skeleton.clone();
         let opacity = cycle(self.ctx(), style.period)
             .map_or(Opacity::OPAQUE, |phase| pulse(phase, style.low));
         let styled = self.part(
-            SkeletonPart::Root,
+            Part::Root,
             &[],
             tw().shrink_0().opacity(opacity).merge(classes),
         );

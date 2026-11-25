@@ -1,4 +1,4 @@
-//! `SliderChain::typed_range` (#328): the editable readout reaches a range
+//! `slider::Chain::typed_range` (#328): the editable readout reaches a range
 //! wider than the track's; the thumb pins at its end, the arrow keys step
 //! from where the value is, and the step's lattice stays the track's.
 

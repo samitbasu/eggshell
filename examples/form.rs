@@ -13,7 +13,7 @@
 mod common;
 
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Key, NodeUi as _, Scope, Tw, tw};
 use egui::{Color32, Role, WidgetInfo};

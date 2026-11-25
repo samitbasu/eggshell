@@ -8,6 +8,30 @@
 //! disabled colours when disabled. Each builder method names the role a test
 //! queries the control by; [`testing`](crate::testing) has the table.
 //!
+//! The owned controls, each shown under a key like [`div_id`](Builder::div_id)
+//! and [`widget`](Builder::widget).
+//!
+//! A control starts from the builder and ends in a terminating call that adds
+//! it and says what the user's input changes in the application's state:
+//!
+//! ```
+//! # use eggshell_ui::Builder;
+//! # #[derive(Hash, Debug)]
+//! # enum Part { Save, Terms }
+//! # struct App { saves: u32, terms: bool }
+//! # fn view(b: &mut Builder<'_, '_, App>, s: &App) {
+//! b.button(Part::Save, "Save").on_click(|s: &mut App| s.saves += 1);
+//! b.checkbox(Part::Terms, "I agree", s.terms).on_change(|s, agreed| s.terms = agreed);
+//! # }
+//! ```
+//!
+//! Configuration and hooks (`on_response`, and `when_submitted` and
+//! `when_blurred` on a text field and a stepper) come before the terminating
+//! call. A control that is started and dropped without one is not added, and
+//! the compiler warns. Anything that only triggers finishes with `on_click` (a button), and
+//! anything that holds a value with `on_change`: it is passed the value
+//! the user chose, and the control shows the value it was built with.
+//!
 //! # Classes and the style's state looks
 //!
 //! A control's `classes(..)` merge over the style's **base** classes, the
@@ -95,6 +119,7 @@ mod styles;
 pub mod switch;
 pub mod table;
 pub mod tabs;
+pub mod text_field;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
@@ -111,7 +136,7 @@ use egui::{Id, Response, Role, Ui, WidgetInfo};
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
     let keys = input_keys(style.input.sizes.key_for(size), false);
-    let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
+    let classes = style.sheet.resolve(input::Part::Root, &keys, &style.tokens);
     Frame::of(&classes, style.tokens.spacing)
 }
 
@@ -120,33 +145,15 @@ pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
 /// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the
 /// segmented control's is written with the tabs'.
 pub(crate) fn write_track_exceptions(sheet: &mut crate::sheet::Sheet) {
-    sheet.rule(SliderPart::Track, |t, k| t.bg(k.input));
-    sheet.rule(ProgressPart::Root, |t, k| t.bg(k.input));
+    sheet.rule(slider::Part::Track, |t, k| t.bg(k.input));
+    sheet.rule(progress::Part::Root, |t, k| t.bg(k.input));
 }
 
 use crate::contract::{Colors, Focus, Look, Paint, Size, States, Style};
-use crate::tooltip::{Content, Tooltip};
+use crate::owned::tooltip::{Content, Tooltip};
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
-use button::{ButtonChain, Face};
-use checkbox::CheckboxChain;
-use choice::IntoChoice;
-use custom::CustomChain;
-use field::FieldPart;
-use input::{Frame, InputPart, keys as input_keys};
-use menu::DropdownChain;
-use number::ValueRange;
+use input::{Frame, keys as input_keys};
 use options::Validity;
-use progress::{ProgressChain, ProgressPart};
-use radio::RadioGroupChain;
-use segmented::SegmentedChain;
-use select::SelectChain;
-use slider::{SliderChain, SliderPart};
-use splitter::SplitterStart;
-use stepper::StepperChain;
-use switch::SwitchChain;
-use table::TableChain;
-use toggle::{ToggleChain, ToggleItemChain};
-use toggle_group::ToggleGroup;
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -258,7 +265,7 @@ fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
 }
 
-/// What a control's [`on_response`](ButtonChain::on_response) runs with its
+/// What a control's [`on_response`](button::Chain::on_response) runs with its
 /// response each frame, if it has one.
 pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
 
@@ -396,7 +403,7 @@ pub(crate) fn tip<A: 'static>(b: &mut Builder<'_, '_, A>, trigger: Id, content: 
 /// `response` with `tip` shown on hover, also when the control is disabled.
 pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     if let Some(tip) = tip {
-        crate::tooltip::register(ui, &response, tip);
+        crate::owned::tooltip::register(ui, &response, tip);
     }
     response
 }
@@ -406,7 +413,7 @@ pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
 /// whatever part of it is hovered or focused.
 pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
     if let Some(tip) = tip {
-        crate::tooltip::register_whole(ui, tip);
+        crate::owned::tooltip::register_whole(ui, tip);
     }
 }
 
@@ -414,7 +421,7 @@ pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
 /// control's `tip`, which it does not trigger.
 pub(crate) fn tip_describes(ui: &Ui, response: &Response, tip: &Tip) {
     if let Some(tip) = tip {
-        crate::tooltip::describes(ui, response, tip);
+        crate::owned::tooltip::describes(ui, response, tip);
     }
 }
 
@@ -644,7 +651,7 @@ pub(crate) fn text_field_classes<A: 'static>(
     let style = b.style().clone();
     let mut keys = input_keys(style.input.sizes.key_for(size), false);
     keys.extend(aria.map(crate::sheet::Key::Aria));
-    let root = b.resolved_part(InputPart::Root, &keys);
+    let root = b.resolved_part(input::Part::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
     let own_text = style.input.sizes.get(style.input.sizes.key_for(size)).text;
     let leaf = match (own_text, root.text.size, root.text.line_height) {
@@ -706,9 +713,9 @@ fn choice_row<A>(
         Enablement::Enabled => own,
         Enablement::Disabled => own.inert(),
     };
-    let mut keys = FieldPart::keys(enablement);
+    let mut keys = field::Part::keys(enablement);
     keys.extend(validity.field_key(enablement));
-    b.part(FieldPart::Root, &keys, own)
+    b.part(field::Part::Root, &keys, own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -722,8 +729,8 @@ fn choice_label<A: 'static, K: crate::Key>(
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
     let classes = b.part(
-        FieldPart::Label,
-        &FieldPart::keys(enablement),
+        field::Part::Label,
+        &field::Part::keys(enablement),
         tw().sense_click().focusable_none(),
     );
     let name = text.clone();
@@ -784,19 +791,23 @@ fn choice_card<A: 'static, K: crate::Key>(
         enablement,
         classes,
     } = card;
-    let keys = FieldPart::card_keys(enablement);
+    let keys = field::Part::card_keys(enablement);
     let own = enablement.senses();
-    let label = b.part(FieldPart::Label, &keys, own.focusable_none().merge(classes));
+    let label = b.part(
+        field::Part::Label,
+        &keys,
+        own.focusable_none().merge(classes),
+    );
     let name = title.clone();
     b.div_id(key, label, |b| {
         b.div(row, |b| {
-            let content = b.part(FieldPart::Content, &[], tw());
-            let keys = FieldPart::keys(enablement);
+            let content = b.part(field::Part::Content, &[], tw());
+            let keys = field::Part::keys(enablement);
             b.div(content, |b| {
-                let title_classes = b.part(FieldPart::Title, &keys, tw());
+                let title_classes = b.part(field::Part::Title, &keys, tw());
                 b.text(title_classes, title);
                 if let Some(description) = description {
-                    let classes = b.part(FieldPart::Description, &keys, tw());
+                    let classes = b.part(field::Part::Description, &keys, tw());
                     b.text(classes, description);
                 }
             });
@@ -808,209 +819,6 @@ fn choice_card<A: 'static, K: crate::Key>(
             on_click(app);
         }
     });
-}
-
-/// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
-/// and [`widget`](Builder::widget).
-///
-/// A control starts from the builder and ends in a terminating call that adds
-/// it and says what the user's input changes in the application's state:
-///
-/// ```
-/// # use eggshell_ui::Builder;
-/// # #[derive(Hash, Debug)]
-/// # enum Part { Save, Terms }
-/// # struct App { saves: u32, terms: bool }
-/// # fn view(b: &mut Builder<'_, '_, App>, s: &App) {
-/// b.button(Part::Save, "Save").on_click(|s: &mut App| s.saves += 1);
-/// b.checkbox(Part::Terms, "I agree", s.terms).on_change(|s, agreed| s.terms = agreed);
-/// # }
-/// ```
-///
-/// Configuration and hooks (`on_response`, and `when_submitted` and
-/// `when_blurred` on a text field and a stepper) come before the terminating
-/// call. A control that is started and dropped without one is not added, and
-/// the compiler warns. Anything that only triggers finishes with `on_click` (a button), and
-/// anything that holds a value with `on_change`: it is passed the value
-/// the user chose, and the control shows the value it was built with.
-impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
-    /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
-    /// Assistive technology sees a `Role::Button`.
-    pub fn button<K: crate::Key>(
-        &mut self,
-        key: K,
-        face: impl Into<Face>,
-    ) -> ButtonChain<'_, 'f, A> {
-        ButtonChain::new(self.reborrow(), key, face.into())
-    }
-
-    /// A toggle button showing `face` and `current`: a `bool`, or with
-    /// [`values`](ToggleChain::values) any two-valued type. Assistive
-    /// technology sees a `Role::Button`, toggled on or off.
-    pub fn toggle<K: crate::Key, T: Copy + PartialEq + 'static>(
-        &mut self,
-        key: K,
-        face: impl Into<Face>,
-        current: T,
-    ) -> ToggleChain<'_, 'f, A, T> {
-        ToggleChain::new(self.reborrow(), key, face.into(), current)
-    }
-
-    /// A member of `group` that is on when the group's current value is
-    /// `value`, showing `face`. Members may sit anywhere below the builder
-    /// that places them, with other nodes between them. Assistive technology
-    /// sees each member as a `Role::RadioButton`.
-    pub fn toggle_item<T: Copy + PartialEq + Hash + Debug + 'static>(
-        &mut self,
-        group: &ToggleGroup<A, T>,
-        value: T,
-        face: impl Into<Face>,
-    ) -> ToggleItemChain<'_, 'f, A, T> {
-        group.item(self.reborrow(), value, face.into())
-    }
-
-    /// A node that hosts custom egui content, sized by classes or by
-    /// [`measure`](CustomChain::measure).
-    pub fn custom<K: crate::Key>(&mut self, key: K, classes: Tw) -> CustomChain<'_, 'f, A> {
-        CustomChain::new(self.reborrow(), key, classes)
-    }
-
-    /// A checkbox labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](CheckboxChain::values) any two-valued type. Assistive
-    /// technology sees a `Role::CheckBox`.
-    pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
-        &mut self,
-        key: K,
-        label: impl Into<String>,
-        current: T,
-    ) -> CheckboxChain<'_, 'f, A, T> {
-        CheckboxChain::new(self.reborrow(), key, Some(label.into()), current)
-    }
-
-    /// A checkbox without a label.
-    pub fn checkbox_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
-        &mut self,
-        key: K,
-        current: T,
-    ) -> CheckboxChain<'_, 'f, A, T> {
-        CheckboxChain::new(self.reborrow(), key, None, current)
-    }
-
-    /// A switch labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](SwitchChain::values) any two-valued type. Assistive
-    /// technology sees a `Role::Switch`.
-    pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
-        &mut self,
-        key: K,
-        label: impl Into<String>,
-        current: T,
-    ) -> SwitchChain<'_, 'f, A, T> {
-        SwitchChain::new(self.reborrow(), key, Some(label.into()), current)
-    }
-
-    /// A switch without a label.
-    pub fn switch_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
-        &mut self,
-        key: K,
-        current: T,
-    ) -> SwitchChain<'_, 'f, A, T> {
-        SwitchChain::new(self.reborrow(), key, None, current)
-    }
-
-    /// Radio buttons for `options` (anything [`IntoChoice`]), of which
-    /// `current` is chosen. Values must be distinct. Assistive technology
-    /// sees each option as a `Role::RadioButton`.
-    pub fn radio_group<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
-        &mut self,
-        key: K,
-        current: T,
-        options: impl IntoIterator<Item = O>,
-    ) -> RadioGroupChain<'_, 'f, A, T> {
-        RadioGroupChain::new(self.reborrow(), key, current, options)
-    }
-
-    /// A segmented control over `options` (anything [`IntoChoice`]), of which
-    /// `current` is selected. Values must be distinct. Assistive technology
-    /// sees each cell as a `Role::RadioButton`.
-    pub fn segmented<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
-        &mut self,
-        key: K,
-        current: T,
-        options: impl IntoIterator<Item = O>,
-    ) -> SegmentedChain<'_, 'f, A, T> {
-        SegmentedChain::new(self.reborrow(), key, current, options)
-    }
-
-    /// A slider at `value` within `range`. Assistive technology sees a
-    /// `Role::Slider`.
-    pub fn slider<K: crate::Key>(
-        &mut self,
-        key: K,
-        value: f64,
-        range: impl Into<ValueRange>,
-    ) -> SliderChain<'_, 'f, A> {
-        SliderChain::new(self.reborrow(), key, value, range.into())
-    }
-
-    /// A select over `options` (anything [`IntoChoice`]), of which `current`
-    /// is chosen; the trigger shows the label of the chosen one. Assistive
-    /// technology sees the trigger as a `Role::ComboBox`, the open list as a
-    /// `Role::ListBox` and each option as a `Role::ListBoxOption`.
-    pub fn select<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
-        &mut self,
-        key: K,
-        current: T,
-        options: impl IntoIterator<Item = O>,
-    ) -> SelectChain<'_, 'f, A, T> {
-        SelectChain::new(self.reborrow(), key, current, options)
-    }
-
-    /// A button that opens a menu under it, which the chain's `items` fills.
-    /// Assistive technology sees the trigger as a `Role::Button`, the menu as a
-    /// `Role::Menu` and its items as `Role::MenuItem`, `MenuItemCheckBox` or
-    /// `MenuItemRadio`.
-    pub fn dropdown_menu<K: crate::Key + Clone>(
-        &mut self,
-        key: K,
-        face: impl Into<Face>,
-    ) -> DropdownChain<'_, 'f, A, K> {
-        DropdownChain::new(self.reborrow(), key, face.into())
-    }
-
-    /// A progress bar filled to `progress`, drawn like a slider's track.
-    /// Assistive technology sees a `Role::ProgressIndicator`.
-    pub fn progress<K: crate::Key>(
-        &mut self,
-        key: K,
-        progress: crate::Progress,
-    ) -> ProgressChain<'_, 'f, A> {
-        ProgressChain::new(self.reborrow(), key, progress)
-    }
-
-    /// TODO(prose): a splitter between two panes of the flex container it is
-    /// built in.
-    pub fn splitter<K: crate::Key>(&mut self, key: K) -> SplitterStart<'_, 'f, A> {
-        SplitterStart::new(self.reborrow(), key)
-    }
-
-    /// TODO(prose): a table, one grid whose columns line up across its rows.
-    /// Assistive technology sees a `Role::Table` of `Role::Row`s, each of
-    /// `Role::ColumnHeader`s or `Role::Cell`s.
-    pub fn table<K: crate::Key>(&mut self, key: K) -> TableChain<'_, 'f, A> {
-        TableChain::new(self.reborrow(), key)
-    }
-
-    /// A stepper at `value` within `range`. Assistive technology sees its
-    /// field as a `Role::SpinButton`, and its buttons as `Role::Button`s named
-    /// `"Increase <name>"` and `"Decrease <name>"`.
-    pub fn stepper<K: crate::Key>(
-        &mut self,
-        key: K,
-        value: f64,
-        range: impl Into<ValueRange>,
-    ) -> StepperChain<'_, 'f, A> {
-        StepperChain::new(self.reborrow(), key, value, range.into())
-    }
 }
 
 /// Builds an open overlay's rows in a box of `classes` under `key`. When the

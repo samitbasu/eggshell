@@ -2,9 +2,10 @@
 //! stack, built, laid out and drawn by the rig, on a clock the driver steps.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::overlay::Modal;
-use eggshell_ui::owned::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
+use eggshell_ui::owned::notify::{Dismissed, Lifetime, Notice, NoticeId, ScreenAnchor};
 use eggshell_ui::testing::{Driver, Target, WindowFocus};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Distance, TextStyle, tw};
@@ -465,7 +466,7 @@ fn a_notice_card_draws_from_the_sheet() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::notify::NotifyPart::Toast, |t, _| {
+            .rule(eggshell_ui::owned::notify::Part::Toast, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))

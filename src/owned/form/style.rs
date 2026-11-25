@@ -3,12 +3,12 @@
 use crate::{TextSpec, Weight};
 use egui::Color32;
 
-/// TODO(prose): the look of [`form_section`](super::FormExt::form_section)s
-/// and their [`labeled`](super::FormExt::labeled) rows. Lengths are in
+/// TODO(prose): the look of [`form_section`](super::Ext::form_section)s
+/// and their [`labeled`](super::Ext::labeled) rows. Lengths are in
 /// points.
 ///
 /// ```
-/// use eggshell_ui::owned::form::FormStyle;
+/// use eggshell_ui::owned::form::Style;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = style.form.clone();
@@ -18,7 +18,7 @@ use egui::Color32;
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct FormStyle {
+pub struct Style {
     /// The section's box: its fill.
     pub fill: Color32,
     /// The box's border colour.
@@ -33,7 +33,7 @@ pub struct FormStyle {
     pub row_padding_x: f32,
     /// A row's top and bottom padding inside a section.
     pub row_padding_y: f32,
-    /// The rule between a [`divided`](super::FormSectionChain::divided)
+    /// The rule between a [`divided`](super::SectionChain::divided)
     /// section's rows, edge to edge.
     pub rule: Color32,
     /// The rule's width.
@@ -51,14 +51,14 @@ pub struct FormStyle {
     pub row_min_height: f32,
     /// A row's label colour.
     pub label_color: Color32,
-    /// A [`labeled_text`](super::FormExt::labeled_text) value's colour.
+    /// A [`labeled_text`](super::Ext::labeled_text) value's colour.
     pub value_color: Color32,
     /// TODO(prose): the space an app puts between sections stacked in a
     /// column, as shadcn's `FieldSet` does.
     pub section_gap: f32,
 }
 
-impl FormStyle {
+impl Style {
     /// TODO(prose): a form in `style`'s colours: the menu's surface as the
     /// box, the table's rule as its border and rules, a control's height as
     /// a row's.

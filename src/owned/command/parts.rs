@@ -1,7 +1,5 @@
 //! The anatomy of a combobox, for the style's sheet.
 
-use crate::sheet::Part;
-
 /// TODO(prose): the anatomy of a combobox: shadcn's `combobox`, as eggshell
 /// draws it, a field with its list below. Its trigger and clear buttons
 /// are the widget's own, as shadcn's are input-group buttons.
@@ -33,7 +31,7 @@ pub enum ComboboxPart {
     Label,
 }
 
-impl Part for ComboboxPart {
+impl crate::sheet::Part for ComboboxPart {
     const SOURCE: &'static str = "combobox.tsx";
 
     fn slot(self) -> &'static str {
@@ -55,7 +53,7 @@ impl Part for ComboboxPart {
 /// TODO(prose): a command palette's anatomy for the style's sheet, as
 /// shadcn's `command.tsx` names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CommandPart {
+pub enum Part {
     /// TODO(prose): the palette's panel.
     Root,
     /// TODO(prose): the room around the search field.
@@ -87,7 +85,7 @@ pub enum CommandPart {
     Shortcut,
 }
 
-impl Part for CommandPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "command.tsx";
 
     fn slot(self) -> &'static str {

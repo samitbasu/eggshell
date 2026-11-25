@@ -8,7 +8,7 @@ use egui::epaint::Shadow;
 /// the shadcn skin of it.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct NotifyStyle {
+pub struct Style {
     /// TODO(prose): the card's fill.
     pub fill: Color32,
     /// TODO(prose): the card's border.
@@ -83,7 +83,7 @@ pub struct CloseStyle {
     pub hover_border: Color32,
 }
 
-impl NotifyStyle {
+impl Style {
     /// TODO(prose): the page's popover surface, at sonner's sizes: 356 points
     /// wide, 16 points of padding, 6 between a card's parts, 14 between
     /// cards, 3 on show and 24 points from the window's edges.

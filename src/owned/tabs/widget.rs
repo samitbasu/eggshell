@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::tabs::TabsExt;
+//! use eggshell_ui::prelude::*;
 //!
 //! #[derive(Clone, Copy, PartialEq)]
 //! enum Lang { Rust, Html }
@@ -28,33 +28,33 @@ use crate::overlay::{Nav, Wrap};
 use crate::owned::{
     Enablement, Mark,
     choice::{Choice, IntoChoice},
-    segmented::{Cell, SegmentedRows},
-    tabs::TabsPart,
+    segmented::{self, Cell},
+    tabs::Part,
 };
 use crate::{Builder, Key, Tw, tw};
 use egui::Role;
 
 /// TODO(prose): adds [`tabs`](Self::tabs) to the builder.
-pub trait TabsExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): tabs over `options`, of which `current` is selected. Give
-    /// it an [`on_change`](TabsChain::on_change), then add it with
-    /// [`panel`](TabsChain::panel).
+    /// it an [`on_change`](Chain::on_change), then add it with
+    /// [`panel`](Chain::panel).
     fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &'s mut self,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset>;
+    ) -> Chain<'s, 'b, 'f, A, K, T, Unset>;
 }
 
-impl<'b, 'f, A: 'static> TabsExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &'s mut self,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset> {
-        TabsChain {
+    ) -> Chain<'s, 'b, 'f, A, K, T, Unset> {
+        Chain {
             b: self,
             key,
             current,
@@ -70,10 +70,10 @@ impl<'b, 'f, A: 'static> TabsExt<'b, 'f, A> for Builder<'b, 'f, A> {
     }
 }
 
-/// TODO(prose): tabs that have no [`on_change`](TabsChain::on_change) yet.
+/// TODO(prose): tabs that have no [`on_change`](Chain::on_change) yet.
 pub struct Unset;
 
-/// TODO(prose): what [`on_change`](TabsChain::on_change) gave the tabs.
+/// TODO(prose): what [`on_change`](Chain::on_change) gave the tabs.
 pub struct Changes<A, T>(OnChange<A, T>);
 
 type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
@@ -89,7 +89,7 @@ enum Activation {
 
 /// The nodes of a tabs control, under its key.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-enum Part {
+enum Node {
     List,
     Tab(usize),
     Panel(usize),
@@ -97,7 +97,7 @@ enum Part {
 
 /// TODO(prose): tabs being declared; [`panel`](Self::panel) adds them.
 #[must_use = "tabs are not added until you call `.on_change(..)` and `.panel(..)`"]
-pub struct TabsChain<'s, 'b, 'f, A, K, T, H> {
+pub struct Chain<'s, 'b, 'f, A, K, T, H> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     current: T,
@@ -112,7 +112,7 @@ pub struct TabsChain<'s, 'b, 'f, A, K, T, H> {
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
-    TabsChain<'s, 'b, 'f, A, K, T, H>
+    Chain<'s, 'b, 'f, A, K, T, H>
 {
     /// TODO(prose): the tab list's accessible name, as `aria-label` is.
     pub fn named(mut self, name: impl Into<String>) -> Self {
@@ -154,15 +154,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Unset>
+    Chain<'s, 'b, 'f, A, K, T, Unset>
 {
     /// TODO(prose): runs `on_change` with the value of the tab that was
     /// selected, by a click or the keyboard.
     pub fn on_change(
         self,
         on_change: impl Fn(&mut A, T) + 'static,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
-        TabsChain {
+    ) -> Chain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
+        Chain {
             b: self.b,
             key: self.key,
             current: self.current,
@@ -179,7 +179,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>>
+    Chain<'s, 'b, 'f, A, K, T, Changes<A, T>>
 {
     /// TODO(prose): adds the tab list, and below it the panel of the selected
     /// tab, which `build` builds; the panels of the other tabs are not built.
@@ -198,20 +198,20 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
             panel,
             handler: Changes(on_change),
         } = self;
-        let size = TabsPart::size_key(b, size.unwrap_or(b.control_size()));
+        let size = Part::size_key(b, size.unwrap_or(b.control_size()));
         let enablement = enablement.and(b.enablement());
         let selected = options.iter().position(|option| option.value == current);
-        let rows = SegmentedRows::One;
-        let root = b.part(TabsPart::Root, &[], tw());
+        let rows = segmented::Rows::One;
+        let root = b.part(Part::Root, &[], tw());
         b.div_id(key, root, |b| {
-            let panel_id = selected.map(|index| b.id_of(Part::Panel(index)));
+            let panel_id = selected.map(|index| b.id_of(Node::Panel(index)));
             let track = b.part(
-                TabsPart::List,
-                &TabsPart::list_keys(size, rows, enablement),
+                Part::List,
+                &Part::list_keys(size, rows, enablement),
                 tw().sense_hover().merge(list),
             );
             let tabs = b
-                .div_id(Part::List, track, |b| {
+                .div_id(Node::List, track, |b| {
                     for (index, option) in options.iter().enumerate() {
                         let own = enablement.and(option.enablement).and(match option.refusal {
                             Some(_) => Enablement::Disabled,
@@ -223,16 +223,16 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                             Cell::Released
                         };
                         let classes = b.part(
-                            TabsPart::Trigger,
-                            &TabsPart::trigger_keys(size, rows, cell, own),
+                            Part::Trigger,
+                            &Part::trigger_keys(size, rows, cell, own),
                             match own {
                                 Enablement::Enabled => tw().sense_click().text_center(),
                                 Enablement::Disabled => tw().sense_click().text_center().inert(),
                             },
                         );
                         let tab = match &option.icon {
-                            None => b.span(Part::Tab(index), classes, option.label.clone()),
-                            Some(glyph) => b.div_id(Part::Tab(index), classes, |b| {
+                            None => b.span(Node::Tab(index), classes, option.label.clone()),
+                            Some(glyph) => b.div_id(Node::Tab(index), classes, |b| {
                                 b.glyph(tw(), glyph.clone());
                                 b.text(tw(), option.label.clone());
                             }),
@@ -268,8 +268,8 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                     .get(index)
                     .map(|option| option.label.clone())
                     .unwrap_or_default();
-                let content = b.part(TabsPart::Content, &[], tw().sense_hover().merge(panel));
-                b.div_id(Part::Panel(index), content, |b| build(b, current))
+                let content = b.part(Part::Content, &[], tw().sense_hover().merge(panel));
+                b.div_id(Node::Panel(index), content, |b| build(b, current))
                     .role(Role::TabPanel)
                     .named(label);
             }

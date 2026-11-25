@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Size};
-use crate::owned::select::SelectPart;
+use crate::owned::select;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -15,7 +15,7 @@ const SELECT: &str = "registry/bases/radix/ui/select.tsx";
 
 /// TODO(prose): shadcn's `select` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use SelectPart::*;
+    use select::Part::*;
     s.replace(Trigger, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -220,7 +220,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `select` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use SelectPart::*;
+    use select::Part::*;
     s.replace(Trigger, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

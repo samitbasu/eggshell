@@ -762,8 +762,9 @@ pub struct Widget {
     /// The states shadcn's source asks about that eggshell's widget always
     /// or never has, so no key or rule asks for them.
     pub facts: &'static [Assumed],
-    /// The part enum, where eggshell names it otherwise than the component
-    /// (`dropdown-menu`'s parts are `MenuPart`).
+    /// The part enum's name in its module, where the component's name with
+    /// the module's stripped does not give it (`dropdown-menu`'s parts are
+    /// `menu::Part`).
     pub parts: Option<&'static str>,
     /// Other components a part renders, whose root classes come first in
     /// its rules: input-group's `Input` is an `Input`.
@@ -803,6 +804,13 @@ pub enum Home {
 }
 
 impl Home {
+    /// The module's name under `owned`.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Core(module) | Self::Feature { module, .. } => module,
+        }
+    }
+
     /// The module that names the part enum.
     fn module(self) -> String {
         match self {
@@ -976,11 +984,17 @@ impl Widget {
             .find_map(|(element, slot)| (*element == name).then_some(*slot))
     }
 
-    /// The enum the widget's parts are variants of.
+    /// The enum the widget's parts are variants of, as its module names
+    /// it: the component's enum without the module's name, `input::GroupPart`
+    /// for `input-group` and `dialog::AlertDialogPart` for `alert-dialog`.
     pub fn part_enum(&self) -> String {
-        self.parts
-            .map(str::to_owned)
-            .unwrap_or_else(|| part_enum(self.component))
+        self.parts.map(str::to_owned).unwrap_or_else(|| {
+            let whole = part_enum(self.component);
+            match whole.strip_prefix(&pascal(&self.home.name().replace('_', "-"))) {
+                Some(rest) if !rest.is_empty() => rest.to_owned(),
+                _ => whole,
+            }
+        })
     }
 
     fn variants_of(&self, name: &str) -> Vec<String> {
@@ -1227,7 +1241,8 @@ pub fn emit(
     for half in ["light", "dark"] {
         let _ = writeln!(
             body,
-            "\n/// TODO(prose): shadcn's `{component}` in `style-{style}.css`, {half}.\npub(crate) fn {half}(s: &mut Sheet) {{\n    use {}::*;",
+            "\n/// TODO(prose): shadcn's `{component}` in `style-{style}.css`, {half}.\npub(crate) fn {half}(s: &mut Sheet) {{\n    use {}::{}::*;",
+            widget.home.name(),
             widget.part_enum()
         );
         for rule in &rules {
@@ -1338,12 +1353,7 @@ pub fn emit(
     if !contract.is_empty() {
         let _ = writeln!(rust, "use crate::contract::{{{}}};", contract.join(", "));
     }
-    let _ = writeln!(
-        rust,
-        "use {}::{};",
-        widget.home.module(),
-        widget.part_enum()
-    );
+    let _ = writeln!(rust, "use {};", widget.home.module());
     let sheet = match body.contains("When::") {
         true => "{Sheet, When}",
         false => "Sheet",
@@ -1751,13 +1761,19 @@ mod tests {
         assert_eq!(part_variant("select", "select-trigger-icon"), "TriggerIcon");
         assert_eq!(part_variant("combobox", "input-group"), "InputGroup");
         assert_eq!(part_enum("input-group"), "InputGroupPart");
-        assert_eq!(HORIZONTAL.part_enum(), "TabsPart");
-        let menu = Widget {
-            component: "dropdown-menu",
-            parts: Some("MenuPart"),
+        assert_eq!(HORIZONTAL.part_enum(), "Part");
+        let group = Widget {
+            component: "input-group",
+            home: Home::Core("input"),
             ..HORIZONTAL
         };
-        assert_eq!(menu.part_enum(), "MenuPart");
+        assert_eq!(group.part_enum(), "GroupPart");
+        let menu = Widget {
+            component: "dropdown-menu",
+            parts: Some("Part"),
+            ..HORIZONTAL
+        };
+        assert_eq!(menu.part_enum(), "Part");
         assert_eq!(
             part_variant("dropdown-menu", "dropdown-menu-sub-trigger"),
             "SubTrigger"

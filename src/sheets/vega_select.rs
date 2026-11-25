@@ -3,7 +3,7 @@
 
 use egui::Color32;
 use crate::contract::{Size};
-use crate::owned::select::SelectPart;
+use crate::owned::select;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -13,7 +13,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `select` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use SelectPart::*;
+    use select::Part::*;
     s.replace(Group, |t, _| {
         t
             .from(VEGA, 1044, "p-1")
@@ -220,7 +220,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `select` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use SelectPart::*;
+    use select::Part::*;
     s.replace(Group, |t, _| {
         t
             .from(VEGA, 1044, "p-1")

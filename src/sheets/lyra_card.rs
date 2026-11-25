@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/card.tsx`, `registry/styles/style-lyra.css`). Do not edit.
 
 use crate::contract::{Size};
-use crate::owned::form::CardPart;
+use crate::owned::form;
 use crate::sheet::{Sheet, When};
 use crate::{Match};
 
@@ -11,7 +11,7 @@ const LYRA: &str = "registry/styles/style-lyra.css";
 
 /// TODO(prose): shadcn's `card` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use CardPart::*;
+    use form::CardPart::*;
     s.replace(Root, |t, k| {
         t
             .from(LYRA, 233, "ring-foreground/10 ring-1")
@@ -48,7 +48,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `card` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use CardPart::*;
+    use form::CardPart::*;
     s.replace(Root, |t, k| {
         t
             .from(LYRA, 233, "ring-foreground/10 ring-1")

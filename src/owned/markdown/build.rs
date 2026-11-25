@@ -11,10 +11,10 @@ use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
 use super::parse::{Block, Construct, Item, List, Table, Task};
-use super::{Directive, Directives, MarkdownStyle, OnLink};
+use super::{Directive, Directives, OnLink, Style};
 
 pub(super) struct Context<'s, 'f, A> {
-    pub style: Arc<MarkdownStyle>,
+    pub style: Arc<Style>,
     pub links: Rc<Links<A>>,
     pub directives: Option<(&'s Directives<A>, &'f A)>,
     pub ctx: egui::Context,
@@ -108,7 +108,7 @@ struct Depth(usize);
 impl Depth {
     /// The space between blocks: a list item's blocks sit as close as its
     /// items do.
-    fn gap(self, style: &MarkdownStyle) -> f32 {
+    fn gap(self, style: &Style) -> f32 {
         match self.0 {
             0 => style.block_gap,
             _ => style.list.item_gap,
@@ -190,7 +190,7 @@ fn emit<'f, A: 'static>(
 /// The space above `block`, which follows `previous`: typeset.css's
 /// cascade, in which a heading owns the space below it and a list item's
 /// blocks sit as close as its items.
-fn space_above(style: &MarkdownStyle, depth: Depth, previous: &Block, block: &Block) -> f32 {
+fn space_above(style: &Style, depth: Depth, previous: &Block, block: &Block) -> f32 {
     match (previous, block) {
         (Block::Heading(_), Block::Heading(heading)) => style.heading(heading.level).after_heading,
         (Block::Rule, Block::Heading(heading)) => style.heading(heading.level).after_rule,
@@ -203,7 +203,7 @@ fn space_above(style: &MarkdownStyle, depth: Depth, previous: &Block, block: &Bl
 }
 
 /// A table cell's text: the document's tables', else its body text.
-fn cell_text(style: &MarkdownStyle) -> Tw {
+fn cell_text(style: &Style) -> Tw {
     let at = prose(tw().whitespace_normal(), style);
     match &style.table {
         Some(table) => at.role(table.text.clone()).tabular_nums(),
@@ -213,7 +213,7 @@ fn cell_text(style: &MarkdownStyle) -> Tw {
 
 /// `at` in the document's body text, which only prose takes: a directive's
 /// output keeps the page's.
-fn prose(at: Tw, style: &MarkdownStyle) -> Tw {
+fn prose(at: Tw, style: &Style) -> Tw {
     let at = match &style.body {
         Some(body) => at.role(body.clone()),
         None => at,

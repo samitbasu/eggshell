@@ -2,7 +2,7 @@
 //! replaces it, while a click or Tab places the caret as ever (#292).
 
 use eggshell_ui::owned::number::Step;
-use eggshell_ui::prim::text_field::Select;
+use eggshell_ui::owned::text_field::Select;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, vec2};

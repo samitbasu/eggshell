@@ -6,7 +6,7 @@
 //! `show` places the real egui widget in exactly the leaf's content rect.
 //! Use it through [`Builder::widget`](crate::Builder::widget), which keeps the
 //! measure and the draw on the same value, or through
-//! [`prim::text_field`](crate::prim::text_field):
+//! [`owned::text_field`](crate::owned::text_field):
 //!
 //! ```
 //! # use eggshell_ui::{Builder, tw, widget::TextEdit};

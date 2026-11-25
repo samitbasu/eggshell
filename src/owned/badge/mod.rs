@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::badge::BadgeExt;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { tags: Vec<String>, filter: Option<String> }
 //!
@@ -25,7 +25,7 @@ mod chip;
 mod style;
 
 use crate::contract::{Look, Variant};
-use crate::sheet::{Key as SheetKey, Part};
+use crate::sheet::Key as SheetKey;
 use crate::{Builder, Icon, Key, Tw, tw};
 
 /// TODO(prose): a badge's anatomy for the style's sheet: shadcn's `badge`.
@@ -34,7 +34,7 @@ use crate::{Builder, Icon, Key, Tw, tw};
 /// TODO(prose): the keys its rules see: the variant, and `data-[link=true]`
 /// on a chip that can be clicked, shadcn's badge rendered as a link (`[a]`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BadgePart {
+pub enum Part {
     /// TODO(prose): the badge.
     Root,
 }
@@ -46,7 +46,7 @@ enum Root {
     Clickable,
 }
 
-impl Part for BadgePart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "badge.tsx";
 
     fn slot(self) -> &'static str {
@@ -58,18 +58,14 @@ impl Part for BadgePart {
 const LINK: (&str, &str) = ("link", "true");
 
 pub use chip::{ChipChain, Handler, Unset};
-pub use style::{BadgeStyle, RemoveStyle};
+pub use style::{RemoveStyle, Style};
 
 /// TODO(prose): adds [`badge`](Self::badge) and [`chip`](Self::chip) to the
 /// builder.
-pub trait BadgeExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a badge reading `text`: a label that takes no input.
-    /// Finish it with [`add`](BadgeChain::add).
-    fn badge<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        text: impl Into<String>,
-    ) -> BadgeChain<'s, 'b, 'f, A, K>;
+    /// Finish it with [`add`](Chain::add).
+    fn badge<'s, K: Key>(&'s mut self, key: K, text: impl Into<String>) -> Chain<'s, 'b, 'f, A, K>;
 
     /// TODO(prose): a chip reading `label`: a badge that can be clicked, or
     /// removed with its × or with Backspace or Delete while it has focus, or
@@ -83,13 +79,9 @@ pub trait BadgeExt<'b, 'f, A> {
     ) -> ChipChain<'s, 'b, 'f, A, K, Unset, Unset>;
 }
 
-impl<'b, 'f, A: 'static> BadgeExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn badge<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        text: impl Into<String>,
-    ) -> BadgeChain<'s, 'b, 'f, A, K> {
-        BadgeChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn badge<'s, K: Key>(&'s mut self, key: K, text: impl Into<String>) -> Chain<'s, 'b, 'f, A, K> {
+        Chain {
             b: self,
             key,
             face: Face {
@@ -141,21 +133,21 @@ impl Face {
     /// The look of the face's variant, else the style's default.
     #[track_caller]
     /// Reports a variant `style` does not define.
-    fn check_variant(&self, ctx: &egui::Context, style: &BadgeStyle) {
+    fn check_variant(&self, ctx: &egui::Context, style: &Style) {
         crate::owned::styles::entry(ctx, &style.variants, self.variant(style));
     }
 
-    fn look(&self, ctx: &egui::Context, style: &BadgeStyle) -> Look {
+    fn look(&self, ctx: &egui::Context, style: &Style) -> Look {
         *crate::owned::styles::entry(ctx, &style.variants, self.variant(style))
     }
 
-    fn variant(&self, style: &BadgeStyle) -> Variant {
+    fn variant(&self, style: &Style) -> Variant {
         self.options.variant.unwrap_or(style.variants.default_key())
     }
 
     /// The variant the style draws for the badge's: a variant it lacks is
     /// drawn as its default.
-    fn drawn(&self, style: &BadgeStyle) -> Variant {
+    fn drawn(&self, style: &Style) -> Variant {
         style.variants.key_for(self.variant(style))
     }
 
@@ -165,7 +157,7 @@ impl Face {
     fn part<A>(
         &mut self,
         b: &mut Builder<'_, '_, A>,
-        style: &BadgeStyle,
+        style: &Style,
         root: Root,
         call_site: Tw,
     ) -> Tw {
@@ -178,7 +170,7 @@ impl Face {
             Root::Static => tw(),
         };
         let caller = std::mem::replace(&mut self.options.classes, tw());
-        b.part(BadgePart::Root, &keys, stop.merge(call_site).merge(caller))
+        b.part(Part::Root, &keys, stop.merge(call_site).merge(caller))
     }
 
     /// Builds the icon and the label.
@@ -191,20 +183,20 @@ impl Face {
 }
 
 /// TODO(prose): a badge, after shadcn/ui's Badge: a label drawn in the
-/// [`BadgeStyle`] variant's rest colours, which takes no input. Start one
-/// with [`BadgeExt::badge`] and finish it with [`add`](Self::add).
+/// [`Style`] variant's rest colours, which takes no input. Start one
+/// with [`Ext::badge`] and finish it with [`add`](Self::add).
 ///
 /// ```html
 /// <span class="inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-primary text-primary-foreground">Badge</span>
 /// ```
 #[must_use = "a badge is not added until you call `.add()`"]
-pub struct BadgeChain<'s, 'b, 'f, A, K> {
+pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     face: Face,
 }
 
-impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
+impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
     /// TODO(prose): draws the badge as the style's variant `variant`.
     pub fn variant(mut self, variant: Variant) -> Self {
         self.face.options.variant = Some(variant);

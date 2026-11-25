@@ -212,20 +212,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn div_id(&mut self, key: K, tw: Tw, body: impl FnOnce(&mut S)) -> NodeHandle; // children scoped under key
 
     // ---- identified leaves
-    pub fn custom(&mut self, key: K, tw: Tw) -> CustomChain;  // [.measure(f)] [.named(n)] [.tooltip(t)] [.on_response(f)] .ui(|app, ui| …)
+    pub fn custom(&mut self, key: K, tw: Tw) -> custom::Chain;  // [.measure(f)] [.named(n)] [.tooltip(t)] [.on_response(f)] .ui(|app, ui| …)
     pub fn span(&mut self, key: K, tw: Tw, text: impl Into<String>) -> NodeHandle;  // library measures/paints the text
     pub fn icon(&mut self, key: K, tw: Tw, icon: Icon) -> NodeHandle;              // library measures/paints the icon
 
     // ---- owned widgets: each returns a #[must_use] builder; options, then the terminator
-    pub fn button(&mut self, key: K, face: impl Into<Face>) -> ButtonChain;          // .on_click(f) | .add()
-    pub fn toggle(&mut self, key: K, face: impl Into<Face>, current: T) -> ToggleChain<T>; // [.values(off, on)] .on_change(|app, T|)
-    pub fn checkbox(&mut self, key: K, label: impl Into<String>, current: T) -> CheckboxChain<T>; // [.values(off, on)] .on_change(|app, T|)
-    pub fn switch(&mut self, key: K, label: impl Into<String>, current: T) -> SwitchChain<T>;     // [.values(off, on)] .on_change(|app, T|)
-    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> RadioGroupChain; // .on_change(f)
-    pub fn segmented<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SegmentedChain; // .on_change(f) | .on_change_with(f): f also gets &egui::Context
-    pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> SliderChain;            // .on_change(f)
-    pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SelectChain; // .on_change(f) | .on_change_with(f)
-    pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> StepperChain;          // .on_change(f)
+    pub fn button(&mut self, key: K, face: impl Into<Face>) -> button::Chain;          // .on_click(f) | .add()
+    pub fn toggle(&mut self, key: K, face: impl Into<Face>, current: T) -> toggle::Chain<T>; // [.values(off, on)] .on_change(|app, T|)
+    pub fn checkbox(&mut self, key: K, label: impl Into<String>, current: T) -> checkbox::Chain<T>; // [.values(off, on)] .on_change(|app, T|)
+    pub fn switch(&mut self, key: K, label: impl Into<String>, current: T) -> switch::Chain<T>;     // [.values(off, on)] .on_change(|app, T|)
+    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> radio::Chain; // .on_change(f)
+    pub fn segmented<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> segmented::Chain; // .on_change(f) | .on_change_with(f): f also gets &egui::Context
+    pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> slider::Chain;            // .on_change(f)
+    pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> select::Chain; // .on_change(f) | .on_change_with(f)
+    pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> stepper::Chain;          // .on_change(f)
     pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldChain;                    // .on_change(|app, String|); .when_submitted(f), .when_blurred(|app, Blur|)
 
     // ---- anonymous display content (no key)

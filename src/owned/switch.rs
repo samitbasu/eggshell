@@ -19,7 +19,7 @@ use crate::transition;
 use crate::{Builder, Easing, Progress, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Track,
     Label,
 }
@@ -35,7 +35,7 @@ enum Part {
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
 #[must_use = "a switch is not added until you call `.on_change(..)`"]
-pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
+pub struct Chain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
@@ -54,7 +54,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
         key: K,
@@ -82,8 +82,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
     }
 
     /// The values the switch moves between: `off` when off and `on` when on.
-    pub fn values(self, off: T, on: T) -> SwitchChain<'a, 'f, A, T, [T; 2]> {
-        SwitchChain {
+    pub fn values(self, off: T, on: T) -> Chain<'a, 'f, A, T, [T; 2]> {
+        Chain {
             b: self.b,
             slot: self.slot,
             label: self.label,
@@ -104,9 +104,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
     }
 }
 
-impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
+impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the switch invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its track's border and ring turn destructive, and so does its field's label.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);
@@ -218,7 +218,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     }
 }
 
-impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
@@ -227,7 +227,7 @@ impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
     }
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T, [T; 2]> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
@@ -261,10 +261,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let default_track = super::field::switch_track(&style.tokens, size);
         let thumb_scale = track.map_or(1.0, |track| track.y / default_track.y);
         let thumb = |b: &mut Builder<'_, '_, A>, mark| {
-            let classes = b.resolved_part(
-                SwitchPart::Thumb,
-                &form.keys(SwitchPart::keys(size, mark, enablement)),
-            );
+            let classes =
+                b.resolved_part(Part::Thumb, &form.keys(Part::keys(size, mark, enablement)));
             let diameter = b.layout_of(&classes).size.width.into_raw().value() * thumb_scale;
             let fill = classes
                 .paint
@@ -288,7 +286,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let control = b.id_of(Part::Track);
+            let control = b.id_of(Node::Track);
             let tint = transition::animate(
                 b.ctx(),
                 control.with("slide"),
@@ -305,8 +303,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 false => {
                     let [off, on] = [Mark::Off, Mark::On].map(|mark| {
                         let classes = b.resolved_part(
-                            SwitchPart::Root,
-                            &form.keys(SwitchPart::keys(size, mark, enablement)),
+                            Part::Root,
+                            &form.keys(Part::keys(size, mark, enablement)),
                         );
                         (classes.paint.background, classes.paint.border_colors.top)
                     });
@@ -322,9 +320,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                         .active(|p| p.bg(fill).border_color(border))
                 }
             };
-            let mut keys = form.keys(SwitchPart::keys(size, mark, enablement));
+            let mut keys = form.keys(Part::keys(size, mark, enablement));
             keys.extend(validity.key(enablement));
-            let classes = b.part(SwitchPart::Root, &keys, own);
+            let classes = b.part(Part::Root, &keys, own);
             let row = choice_row(
                 b,
                 &style.role_sized(&switch.text, metrics.text),
@@ -333,7 +331,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             );
             let on_press = on_toggle.clone();
             let build_track = move |b: &mut Builder<'_, '_, A>| {
-                b.div_id(Part::Track, classes, |b| {
+                b.div_id(Node::Track, classes, |b| {
                     b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                         let t = f32::from(transition::animate(
                             painter.ctx(),
@@ -368,7 +366,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 Form::Row => b.div(row.merge(caller), |b| {
                     build_track(b);
                     if let Some(label) = label {
-                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                        choice_label(b, Node::Label, control, label, enablement, move |app| {
                             on_toggle(app)
                         });
                     }
@@ -383,7 +381,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                     };
                     choice_card(
                         b,
-                        Part::Label,
+                        Node::Label,
                         card,
                         row,
                         move |app| on_toggle(app),
@@ -402,14 +400,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
 /// painted, sliding between its two places: its rules give the size and fill
 /// it is painted at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SwitchPart {
+pub enum Part {
     /// TODO(prose): the track.
     Root,
     /// TODO(prose): the thumb.
     Thumb,
 }
 
-impl crate::sheet::Part for SwitchPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "switch.tsx";
 
     fn slot(self) -> &'static str {
@@ -420,14 +418,14 @@ impl crate::sheet::Part for SwitchPart {
     }
 }
 
-impl SwitchPart {
+impl Part {
     /// TODO(prose): the keys of a switch of `size` and its thumb, on if `mark` is, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, switch::SwitchPart};
+    /// use eggshell_ui::owned::{Enablement, Mark, switch::Part};
     ///
-    /// let keys = SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
+    /// let keys = Part::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
     /// assert_eq!(keys.len(), 1);
     /// ```
     pub fn keys(
@@ -436,5 +434,28 @@ impl SwitchPart {
         enablement: super::Enablement,
     ) -> Vec<crate::sheet::Key> {
         super::field::choice_keys(size, mark, enablement)
+    }
+}
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A switch labelled `label` that shows `current`: a `bool`, or with
+    /// [`values`](Chain::values) any two-valued type. Assistive
+    /// technology sees a `Role::Switch`.
+    pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        label: impl Into<String>,
+        current: T,
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, Some(label.into()), current)
+    }
+
+    /// A switch without a label.
+    pub fn switch_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        current: T,
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, None, current)
     }
 }

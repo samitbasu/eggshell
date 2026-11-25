@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::{Enablement, button::Face, choice::Choice, tooltip::TooltipPart};
+use eggshell_ui::owned::{Enablement, button::Face, choice::Choice, tooltip};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -15,7 +15,7 @@ use crate::support;
 
 /// The widest `style` draws a tooltip's box.
 fn max_width(style: &Style) -> f32 {
-    let width = support::part(style, TooltipPart::Content)
+    let width = support::part(style, tooltip::Part::Content)
         .style_at(style.tokens.spacing)
         .max_size
         .width
@@ -435,7 +435,7 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
     for theme in [Theme::Light, Theme::Dark] {
         let preset = eggshell_ui::theme::Shadcn::for_theme(theme);
         let style = preset.style();
-        let content = support::part(&style, TooltipPart::Content);
+        let content = support::part(&style, tooltip::Part::Content);
         assert_eq!(
             content.paint_classes().background,
             Some(preset.tokens.foreground)
@@ -535,7 +535,7 @@ fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
 
 fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {
     let style = d.shell().style();
-    support::ink(&style, &support::part(&style, TooltipPart::Content))
+    support::ink(&style, &support::part(&style, tooltip::Part::Content))
 }
 
 #[test]
@@ -897,7 +897,7 @@ fn red_tooltips(style: &mut Style) {
     style
         .sheet
         .as_app()
-        .rule(eggshell_ui::owned::tooltip::TooltipPart::Content, |t, _| {
+        .rule(eggshell_ui::owned::tooltip::Part::Content, |t, _| {
             t.bg(egui::Color32::RED)
         });
 }
@@ -945,7 +945,7 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
         .arrow
         .expect("precondition: the shadcn style has an arrow")
         .size;
-    let fill = support::part(&style, TooltipPart::Content)
+    let fill = support::part(&style, tooltip::Part::Content)
         .paint_classes()
         .background
         .expect("precondition: the box is filled");

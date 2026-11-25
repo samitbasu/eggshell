@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 use crate::contract::{Look, Variant};
 use crate::owned::Enablement;
-use crate::{Builder, Icon, Key, NodeUi as _, Style, Tw, icons, tw};
+use crate::{Builder, Icon, Key, NodeUi as _, Tw, icons, tw};
 use egui::{Modifiers, Role};
 
-use super::{BadgeStyle, End, Face, Options};
+use super::{End, Face, Options, Style};
 
 /// TODO(prose): a chip handler not yet given.
 pub struct Unset;
@@ -45,8 +45,8 @@ enum Stop {
     Remove,
 }
 
-/// TODO(prose): a chip, a [`badge`](super::BadgeExt::badge) that takes
-/// input. Start one with [`BadgeExt::chip`](super::BadgeExt::chip), give it
+/// TODO(prose): a chip, a [`badge`](super::Ext::badge) that takes
+/// input. Start one with [`Ext::chip`](super::Ext::chip), give it
 /// an [`on_click`](Self::on_click), an [`on_remove`](Self::on_remove) or
 /// both, and finish it with [`add`](Self::add).
 ///
@@ -59,7 +59,7 @@ enum Stop {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::badge::BadgeExt;
+/// use eggshell_ui::prelude::*;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.chip("tag", "Rust").add();
@@ -246,7 +246,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
 }
 
 /// The ring of a chip whose × is its Tab stop, shown while the × has focus.
-fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
+fn focus_ring(look: Look, core: &crate::Style, enablement: Enablement) -> Tw {
     match enablement {
         Enablement::Enabled => {
             let ring = look.paint.focus.unwrap_or(core.tokens.focus());
@@ -260,7 +260,7 @@ fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
 /// The × of a removable chip named `name`.
 fn remove_button<A: 'static>(
     b: &mut Builder<'_, '_, A>,
-    style: &BadgeStyle,
+    style: &Style,
     name: &str,
     stop: Stop,
     remove: Rc<dyn Fn(&mut A)>,

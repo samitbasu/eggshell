@@ -15,9 +15,9 @@ use egui::{Rect, Vec2, ViewportId};
 use crate::nav::Active;
 use crate::overlay_input::Typing;
 use crate::owned::menu::Menus;
+use crate::owned::tooltip::Tooltips;
 use crate::presence::Presences;
 use crate::stack::Stack;
-use crate::tooltip::Tooltips;
 use crate::transition::Tracking;
 
 #[derive(Default)]

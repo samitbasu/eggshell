@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::spinner::SpinnerExt;
+//! use eggshell_ui::prelude::*;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.spinner("loading").add();
@@ -21,11 +21,11 @@ use egui::{Context, ImageSource, Role, WidgetInfo, include_image};
 /// shadcn's `Loader2Icon`.
 const LOADER: ImageSource<'static> = include_image!("loader-circle.svg");
 
-/// TODO(prose): the look of [`spinner`](SpinnerExt::spinner)s.
+/// TODO(prose): the look of [`spinner`](Ext::spinner)s.
 ///
 /// ```
 /// use std::time::Duration;
-/// use eggshell_ui::owned::spinner::SpinnerStyle;
+/// use eggshell_ui::owned::spinner::Style;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = style.spinner.clone();
@@ -35,7 +35,7 @@ const LOADER: ImageSource<'static> = include_image!("loader-circle.svg");
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct SpinnerStyle {
+pub struct Style {
     /// Side of the spinner per control size, in points.
     pub sizes: Keyed<Size, f32>,
     /// How long one turn takes.
@@ -45,12 +45,12 @@ pub struct SpinnerStyle {
 /// TODO(prose): a spinner for the style's sheet, as shadcn's `spinner.tsx`
 /// names it. Its turn is the widget's own motion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SpinnerPart {
+pub enum Part {
     /// TODO(prose): the icon.
     Root,
 }
 
-impl crate::sheet::Part for SpinnerPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "spinner.tsx";
 
     fn slot(self) -> &'static str {
@@ -58,7 +58,7 @@ impl crate::sheet::Part for SpinnerPart {
     }
 }
 
-impl SpinnerStyle {
+impl Style {
     /// TODO(prose): a spinner as large as a control's icon at each of the
     /// style's sizes, turning once a second, as Tailwind's `animate-spin`.
     pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
@@ -78,16 +78,16 @@ impl SpinnerStyle {
 }
 
 /// TODO(prose): adds [`spinner`](Self::spinner) to the builder.
-pub trait SpinnerExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a spinner, drawn in the text colour at the control size
     /// and announced as a `Role::Status` named "Loading". Under reduced
-    /// motion it stands still. Finish it with [`add`](SpinnerChain::add).
-    fn spinner<'s, K: Key>(&'s mut self, key: K) -> SpinnerChain<'s, 'b, 'f, A, K>;
+    /// motion it stands still. Finish it with [`add`](Chain::add).
+    fn spinner<'s, K: Key>(&'s mut self, key: K) -> Chain<'s, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A: 'static> SpinnerExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn spinner<'s, K: Key>(&'s mut self, key: K) -> SpinnerChain<'s, 'b, 'f, A, K> {
-        SpinnerChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn spinner<'s, K: Key>(&'s mut self, key: K) -> Chain<'s, 'b, 'f, A, K> {
+        Chain {
             b: self,
             key,
             size: None,
@@ -97,14 +97,14 @@ impl<'b, 'f, A: 'static> SpinnerExt<'b, 'f, A> for Builder<'b, 'f, A> {
     }
 }
 
-/// TODO(prose): a spinner. Start one with [`SpinnerExt::spinner`] and finish
+/// TODO(prose): a spinner. Start one with [`Ext::spinner`] and finish
 /// it with [`add`](Self::add).
 ///
 /// ```html
 /// <svg role="status" aria-label="Loading" class="size-4 animate-spin">…loader-circle…</svg>
 /// ```
 #[must_use = "a spinner is not added until you call `.add()`"]
-pub struct SpinnerChain<'s, 'b, 'f, A, K> {
+pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     size: Option<Size>,
@@ -112,7 +112,7 @@ pub struct SpinnerChain<'s, 'b, 'f, A, K> {
     classes: Tw,
 }
 
-impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
+impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
     /// TODO(prose): draws the spinner at the style's size `size`, in place of
     /// the control size it inherits.
     pub fn size(mut self, size: Size) -> Self {
@@ -152,7 +152,7 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
         // The size is the widget's, from its size's entry (#348), over the
         // sheet's `size-4`.
         let classes = b.part(
-            SpinnerPart::Root,
+            Part::Root,
             &[],
             tw().size_px(side)
                 .shrink_0()

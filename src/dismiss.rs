@@ -81,7 +81,7 @@ pub(crate) enum WindowFocus {
     NotYet,
 }
 
-/// Whether a button that [`dismisses`](crate::owned::button::ButtonChain::dismisses)
+/// Whether a button that [`dismisses`](crate::owned::button::Chain::dismisses)
 /// its overlay was pressed this frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Closer {
@@ -98,7 +98,7 @@ pub(crate) struct Layer {
     /// The overlay's box: for a modal, the dialog or sheet, not the scrim.
     pub(crate) rect: Rect,
     pub(crate) boundary: Boundary,
-    /// The button that [`cancel_action`](crate::owned::button::ButtonChain::cancel_action)
+    /// The button that [`cancel_action`](crate::owned::button::Chain::cancel_action)
     /// made the overlay's Esc, enabled or not.
     pub(crate) cancel: Option<Id>,
     /// The anchor, if pressing it is the trigger's own business.

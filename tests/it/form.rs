@@ -4,10 +4,8 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::form::FormExt;
-use eggshell_ui::owned::{
-    Enablement, Mark, progress::ProgressPart, slider::SliderPart, switch::SwitchPart,
-};
+use eggshell_ui::owned::{Enablement, Mark, progress, slider, switch};
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{
     BaseColor, ContrastRatio, Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens,
 };
@@ -158,7 +156,7 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                     let tracks = [
                         (
                             "slider",
-                            support::part_at(&style, SliderPart::Track, &[])
+                            support::part_at(&style, slider::Part::Track, &[])
                                 .paint_classes()
                                 .background
                                 .expect("a slider's track is filled"),
@@ -168,8 +166,8 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                             "switch off",
                             support::part_at(
                                 &style,
-                                SwitchPart::Root,
-                                &SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled),
+                                switch::Part::Root,
+                                &switch::Part::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled),
                             )
                             .paint_classes()
                             .background
@@ -177,7 +175,7 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                         ),
                         (
                             "progress",
-                            support::part_at(&style, ProgressPart::Root, &[])
+                            support::part_at(&style, progress::Part::Root, &[])
                                 .paint_classes()
                                 .background
                                 .expect("a progress bar's track is filled"),

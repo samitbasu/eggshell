@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::form::FormExt;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { gain: f64, mute: bool }
 //!
@@ -28,12 +28,12 @@
 
 mod style;
 
-use crate::owned::field::FieldPart;
+use crate::owned::field;
 use crate::sheet::Part;
 use crate::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
-pub use style::FormStyle;
+pub use style::Style;
 
 /// TODO(prose): a form section's frame for the style's sheet: shadcn's
 /// `card`, whose surface the section takes. The section's rows and title are
@@ -55,10 +55,10 @@ impl Part for CardPart {
 /// TODO(prose): adds [`form_section`](Self::form_section),
 /// [`labeled`](Self::labeled) and [`labeled_text`](Self::labeled_text) to
 /// the builder.
-pub trait FormExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a section of a form: a box of rows, under an optional
-    /// title. Add it with [`children`](FormSectionChain::children).
-    fn form_section<K: Key>(&mut self, key: K) -> FormSectionChain<'_, 'b, 'f, A, K>;
+    /// title. Add it with [`children`](SectionChain::children).
+    fn form_section<K: Key>(&mut self, key: K) -> SectionChain<'_, 'b, 'f, A, K>;
 
     /// TODO(prose): a row with `label` leading and the value `value` builds
     /// at its trailing edge. Inside a section, it takes the section's inset.
@@ -70,9 +70,9 @@ pub trait FormExt<'b, 'f, A> {
 }
 
 /// TODO(prose): a form section being configured; see
-/// [`FormExt::form_section`].
+/// [`Ext::form_section`].
 #[must_use = "a form section is not added until you call `.children(..)`"]
-pub struct FormSectionChain<'s, 'b, 'f, A, K> {
+pub struct SectionChain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     title: Option<String>,
@@ -114,7 +114,7 @@ fn next_row<A>(b: &Builder<'_, '_, A>) -> u32 {
     })
 }
 
-impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
+impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K> {
     /// TODO(prose): the title over the box; it names the section's group.
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
@@ -144,7 +144,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             .flex_col()
             .py_px(style.padding_y)
             // A form's choice fields are shadcn's `Field`, `w-full`.
-            .descendants(Match::slot(FieldPart::Root.slot()), |t| t.w_full());
+            .descendants(Match::slot(field::Part::Root.slot()), |t| t.w_full());
         if rules == Rules::Between {
             own = own.divide_y(style.rule_width, style.rule);
         }
@@ -173,9 +173,9 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
     }
 }
 
-impl<'b, 'f, A: 'static> FormExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn form_section<K: Key>(&mut self, key: K) -> FormSectionChain<'_, 'b, 'f, A, K> {
-        FormSectionChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn form_section<K: Key>(&mut self, key: K) -> SectionChain<'_, 'b, 'f, A, K> {
+        SectionChain {
             b: self,
             key,
             title: None,

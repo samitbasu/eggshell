@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/command.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use egui::Shadow;
-use crate::owned::command::CommandPart;
+use crate::owned::command;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity, Tracking};
 
@@ -13,7 +13,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `command` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use CommandPart::*;
+    use command::Part::*;
     s.replace(InputGroup, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -276,7 +276,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `command` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use CommandPart::*;
+    use command::Part::*;
     s.replace(InputGroup, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

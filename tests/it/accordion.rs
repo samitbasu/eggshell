@@ -1,11 +1,12 @@
 //! The extras' accordion through the real path: its three modes, each
 //! asked through clicks on real headers, and what they announce.
 
+use eggshell_ui::prelude::*;
 use std::collections::BTreeSet;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::owned::accordion::{AccordionExt, Items, Mode, Multiple, Single};
+use eggshell_ui::owned::accordion::{Items, Mode, Multiple, Single};
 use eggshell_ui::{Builder, tw};
 use egui::accesskit::Role as AccessRole;
 use egui::vec2;

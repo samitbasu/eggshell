@@ -3,7 +3,8 @@
 
 use eggshell_ui::Style;
 use eggshell_ui::contract::Themed;
-use eggshell_ui::owned::command::{ComboboxPart, CommandExt};
+use eggshell_ui::owned::command::ComboboxPart;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};

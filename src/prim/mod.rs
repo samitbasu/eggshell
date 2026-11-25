@@ -6,8 +6,6 @@
 //! ids are derived from the leaf's `Ui`, so focus and cursor follow a node
 //! through reordering.
 
-pub mod text_field;
-
 use egui::{Color32, ImageSource, Painter, Rect, WidgetText};
 
 use crate::{Angle, Mirror};

@@ -18,7 +18,7 @@ use crate::focus::{Autofocus, Select};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Box,
     Label,
 }
@@ -45,7 +45,7 @@ enum Part {
 /// }
 /// ```
 #[must_use = "a checkbox is not added until you call `.on_change(..)`"]
-pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
+pub struct Chain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
@@ -63,7 +63,7 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
         key: K,
@@ -91,8 +91,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
 
     /// The values the checkbox switches between: `off` when unchecked and
     /// `on` when checked.
-    pub fn values(self, off: T, on: T) -> CheckboxChain<'a, 'f, A, T, [T; 2]> {
-        CheckboxChain {
+    pub fn values(self, off: T, on: T) -> Chain<'a, 'f, A, T, [T; 2]> {
+        Chain {
             b: self.b,
             slot: self.slot,
             label: self.label,
@@ -112,9 +112,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
     }
 }
 
-impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
+impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the checkbox invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its box's border and ring turn destructive, and so does its field's label.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);
@@ -220,7 +220,7 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     }
 }
 
-impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     #[track_caller]
@@ -229,7 +229,7 @@ impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
     }
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T, [T; 2]> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     #[track_caller]
@@ -258,13 +258,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let checkbox = &style.checkbox;
         let size = b.size_of(size);
         let metrics = *checkbox.sizes.lookup(b.ctx(), size);
-        let mut keys = form.keys(CheckboxPart::keys(
-            checkbox.sizes.key_for(size),
-            mark,
-            enablement,
-        ));
+        let mut keys = form.keys(Part::keys(checkbox.sizes.key_for(size), mark, enablement));
         keys.extend(validity.key(enablement));
-        let box_classes = b.part(CheckboxPart::Root, &keys, enablement.senses());
+        let box_classes = b.part(Part::Root, &keys, enablement.senses());
         // A card's label is drawn before the control it holds, so the
         // control names itself by the card's title.
         let name = match form {
@@ -273,7 +269,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let control = b.id_of(Part::Box);
+            let control = b.id_of(Node::Box);
             let row = choice_row(
                 b,
                 &style.role_sized(&checkbox.text, metrics.text),
@@ -283,8 +279,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             let on_press = on_toggle.clone();
             let validity = validity.clone();
             let build_box = move |b: &mut Builder<'_, '_, A>| {
-                b.div_id(Part::Box, box_classes, |b| {
-                    let indicator = b.part(CheckboxPart::Indicator, &keys, tw());
+                b.div_id(Node::Box, box_classes, |b| {
+                    let indicator = b.part(Part::Indicator, &keys, tw());
                     b.div(indicator, |b| {
                         if mark == Mark::On {
                             b.glyph(tw(), check());
@@ -306,7 +302,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
                 Form::Row => b.div(row.merge(caller), |b| {
                     build_box(b);
                     if let Some(label) = label {
-                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                        choice_label(b, Node::Label, control, label, enablement, move |app| {
                             on_toggle(app)
                         });
                     }
@@ -321,7 +317,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
                     };
                     choice_card(
                         b,
-                        Part::Label,
+                        Node::Label,
                         card,
                         row,
                         move |app| on_toggle(app),
@@ -338,14 +334,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
 /// TODO(prose): the keys its rules see: the size, `aria-checked` (shadcn's
 /// `data-checked`) and `aria-disabled`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CheckboxPart {
+pub enum Part {
     /// TODO(prose): the box.
     Root,
     /// TODO(prose): the check glyph in a ticked box.
     Indicator,
 }
 
-impl crate::sheet::Part for CheckboxPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "checkbox.tsx";
 
     fn slot(self) -> &'static str {
@@ -356,16 +352,16 @@ impl crate::sheet::Part for CheckboxPart {
     }
 }
 
-impl CheckboxPart {
+impl Part {
     /// TODO(prose): the keys of a checkbox of `size`, ticked if `mark` is on, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{checkbox::CheckboxPart, Enablement, Mark};
+    /// use eggshell_ui::owned::{checkbox::Part, Enablement, Mark};
     /// use eggshell_ui::sheet::Key;
     ///
-    /// let keys = CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
+    /// let keys = Part::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
     /// assert!(keys.contains(&Key::Aria(Aria::Checked)));
     /// ```
     pub fn keys(
@@ -374,5 +370,28 @@ impl CheckboxPart {
         enablement: super::Enablement,
     ) -> Vec<crate::sheet::Key> {
         super::field::choice_keys(size, mark, enablement)
+    }
+}
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A checkbox labelled `label` that shows `current`: a `bool`, or with
+    /// [`values`](Chain::values) any two-valued type. Assistive
+    /// technology sees a `Role::CheckBox`.
+    pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        label: impl Into<String>,
+        current: T,
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, Some(label.into()), current)
+    }
+
+    /// A checkbox without a label.
+    pub fn checkbox_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        current: T,
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, None, current)
     }
 }

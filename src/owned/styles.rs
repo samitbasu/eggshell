@@ -58,7 +58,7 @@ impl Popover {
                 text: k.popover_foreground,
             },
             border_width: 1.0,
-            radius: menu_part(style, crate::owned::menu::MenuPart::Content, &[])
+            radius: menu_part(style, crate::owned::menu::Part::Content, &[])
                 .paint_classes()
                 .radius
                 .nw,
@@ -101,7 +101,7 @@ impl Popover {
 /// The classes `style`'s sheet gives the menu's `part` under `keys`.
 pub(crate) fn menu_part(
     style: &crate::Style,
-    part: crate::owned::menu::MenuPart,
+    part: crate::owned::menu::Part,
     keys: &[crate::sheet::Key],
 ) -> crate::Tw {
     style.sheet.resolve(part, keys, &style.tokens)

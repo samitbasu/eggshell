@@ -12,7 +12,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::hover_card::HoverCardExt as _;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { follows: u32 }
 //!
@@ -41,20 +41,20 @@ use core::time::Duration;
 
 use crate::contract::Look;
 use crate::overlay::{Align, Distance, HoverIntent, Placement};
-use crate::sheet::Part;
+
 use crate::{Builder, Key, Scope, Tw, tw};
 
 /// TODO(prose): the anatomy of a hover card for the style's sheet: shadcn's
 /// `hover-card`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum HoverCardPart {
+pub enum Part {
     /// TODO(prose): what the pointer or the focus rests on to open the card.
     Trigger,
     /// TODO(prose): the card's box.
     Content,
 }
 
-impl Part for HoverCardPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "hover-card.tsx";
 
     fn slot(self) -> &'static str {
@@ -69,7 +69,7 @@ impl Part for HoverCardPart {
 /// extension, else one made from it.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct HoverCardStyle {
+pub struct Style {
     /// TODO(prose): how long the pointer or focus rests on the trigger before
     /// the card opens.
     pub open_delay: Duration,
@@ -90,7 +90,7 @@ pub struct HoverCardStyle {
     pub transition: Duration,
 }
 
-impl HoverCardStyle {
+impl Style {
     /// TODO(prose): Radix's delays, and the box of `style`'s menus.
     pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         let popover = crate::owned::styles::Popover::of_tokens(style.tokens);
@@ -112,14 +112,14 @@ impl HoverCardStyle {
 }
 
 /// TODO(prose): adds [`hover_card`](Self::hover_card) to the builder.
-pub trait HoverCardExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a hover card named `key`: give it a
     /// [`trigger`](HoverCard::trigger), then its
-    /// [`content`](HoverCardTrigger::content).
+    /// [`content`](Trigger::content).
     fn hover_card<K: Key + Clone>(&mut self, key: K) -> HoverCard<'_, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A> HoverCardExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn hover_card<K: Key + Clone>(&mut self, key: K) -> HoverCard<'_, 'b, 'f, A, K> {
         HoverCard {
             b: self,
@@ -170,11 +170,11 @@ impl<'s, 'b, 'f, A, K: Key + Clone> HoverCard<'s, 'b, 'f, A, K> {
     /// TODO(prose): the trigger: a container of `classes` that `body` fills.
     /// The pointer anywhere over it, or keyboard focus on anything inside
     /// it, opens the card; it replaces their tooltips.
-    pub fn trigger<T>(self, classes: Tw, body: T) -> HoverCardTrigger<'s, 'b, 'f, A, K, T>
+    pub fn trigger<T>(self, classes: Tw, body: T) -> Trigger<'s, 'b, 'f, A, K, T>
     where
         T: FnOnce(&mut Scope<'_, 'f, A>),
     {
-        HoverCardTrigger {
+        Trigger {
             card: self,
             classes,
             body,
@@ -184,13 +184,13 @@ impl<'s, 'b, 'f, A, K: Key + Clone> HoverCard<'s, 'b, 'f, A, K> {
 
 /// TODO(prose): a hover card with its trigger, waiting for its content.
 #[must_use = "a hover card is added by `.content(..)`"]
-pub struct HoverCardTrigger<'s, 'b, 'f, A, K, T> {
+pub struct Trigger<'s, 'b, 'f, A, K, T> {
     card: HoverCard<'s, 'b, 'f, A, K>,
     classes: Tw,
     body: T,
 }
 
-impl<'f, A, K, T> HoverCardTrigger<'_, '_, 'f, A, K, T>
+impl<'f, A, K, T> Trigger<'_, '_, 'f, A, K, T>
 where
     K: Key + Clone,
     T: FnOnce(&mut Scope<'_, 'f, A>),
@@ -222,7 +222,7 @@ where
             intent = intent.description(text);
         }
         let placement = placement.unwrap_or_else(|| style.placement());
-        let classes = b.part(HoverCardPart::Trigger, &[], classes);
+        let classes = b.part(Part::Trigger, &[], classes);
         b.div_id(key, classes, |t| {
             body(t);
             t.overlay("Card")
@@ -231,7 +231,7 @@ where
                 .exit_transition(style.transition)
                 .placement(placement)
                 .children(|c| {
-                    let card = c.part(HoverCardPart::Content, &[], tw().flex().flex_col());
+                    let card = c.part(Part::Content, &[], tw().flex().flex_col());
                     c.div_id("Box", card, |c| content(c));
                 });
         });

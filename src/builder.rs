@@ -21,6 +21,7 @@ use crate::mount::{Lensed, Mount, MountChain};
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
+use crate::owned::tooltip::{Content, Tooltip};
 use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Identified, Identity, Interaction,
     MeasureFn, Node, NodeKind, Pass, ScrollNode, Sink, solve,
@@ -33,7 +34,6 @@ use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
-use crate::tooltip::{Content, Tooltip};
 use crate::tw::{Grouping, Observed, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
@@ -318,13 +318,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// context's, so a scope cannot change which faces exist.
     ///
     /// ```
-    /// use eggshell_ui::owned::table::TablePart;
+    /// use eggshell_ui::owned::table;
     /// use eggshell_ui::{Builder, tw};
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.styled(
     ///         |style| {
-    ///             style.sheet.rule(TablePart::Cell, |t, _| t.p(4.0));
+    ///             style.sheet.rule(table::Part::Cell, |t, _| t.p(4.0));
     ///         },
     ///         |b| {
     ///             b.text(tw(), "Tables built here are roomier.");
@@ -1805,11 +1805,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ));
     }
 
-    pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
+    pub(crate) fn build_built(&self) -> Option<crate::owned::tooltip::BuildBuilt<A>> {
         self.frame.build_built()
     }
 
-    pub(crate) fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
+    pub(crate) fn set_build_built(&mut self, build: crate::owned::tooltip::BuildBuilt<A>) {
         self.frame.set_build_built(build);
     }
 
@@ -2683,14 +2683,14 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```
 /// use eggshell_ui::Scope;
-/// use eggshell_ui::owned::button::ButtonChain;
+/// use eggshell_ui::owned::button;
 ///
 /// struct App { saves: u32 }
 ///
 /// #[derive(Hash, Debug)]
 /// enum Part { Save }
 ///
-/// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
+/// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> button::Chain<'a, 'f, App> {
 ///     s.button(key, "Save").tooltip("Saves")
 /// }
 ///
@@ -2704,10 +2704,10 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::button::ButtonChain;
+/// use eggshell_ui::owned::button;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
-///     let mut later: Option<ButtonChain<'_, '_, ()>> = None;
+///     let mut later: Option<button::Chain<'_, '_, ()>> = None;
 ///     b.div(eggshell_ui::tw(), |b| later = Some(b.button("go", "Go")));
 ///     later.expect("started").add();
 /// }

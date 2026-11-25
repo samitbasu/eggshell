@@ -4,7 +4,7 @@
 
 use eggshell_ui::overlay::{DismissOn, Modal, Shown, Side};
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::testing::{Driver, PlacedFrame, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
@@ -1016,7 +1016,7 @@ mod keys_are_taken {
     }
 }
 
-/// Buttons that dismiss their overlay (`ButtonChain::dismisses`), and the
+/// Buttons that dismiss their overlay (`button::Chain::dismisses`), and the
 /// accessible description of an overlay and of a node.
 mod closers {
     use super::*;

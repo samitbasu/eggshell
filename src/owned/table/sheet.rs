@@ -2,7 +2,7 @@
 //! and the rules written from [`TableStyle`].
 
 use crate::Aria;
-use crate::sheet::{Key, Part, Sheet, When};
+use crate::sheet::{Key, Sheet, When};
 use egui::Color32;
 
 /// TODO(prose): the anatomy of a table: shadcn's `table`. A band is a
@@ -14,7 +14,7 @@ use egui::Color32;
 /// a cell's `data-[column=first]`. The group row and its cell are eggshell's,
 /// not shadcn's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TablePart {
+pub enum Part {
     /// TODO(prose): the grid that holds the bands.
     Root,
     /// TODO(prose): the band of column headings.
@@ -35,7 +35,7 @@ pub enum TablePart {
     FooterCell,
 }
 
-impl Part for TablePart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "table.tsx";
 
     fn slot(self) -> &'static str {
@@ -65,7 +65,7 @@ pub(crate) struct RowState {
     pub(crate) selected: bool,
 }
 
-impl TablePart {
+impl Part {
     /// The keys of a body row.
     pub(crate) fn row_keys(state: RowState) -> Vec<Key> {
         let mut keys = Vec::new();
@@ -115,30 +115,24 @@ impl TablePart {
 /// pointer, as `data-[state=selected]:` follows `hover:` in Tailwind's
 /// order. Stripes are eggshell's own: `muted/30`.
 pub(crate) fn write_exceptions(sheet: &mut Sheet) {
-    sheet.rule(TablePart::Header, |t, k| {
+    sheet.rule(Part::Header, |t, k| {
         t.bg(Color32::TRANSPARENT)
             .border_b(1.0)
             .border_b_color(k.border)
     });
-    sheet.rule(TablePart::Group, |t, k| {
-        t.border_b(1.0).border_b_color(k.border)
-    });
-    sheet.rule(TablePart::GroupCell, |t, _| {
+    sheet.rule(Part::Group, |t, k| t.border_b(1.0).border_b_color(k.border));
+    sheet.rule(Part::GroupCell, |t, _| {
         t.flex()
             .items_center()
             .px_px(GROUP_CELL_PADDING)
             .py_px(GROUP_CELL_PADDING)
             .whitespace_nowrap()
     });
-    sheet.rule_when(TablePart::Row, TablePart::last_row(), |t, _| {
-        t.border_b(0.0)
+    sheet.rule_when(Part::Row, Part::last_row(), |t, _| t.border_b(0.0));
+    sheet.rule_when(Part::Row, When::always().aria(Aria::Selected), |t, k| {
+        t.hover(|p| p.bg(k.muted))
     });
-    sheet.rule_when(
-        TablePart::Row,
-        When::always().aria(Aria::Selected),
-        |t, k| t.hover(|p| p.bg(k.muted)),
-    );
-    sheet.rule_when(TablePart::Row, TablePart::striped_row(), |t, k| {
+    sheet.rule_when(Part::Row, Part::striped_row(), |t, k| {
         t.bg(k.muted.gamma_multiply(0.3))
     });
 }
@@ -150,6 +144,6 @@ const GROUP_CELL_PADDING: f32 = 8.0;
 /// A table's group rows, which are eggshell's own: shadcn's footer band.
 pub(crate) fn write_group_band(sheet: &mut Sheet) {
     sheet
-        .rule(TablePart::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
-        .rule(TablePart::GroupCell, |t, k| t.text(k.muted_foreground));
+        .rule(Part::Group, |t, k| t.bg(k.muted.gamma_multiply(0.5)))
+        .rule(Part::GroupCell, |t, k| t.text(k.muted_foreground));
 }

@@ -28,7 +28,7 @@ type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 /// }
 /// ```
 #[must_use = "a custom node is not added until you call `.ui(..)`"]
-pub struct CustomChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     classes: Tw,
@@ -40,7 +40,7 @@ pub struct CustomChain<'a, 'f, A> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, classes: Tw) -> Self {
         Self {
             slot: b.slot(&key),
@@ -165,5 +165,13 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             on_response.run(app, &response);
             draw(app, ui);
         });
+    }
+}
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A node that hosts custom egui content, sized by classes or by
+    /// [`measure`](Chain::measure).
+    pub fn custom<K: crate::Key>(&mut self, key: K, classes: Tw) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, classes)
     }
 }

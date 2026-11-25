@@ -5,7 +5,8 @@
 //! ```
 //! use eggshell_ui::overlay::{Modal, Shown};
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::dialog::{Dialog, DialogExt};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::dialog::Dialog;
 //!
 //! struct App { edit: Shown, name: String }
 //!
@@ -34,11 +35,11 @@
 mod parts;
 mod style;
 
-pub use parts::{AlertDialogPart, DialogPart, PopoverPart, SheetPart};
-pub use style::{DialogStyle, Surface, shadow_lg};
+pub use parts::{AlertDialogPart, Part, PopoverPart, SheetPart};
+pub use style::{Style, Surface, shadow_lg};
 
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
-use crate::owned::button::{ButtonChain, Face};
+use crate::owned::button::{self, Face};
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, Icon, Scope, Tw, icons, tw};
 use egui::Role;
@@ -46,12 +47,12 @@ use egui::Role;
 /// The keys of a dialog's parts, under the overlay's key: tests and
 /// [`focus_on_open`](crate::NodeHandle::focus_on_open) name them.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum DialogKey {
+pub enum Node {
     /// The box: the dialog, the sheet or the popover.
     Box,
     /// The title and the description.
     Header,
-    /// What [`DialogContent::body`] builds.
+    /// What [`Content::body`] builds.
     Body,
     /// The footer's buttons.
     Footer,
@@ -122,16 +123,16 @@ impl Dialog {
 }
 
 type Body<'c, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'c>;
-type Then<'c, 'f, A> = Box<dyn for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c>;
+type Then<'c, 'f, A> = Box<dyn for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c>;
 
 /// What the dialog holds besides its header: given to the closure of
-/// [`DialogExt::dialog`], and built in a fixed order once it returns.
-pub struct DialogContent<'c, 'f, A> {
+/// [`Ext::dialog`], and built in a fixed order once it returns.
+pub struct Content<'c, 'f, A> {
     body: Option<Body<'c, 'f, A>>,
     footer: Option<Footer<'c, 'f, A>>,
 }
 
-impl<'c, 'f, A> DialogContent<'c, 'f, A> {
+impl<'c, 'f, A> Content<'c, 'f, A> {
     /// The dialog's body: an ordinary builder body between the header and
     /// the footer. A second call replaces the first.
     pub fn body(&mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'c) {
@@ -152,7 +153,7 @@ struct Button<'c, 'f, A> {
 impl<'c, 'f, A> Button<'c, 'f, A> {
     fn new(
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Option<Self> {
         Some(Self {
             face: face.into(),
@@ -185,13 +186,13 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     }
 
     /// The button Esc presses: the style's cancel variant,
-    /// [`cancel_action`](ButtonChain::cancel_action) and
-    /// [`dismisses`](ButtonChain::dismisses). One added with no handler of
+    /// [`cancel_action`](button::Chain::cancel_action) and
+    /// [`dismisses`](button::Chain::dismisses). One added with no handler of
     /// its own runs the overlay's `on_dismiss`.
     pub fn cancel(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             cancel: Button::new(face, then),
@@ -200,11 +201,11 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     }
 
     /// The button Return presses: the style's default variant and
-    /// [`default_action`](ButtonChain::default_action). Always last.
+    /// [`default_action`](button::Chain::default_action). Always last.
     pub fn default(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             default: Button::new(face, then),
@@ -217,7 +218,7 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     pub fn leading(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             leading: Button::new(face, then),
@@ -234,27 +235,27 @@ enum Kind {
 }
 
 /// The dialog surface, ending a modal overlay chain.
-pub trait DialogExt<'c, 'f, A> {
+pub trait Ext<'c, 'f, A> {
     /// TODO(prose): builds the overlay as a dialog ([`Modal::Center`]) or a
     /// sheet ([`Modal::Edge`]): the style's box, a header with the title and
     /// description, `content`'s body and footer, and a close button (×)
     /// built last, so that first focus never lands on it. Sets
     /// [`Role::Dialog`], the name and the description.
-    fn dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>));
+    fn dialog(self, dialog: Dialog, content: impl FnOnce(&mut Content<'c, 'f, A>));
 
     /// TODO(prose): a confirmation that must be answered: as
     /// [`dialog`](Self::dialog), with [`Role::AlertDialog`], no close
     /// button, and [`DismissOn::EscOnly`], which overrides an earlier
     /// `dismiss_on`.
-    fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>));
+    fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut Content<'c, 'f, A>));
 }
 
-impl<'c, 'f, A: 'static, M> DialogExt<'c, 'f, A> for OverlayChain<'_, 'f, A, Modally, M> {
-    fn dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>)) {
+impl<'c, 'f, A: 'static, M> Ext<'c, 'f, A> for OverlayChain<'_, 'f, A, Modally, M> {
+    fn dialog(self, dialog: Dialog, content: impl FnOnce(&mut Content<'c, 'f, A>)) {
         surface(self.role(Role::Dialog), Kind::Dialog, dialog, content);
     }
 
-    fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>)) {
+    fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut Content<'c, 'f, A>)) {
         let chain = self.role(Role::AlertDialog).dismiss_on(DismissOn::EscOnly);
         surface(chain, Kind::Alert, dialog.without_close(), content);
     }
@@ -264,7 +265,7 @@ fn surface<'c, 'f, A: 'static, M>(
     chain: OverlayChain<'_, 'f, A, Modally, M>,
     kind: Kind,
     dialog: Dialog,
-    content: impl FnOnce(&mut DialogContent<'c, 'f, A>),
+    content: impl FnOnce(&mut Content<'c, 'f, A>),
 ) {
     let modal = chain.presentation();
     let chain = chain.named(dialog.title.clone());
@@ -272,7 +273,7 @@ fn surface<'c, 'f, A: 'static, M>(
         Some(description) => chain.description(description.clone()),
         None => chain,
     };
-    let mut parts = DialogContent {
+    let mut parts = Content {
         body: None,
         footer: None,
     };
@@ -285,10 +286,10 @@ fn surface<'c, 'f, A: 'static, M>(
             Slot::Content,
             tw().relative().merge(dialog.classes.clone()),
         );
-        s.div_id(DialogKey::Box, classes, |s| {
+        s.div_id(Node::Box, classes, |s| {
             header(s, shape, &dialog);
             if let Some(body) = parts.body {
-                s.div_id(DialogKey::Body, shape.body_classes(), body);
+                s.div_id(Node::Body, shape.body_classes(), body);
             }
             if let Some(footer) = parts.footer {
                 buttons(s, &style, shape, footer);
@@ -299,7 +300,7 @@ fn surface<'c, 'f, A: 'static, M>(
                 // over what its caller gives it.
                 let place = shape.part(s, Slot::Close, tw());
                 s.div(place, |s| {
-                    s.button(DialogKey::Close, Icon::new(icons::CLOSE))
+                    s.button(Node::Close, Icon::new(icons::CLOSE))
                         .named("Close")
                         .variant(style.close)
                         .size(style.close_size)
@@ -371,12 +372,12 @@ impl Shape {
             }
             Self::Centered(_) => {
                 let part = match slot {
-                    Slot::Content => DialogPart::Content,
-                    Slot::Close => DialogPart::Close,
-                    Slot::Header => DialogPart::Header,
-                    Slot::Footer => DialogPart::Footer,
-                    Slot::Title => DialogPart::Title,
-                    Slot::Description => DialogPart::Description,
+                    Slot::Content => Part::Content,
+                    Slot::Close => Part::Close,
+                    Slot::Header => Part::Header,
+                    Slot::Footer => Part::Footer,
+                    Slot::Title => Part::Title,
+                    Slot::Description => Part::Description,
                 };
                 b.part(part, &[], own)
             }
@@ -405,7 +406,7 @@ fn header<A>(s: &mut Scope<'_, '_, A>, shape: Shape, dialog: &Dialog) {
     let classes = shape.part(s, Slot::Header, tw());
     let title = shape.part(s, Slot::Title, tw());
     let description = shape.part(s, Slot::Description, tw());
-    s.div_id(DialogKey::Header, classes, |s| {
+    s.div_id(Node::Header, classes, |s| {
         s.text(title, dialog.title.as_str());
         if let Some(text) = &dialog.description {
             s.text(description, text.as_str());
@@ -415,7 +416,7 @@ fn header<A>(s: &mut Scope<'_, '_, A>, shape: Shape, dialog: &Dialog) {
 
 fn buttons<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    style: &DialogStyle,
+    style: &Style,
     shape: Shape,
     footer: Footer<'_, 'f, A>,
 ) {
@@ -425,17 +426,17 @@ fn buttons<'f, A: 'static>(
         default,
     } = footer;
     let classes = shape.part(s, Slot::Footer, tw());
-    s.div_id(DialogKey::Footer, classes, |s| {
+    s.div_id(Node::Footer, classes, |s| {
         if let Some(Button { face, then }) = leading {
             let push = match shape {
                 Shape::Centered(_) => tw().mr_auto(),
                 Shape::Sheet(_) => tw(),
             };
-            then(s.button(DialogKey::Leading, face).classes(push));
+            then(s.button(Node::Leading, face).classes(push));
         }
         if let Some(Button { face, then }) = cancel {
             then(
-                s.button(DialogKey::Cancel, face)
+                s.button(Node::Cancel, face)
                     .variant(style.cancel)
                     .cancel_action()
                     .dismisses(),
@@ -443,7 +444,7 @@ fn buttons<'f, A: 'static>(
         }
         if let Some(Button { face, then }) = default {
             then(
-                s.button(DialogKey::Default, face)
+                s.button(Node::Default, face)
                     .variant(style.default)
                     .default_action(),
             );
@@ -463,7 +464,7 @@ impl<'f, A, M> PopoverExt<'f, A> for OverlayChain<'_, 'f, A, Floating, M> {
     fn popover(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         self.children(|s| {
             let classes = s.part(PopoverPart::Content, &[], tw().flex().flex_col());
-            s.div_id(DialogKey::Box, classes, body);
+            s.div_id(Node::Box, classes, body);
         });
     }
 }

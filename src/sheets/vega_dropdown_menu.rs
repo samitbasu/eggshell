@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/dropdown-menu.tsx`, `registry/styles/style-vega.css`). Do not edit.
 
 use crate::contract::{Variant};
-use crate::owned::menu::MenuPart;
+use crate::owned::menu;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity, Tracking};
 
@@ -11,7 +11,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `dropdown-menu` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use MenuPart::*;
+    use menu::Part::*;
     s.replace(Content, |t, k| {
         t
             .from(VEGA, 538, "ring-foreground/10 ring-1")
@@ -350,7 +350,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `dropdown-menu` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use MenuPart::*;
+    use menu::Part::*;
     s.replace(Content, |t, k| {
         t
             .from(VEGA, 538, "ring-foreground/10 ring-1")

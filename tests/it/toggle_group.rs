@@ -1,12 +1,12 @@
-//! `ToggleGroup`: exclusive toggles placed anywhere below the group's builder,
+//! `toggle_group::Group`: exclusive toggles placed anywhere below the group's builder,
 //! driven through the real layout, event and draw path.
 
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Metrics, Size, Themed};
 use eggshell_ui::owned::{
-    button::{ButtonOptions, Face},
-    toggle_group::ToggleGroup,
+    button::{self, Face},
+    toggle_group,
 };
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens, size};
@@ -50,8 +50,8 @@ impl Default for App {
     }
 }
 
-fn group(app: &App) -> ToggleGroup<App, Tool> {
-    ToggleGroup::new(Part::Tools, app.tool).on_change(|app: &mut App, tool| {
+fn group(app: &App) -> toggle_group::Group<App, Tool> {
+    toggle_group::Group::new(Part::Tools, app.tool).on_change(|app: &mut App, tool| {
         app.changes.push(tool);
         app.tool = tool;
     })
@@ -182,7 +182,7 @@ fn members_are_radio_buttons_in_the_accessibility_tree() {
 
 fn options_view(b: &mut Builder<'_, '_, App>, app: &App) {
     let tools = group(app).with_options(
-        ButtonOptions::new()
+        button::Options::new()
             .size(size::ICON)
             .classes(tw().w_px(70.0)),
     );
@@ -193,7 +193,7 @@ fn options_view(b: &mut Builder<'_, '_, App>, app: &App) {
             .size(Size::DEFAULT)
             .add();
         b.toggle_item(&tools, Tool::Zoom, Face::Empty("Zoom".into()))
-            .with_options(ButtonOptions::new().classes(tw().w_px(90.0)))
+            .with_options(button::Options::new().classes(tw().w_px(90.0)))
             .add();
     });
 }
@@ -285,7 +285,7 @@ fn two_members_with_one_value_in_a_group_are_a_duplicate_path() {
 #[test]
 fn a_group_without_a_handler_builds_and_ignores_presses() {
     fn silent(b: &mut Builder<'_, '_, App>, app: &App) {
-        let tools = ToggleGroup::new(Part::Tools, app.tool);
+        let tools = toggle_group::Group::new(Part::Tools, app.tool);
         b.toggle_item(&tools, Tool::Select, "Select").add();
         b.toggle_item(&tools, Tool::Pan, "Pan").add();
     }
