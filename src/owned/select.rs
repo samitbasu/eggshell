@@ -96,7 +96,7 @@ pub(crate) fn select_defaults(sheet: &mut Sheet, defaults: SelectDefaults) {
         sheet.replace_when(SelectPart::Trigger, when, move |t, k| {
             t.merge(trigger.paint.classes_in(
                 trigger.border_width,
-                (k.focus, k.disabled),
+                (k.focus(), k.disabled),
                 radius,
                 enablement,
                 transition,

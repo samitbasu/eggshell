@@ -101,25 +101,17 @@
 //! so a hover on a `muted` surface needs the half-strength variant of the
 //! selected colour, not a different token.
 
-mod contrast;
 mod drag_chip;
-mod fonts;
-mod palette;
 mod preset;
 #[rustfmt::skip]
 mod sheets;
-mod styles;
-mod theme_color;
-mod tokens;
 
-pub use contrast::{ContrastPair, ContrastRatio, REGISTRY_MISSES, RegistryMiss};
 pub use drag_chip::{DragChip, drag_chip};
-pub use fonts::FontSet;
-pub use palette::{BaseColor, Palette};
+pub use eggshell_ui::theme::{
+    BaseColor, ContrastPair, ContrastRatio, Elevation, FontSet, HoverSurface, Palette,
+    REGISTRY_MISSES, RegistryMiss, ShadcnStyle, ThemeColor, Tokens,
+};
 pub use preset::{Shadcn, tokens};
-pub use styles::{Elevation, HoverSurface, ShadcnStyle};
-pub use theme_color::ThemeColor;
-pub use tokens::Tokens;
 
 /// The names of the button sizes this preset defines besides the default.
 pub mod size {

@@ -596,7 +596,7 @@ impl Paint {
     ) -> Tw {
         self.classes_in(
             border_width,
-            (style.tokens.focus, style.tokens.disabled),
+            (style.tokens.focus(), style.tokens.disabled),
             radius,
             enablement,
             transition,

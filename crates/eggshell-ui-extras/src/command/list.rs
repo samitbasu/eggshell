@@ -505,7 +505,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
         &[eggshell_ui::sheet::Key::Size(size)],
         &style.tokens,
     );
-    let focus = style.tokens.focus;
+    let focus = style.tokens.focus();
     trigger
         .w_auto()
         .justify_start()

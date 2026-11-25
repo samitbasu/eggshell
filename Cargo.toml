@@ -22,6 +22,8 @@ default = ["clipboard"]
 # The system clipboard, read on demand through `Shell::read_clipboard`.
 # Without it, or on wasm, a read answers `ClipboardError::Unavailable`.
 clipboard = ["dep:arboard"]
+# Bundles Geist (SIL OFL 1.1, src/fonts/OFL.txt), 165 KiB, as the tokens' font.
+fonts = []
 # `testing::Driver`: drives a view through kittest's harness in tests. Enable
 # it in a dev-dependency.
 driver = ["dep:egui_kittest"]

@@ -60,7 +60,7 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
         move |t, k| {
             let classes = t.merge(look.paint.classes_in(
                 look.border_width,
-                (k.focus, k.disabled),
+                (k.focus(), k.disabled),
                 radius,
                 Enablement::Enabled,
                 transition,
@@ -74,7 +74,7 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
         move |t, k| {
             let classes = t.merge(look.paint.classes_in(
                 look.border_width,
-                (k.focus, k.disabled),
+                (k.focus(), k.disabled),
                 radius,
                 Enablement::Disabled,
                 transition,

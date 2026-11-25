@@ -139,8 +139,8 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         assert_eq!(radius(&vega_style), vega_tokens.radius_md());
         assert_eq!(radius(&lyra_style), 0, "Lyra is square");
         assert!(radius(&vega_style) > 0, "precondition: Vega is rounded");
-        assert_eq!(vega_style.tokens.focus.width, 3.0);
-        assert_eq!(lyra_style.tokens.focus.width, 1.0);
+        assert_eq!(vega_style.tokens.focus().width, 3.0);
+        assert_eq!(lyra_style.tokens.focus().width, 1.0);
         let field = |style| crate::support::field_box(style, eggshell_ui::contract::Size::DEFAULT);
         assert_eq!(field(&vega_style).height, 36.0);
         assert_eq!(field(&lyra_style).height, 32.0);

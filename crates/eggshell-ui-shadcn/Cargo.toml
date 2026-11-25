@@ -10,7 +10,7 @@ repository = "https://github.com/samitbasu/eggshell"
 [features]
 default = ["fonts"]
 # Bundles Geist (SIL OFL 1.1, fonts/OFL.txt), 165 KiB, as the preset's font.
-fonts = []
+fonts = ["eggshell-ui/fonts"]
 # Fills the looks of eggshell-ui-extras' widgets from the preset's tokens.
 extras = [
     "dep:eggshell-ui-extras",

@@ -1,7 +1,7 @@
 use egui::{Color32, Theme};
 
-use crate::ThemeColor;
-use crate::tokens::rgb;
+use super::ThemeColor;
+use super::tokens::rgb;
 
 /// TODO(prose): one of shadcn's base colours (`baseColor`), which sets the
 /// greys: the page, its text, cards, popovers, borders, inputs, the muted,
@@ -433,7 +433,7 @@ impl BaseColor {
 /// [`ThemeColor::Base`] and the other variants are.
 ///
 /// ```
-/// use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor};
+/// use eggshell_ui::theme::{BaseColor, Palette, ThemeColor};
 ///
 /// let palette = Palette::new().base(BaseColor::Zinc).theme(ThemeColor::Blue);
 /// # let _ = palette;

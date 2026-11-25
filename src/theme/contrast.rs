@@ -2,9 +2,9 @@ use std::fmt;
 
 use egui::{Color32, Context, Theme};
 
-use eggshell_ui::Tone;
+use crate::Tone;
 
-use crate::{BaseColor, Palette, ThemeColor, Tokens};
+use super::{BaseColor, Palette, ThemeColor, Tokens};
 
 /// TODO(prose): a pair of tokens the components draw text on: the text
 /// colour, then the surface under it.
@@ -242,7 +242,7 @@ impl RegistryMiss {
 /// Reports, in a debug build, each pair of `tokens` under AA that is neither
 /// accepted nor a registry miss, once per pair and theme. The colours are not
 /// changed.
-pub(crate) fn warn_low_contrast(ctx: &Context, theme: Theme, tokens: &Tokens) {
+pub fn warn_low_contrast(ctx: &Context, theme: Theme, tokens: &Tokens) {
     if !cfg!(debug_assertions) {
         return;
     }
@@ -255,17 +255,12 @@ pub(crate) fn warn_low_contrast(ctx: &Context, theme: Theme, tokens: &Tokens) {
             continue;
         }
         let subject = egui::Id::NULL.with(("eggshell-ui-shadcn-contrast", theme, pair));
-        eggshell_ui::report(
-            ctx,
-            eggshell_ui::Problem::LowContrast,
-            Some(subject),
-            || {
-                format!(
-                    "{} is {ratio} in {theme:?} (AA text needs {})",
-                    pair.name(),
-                    ContrastRatio::AA_TEXT
-                )
-            },
-        );
+        crate::report(ctx, crate::Problem::LowContrast, Some(subject), || {
+            format!(
+                "{} is {ratio} in {theme:?} (AA text needs {})",
+                pair.name(),
+                ContrastRatio::AA_TEXT
+            )
+        });
     }
 }

@@ -706,10 +706,9 @@ fn an_app_rule_can_take_the_press_shift_away() {
 #[test]
 fn without_the_preset_a_button_reads_focus_and_disabled_from_the_tokens() {
     let mut style = Style::default();
-    style.tokens.focus = eggshell_ui::contract::Focus {
-        width: 5.0,
-        color: Color32::RED,
-    };
+    style.tokens.ring_width = 5.0;
+    style.tokens.ring = Color32::RED;
+    let focus = style.tokens.focus();
     style.tokens.disabled = eggshell_ui::contract::Disabled::Faded(eggshell_ui::Opacity::new(0.4));
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
@@ -733,7 +732,10 @@ fn without_the_preset_a_button_reads_focus_and_disabled_from_the_tokens() {
     let node = path(variant::PRIMARY, Enablement::Enabled);
     assert_eq!(focused_path(&d).as_deref(), Some(node.as_str()));
     let ring = ring_at(&d, enabled).expect("a focus ring");
-    assert_eq!((ring.stroke.width, ring.stroke.color), (5.0, Color32::RED));
+    assert_eq!(
+        (ring.stroke.width, ring.stroke.color),
+        (focus.width, focus.color)
+    );
 }
 
 mod toggle_chain {

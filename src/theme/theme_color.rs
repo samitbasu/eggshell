@@ -1,7 +1,7 @@
 use egui::{Color32, Theme};
 
-use crate::palette::Scheme;
-use crate::tokens::rgb;
+use super::palette::Scheme;
+use super::tokens::rgb;
 
 /// One of shadcn's theme colours, which re-tints `primary` and
 /// `primary-foreground`, and the charts. [`Base`](Self::Base), the base colour's own theme, is

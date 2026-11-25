@@ -11,10 +11,10 @@ use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
-use crate::styles::{HoverSurface, ShadcnStyle};
 #[cfg(feature = "extras")]
 use crate::variant;
 use crate::{ContrastPair, FontSet, Palette, Tokens, size};
+use crate::{HoverSurface, ShadcnStyle};
 
 /// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
 /// field a unit shorter than the preset's controls and a `xs` one three, each
@@ -230,10 +230,6 @@ impl Shadcn {
         let t = &self.tokens;
         let dark = self.theme == Theme::Dark;
         let clear = Color32::TRANSPARENT;
-        let ring = Focus {
-            width: t.ring_width,
-            color: t.ring.gamma_multiply(0.5),
-        };
         let focused = |rest: Colors| self.focused(rest);
         let flat = |fill, text| Colors {
             fill,
@@ -748,8 +744,7 @@ impl Shadcn {
             exit: Duration::from_millis(300),
             easing: Easing::InOut,
         };
-        style.tokens = self.core_tokens();
-        style.tokens.focus = ring;
+        style.tokens = self.tokens.clone();
         style.sheet.as_preset();
         style.rewrite_rules();
         if dark {
@@ -778,43 +773,6 @@ impl Shadcn {
         style
     }
 
-    /// The preset's tokens as core's design-system-neutral set.
-    fn core_tokens(&self) -> contract::Tokens {
-        let t = &self.tokens;
-        let mut core = contract::Tokens::from_egui(&egui::Style::default());
-        core.background = t.background;
-        core.foreground = t.foreground;
-        core.card = t.card;
-        core.card_foreground = t.card_foreground;
-        core.popover = t.popover;
-        core.popover_foreground = t.popover_foreground;
-        core.primary = t.primary;
-        core.primary_foreground = t.primary_foreground;
-        core.secondary = t.secondary;
-        core.secondary_foreground = t.secondary_foreground;
-        core.muted = t.muted;
-        core.muted_foreground = t.muted_foreground;
-        core.accent = t.accent;
-        core.accent_foreground = t.accent_foreground;
-        core.destructive = t.destructive;
-        core.destructive_foreground = t.destructive_foreground;
-        core.border = t.border;
-        core.input = t.input;
-        core.ring = t.ring;
-        core.spacing = t.spacing;
-        core.radius = t.radius;
-        core.text = t.text;
-        core.control_height = t.control_height();
-        core.button_padding = t.points_vec(t.button_padding);
-        core.text_size = t.control_text_size().size;
-        core.switch_thumb = t.points(t.switch_thumb);
-        core.shadow_xs = t.shadow_xs;
-        core.shadow_sm = t.shadow_sm;
-        core.shadow_md = t.shadow_md;
-        core.shadow_lg = t.shadow_lg;
-        core
-    }
-
     /// This preset drawing its text in `font`, or with `None` in egui's
     /// fonts as the application has set them.
     #[must_use]
@@ -838,7 +796,7 @@ impl Shadcn {
     /// unless the tokens accept it or it is shadcn's own colour; it never
     /// changes a colour.
     pub fn apply(&self, ctx: &Context) {
-        crate::contrast::warn_low_contrast(ctx, self.theme, &self.tokens);
+        eggshell_ui::theme::warn_low_contrast(ctx, self.theme, &self.tokens);
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }
@@ -1090,7 +1048,7 @@ impl Shadcn {
         disclosure.tone = Some(t.muted_foreground);
         disclosure.tone_opacity = Opacity::new(1.0);
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.tokens.focus;
+        disclosure.header.ring = style.tokens.focus();
         disclosure.header.focus_border = Some(t.ring);
         disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
         disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };

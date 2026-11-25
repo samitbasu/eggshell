@@ -264,7 +264,7 @@ fn still(mut look: Look) -> Look {
 fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
     match enablement {
         Enablement::Enabled => {
-            let ring = look.paint.focus.unwrap_or(core.tokens.focus);
+            let ring = look.paint.focus.unwrap_or(core.tokens.focus());
             let border = look.paint.states.focused.border;
             tw().focus_within(|p| p.border_color(border).ring(ring.width, ring.color))
         }

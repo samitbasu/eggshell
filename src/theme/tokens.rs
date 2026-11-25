@@ -1,10 +1,10 @@
-use eggshell_ui::contract::{Radius, Spacing, TextScale, TextSize, TextStep, corner};
-use eggshell_ui::{TextSpec, Weight};
+use crate::contract::{Disabled, Focus, Radius, Spacing, TextScale, TextSize, TextStep, corner};
+use crate::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
-use crate::palette::{Palette, Scheme};
-use crate::styles::{Elevation, HoverSurface, ShadcnStyle};
-use crate::{ContrastPair, FontSet};
+use super::palette::{Palette, Scheme};
+use super::styles::{Elevation, HoverSurface, ShadcnStyle};
+use super::{ContrastPair, FontSet};
 
 /// A colour from `0xRRGGBB`.
 pub(crate) const fn rgb(hex: u32) -> Color32 {
@@ -151,18 +151,20 @@ pub struct Tokens {
     pub shadow_md: Shadow,
     /// `shadow-lg`, without its negative spread.
     pub shadow_lg: Shadow,
-    /// `--font-sans`: the font [`Shadcn::apply`](crate::Shadcn::apply)
+    /// `--font-sans`: the font `Shadcn::apply`
     /// registers, or `None` to leave egui's fonts alone.
     pub font: Option<FontSet>,
     /// The weight of buttons, toggles, tabs and key chips (`font-medium`).
     pub control_weight: Weight,
     /// TODO(prose): the pairs under AA contrast the application accepts:
-    /// [`Shadcn::apply`](crate::Shadcn::apply) warns about the others in a
+    /// `Shadcn::apply` warns about the others in a
     /// debug build.
     pub accepted_contrast: Vec<ContrastPair>,
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button
     /// or switch, and over a group of menu items.
     pub label_weight: Weight,
+    /// TODO(prose): how disabled controls are drawn. Not a shadcn variable.
+    pub disabled: Disabled,
 }
 
 impl Tokens {
@@ -299,6 +301,7 @@ impl Tokens {
             control_weight: Weight::Normal,
             label_weight: Weight::Normal,
             accepted_contrast: Vec::new(),
+            disabled: Disabled::Colors,
         };
         ShadcnStyle::Vega.shape(&mut tokens);
         tokens
@@ -324,6 +327,15 @@ impl Tokens {
     /// TODO(prose): [`points`](Self::points) of both of `units`.
     pub fn points_vec(&self, units: Vec2) -> Vec2 {
         Vec2::new(self.points(units.x), self.points(units.y))
+    }
+
+    /// TODO(prose): the keyboard focus ring every control draws unless its
+    /// look names its own: `ring-[3px] ring-ring/50` at the style's ring width.
+    pub fn focus(&self) -> Focus {
+        Focus {
+            width: self.ring_width,
+            color: self.ring.gamma_multiply(0.5),
+        }
     }
 
     /// `rounded-md`: the radius of buttons, inputs and selects.
@@ -389,9 +401,9 @@ impl Tokens {
     }
 
     /// TODO(prose): the colours of each tone: the status tokens.
-    pub fn tones(&self) -> eggshell_ui::contract::Tones {
-        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
-        eggshell_ui::contract::Tones {
+    pub fn tones(&self) -> crate::contract::Tones {
+        let on = |tone, foreground| crate::contract::ToneColors { tone, foreground };
+        crate::contract::Tones {
             info: on(self.info, self.info_foreground),
             success: on(self.success, self.success_foreground),
             warning: on(self.warning, self.warning_foreground),

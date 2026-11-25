@@ -1,14 +1,14 @@
 //! shadcn's styles: parameter sets that differ in a handful of values.
 
-use eggshell_ui::Weight;
-use eggshell_ui::contract::{Radius, TextStep};
+use crate::Weight;
+use crate::contract::{Radius, TextStep};
 use egui::vec2;
 
-use crate::Tokens;
+use super::Tokens;
 
 /// One of shadcn's styles, from `apps/v4/registry/styles/style-*.css`. A
 /// style is a parameter set (radii, control height, text size, ring width and
-/// a few choices of surface); it is independent of the [`Palette`](crate::Palette)
+/// a few choices of surface); it is independent of the [`Palette`](super::Palette)
 /// and of light or dark.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ShadcnStyle {
@@ -102,7 +102,8 @@ pub enum Elevation {
 }
 
 impl Elevation {
-    pub(crate) fn shadow(self, shadow: egui::Shadow) -> Option<egui::Shadow> {
+    /// TODO(prose): `shadow` on a raised control, or none on a flat one.
+    pub fn shadow(self, shadow: egui::Shadow) -> Option<egui::Shadow> {
         match self {
             Self::Raised => Some(shadow),
             Self::Flat => None,

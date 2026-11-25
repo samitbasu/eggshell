@@ -268,13 +268,13 @@ fn by_token(b: &mut Builder<'_, '_, ()>, _: &()) {
         |style| {
             style
                 .sheet
-                .rule(Chip::Root, |t, k| t.w_px(k.control_height).h_px(10.0));
+                .rule(Chip::Root, |t, k| t.w_px(k.control_height()).h_px(10.0));
         },
         |b| {
             let before = b.part(Chip::Root, &[], tw());
             b.div_id("before", before, |_| {});
             b.styled(
-                |style| style.tokens.control_height = 77.0,
+                |style| style.tokens.control_units = 77.0 / style.tokens.spacing.points(1.0),
                 |b| {
                     let scoped = b.part(Chip::Root, &[], tw());
                     b.div_id("scoped", scoped, |_| {});
@@ -303,7 +303,7 @@ fn a_rule_body_is_given_the_tokens_of_the_style_it_is_resolved_in() {
 fn the_preset_fills_the_shadow_scale() {
     use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
     let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
-    let tokens = themed.light.tokens;
+    let tokens = &themed.light.tokens;
     assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);
     assert!(tokens.shadow_lg.offset[1] > tokens.shadow_md.offset[1]);
 }

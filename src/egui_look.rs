@@ -8,7 +8,8 @@ use egui::{
 };
 
 use crate::Style;
-use crate::contract::{Tokens, corner};
+use crate::contract::corner;
+use crate::theme::Tokens;
 
 impl Tokens {
     fn widget(
@@ -105,19 +106,21 @@ impl Style {
         v.popup_shadow = overlay;
 
         let s = &mut style.spacing;
-        s.interact_size.y = t.control_height;
-        s.button_padding = t.button_padding;
+        s.interact_size.y = t.control_height();
+        s.button_padding = t.points_vec(t.button_padding);
         s.item_spacing = vec2(8.0, 8.0);
-        s.icon_width = t.switch_thumb;
-        s.icon_width_inner = t.switch_thumb * 0.625;
+        let switch_thumb = t.points(t.switch_thumb);
+        s.icon_width = switch_thumb;
+        s.icon_width_inner = switch_thumb * 0.625;
         s.icon_spacing = 8.0;
         s.combo_height = 400.0;
         s.window_margin = Margin::same(16);
         s.menu_margin = Margin::same(4);
 
+        let text_size = t.control_text_size().size;
         for text_style in [TextStyle::Body, TextStyle::Button, TextStyle::Monospace] {
             if let Some(font) = style.text_styles.get_mut(&text_style) {
-                font.size = t.text_size;
+                font.size = text_size;
             }
         }
     }
