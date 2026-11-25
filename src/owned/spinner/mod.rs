@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::spinner::Ext;
+//! use eggshell_ui::prelude::*;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.spinner("loading").add();

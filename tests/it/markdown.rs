@@ -1,7 +1,8 @@
 //! The Markdown widget (#254) through the real path: its test page, built,
 //! laid out and drawn by the rig, clicked as a user would.
 
-use eggshell_ui::owned::markdown::{Ext as _, Level, MarkdownStyle, heading_id, headings};
+use eggshell_ui::owned::markdown::{Level, MarkdownStyle, heading_id, headings};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, Target};
 use egui::epaint::Shape;

@@ -11,7 +11,7 @@
 //! ```
 //! use eggshell_ui::overlay::Shown;
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::disclosure::{Ext, SectionExt};
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { env: Shown, src: Shown }
 //!
@@ -154,7 +154,7 @@ pub trait SectionExt<'b, 'f, A> {
     /// ```compile_fail
     /// use eggshell_ui::Builder;
     /// use eggshell_ui::overlay::Shown;
-    /// use eggshell_ui::owned::disclosure::SectionExt;
+    /// use eggshell_ui::prelude::*;
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.section("env", "Environment", Shown::Open).children(|_| {});

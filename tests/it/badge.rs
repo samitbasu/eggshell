@@ -2,8 +2,7 @@
 //! shadcn preset the rig applies.
 
 use eggshell_ui::contract::Variant;
-use eggshell_ui::owned::badge::Ext as _;
-use eggshell_ui::owned::spinner::Ext as _;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::theme::{Tokens, size, variant};
 use eggshell_ui::{Builder, Problem, TextStyle, tw};

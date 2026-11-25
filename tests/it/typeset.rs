@@ -2,7 +2,8 @@
 //! style, measured on the page as drawn. Every expected length is derived
 //! from typeset.css at shadcn's defaults: 15 pt, leading 1.75, flow 1.25em.
 
-use eggshell_ui::owned::markdown::{Directives, Ext as _, Typeset, TypesetInk};
+use eggshell_ui::owned::markdown::{Directives, Typeset, TypesetInk};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Rect, vec2};

@@ -12,7 +12,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::hover_card::Ext as _;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { follows: u32 }
 //!

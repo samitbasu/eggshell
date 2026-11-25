@@ -9,8 +9,9 @@
 mod common;
 
 use eggshell_ui::owned::Mark;
-use eggshell_ui::owned::markdown::{Directive, Directives, Ext as _, Typeset};
+use eggshell_ui::owned::markdown::{Directive, Directives, Typeset};
 use eggshell_ui::owned::text_field::Field;
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::ThemeColor;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
 use egui::{Key, Modifiers};

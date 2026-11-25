@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::badge::Ext;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { tags: Vec<String>, filter: Option<String> }
 //!

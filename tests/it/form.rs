@@ -4,10 +4,10 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::form::Ext as _;
 use eggshell_ui::owned::{
     Enablement, Mark, progress::ProgressPart, slider::SliderPart, switch::SwitchPart,
 };
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{
     BaseColor, ContrastRatio, Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens,
 };

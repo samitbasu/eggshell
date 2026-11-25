@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::tabs::Ext;
+//! use eggshell_ui::prelude::*;
 //!
 //! #[derive(Clone, Copy, PartialEq)]
 //! enum Lang { Rust, Html }

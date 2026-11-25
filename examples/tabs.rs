@@ -9,8 +9,8 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
-use eggshell_ui::owned::tabs::Ext as _;
 use eggshell_ui::owned::{Enablement, choice::Choice};
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

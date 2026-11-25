@@ -382,6 +382,7 @@ mod overlay_input;
 pub mod owned;
 mod pipeline;
 mod plane;
+pub mod prelude;
 mod presence;
 pub mod prim;
 mod region;

@@ -2,9 +2,9 @@
 //! the arrows, activation on focus or on Enter, the lazy panel, and the look,
 //! which is the segmented control's.
 
+use eggshell_ui::prelude::*;
 use std::cell::RefCell;
 
-use eggshell_ui::owned::tabs::Ext as _;
 use eggshell_ui::owned::{Enablement, choice::Choice, tabs::TabsPart};
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::Tokens;

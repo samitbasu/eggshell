@@ -5,7 +5,8 @@
 //! ```
 //! use eggshell_ui::overlay::{Modal, Shown};
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::dialog::{Dialog, Ext};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::dialog::Dialog;
 //!
 //! struct App { edit: Shown, name: String }
 //!

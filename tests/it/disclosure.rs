@@ -3,7 +3,7 @@
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::owned::disclosure::{Ext as _, SectionExt};
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, Problem, tw};
 use egui::accesskit::Role as AccessRole;
 use egui::{Key, vec2};

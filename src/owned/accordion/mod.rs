@@ -3,7 +3,8 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::accordion::{Ext, Single};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::accordion::Single;
 //!
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Faq { Access, Motion }

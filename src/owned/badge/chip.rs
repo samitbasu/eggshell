@@ -59,7 +59,7 @@ enum Stop {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::badge::Ext;
+/// use eggshell_ui::prelude::*;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.chip("tag", "Rust").add();

@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::form::Ext;
+//! use eggshell_ui::prelude::*;
 //!
 //! struct App { gain: f64, mute: bool }
 //!

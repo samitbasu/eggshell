@@ -3,6 +3,7 @@
 //! Run them with `cargo xtask snapshots`, which selects a deterministic
 //! software renderer; see the README for reviewing and updating goldens.
 
+use eggshell_ui::prelude::*;
 use std::sync::Once;
 
 use eggshell_ui::theme::{ShadcnStyle, Tokens};
@@ -2901,8 +2902,6 @@ fn palette_open_dark() {
 /// the rule drew. The inventory is in PHASE2-AUDIT.md.
 mod child_rules {
     use super::*;
-    use eggshell_ui::owned::badge::Ext as _;
-    use eggshell_ui::owned::command::Ext as _;
     use eggshell_ui::{Icon, icons};
 
     fn suffix(theme: egui::Theme) -> &'static str {

@@ -2,7 +2,8 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::markdown::{Directives, Ext};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::markdown::Directives;
 //!
 //! struct Docs {
 //!     page: String,
@@ -174,7 +175,8 @@ impl<A> Directives<A> {
 ///
 /// ```
 /// # use eggshell_ui::{Builder, Shell};
-/// # use eggshell_ui::owned::markdown::{Ext, heading_id};
+/// # use eggshell_ui::prelude::*;
+/// # use eggshell_ui::owned::markdown::heading_id;
 /// fn page(b: &mut Builder<'_, '_, ()>, land_on: Option<&str>) {
 ///     let shell: Shell = b.shell();
 ///     if let Some(anchor) = land_on {

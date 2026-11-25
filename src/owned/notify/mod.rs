@@ -3,7 +3,8 @@
 //! ```
 //! use core::time::Duration;
 //! use eggshell_ui::{Builder, Distance};
-//! use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, Ext, ScreenAnchor};
+//! use eggshell_ui::prelude::*;
+//! use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, ScreenAnchor};
 //!
 //! #[derive(Clone, Copy)]
 //! enum Act {
