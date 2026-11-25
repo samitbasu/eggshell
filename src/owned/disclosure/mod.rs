@@ -28,6 +28,7 @@
 mod section;
 mod style;
 
+use crate::owned::accordion::AccordionPart;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
@@ -46,40 +47,6 @@ pub struct OnChange<A>(ChangeFn<A>);
 
 /// What a section runs with the state its header asks for.
 type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
-
-/// TODO(prose): a disclosure section's and an accordion's anatomy for the
-/// style's sheet, as shadcn's `accordion.tsx` names it: a section is an
-/// accordion's item.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AccordionPart {
-    /// TODO(prose): an accordion's column of items.
-    Root,
-    /// TODO(prose): a section: its header and its region.
-    Item,
-    /// TODO(prose): the header that opens and closes the section.
-    Trigger,
-    /// TODO(prose): the header's chevron.
-    TriggerIcon,
-    /// TODO(prose): the region: what opens and closes.
-    Content,
-    /// TODO(prose): the region's content, inside it.
-    ContentInner,
-}
-
-impl crate::sheet::Part for AccordionPart {
-    const SOURCE: &'static str = "accordion.tsx";
-
-    fn slot(self) -> &'static str {
-        match self {
-            Self::Root => "accordion",
-            Self::Item => "accordion-item",
-            Self::Trigger => "accordion-trigger",
-            Self::TriggerIcon => "accordion-trigger-icon",
-            Self::Content => "accordion-content",
-            Self::ContentInner => "accordion-content-inner",
-        }
-    }
-}
 
 /// TODO(prose): writes the looks the user chose where they differ from
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the

@@ -40,7 +40,7 @@
 //! the style variant's on and off looks instead.
 
 // keep sorted
-#[cfg(feature = "accordion")]
+#[cfg(feature = "disclosure")]
 pub mod accordion;
 #[cfg(feature = "badge")]
 pub mod badge;
@@ -114,9 +114,10 @@ use egui::{Id, Response, Role, Ui, WidgetInfo};
 
 pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
 pub use checkbox::CheckboxChain;
+pub use checkbox::CheckboxPart;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
-pub use field::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+pub use field::FieldPart;
 pub(crate) use field::{write_dark_card_label, write_exceptions as write_choice_exceptions};
 pub use field_box::FieldBoxChain;
 pub(crate) use input::{
@@ -134,11 +135,13 @@ pub use options::IntoTip;
 pub(crate) use options::{Gate, Validity};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
+pub use radio::RadioGroupPart;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub(crate) use select::write_select_exceptions;
 pub use select::{SelectChain, SelectPart};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
 pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
+pub use switch::SwitchPart;
 
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {

@@ -794,9 +794,11 @@ pub struct Widget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Home {
     Core,
-    /// An opt-in widget's module under `owned`, behind the feature of its
-    /// name.
-    Feature(&'static str),
+    /// An opt-in widget's `module` under `owned`, built with `feature`.
+    Feature {
+        module: &'static str,
+        feature: &'static str,
+    },
 }
 
 impl Home {
@@ -804,7 +806,7 @@ impl Home {
     fn module(self) -> String {
         match self {
             Self::Core => "crate::owned".to_owned(),
-            Self::Feature(module) => format!("crate::owned::{module}"),
+            Self::Feature { module, .. } => format!("crate::owned::{module}"),
         }
     }
 
@@ -812,9 +814,7 @@ impl Home {
     pub fn cfg(self) -> String {
         match self {
             Self::Core => String::new(),
-            Self::Feature(module) => {
-                format!("#[cfg(feature = \"{}\")] ", module.replace('_', "-"))
-            }
+            Self::Feature { feature, .. } => format!("#[cfg(feature = \"{feature}\")] "),
         }
     }
 }

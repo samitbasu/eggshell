@@ -147,7 +147,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "combobox",
-        home: Home::Feature("command"),
+        home: Home::Feature {
+            module: "command",
+            feature: "command",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -166,7 +169,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "command",
-        home: Home::Feature("command"),
+        home: Home::Feature {
+            module: "command",
+            feature: "command",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -341,7 +347,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "hover-card",
-        home: Home::Feature("hover_card"),
+        home: Home::Feature {
+            module: "hover_card",
+            feature: "hover-card",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -357,7 +366,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "dialog",
-        home: Home::Feature("dialog"),
+        home: Home::Feature {
+            module: "dialog",
+            feature: "dialog",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -373,7 +385,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "alert-dialog",
-        home: Home::Feature("dialog"),
+        home: Home::Feature {
+            module: "dialog",
+            feature: "dialog",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -389,7 +404,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "sheet",
-        home: Home::Feature("dialog"),
+        home: Home::Feature {
+            module: "dialog",
+            feature: "dialog",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -405,7 +423,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "popover",
-        home: Home::Feature("dialog"),
+        home: Home::Feature {
+            module: "dialog",
+            feature: "dialog",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -421,7 +442,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "badge",
-        home: Home::Feature("badge"),
+        home: Home::Feature {
+            module: "badge",
+            feature: "badge",
+        },
         checked_in: true,
         variants: &[("default", &["primary"])],
         sizes: &[],
@@ -438,7 +462,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "card",
-        home: Home::Feature("form"),
+        home: Home::Feature {
+            module: "form",
+            feature: "form",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -470,7 +497,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "accordion",
-        home: Home::Feature("disclosure"),
+        home: Home::Feature {
+            module: "accordion",
+            feature: "disclosure",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -486,7 +516,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "sonner",
-        home: Home::Feature("notify"),
+        home: Home::Feature {
+            module: "notify",
+            feature: "notify",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -502,7 +535,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "skeleton",
-        home: Home::Feature("skeleton"),
+        home: Home::Feature {
+            module: "skeleton",
+            feature: "skeleton",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -518,7 +554,10 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "spinner",
-        home: Home::Feature("spinner"),
+        home: Home::Feature {
+            module: "spinner",
+            feature: "spinner",
+        },
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -1374,7 +1413,13 @@ mod tests {
         let index = index(&[
             ("button", Home::Core),
             ("input-group", Home::Core),
-            ("combobox", Home::Feature("command")),
+            (
+                "combobox",
+                Home::Feature {
+                    module: "command",
+                    feature: "command",
+                },
+            ),
         ]);
         assert!(index.contains("\n#[cfg(feature = \"command\")] mod vega_combobox;"));
         assert!(index.contains(

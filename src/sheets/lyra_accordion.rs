@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::Color32;
-use crate::owned::disclosure::AccordionPart;
+use crate::owned::accordion::AccordionPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

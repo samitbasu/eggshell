@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::{Role, Vec2};
 
+use super::Mark;
 use super::{
     Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, choice_card, choice_label,
     choice_row, described, flip, options,
 };
-use super::{Mark, SwitchPart};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -392,5 +392,49 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 }
             }
         });
+    }
+}
+
+/// TODO(prose): the anatomy of a switch: shadcn's `switch`.
+///
+/// TODO(prose): the keys its rules see: the size (shadcn's `data-size`),
+/// `aria-checked` (shadcn's `data-checked`) and `aria-disabled`. The thumb is
+/// painted, sliding between its two places: its rules give the size and fill
+/// it is painted at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SwitchPart {
+    /// TODO(prose): the track.
+    Root,
+    /// TODO(prose): the thumb.
+    Thumb,
+}
+
+impl crate::sheet::Part for SwitchPart {
+    const SOURCE: &'static str = "switch.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "switch",
+            Self::Thumb => "switch-thumb",
+        }
+    }
+}
+
+impl SwitchPart {
+    /// TODO(prose): the keys of a switch of `size` and its thumb, on if `mark` is, for [`Builder::part`](crate::Builder::part).
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
+    ///
+    /// let keys = SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
+    /// assert_eq!(keys.len(), 1);
+    /// ```
+    pub fn keys(
+        size: crate::contract::Size,
+        mark: super::Mark,
+        enablement: super::Enablement,
+    ) -> Vec<crate::sheet::Key> {
+        super::field::choice_keys(size, mark, enablement)
     }
 }

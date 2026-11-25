@@ -4,12 +4,12 @@ use std::rc::Rc;
 
 use egui::Role;
 
+use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
     Card, Enablement, Form, Gate, IntoTip, OnResponse, Validity, announce_group, choice_card,
     choice_label, choice_row, described, options, tip_describes, tipped_whole,
 };
-use super::{Mark, RadioGroupPart};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -301,5 +301,56 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             tipped_whole(ui, &whole_tip);
             announce_group(ui, Role::RadioGroup, name.as_deref());
         });
+    }
+}
+
+/// TODO(prose): the anatomy of a radio group: shadcn's `radio-group`.
+///
+/// TODO(prose): the keys its rules see: an item's size, `aria-checked`
+/// (shadcn's `data-checked`) and `aria-disabled`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RadioGroupPart {
+    /// TODO(prose): the group, holding a field per option.
+    Root,
+    /// TODO(prose): one option's circle.
+    Item,
+    /// TODO(prose): what the chosen circle holds: the room its dot is
+    /// centred in.
+    Indicator,
+    /// TODO(prose): the dot in the chosen circle.
+    IndicatorIcon,
+}
+
+impl crate::sheet::Part for RadioGroupPart {
+    const SOURCE: &'static str = "radio-group.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "radio-group",
+            Self::Item => "radio-group-item",
+            Self::Indicator => "radio-group-indicator",
+            Self::IndicatorIcon => "radio-group-indicator-icon",
+        }
+    }
+}
+
+impl RadioGroupPart {
+    /// TODO(prose): the keys of an item of `size` and its dot, chosen if `mark` is on, for [`Builder::part`](crate::Builder::part).
+    ///
+    /// ```
+    /// use eggshell_ui::Aria;
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::owned::{Enablement, Mark, RadioGroupPart};
+    /// use eggshell_ui::sheet::Key;
+    ///
+    /// let keys = RadioGroupPart::item_keys(Size::DEFAULT, Mark::Off, Enablement::Disabled);
+    /// assert!(keys.contains(&Key::Aria(Aria::Disabled)));
+    /// ```
+    pub fn item_keys(
+        size: crate::contract::Size,
+        mark: super::Mark,
+        enablement: super::Enablement,
+    ) -> Vec<crate::sheet::Key> {
+        super::field::choice_keys(size, mark, enablement)
     }
 }
