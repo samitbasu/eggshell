@@ -136,13 +136,6 @@ impl Options {
     }
 }
 
-/// What ends a badge on the right.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum End {
-    Label,
-    Remove,
-}
-
 impl Face {
     /// The look of the face's variant, else the style's default.
     #[track_caller]
