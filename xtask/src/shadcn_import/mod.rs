@@ -23,7 +23,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 29] = [
+const COMPONENTS: [&str; 30] = [
     "accordion",
     "alert-dialog",
     "button",
@@ -42,6 +42,7 @@ const COMPONENTS: [&str; 29] = [
     "popover",
     "radio-group",
     "select",
+    "separator",
     "sheet",
     "slider",
     "sonner",
@@ -58,7 +59,7 @@ const COMPONENTS: [&str; 29] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 28] = [
+const WIDGETS: [emit::Widget; 29] = [
     emit::Widget {
         component: "button",
         home: Home::Core("button"),
@@ -209,6 +210,22 @@ const WIDGETS: [emit::Widget; 28] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &MENU_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "separator",
+        home: Home::Core("separator"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
         copies: &[],
     },
     emit::Widget {

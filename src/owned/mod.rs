@@ -97,6 +97,7 @@ pub mod progress;
 pub mod radio;
 pub mod segmented;
 pub mod select;
+pub mod separator;
 #[cfg(feature = "skeleton")]
 pub mod skeleton;
 pub mod slider;

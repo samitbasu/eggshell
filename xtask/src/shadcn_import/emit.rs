@@ -292,6 +292,9 @@ fn own_key(variant: &str) -> Option<String> {
         };
     }
     match data {
+        "horizontal" | "vertical" => {
+            return Some(format!(".{not}attr(\"orientation\", {data:?})"));
+        }
         "open" => return Some(format!(".{not}aria(Aria::Expanded)")),
         "active" => return Some(format!(".{not}aria(Aria::Selected)")),
         "closed" if !negated => return Some(".not_aria(Aria::Expanded)".to_owned()),
@@ -1655,6 +1658,10 @@ mod tests {
             assert_eq!(keys(c, "data-[size=sm]:h-8"), [".size(\"sm\")"]);
             assert_eq!(keys(c, "data-[side=top]:h-8"), [".attr(\"side\", \"top\")"]);
             assert_eq!(keys(c, "data-inset:pl-8"), [".attr(\"inset\", \"true\")"]);
+            assert_eq!(
+                keys(c, "data-horizontal:h-px"),
+                [".attr(\"orientation\", \"horizontal\")"]
+            );
             assert_eq!(
                 keys(c, "data-disabled:opacity-50"),
                 [".aria(Aria::Disabled)"]

@@ -139,6 +139,7 @@ mod scrollbar_none;
 mod segmented_classes;
 mod select;
 mod selection;
+mod separator;
 mod shadow_pixels;
 mod sheet;
 mod sizing;
