@@ -1,10 +1,7 @@
 //! How the Markdown widget looks.
 
+use crate::Weight;
 use crate::contract::Em;
-use crate::owned::table;
-use crate::sheet::Sheet;
-use crate::theme::Tokens;
-use crate::{TextSpec, Tw, Weight};
 use egui::Color32;
 
 use super::parse::Level;
@@ -29,34 +26,10 @@ pub struct Style {
     pub headings: [HeadingFlow; 6],
     /// TODO(prose): space between a list item's blocks.
     pub item_gap: f32,
-    /// TODO(prose): the document's tables, over the page's
-    /// [`TableStyle`](crate::contract::TableStyle); `None` keeps the
-    /// page's.
-    pub table: Option<TableLook>,
     /// TODO(prose): the document's links and inline code, over the page's
     /// [`RichTextStyle`](crate::contract::RichTextStyle); `None` keeps
     /// the page's.
     pub rich: Option<RichLook>,
-}
-
-/// TODO(prose): a document's tables. Lengths are in points.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct TableLook {
-    /// TODO(prose): beside a cell's content.
-    pub padding_x: f32,
-    /// TODO(prose): above and below a body cell's content.
-    pub padding_y: f32,
-    /// TODO(prose): above and below a header cell's content.
-    pub header_padding_y: f32,
-    /// TODO(prose): before the first column's content.
-    pub first_column_inset: f32,
-    /// TODO(prose)
-    pub header_weight: Weight,
-    /// TODO(prose): the lines between rows and under the table.
-    pub rule: Color32,
-    /// TODO(prose): the text of the cells.
-    pub text: TextSpec,
 }
 
 /// TODO(prose): a document's links and inline code. Lengths are in points.
@@ -81,43 +54,9 @@ pub struct RichLook {
     pub code_padding_y: f32,
 }
 
-impl TableLook {
-    /// Writes the document's tables' rules at the sheet's layer, over the
-    /// page's: a rule under the header and every row, the cells' padding and
-    /// the head's weight.
-    fn write_rules(&self, sheet: &mut Sheet) {
-        let TableLook {
-            padding_x,
-            padding_y,
-            header_padding_y,
-            first_column_inset,
-            header_weight,
-            rule,
-            ..
-        } = self.clone();
-        let ruled = move |t: Tw, _: &Tokens| t.border_b(1.0).border_b_color(rule);
-        sheet.replace(table::Part::Root, |t, _| t.grid().w_full());
-        sheet.replace(table::Part::Header, ruled);
-        sheet.replace(table::Part::Row, ruled);
-        let cell = move |t: Tw| t.flex().items_center().px_px(padding_x);
-        sheet.replace(table::Part::Cell, move |t, _| cell(t).py_px(padding_y));
-        sheet.replace(table::Part::Head, move |t, _| {
-            cell(t).font_weight(header_weight).py_px(header_padding_y)
-        });
-        for part in [table::Part::Head, table::Part::Cell] {
-            sheet.rule_when(part, table::Part::first_column(), move |t, _| {
-                t.pl_px(first_column_inset)
-            });
-        }
-    }
-}
-
 impl Style {
-    /// The page's style with this document's tables and rich text over it.
+    /// The page's style with this document's rich text over it.
     pub(super) fn restyle(&self, style: &mut crate::Style) {
-        if let Some(look) = &self.table {
-            look.write_rules(&mut style.sheet);
-        }
         if let Some(look) = &self.rich {
             let rich = &mut style.rich;
             rich.link = look.link;
@@ -133,7 +72,7 @@ impl Style {
 
     /// Whether the document changes the page's style at all.
     pub(super) fn restyles(&self) -> bool {
-        self.table.is_some() || self.rich.is_some()
+        self.rich.is_some()
     }
 }
 

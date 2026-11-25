@@ -30,7 +30,7 @@ use crate::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
-pub use style::{HeadingFlow, RichLook, Style, TableLook};
+pub use style::{HeadingFlow, RichLook, Style};
 pub use typeset::{Measure, Typeset};
 
 /// TODO(prose): a Markdown document's anatomy for the style's sheet. shadcn

@@ -7,11 +7,12 @@
 //! that `em` resolved to points.
 
 use crate::contract::Em;
-use crate::{TextSpec, Tracking, Weight};
+use crate::{TextSpec, Tracking, Tw, Weight};
 use egui::FontFamily;
 
-use super::style::{HeadingFlow, RichLook, Style, TableLook};
+use super::style::{HeadingFlow, RichLook, Style};
 use super::{Level, Part};
+use crate::owned::table;
 use crate::sheet::{Sheet, When};
 use crate::theme::Tokens;
 
@@ -91,6 +92,9 @@ impl Measure {
 
 /// Points in a Tailwind spacing unit, which [`Style`]'s lengths are in.
 const UNIT: f32 = 4.0;
+
+/// The attribute of a document's tables, which its table rules are under.
+pub(super) const TABLE: (&str, &str) = ("markdown", "true");
 
 /// A code block's size, in `em` of the body.
 const CODE: f32 = 0.875;
@@ -255,6 +259,40 @@ impl Typeset {
                 .rounded_px(k.radius.lg())
         });
         sheet.replace(Part::UnsupportedLabel, |t, k| t.text(k.muted_foreground));
+        self.write_tables(sheet);
+    }
+
+    /// A document's tables, over the page's: a rule under the header and
+    /// every row, and typeset.css's `thead th { padding: 0.65em 1em }`,
+    /// `td { padding: 0.75em 1em }`, `th:first-child, td:first-child {
+    /// padding-inline-start: 0 }` and `table { line-height: 1.5 }`.
+    fn write_tables(&self, sheet: &mut Sheet) {
+        let base = self.size;
+        let ours = When::always().attr(TABLE.0, TABLE.1);
+        let ruled = |t: Tw, k: &Tokens| t.border_b(1.0).border_b_color(k.border);
+        sheet.replace_when(table::Part::Root, ours, |t, _| t.grid().w_full());
+        sheet.replace_when(table::Part::Header, ours, ruled);
+        sheet.replace_when(table::Part::Row, ours, ruled);
+        let text = self.text(1.0, 1.5, &self.body, Weight::Normal);
+        let cell = move |t: Tw, k: &Tokens| {
+            t.flex()
+                .items_center()
+                .px_px(base)
+                .role(text.clone())
+                .text(k.foreground)
+                .tabular_nums()
+        };
+        let body = cell.clone();
+        sheet.replace_when(table::Part::Cell, ours, move |t, k| {
+            body(t, k).py_px(0.75 * base)
+        });
+        sheet.replace_when(table::Part::Head, ours, move |t, k| {
+            cell(t, k).font_weight(Weight::Medium).py_px(0.65 * base)
+        });
+        for part in [table::Part::Head, table::Part::Cell] {
+            let first = table::Part::first_column().attr(TABLE.0, TABLE.1);
+            sheet.rule_when(part, first, |t, _| t.pl_px(0.0));
+        }
     }
 
     /// Each heading's row of typeset.css, under its level's key.
@@ -306,18 +344,6 @@ impl Typeset {
             rule_gap: 2.4 * flow(1.0),
             headings,
             item_gap: em(0.5),
-            // `thead th { padding: 0.65em 1em }`, `td { padding: 0.75em 1em }`,
-            // `th:first-child, td:first-child { padding-inline-start: 0 }`,
-            // `table { line-height: 1.5 }`.
-            table: Some(TableLook {
-                padding_x: base,
-                padding_y: 0.75 * base,
-                header_padding_y: 0.65 * base,
-                first_column_inset: 0.0,
-                header_weight: Weight::Medium,
-                rule: t.border,
-                text: self.text(1.0, 1.5, &self.body, Weight::Normal),
-            }),
             // `a { color: inherit; font-weight: 500; text-decoration-color:
             // color-mix(currentColor 30%) }`; `:not(pre) > code { font-size:
             // 0.85em; border-radius: min(var(--radius) * 0.6, 0.35em);

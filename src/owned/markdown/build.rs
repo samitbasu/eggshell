@@ -187,15 +187,6 @@ fn space_above(style: &Style, depth: Depth, previous: &Block, block: &Block) -> 
     }
 }
 
-/// A table cell's text: the document's tables', else a paragraph's.
-fn cell_text<A: 'static>(b: &mut Builder<'_, '_, A>, style: &Style) -> Tw {
-    let at = b.part(Part::Paragraph, &[], tw().whitespace_normal());
-    match &style.table {
-        Some(table) => at.role(table.text.clone()).tabular_nums(),
-        None => at,
-    }
-}
-
 fn paragraph<'f, A: 'static>(
     s: &mut Builder<'_, 'f, A>,
     key: impl Key,
@@ -229,7 +220,7 @@ fn table<'f, A: 'static>(
             let spans = row.get(column);
             cells.cell(|b| {
                 if let Some(spans) = spans {
-                    let at = cell_text(b, &context.style);
+                    let at = tw().whitespace_normal();
                     paragraph(b, Node::Cell, at, spans, context);
                 }
             });
@@ -238,6 +229,7 @@ fn table<'f, A: 'static>(
     let rows: Vec<(usize, &Vec<Spans>)> = table.rows.iter().enumerate().collect();
     s.div_id(key, at, |s| {
         s.table(Node::Table)
+            .attr(super::typeset::TABLE.0, super::typeset::TABLE.1)
             .columns(columns)
             .header(|cells| row(cells, &table.header))
             .rows(
