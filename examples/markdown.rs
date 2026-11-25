@@ -6,7 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
-use eggshell_ui::owned::markdown::{Directive, Directives, MarkdownExt, Typeset, heading_id};
+use eggshell_ui::owned::markdown::{Directive, Directives, Ext as _, Typeset, heading_id};
 use eggshell_ui::{Builder, Scope, Shell, Span, tw};
 use egui::load::{ImageLoadResult, ImageLoader, ImagePoll, LoadError, SizeHint};
 use egui::{Align, Color32, ColorImage, Context, Id, Rect};

@@ -6,8 +6,8 @@ use crate::contract::{Colors, Keyed, Look, States, Variant};
 use crate::{Opacity, TextSpec, Weight};
 use egui::Color32;
 
-/// TODO(prose): the look of [`badge`](super::BadgeExt::badge)s and
-/// [`chip`](super::BadgeExt::chip)s, one visual family: a chip is a badge
+/// TODO(prose): the look of [`badge`](super::Ext::badge)s and
+/// [`chip`](super::Ext::chip)s, one visual family: a chip is a badge
 /// that takes input. Lengths are in points.
 ///
 /// ```

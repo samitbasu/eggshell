@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::tabs::TabsExt;
+//! use eggshell_ui::owned::tabs::Ext;
 //!
 //! #[derive(Clone, Copy, PartialEq)]
 //! enum Lang { Rust, Html }
@@ -35,26 +35,26 @@ use crate::{Builder, Key, Tw, tw};
 use egui::Role;
 
 /// TODO(prose): adds [`tabs`](Self::tabs) to the builder.
-pub trait TabsExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): tabs over `options`, of which `current` is selected. Give
-    /// it an [`on_change`](TabsChain::on_change), then add it with
-    /// [`panel`](TabsChain::panel).
+    /// it an [`on_change`](Chain::on_change), then add it with
+    /// [`panel`](Chain::panel).
     fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &'s mut self,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset>;
+    ) -> Chain<'s, 'b, 'f, A, K, T, Unset>;
 }
 
-impl<'b, 'f, A: 'static> TabsExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &'s mut self,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset> {
-        TabsChain {
+    ) -> Chain<'s, 'b, 'f, A, K, T, Unset> {
+        Chain {
             b: self,
             key,
             current,
@@ -70,10 +70,10 @@ impl<'b, 'f, A: 'static> TabsExt<'b, 'f, A> for Builder<'b, 'f, A> {
     }
 }
 
-/// TODO(prose): tabs that have no [`on_change`](TabsChain::on_change) yet.
+/// TODO(prose): tabs that have no [`on_change`](Chain::on_change) yet.
 pub struct Unset;
 
-/// TODO(prose): what [`on_change`](TabsChain::on_change) gave the tabs.
+/// TODO(prose): what [`on_change`](Chain::on_change) gave the tabs.
 pub struct Changes<A, T>(OnChange<A, T>);
 
 type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
@@ -97,7 +97,7 @@ enum Part {
 
 /// TODO(prose): tabs being declared; [`panel`](Self::panel) adds them.
 #[must_use = "tabs are not added until you call `.on_change(..)` and `.panel(..)`"]
-pub struct TabsChain<'s, 'b, 'f, A, K, T, H> {
+pub struct Chain<'s, 'b, 'f, A, K, T, H> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     current: T,
@@ -112,7 +112,7 @@ pub struct TabsChain<'s, 'b, 'f, A, K, T, H> {
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
-    TabsChain<'s, 'b, 'f, A, K, T, H>
+    Chain<'s, 'b, 'f, A, K, T, H>
 {
     /// TODO(prose): the tab list's accessible name, as `aria-label` is.
     pub fn named(mut self, name: impl Into<String>) -> Self {
@@ -154,15 +154,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Unset>
+    Chain<'s, 'b, 'f, A, K, T, Unset>
 {
     /// TODO(prose): runs `on_change` with the value of the tab that was
     /// selected, by a click or the keyboard.
     pub fn on_change(
         self,
         on_change: impl Fn(&mut A, T) + 'static,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
-        TabsChain {
+    ) -> Chain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
+        Chain {
             b: self.b,
             key: self.key,
             current: self.current,
@@ -179,7 +179,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>>
+    Chain<'s, 'b, 'f, A, K, T, Changes<A, T>>
 {
     /// TODO(prose): adds the tab list, and below it the panel of the selected
     /// tab, which `build` builds; the panels of the other tabs are not built.

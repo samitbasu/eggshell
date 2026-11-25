@@ -18,8 +18,7 @@ use crate::owned::FieldHooks;
 use crate::owned::input::{INLINE_END, INLINE_START};
 use crate::owned::options::{self, Gate, Validity};
 use crate::owned::{
-    Enablement, field_box::FieldBoxChain, input::InputGroupPart, options::IntoTip, text_sized,
-    tipped,
+    Enablement, field_box, input::InputGroupPart, options::IntoTip, text_sized, tipped,
 };
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
@@ -507,7 +506,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             let measured = field.clone();
             let tip = tooltip.clone();
             let validity = validity.clone();
-            FieldBoxChain::new(b, slot)
+            field_box::Chain::new(b, slot)
                 .size(size)
                 .enablement(enablement)
                 .classes(classes)

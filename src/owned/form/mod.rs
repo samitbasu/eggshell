@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::form::FormExt;
+//! use eggshell_ui::owned::form::Ext;
 //!
 //! struct App { gain: f64, mute: bool }
 //!
@@ -55,7 +55,7 @@ impl Part for CardPart {
 /// TODO(prose): adds [`form_section`](Self::form_section),
 /// [`labeled`](Self::labeled) and [`labeled_text`](Self::labeled_text) to
 /// the builder.
-pub trait FormExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a section of a form: a box of rows, under an optional
     /// title. Add it with [`children`](FormSectionChain::children).
     fn form_section<K: Key>(&mut self, key: K) -> FormSectionChain<'_, 'b, 'f, A, K>;
@@ -70,7 +70,7 @@ pub trait FormExt<'b, 'f, A> {
 }
 
 /// TODO(prose): a form section being configured; see
-/// [`FormExt::form_section`].
+/// [`Ext::form_section`].
 #[must_use = "a form section is not added until you call `.children(..)`"]
 pub struct FormSectionChain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -173,7 +173,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
     }
 }
 
-impl<'b, 'f, A: 'static> FormExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn form_section<K: Key>(&mut self, key: K) -> FormSectionChain<'_, 'b, 'f, A, K> {
         FormSectionChain {
             b: self,

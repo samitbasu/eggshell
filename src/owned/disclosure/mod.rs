@@ -5,13 +5,13 @@
 //! [`collapsible`](crate::Builder::collapsible): the header is a
 //! button that says whether the section is open and which region it
 //! controls, and its chevron turns with the region's height. A
-//! [`disclosure`](DisclosureExt::disclosure) is the chevron alone, as a
+//! [`disclosure`](Ext::disclosure) is the chevron alone, as a
 //! button: it snaps.
 //!
 //! ```
 //! use eggshell_ui::overlay::Shown;
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::disclosure::{DisclosureExt, SectionExt};
+//! use eggshell_ui::owned::disclosure::{Ext, SectionExt};
 //!
 //! struct App { env: Shown, src: Shown }
 //!
@@ -180,26 +180,18 @@ impl<'b, 'f, A: 'static> SectionExt<'b, 'f, A> for Builder<'b, 'f, A> {
 }
 
 /// TODO(prose): adds [`disclosure`](Self::disclosure) to the builder.
-pub trait DisclosureExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a disclosure button, a chevron that says whether what it
     /// folds is open as `current` says, for a tree row. It snaps. Name it
-    /// with [`named`](DisclosureChain::named): an unnamed one is reported
+    /// with [`named`](Chain::named): an unnamed one is reported
     /// as [`Unnamed`](Problem::Unnamed). It is added by
-    /// [`on_change`](DisclosureChain::on_change).
-    fn disclosure<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        current: Shown,
-    ) -> DisclosureChain<'s, 'b, 'f, A, K>;
+    /// [`on_change`](Chain::on_change).
+    fn disclosure<'s, K: Key>(&'s mut self, key: K, current: Shown) -> Chain<'s, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A: 'static> DisclosureExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn disclosure<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        current: Shown,
-    ) -> DisclosureChain<'s, 'b, 'f, A, K> {
-        DisclosureChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn disclosure<'s, K: Key>(&'s mut self, key: K, current: Shown) -> Chain<'s, 'b, 'f, A, K> {
+        Chain {
             b: self,
             key,
             current,
@@ -211,9 +203,9 @@ impl<'b, 'f, A: 'static> DisclosureExt<'b, 'f, A> for Builder<'b, 'f, A> {
 }
 
 /// TODO(prose): a disclosure button: see
-/// [`DisclosureExt::disclosure`].
+/// [`Ext::disclosure`].
 #[must_use = "a disclosure button is added by `.on_change(..)`"]
-pub struct DisclosureChain<'s, 'b, 'f, A, K> {
+pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     current: Shown,
@@ -222,7 +214,7 @@ pub struct DisclosureChain<'s, 'b, 'f, A, K> {
     enablement: Enablement,
 }
 
-impl<A: 'static, K: Key> DisclosureChain<'_, '_, '_, A, K> {
+impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
     /// TODO(prose): the accessible name: the row's label. It stays the same
     /// open or closed; `expanded` says which.
     pub fn named(mut self, name: impl Into<String>) -> Self {

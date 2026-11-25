@@ -11,7 +11,7 @@ mod common;
 use core::time::Duration;
 
 use eggshell_ui::overlay::{Anchor, Placement, Side};
-use eggshell_ui::owned::hover_card::HoverCardExt as _;
+use eggshell_ui::owned::hover_card::Ext as _;
 use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Distance, Icon, tw};
 

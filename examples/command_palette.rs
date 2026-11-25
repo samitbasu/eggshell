@@ -6,7 +6,7 @@
 mod common;
 
 use eggshell_ui::owned::Mark;
-use eggshell_ui::owned::command::{CommandExt, Open};
+use eggshell_ui::owned::command::{Ext as _, Open};
 use eggshell_ui::{Builder, Chord, Command, Commands, tw};
 use egui::{Key, Modifiers};
 

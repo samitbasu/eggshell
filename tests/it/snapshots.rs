@@ -2901,8 +2901,8 @@ fn palette_open_dark() {
 /// the rule drew. The inventory is in PHASE2-AUDIT.md.
 mod child_rules {
     use super::*;
-    use eggshell_ui::owned::badge::BadgeExt as _;
-    use eggshell_ui::owned::command::CommandExt as _;
+    use eggshell_ui::owned::badge::Ext as _;
+    use eggshell_ui::owned::command::Ext as _;
     use eggshell_ui::{Icon, icons};
 
     fn suffix(theme: egui::Theme) -> &'static str {

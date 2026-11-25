@@ -98,7 +98,7 @@ impl crate::sheet::Part for ProgressPart {
 /// </div>
 /// ```
 #[must_use = "a progress bar is not added until you call `.add()`"]
-pub struct ProgressChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     progress: Progress,
@@ -107,7 +107,7 @@ pub struct ProgressChain<'a, 'f, A> {
     classes: Tw,
 }
 
-impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, progress: Progress) -> Self {
         Self {
             slot: b.slot(&key),
@@ -204,8 +204,8 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         &mut self,
         key: K,
         progress: crate::Progress,
-    ) -> ProgressChain<'_, 'f, A> {
-        ProgressChain::new(self.reborrow(), key, progress)
+    ) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, progress)
     }
 }
 

@@ -4,7 +4,7 @@
 //! invalid either way.
 
 use eggshell_ui::owned::Enablement;
-use eggshell_ui::owned::command::CommandExt;
+use eggshell_ui::owned::command::Ext as _;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, icons, tw};

@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::badge::BadgeExt;
+//! use eggshell_ui::owned::badge::Ext;
 //!
 //! struct App { tags: Vec<String>, filter: Option<String> }
 //!
@@ -62,14 +62,10 @@ pub use style::{BadgeStyle, RemoveStyle};
 
 /// TODO(prose): adds [`badge`](Self::badge) and [`chip`](Self::chip) to the
 /// builder.
-pub trait BadgeExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a badge reading `text`: a label that takes no input.
-    /// Finish it with [`add`](BadgeChain::add).
-    fn badge<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        text: impl Into<String>,
-    ) -> BadgeChain<'s, 'b, 'f, A, K>;
+    /// Finish it with [`add`](Chain::add).
+    fn badge<'s, K: Key>(&'s mut self, key: K, text: impl Into<String>) -> Chain<'s, 'b, 'f, A, K>;
 
     /// TODO(prose): a chip reading `label`: a badge that can be clicked, or
     /// removed with its × or with Backspace or Delete while it has focus, or
@@ -83,13 +79,9 @@ pub trait BadgeExt<'b, 'f, A> {
     ) -> ChipChain<'s, 'b, 'f, A, K, Unset, Unset>;
 }
 
-impl<'b, 'f, A: 'static> BadgeExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn badge<'s, K: Key>(
-        &'s mut self,
-        key: K,
-        text: impl Into<String>,
-    ) -> BadgeChain<'s, 'b, 'f, A, K> {
-        BadgeChain {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
+    fn badge<'s, K: Key>(&'s mut self, key: K, text: impl Into<String>) -> Chain<'s, 'b, 'f, A, K> {
+        Chain {
             b: self,
             key,
             face: Face {
@@ -192,19 +184,19 @@ impl Face {
 
 /// TODO(prose): a badge, after shadcn/ui's Badge: a label drawn in the
 /// [`BadgeStyle`] variant's rest colours, which takes no input. Start one
-/// with [`BadgeExt::badge`] and finish it with [`add`](Self::add).
+/// with [`Ext::badge`] and finish it with [`add`](Self::add).
 ///
 /// ```html
 /// <span class="inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-primary text-primary-foreground">Badge</span>
 /// ```
 #[must_use = "a badge is not added until you call `.add()`"]
-pub struct BadgeChain<'s, 'b, 'f, A, K> {
+pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     face: Face,
 }
 
-impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
+impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
     /// TODO(prose): draws the badge as the style's variant `variant`.
     pub fn variant(mut self, variant: Variant) -> Self {
         self.face.options.variant = Some(variant);

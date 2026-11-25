@@ -13,7 +13,7 @@
 use eggshell_ui::overlay::{
     Anchor, Anchored, Band, Distance, Focus, Modal, Outside, Placement, Shown,
 };
-use eggshell_ui::owned::dialog::{Dialog, DialogExt, PopoverExt};
+use eggshell_ui::owned::dialog::{Dialog, Ext as _, PopoverExt};
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::{Points, leaves_bounds};

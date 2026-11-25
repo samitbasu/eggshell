@@ -4,7 +4,7 @@
 pub(crate) mod field;
 pub(crate) mod readout;
 
-pub use readout::NumberChain;
+pub use readout::Chain;
 
 use std::ops::RangeInclusive;
 use std::rc::Rc;

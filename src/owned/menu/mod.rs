@@ -11,7 +11,7 @@ use std::sync::Arc;
 use egui::accesskit::HasPopup;
 use egui::{Context, EventFilter, Id, Key as EguiKey, Pos2, Role, Vec2};
 
-use super::button::{ButtonChain, ButtonOptions, Face};
+use super::button::{self, Face};
 mod sheet;
 
 use super::{
@@ -799,7 +799,7 @@ pub struct DropdownChain<'a, 'f, A, K> {
     b: Builder<'a, 'f, A>,
     key: K,
     face: Face,
-    options: ButtonOptions,
+    options: button::Options,
     offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -825,7 +825,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             b,
             key,
             face,
-            options: ButtonOptions::new(),
+            options: button::Options::new(),
             offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
@@ -836,7 +836,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         }
     }
 
-    /// TODO(prose): builds `body`'s nodes inside the trigger, after its icon and label, as [`ButtonChain::children`] does.
+    /// TODO(prose): builds `body`'s nodes inside the trigger, after its icon and label, as [`button::Chain::children`] does.
     pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
         self.children = Some(Box::new(body));
         self
@@ -855,7 +855,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
     }
 
     /// Applies shared button `options` to the trigger.
-    pub fn with_options(mut self, options: ButtonOptions) -> Self {
+    pub fn with_options(mut self, options: button::Options) -> Self {
         self.options = self.options.merge(options);
         self
     }
@@ -971,7 +971,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let name = options.name_or(&face).to_owned();
         let select = &shared.style.select;
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
-        let button = ButtonChain::new(b.reborrow(), key, face)
+        let button = button::Chain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
             .expanded(open)

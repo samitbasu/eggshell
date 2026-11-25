@@ -48,7 +48,7 @@ type Typed<A> = Rc<dyn Fn(&mut A, String)>;
 type Cleared<A> = Rc<dyn Fn(&mut A)>;
 
 /// TODO(prose): the builder methods of this module.
-pub trait CommandExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): an inline command list: a search field over the results.
     fn command_list<K: Key>(&mut self, key: K) -> CommandList<'_, 'b, 'f, A>;
 
@@ -113,7 +113,7 @@ enum Shape<A> {
     },
 }
 
-/// TODO(prose): a command list, started with [`CommandExt::command_list`] or [`CommandExt::command_dialog`] and finished with [`items`](Self::items).
+/// TODO(prose): a command list, started with [`Ext::command_list`] or [`Ext::command_dialog`] and finished with [`items`](Self::items).
 #[must_use = "a command list is not added until you call `.items(..)`"]
 pub struct CommandList<'s, 'b, 'f, A> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -230,7 +230,7 @@ impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
     }
 }
 
-impl<'b, 'f, A: 'static> CommandExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn command_list<K: Key>(&mut self, key: K) -> CommandList<'_, 'b, 'f, A> {
         CommandList {
             key: self.id_of(key),
@@ -337,7 +337,7 @@ impl Typing {
     }
 }
 
-/// TODO(prose): a combobox, started with [`CommandExt::combobox`] and finished with [`on_change`](Self::on_change).
+/// TODO(prose): a combobox, started with [`Ext::combobox`] and finished with [`on_change`](Self::on_change).
 #[must_use = "a combobox is not added until you call `.on_change(..)`"]
 pub struct ComboboxChain<'s, 'b, 'f, A, V> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -561,7 +561,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
     }
 }
 
-/// TODO(prose): an autosuggest, started with [`CommandExt::autosuggest`] and finished with [`on_change`](Self::on_change).
+/// TODO(prose): an autosuggest, started with [`Ext::autosuggest`] and finished with [`on_change`](Self::on_change).
 #[must_use = "an autosuggest is not added until you call `.on_change(..)`"]
 pub struct AutosuggestChain<'s, 'b, 'f, A> {
     b: &'s mut Builder<'b, 'f, A>,

@@ -8,7 +8,7 @@ mod common;
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{
-    button::{ButtonOptions, Face},
+    button::{self, Face},
     toggle_group::ToggleGroup,
 };
 use eggshell_ui::theme::{size, variant};
@@ -95,7 +95,7 @@ impl Default for State {
 fn tool_cluster(b: &mut Builder<'_, '_, State>, state: &State) {
     let border = common::tokens(b.ctx()).border;
     let tools = ToggleGroup::new(Part::Tools, state.tool)
-        .with_options(ButtonOptions::new().size(size::ICON))
+        .with_options(button::Options::new().size(size::ICON))
         .on_change(|state: &mut State, tool| state.tool = tool);
     let icon = |b: &Builder<'_, '_, State>, tool: Tool| {
         let (_, glyph, name) = TOOLS.iter().find(|(t, ..)| *t == tool).expect("a tool");
@@ -135,7 +135,7 @@ fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
     let tokens = common::tokens(b.ctx());
     let lettering = ToggleGroup::new(Part::Lettering, state.lettering)
         .with_options(
-            ButtonOptions::new().classes(
+            button::Options::new().classes(
                 tw().flex_col()
                     .items_start()
                     .h_px(80.0)

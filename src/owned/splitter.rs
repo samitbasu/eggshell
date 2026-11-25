@@ -216,13 +216,13 @@ impl<'a, 'f, A: 'static> SplitterStart<'a, 'f, A> {
     }
 
     /// TODO(prose): sizes the sibling before the splitter, now `size`.
-    pub fn before(self, size: PaneSize) -> SplitterChain<'a, 'f, A> {
-        SplitterChain::new(self, Side::Before, size)
+    pub fn before(self, size: PaneSize) -> Chain<'a, 'f, A> {
+        Chain::new(self, Side::Before, size)
     }
 
     /// TODO(prose): sizes the sibling after the splitter, now `size`.
-    pub fn after(self, size: PaneSize) -> SplitterChain<'a, 'f, A> {
-        SplitterChain::new(self, Side::After, size)
+    pub fn after(self, size: PaneSize) -> Chain<'a, 'f, A> {
+        Chain::new(self, Side::After, size)
     }
 }
 
@@ -251,7 +251,7 @@ impl<'a, 'f, A: 'static> SplitterStart<'a, 'f, A> {
 /// }
 /// ```
 #[must_use = "a splitter is not added until you call `.on_resize(..)`"]
-pub struct SplitterChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     side: Side,
@@ -262,7 +262,7 @@ pub struct SplitterChain<'a, 'f, A> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A> SplitterChain<'a, 'f, A> {
+impl<'a, 'f, A> Chain<'a, 'f, A> {
     /// TODO(prose): takes focus as the overlay it is in opens, as
     /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
     pub fn focus_on_open(mut self) -> Self {
@@ -287,7 +287,7 @@ impl<'a, 'f, A> SplitterChain<'a, 'f, A> {
     }
 }
 
-impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     fn new(start: SplitterStart<'a, 'f, A>, side: Side, size: PaneSize) -> Self {
         Self {
             b: start.b,

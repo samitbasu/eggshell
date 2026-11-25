@@ -52,7 +52,7 @@ enum Part {
 /// </div>
 /// ```
 #[must_use = "a stepper is not added until you call `.on_change(..)`"]
-pub struct StepperChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     value: f64,
@@ -69,7 +69,7 @@ pub struct StepperChain<'a, 'f, A> {
     validity: Validity,
 }
 
-impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// A stepper at `value` within `range`, stepping by [`Step::ONE`].
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
@@ -536,7 +536,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         key: K,
         value: f64,
         range: impl Into<ValueRange>,
-    ) -> StepperChain<'_, 'f, A> {
-        StepperChain::new(self.reborrow(), key, value, range.into())
+    ) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, value, range.into())
     }
 }

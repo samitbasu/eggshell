@@ -3,7 +3,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::hover_card::HoverCardExt as _;
+use eggshell_ui::owned::hover_card::Ext as _;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};

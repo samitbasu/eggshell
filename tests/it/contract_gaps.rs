@@ -846,7 +846,7 @@ fn a_renamed_dropdown_names_its_trigger_and_its_menu() {
 }
 
 fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
-    let named = || eggshell_ui::owned::button::ButtonOptions::new().named("From options");
+    let named = || eggshell_ui::owned::button::Options::new().named("From options");
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.button("icon", (app.icon(), "Search")).named("Find").add();
         b.button("empty", Face::Empty("Card".into()))

@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::owned::skeleton::SkeletonExt as _;
+use eggshell_ui::owned::skeleton::Ext as _;
 use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};

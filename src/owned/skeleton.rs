@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::skeleton::SkeletonExt;
+//! use eggshell_ui::owned::skeleton::Ext;
 //!
 //! fn view(b: &mut Builder<'_, '_, ()>) {
 //!     b.skeleton(tw().h_px(16.0).w_px(250.0));
@@ -62,14 +62,14 @@ impl crate::sheet::Part for SkeletonPart {
 }
 
 /// TODO(prose): the skeleton, added to a [`Builder`].
-pub trait SkeletonExt {
+pub trait Ext {
     /// TODO(prose): a skeleton box laid out by `classes` (its size), drawn in
     /// the style's fill and pulsing. It is not announced to assistive
     /// technology, and under reduced motion it stands still at full opacity.
     fn skeleton(&mut self, classes: Tw);
 }
 
-impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
+impl<A: 'static> Ext for Builder<'_, '_, A> {
     fn skeleton(&mut self, classes: Tw) {
         let style = self.style().skeleton.clone();
         let opacity = cycle(self.ctx(), style.period)

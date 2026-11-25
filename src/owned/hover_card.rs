@@ -12,7 +12,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::hover_card::HoverCardExt as _;
+//! use eggshell_ui::owned::hover_card::Ext as _;
 //!
 //! struct App { follows: u32 }
 //!
@@ -112,14 +112,14 @@ impl HoverCardStyle {
 }
 
 /// TODO(prose): adds [`hover_card`](Self::hover_card) to the builder.
-pub trait HoverCardExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a hover card named `key`: give it a
     /// [`trigger`](HoverCard::trigger), then its
     /// [`content`](HoverCardTrigger::content).
     fn hover_card<K: Key + Clone>(&mut self, key: K) -> HoverCard<'_, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A> HoverCardExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn hover_card<K: Key + Clone>(&mut self, key: K) -> HoverCard<'_, 'b, 'f, A, K> {
         HoverCard {
             b: self,

@@ -9,7 +9,7 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
-use eggshell_ui::owned::tabs::TabsExt;
+use eggshell_ui::owned::tabs::Ext as _;
 use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::{Builder, tw};
 

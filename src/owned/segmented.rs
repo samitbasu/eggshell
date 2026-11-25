@@ -68,7 +68,7 @@ pub enum SegmentedRows {
 /// }
 /// ```
 #[must_use = "a segmented control is not added until you call `.on_change(..)`"]
-pub struct SegmentedChain<'a, 'f, A, T> {
+pub struct Chain<'a, 'f, A, T> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     current: T,
@@ -92,7 +92,7 @@ struct Custom<'a> {
     cell: Box<dyn Fn(Cell) -> Tw + 'a>,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// A control of `options` of which `current` is selected.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
@@ -433,7 +433,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> SegmentedChain<'_, 'f, A, T> {
-        SegmentedChain::new(self.reborrow(), key, current, options)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, current, options)
     }
 }

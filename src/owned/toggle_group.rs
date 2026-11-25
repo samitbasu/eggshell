@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use egui::Id;
 
-use super::toggle::{ToggleChain, ToggleItemChain};
-use super::{button::ButtonOptions, button::Face};
+use super::toggle::{self, ToggleItemChain};
+use super::{button, button::Face};
 use crate::key::child_id;
 use crate::{Builder, Key};
 
@@ -15,7 +15,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 
 /// A set of toggles of which exactly one is on, as Radix's ToggleGroup of
 /// `type="single"`: radio semantics with toggle looks, with icons, labels or
-/// any [`children`](super::button::ButtonChain::children) as the members' content.
+/// any [`children`](super::button::Chain::children) as the members' content.
 ///
 /// A group is a plain value: its key, the application's current value and
 /// the options and handler the members share. A member is on exactly when the
@@ -40,7 +40,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
-/// use eggshell_ui::owned::{button::ButtonOptions, toggle_group::ToggleGroup};
+/// use eggshell_ui::owned::{button, toggle_group::ToggleGroup};
 /// use eggshell_ui::{Builder, tw};
 ///
 /// #[derive(Clone, Copy, Debug, Hash, PartialEq)]
@@ -49,7 +49,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 ///
 /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 ///     let tools = ToggleGroup::new("tools", app.tool)
-///         .with_options(ButtonOptions::new().classes(tw().w_px(80.0)))
+///         .with_options(button::Options::new().classes(tw().w_px(80.0)))
 ///         .on_change(|app: &mut App, tool| app.tool = tool);
 ///     b.div(tw().flex().gap(2.0), |b| {
 ///         b.toggle_item(&tools, Tool::Select, "Select").add();
@@ -64,7 +64,7 @@ pub struct ToggleGroup<A, T> {
     id: Id,
     label: Rc<str>,
     current: T,
-    options: ButtonOptions,
+    options: button::Options,
     // Shared by reference count: each member's click closure is `'static` and
     // outlives the borrow of the group, and the handler is not `Clone`.
     on_change: Option<OnChange<A, T>>,
@@ -77,14 +77,14 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T>
             id: child_id(Id::NULL, &key),
             label: format!("{key:?}").into(),
             current,
-            options: ButtonOptions::new(),
+            options: button::Options::new(),
             on_change: None,
         }
     }
 
     /// Options every member starts from; a member's own settings override
     /// them. Merged over earlier options, the later winning.
-    pub fn with_options(mut self, options: ButtonOptions) -> Self {
+    pub fn with_options(mut self, options: button::Options) -> Self {
         self.options = self.options.merge(options);
         self
     }
@@ -108,7 +108,7 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T>
             label: self.label.clone(),
             value,
         };
-        ToggleChain::new(b, key, face, self.current)
+        toggle::Chain::new(b, key, face, self.current)
             .with_options(self.options.clone())
             .member(Member {
                 value,

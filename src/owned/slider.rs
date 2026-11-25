@@ -46,7 +46,7 @@ enum Part {
 /// </span>
 /// ```
 #[must_use = "a slider is not added until you call `.on_change(..)`"]
-pub struct SliderChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     value: f64,
@@ -181,7 +181,7 @@ pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
     });
 }
 
-impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// A slider at `value` within `range`, moving by [`Step::ONE`].
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
@@ -642,7 +642,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         key: K,
         value: f64,
         range: impl Into<ValueRange>,
-    ) -> SliderChain<'_, 'f, A> {
-        SliderChain::new(self.reborrow(), key, value, range.into())
+    ) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key, value, range.into())
     }
 }

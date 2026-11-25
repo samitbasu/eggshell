@@ -7,7 +7,7 @@ use crate::{Angle, Icon, Opacity, TextSpec, Weight, icons};
 use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
-/// and [`disclosure`](super::DisclosureExt::disclosure) buttons, one
+/// and [`disclosure`](super::Ext::disclosure) buttons, one
 /// family: the button is a section header's chevron on its own. Lengths are
 /// in points.
 ///

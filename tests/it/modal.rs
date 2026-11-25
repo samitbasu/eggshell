@@ -1016,7 +1016,7 @@ mod keys_are_taken {
     }
 }
 
-/// Buttons that dismiss their overlay (`ButtonChain::dismisses`), and the
+/// Buttons that dismiss their overlay (`button::Chain::dismisses`), and the
 /// accessible description of an overlay and of a node.
 mod closers {
     use super::*;

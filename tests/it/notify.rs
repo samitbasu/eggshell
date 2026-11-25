@@ -4,7 +4,7 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::Modal;
-use eggshell_ui::owned::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
+use eggshell_ui::owned::notify::{Dismissed, Ext as _, Lifetime, Notice, NoticeId, ScreenAnchor};
 use eggshell_ui::testing::{Driver, Target, WindowFocus};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Distance, TextStyle, tw};

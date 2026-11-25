@@ -3,7 +3,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::accordion::{AccordionExt, Single};
+//! use eggshell_ui::owned::accordion::{Ext, Single};
 //!
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Faq { Access, Motion }
@@ -27,8 +27,8 @@ mod widget;
 
 #[cfg(feature = "accordion")]
 pub use widget::{
-    AccordionChain, AccordionExt, Always, BoundAccordion, Collapsible, ItemChain, Items, Mode,
-    Multiple, Single, Value,
+    Always, BoundAccordion, Chain, Collapsible, Ext, ItemChain, Items, Mode, Multiple, Single,
+    Value,
 };
 
 /// TODO(prose): a disclosure section's and an accordion's anatomy for the

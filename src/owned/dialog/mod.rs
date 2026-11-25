@@ -5,7 +5,7 @@
 //! ```
 //! use eggshell_ui::overlay::{Modal, Shown};
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::dialog::{Dialog, DialogExt};
+//! use eggshell_ui::owned::dialog::{Dialog, Ext};
 //!
 //! struct App { edit: Shown, name: String }
 //!
@@ -38,7 +38,7 @@ pub use parts::{AlertDialogPart, DialogPart, PopoverPart, SheetPart};
 pub use style::{DialogStyle, Surface, shadow_lg};
 
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
-use crate::owned::button::{ButtonChain, Face};
+use crate::owned::button::{self, Face};
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, Icon, Scope, Tw, icons, tw};
 use egui::Role;
@@ -122,10 +122,10 @@ impl Dialog {
 }
 
 type Body<'c, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'c>;
-type Then<'c, 'f, A> = Box<dyn for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c>;
+type Then<'c, 'f, A> = Box<dyn for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c>;
 
 /// What the dialog holds besides its header: given to the closure of
-/// [`DialogExt::dialog`], and built in a fixed order once it returns.
+/// [`Ext::dialog`], and built in a fixed order once it returns.
 pub struct DialogContent<'c, 'f, A> {
     body: Option<Body<'c, 'f, A>>,
     footer: Option<Footer<'c, 'f, A>>,
@@ -152,7 +152,7 @@ struct Button<'c, 'f, A> {
 impl<'c, 'f, A> Button<'c, 'f, A> {
     fn new(
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Option<Self> {
         Some(Self {
             face: face.into(),
@@ -185,13 +185,13 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     }
 
     /// The button Esc presses: the style's cancel variant,
-    /// [`cancel_action`](ButtonChain::cancel_action) and
-    /// [`dismisses`](ButtonChain::dismisses). One added with no handler of
+    /// [`cancel_action`](button::Chain::cancel_action) and
+    /// [`dismisses`](button::Chain::dismisses). One added with no handler of
     /// its own runs the overlay's `on_dismiss`.
     pub fn cancel(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             cancel: Button::new(face, then),
@@ -200,11 +200,11 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     }
 
     /// The button Return presses: the style's default variant and
-    /// [`default_action`](ButtonChain::default_action). Always last.
+    /// [`default_action`](button::Chain::default_action). Always last.
     pub fn default(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             default: Button::new(face, then),
@@ -217,7 +217,7 @@ impl<'c, 'f, A> Footer<'c, 'f, A> {
     pub fn leading(
         self,
         face: impl Into<Face>,
-        then: impl for<'s> FnOnce(ButtonChain<'s, 'f, A>) + 'c,
+        then: impl for<'s> FnOnce(button::Chain<'s, 'f, A>) + 'c,
     ) -> Self {
         Self {
             leading: Button::new(face, then),
@@ -234,7 +234,7 @@ enum Kind {
 }
 
 /// The dialog surface, ending a modal overlay chain.
-pub trait DialogExt<'c, 'f, A> {
+pub trait Ext<'c, 'f, A> {
     /// TODO(prose): builds the overlay as a dialog ([`Modal::Center`]) or a
     /// sheet ([`Modal::Edge`]): the style's box, a header with the title and
     /// description, `content`'s body and footer, and a close button (×)
@@ -249,7 +249,7 @@ pub trait DialogExt<'c, 'f, A> {
     fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>));
 }
 
-impl<'c, 'f, A: 'static, M> DialogExt<'c, 'f, A> for OverlayChain<'_, 'f, A, Modally, M> {
+impl<'c, 'f, A: 'static, M> Ext<'c, 'f, A> for OverlayChain<'_, 'f, A, Modally, M> {
     fn dialog(self, dialog: Dialog, content: impl FnOnce(&mut DialogContent<'c, 'f, A>)) {
         surface(self.role(Role::Dialog), Kind::Dialog, dialog, content);
     }

@@ -5,7 +5,7 @@
 mod widget;
 
 #[cfg(feature = "tabs")]
-pub use widget::{Changes, TabsChain, TabsExt, Unset};
+pub use widget::{Chain, Changes, Ext, Unset};
 
 use crate::contract::{Keyed, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};

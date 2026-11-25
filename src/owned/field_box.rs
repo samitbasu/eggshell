@@ -13,7 +13,7 @@ use super::{
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
 /// finish it with [`children`](Self::children).
 #[must_use = "a field box is not added until you call `.children(..)`"]
-pub struct FieldBoxChain<'a, 'f, A> {
+pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     classes: Tw,
@@ -24,13 +24,13 @@ pub struct FieldBoxChain<'a, 'f, A> {
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// TODO(prose): a box in the style's input look, for a text field with something beside it.
-    pub fn field_box<K: crate::Key>(&mut self, key: K) -> FieldBoxChain<'_, 'f, A> {
+    pub fn field_box<K: crate::Key>(&mut self, key: K) -> Chain<'_, 'f, A> {
         let slot = self.slot(&key);
-        FieldBoxChain::new(self.reborrow(), slot)
+        Chain::new(self.reborrow(), slot)
     }
 }
 
-impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot) -> Self {
         Self {
             b,

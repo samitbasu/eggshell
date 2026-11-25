@@ -2683,14 +2683,14 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```
 /// use eggshell_ui::Scope;
-/// use eggshell_ui::owned::button::ButtonChain;
+/// use eggshell_ui::owned::button;
 ///
 /// struct App { saves: u32 }
 ///
 /// #[derive(Hash, Debug)]
 /// enum Part { Save }
 ///
-/// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
+/// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> button::Chain<'a, 'f, App> {
 ///     s.button(key, "Save").tooltip("Saves")
 /// }
 ///
@@ -2704,10 +2704,10 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::button::ButtonChain;
+/// use eggshell_ui::owned::button;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
-///     let mut later: Option<ButtonChain<'_, '_, ()>> = None;
+///     let mut later: Option<button::Chain<'_, '_, ()>> = None;
 ///     b.div(eggshell_ui::tw(), |b| later = Some(b.button("go", "Go")));
 ///     later.expect("started").add();
 /// }

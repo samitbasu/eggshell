@@ -1,7 +1,7 @@
 //! Default and cancel actions: the buttons Return and Esc press.
 //!
-//! A button is marked with [`ButtonChain::default_action`] or
-//! [`ButtonChain::cancel_action`](crate::owned::button::ButtonChain::cancel_action).
+//! A button is marked with [`button::Chain::default_action`] or
+//! [`button::Chain::cancel_action`](crate::owned::button::Chain::cancel_action).
 //! Esc is part of dismissal (`dismissals` decides which overlay it goes to
 //! and whether that overlay's cancel button answers it); the functions here
 //! find the buttons and decide Return. A button is pressed by asking the next
@@ -9,7 +9,7 @@
 //!
 //! The rules are in `docs/overlays.md`, section 4.
 //!
-//! [`ButtonChain::default_action`]: crate::owned::button::ButtonChain::default_action
+//! [`button::Chain::default_action`]: crate::owned::button::Chain::default_action
 
 use egui::{Context, Id};
 

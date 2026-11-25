@@ -2,7 +2,7 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::markdown::{Directives, MarkdownExt};
+//! use eggshell_ui::owned::markdown::{Directives, Ext};
 //!
 //! struct Docs {
 //!     page: String,
@@ -36,7 +36,7 @@ pub use style::{
 pub use typeset::{Measure, Typeset, TypesetInk};
 
 /// TODO(prose)
-pub trait MarkdownExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose)
     fn markdown<'s, K: Key + Clone>(
         &'s mut self,
@@ -45,7 +45,7 @@ pub trait MarkdownExt<'b, 'f, A> {
     ) -> Markdown<'s, 'b, 'f, A, K>;
 }
 
-impl<'b, 'f, A: 'static> MarkdownExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn markdown<'s, K: Key + Clone>(
         &'s mut self,
         key: K,
@@ -174,7 +174,7 @@ impl<A> Directives<A> {
 ///
 /// ```
 /// # use eggshell_ui::{Builder, Shell};
-/// # use eggshell_ui::owned::markdown::{MarkdownExt, heading_id};
+/// # use eggshell_ui::owned::markdown::{Ext, heading_id};
 /// fn page(b: &mut Builder<'_, '_, ()>, land_on: Option<&str>) {
 ///     let shell: Shell = b.shell();
 ///     if let Some(anchor) = land_on {

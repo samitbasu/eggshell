@@ -16,7 +16,7 @@
 mod common;
 
 use eggshell_ui::overlay::{Modal, Nav, Shown, Side, Wrap};
-use eggshell_ui::owned::dialog::{Dialog, DialogExt};
+use eggshell_ui::owned::dialog::{Dialog, Ext as _};
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::theme::variant;

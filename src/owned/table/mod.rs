@@ -224,7 +224,7 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 /// }
 /// ```
 #[must_use = "a table is not added until you call `.rows(..).add()`"]
-pub struct TableChain<'a, 'f, A, S = Unselectable> {
+pub struct Chain<'a, 'f, A, S = Unselectable> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     name: Option<String>,
@@ -235,7 +235,7 @@ pub struct TableChain<'a, 'f, A, S = Unselectable> {
     selection: S,
 }
 
-impl<'a, 'f, A, S> TableChain<'a, 'f, A, S> {
+impl<'a, 'f, A, S> Chain<'a, 'f, A, S> {
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         crate::owned::options::when(self, condition, then)
@@ -247,7 +247,7 @@ impl<'a, 'f, A, S> TableChain<'a, 'f, A, S> {
     }
 }
 
-impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K) -> Self {
         Self {
             slot: b.slot(&key),
@@ -262,7 +262,7 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
     }
 
     /// TODO(prose): rows the user selects, `current` among them.
-    pub fn selected<K>(self, current: Option<K>) -> TableChain<'a, 'f, A, Selected<K>> {
+    pub fn selected<K>(self, current: Option<K>) -> Chain<'a, 'f, A, Selected<K>> {
         self.with_selection(|_| Selected(current))
     }
 
@@ -325,7 +325,7 @@ type Label<'i, T> = Box<dyn Fn(&T) -> Option<String> + 'i>;
 /// [`add`](Self::add).
 #[must_use = "a table is not added until you call `.add()`"]
 pub struct RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
-    table: TableChain<'a, 'f, A, S>,
+    table: Chain<'a, 'f, A, S>,
     items: Vec<&'i T>,
     key: Kf,
     body: B,
@@ -334,7 +334,7 @@ pub struct RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
 
 impl<'a, 'f, 'i, A, S, T: 'i, Kf, B> RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
     fn new(
-        table: TableChain<'a, 'f, A, S>,
+        table: Chain<'a, 'f, A, S>,
         items: impl IntoIterator<Item = &'i T>,
         key: Kf,
         body: B,
@@ -460,7 +460,7 @@ fn each_item<'i, 'f, A: 'static, T: 'i, K: crate::Key + Clone + PartialEq>(
     }
 }
 
-impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
+impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
     /// TODO(prose): the table's columns, in order.
     pub fn columns(mut self, columns: impl IntoIterator<Item = Column>) -> Self {
         self.columns = columns.into_iter().collect();
@@ -491,7 +491,7 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
         self
     }
 
-    fn with_selection<T>(self, selection: impl FnOnce(S) -> T) -> TableChain<'a, 'f, A, T> {
+    fn with_selection<T>(self, selection: impl FnOnce(S) -> T) -> Chain<'a, 'f, A, T> {
         let Self {
             b,
             slot,
@@ -503,7 +503,7 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
             selection: was,
         } = self;
         let selection = selection(was);
-        TableChain {
+        Chain {
             b,
             slot,
             name,
@@ -516,12 +516,12 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
     }
 }
 
-impl<'a, 'f, A: 'static, K> TableChain<'a, 'f, A, Selected<K>> {
+impl<'a, 'f, A: 'static, K> Chain<'a, 'f, A, Selected<K>> {
     /// TODO(prose): runs `select` with the key of the row the user selects.
     pub fn on_select(
         self,
         select: impl Fn(&mut A, K) + 'static,
-    ) -> TableChain<'a, 'f, A, Selectable<A, K>> {
+    ) -> Chain<'a, 'f, A, Selectable<A, K>> {
         self.with_selection(|Selected(current)| Selectable {
             current,
             select: Rc::new(select),
@@ -529,9 +529,7 @@ impl<'a, 'f, A: 'static, K> TableChain<'a, 'f, A, Selected<K>> {
     }
 }
 
-impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
-    TableChain<'a, 'f, A, Selectable<A, K>>
-{
+impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq> Chain<'a, 'f, A, Selectable<A, K>> {
     /// TODO(prose): a row per item of `items` under `key`, its cells filled by
     /// `body`. Add the table with [`add`](RowsChain::add).
     pub fn rows<'i, T: 'i, Kf, B>(
@@ -611,7 +609,7 @@ impl Stripe {
 }
 
 impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
-    TableChain<'a, 'f, A, Option<Selectable<A, K>>>
+    Chain<'a, 'f, A, Option<Selectable<A, K>>>
 {
     #[track_caller]
     fn add(self, body: impl FnOnce(&mut Rows<'_, 'f, A, K>)) {
@@ -711,7 +709,7 @@ struct Picking<A, K> {
 }
 
 /// TODO(prose): the rows of a table, added in order by
-/// [`TableChain::rows_with`]: body rows, and group rows that head the body
+/// [`Chain::rows_with`]: body rows, and group rows that head the body
 /// rows after them.
 pub struct Rows<'r, 'f, A, K> {
     b: Builder<'r, 'f, A>,
@@ -1101,7 +1099,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
     /// TODO(prose): a table, one grid whose columns line up across its rows.
     /// Assistive technology sees a `Role::Table` of `Role::Row`s, each of
     /// `Role::ColumnHeader`s or `Role::Cell`s.
-    pub fn table<K: crate::Key>(&mut self, key: K) -> TableChain<'_, 'f, A> {
-        TableChain::new(self.reborrow(), key)
+    pub fn table<K: crate::Key>(&mut self, key: K) -> Chain<'_, 'f, A> {
+        Chain::new(self.reborrow(), key)
     }
 }

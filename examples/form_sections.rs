@@ -5,7 +5,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::owned::form::FormExt;
+use eggshell_ui::owned::form::Ext as _;
 use eggshell_ui::{Builder, Progress, tw};
 
 pub struct Settings {

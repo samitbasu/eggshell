@@ -35,7 +35,7 @@ enum Part {
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
 #[must_use = "a switch is not added until you call `.on_change(..)`"]
-pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
+pub struct Chain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
@@ -54,7 +54,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
         key: K,
@@ -82,8 +82,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
     }
 
     /// The values the switch moves between: `off` when off and `on` when on.
-    pub fn values(self, off: T, on: T) -> SwitchChain<'a, 'f, A, T, [T; 2]> {
-        SwitchChain {
+    pub fn values(self, off: T, on: T) -> Chain<'a, 'f, A, T, [T; 2]> {
+        Chain {
             b: self.b,
             slot: self.slot,
             label: self.label,
@@ -104,7 +104,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
     }
 }
 
-impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
+impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the switch invalid while `error` is `Some`, as
     /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its track's border and ring turn destructive, and so does its field's label.
@@ -218,7 +218,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     }
 }
 
-impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
@@ -227,7 +227,7 @@ impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
     }
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T, [T; 2]> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
@@ -441,15 +441,15 @@ impl SwitchPart {
 
 impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
     /// A switch labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](SwitchChain::values) any two-valued type. Assistive
+    /// [`values`](Chain::values) any two-valued type. Assistive
     /// technology sees a `Role::Switch`.
     pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
         current: T,
-    ) -> SwitchChain<'_, 'f, A, T> {
-        SwitchChain::new(self.reborrow(), key, Some(label.into()), current)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, Some(label.into()), current)
     }
 
     /// A switch without a label.
@@ -457,7 +457,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         &mut self,
         key: K,
         current: T,
-    ) -> SwitchChain<'_, 'f, A, T> {
-        SwitchChain::new(self.reborrow(), key, None, current)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, None, current)
     }
 }

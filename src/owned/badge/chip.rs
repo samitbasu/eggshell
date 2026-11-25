@@ -45,8 +45,8 @@ enum Stop {
     Remove,
 }
 
-/// TODO(prose): a chip, a [`badge`](super::BadgeExt::badge) that takes
-/// input. Start one with [`BadgeExt::chip`](super::BadgeExt::chip), give it
+/// TODO(prose): a chip, a [`badge`](super::Ext::badge) that takes
+/// input. Start one with [`Ext::chip`](super::Ext::chip), give it
 /// an [`on_click`](Self::on_click), an [`on_remove`](Self::on_remove) or
 /// both, and finish it with [`add`](Self::add).
 ///
@@ -59,7 +59,7 @@ enum Stop {
 ///
 /// ```compile_fail
 /// use eggshell_ui::Builder;
-/// use eggshell_ui::owned::badge::BadgeExt;
+/// use eggshell_ui::owned::badge::Ext;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.chip("tag", "Rust").add();

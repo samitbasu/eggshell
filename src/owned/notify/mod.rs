@@ -3,7 +3,7 @@
 //! ```
 //! use core::time::Duration;
 //! use eggshell_ui::{Builder, Distance};
-//! use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
+//! use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, Ext, ScreenAnchor};
 //!
 //! #[derive(Clone, Copy)]
 //! enum Act {
@@ -207,7 +207,7 @@ enum CloseButton {
 }
 
 /// TODO(prose)
-pub trait NotifyExt<'b, 'f, A> {
+pub trait Ext<'b, 'f, A> {
     /// TODO(prose): the stack `key` showing `items`, newest (last) nearest
     /// its anchor. Nothing is shown while `items` is empty.
     fn notifications<'s, K: Key + Clone, Act: Clone + 'static>(
@@ -217,7 +217,7 @@ pub trait NotifyExt<'b, 'f, A> {
     ) -> Notifications<'s, 'b, 'f, A, K, Act>;
 }
 
-impl<'b, 'f, A: 'static> NotifyExt<'b, 'f, A> for Builder<'b, 'f, A> {
+impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
     fn notifications<'s, K: Key + Clone, Act: Clone + 'static>(
         &'s mut self,
         key: K,

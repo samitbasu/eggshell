@@ -3,8 +3,8 @@
 use crate::{TextSpec, Weight};
 use egui::Color32;
 
-/// TODO(prose): the look of [`form_section`](super::FormExt::form_section)s
-/// and their [`labeled`](super::FormExt::labeled) rows. Lengths are in
+/// TODO(prose): the look of [`form_section`](super::Ext::form_section)s
+/// and their [`labeled`](super::Ext::labeled) rows. Lengths are in
 /// points.
 ///
 /// ```
@@ -51,7 +51,7 @@ pub struct FormStyle {
     pub row_min_height: f32,
     /// A row's label colour.
     pub label_color: Color32,
-    /// A [`labeled_text`](super::FormExt::labeled_text) value's colour.
+    /// A [`labeled_text`](super::Ext::labeled_text) value's colour.
     pub value_color: Color32,
     /// TODO(prose): the space an app puts between sections stacked in a
     /// column, as shadcn's `FieldSet` does.

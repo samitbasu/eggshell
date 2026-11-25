@@ -45,7 +45,7 @@ enum Part {
 /// }
 /// ```
 #[must_use = "a checkbox is not added until you call `.on_change(..)`"]
-pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
+pub struct Chain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
@@ -63,7 +63,7 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     pub(super) fn new<K: crate::Key>(
         b: Builder<'a, 'f, A>,
         key: K,
@@ -91,8 +91,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
 
     /// The values the checkbox switches between: `off` when unchecked and
     /// `on` when checked.
-    pub fn values(self, off: T, on: T) -> CheckboxChain<'a, 'f, A, T, [T; 2]> {
-        CheckboxChain {
+    pub fn values(self, off: T, on: T) -> Chain<'a, 'f, A, T, [T; 2]> {
+        Chain {
             b: self.b,
             slot: self.slot,
             label: self.label,
@@ -112,7 +112,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
     }
 }
 
-impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
+impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the checkbox invalid while `error` is `Some`, as
     /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its box's border and ring turn destructive, and so does its field's label.
@@ -220,7 +220,7 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     }
 }
 
-impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
+impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     #[track_caller]
@@ -229,7 +229,7 @@ impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
     }
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T, [T; 2]> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     #[track_caller]
@@ -379,15 +379,15 @@ impl CheckboxPart {
 
 impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
     /// A checkbox labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](CheckboxChain::values) any two-valued type. Assistive
+    /// [`values`](Chain::values) any two-valued type. Assistive
     /// technology sees a `Role::CheckBox`.
     pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
         current: T,
-    ) -> CheckboxChain<'_, 'f, A, T> {
-        CheckboxChain::new(self.reborrow(), key, Some(label.into()), current)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, Some(label.into()), current)
     }
 
     /// A checkbox without a label.
@@ -395,7 +395,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         &mut self,
         key: K,
         current: T,
-    ) -> CheckboxChain<'_, 'f, A, T> {
-        CheckboxChain::new(self.reborrow(), key, None, current)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, None, current)
     }
 }

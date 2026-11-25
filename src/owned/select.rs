@@ -145,7 +145,7 @@ impl Listing {
 /// </button>
 /// ```
 #[must_use = "a select is not added until you call `.on_change(..)`"]
-pub struct SelectChain<'a, 'f, A, T> {
+pub struct Chain<'a, 'f, A, T> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     list: Slot,
@@ -162,7 +162,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     validity: Validity,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// A select over `options` of which `current` is chosen.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
@@ -505,7 +505,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> SelectChain<'_, 'f, A, T> {
-        SelectChain::new(self.reborrow(), key, current, options)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, current, options)
     }
 }
