@@ -33,14 +33,14 @@
 //! ```
 
 mod parts;
-mod style;
 
 pub use parts::{AlertDialogPart, Part, PopoverPart, SheetPart};
-pub use style::{Style, Surface, shadow_lg};
 
+use crate::contract::{Size, Variant};
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
 use crate::owned::button::{self, Face};
 use crate::sheet::Key as SheetKey;
+use crate::theme::{size, variant};
 use crate::{Builder, Icon, Scope, Tw, icons, tw};
 use egui::Role;
 
@@ -279,7 +279,6 @@ fn surface<'c, 'f, A: 'static, M>(
     };
     content(&mut parts);
     chain.children(move |s| {
-        let style = s.style().dialog.clone();
         let shape = Shape::of(modal, kind);
         let classes = shape.part(
             s,
@@ -292,7 +291,7 @@ fn surface<'c, 'f, A: 'static, M>(
                 s.div_id(Node::Body, shape.body_classes(), body);
             }
             if let Some(footer) = parts.footer {
-                buttons(s, &style, shape, footer);
+                buttons(s, shape, footer);
             }
             if dialog.close == CloseButton::Shown {
                 // shadcn's close is the button itself; here a box in the
@@ -302,8 +301,8 @@ fn surface<'c, 'f, A: 'static, M>(
                 s.div(place, |s| {
                     s.button(Node::Close, Icon::new(icons::CLOSE))
                         .named("Close")
-                        .variant(style.close)
-                        .size(style.close_size)
+                        .variant(CLOSE)
+                        .size(CLOSE_SIZE)
                         .dismisses()
                         .add();
                 });
@@ -318,6 +317,15 @@ enum Shape {
     Centered(Kind),
     Sheet(Side),
 }
+
+/// `AlertDialogCancel`'s button, `variant="outline"` (alert-dialog.tsx:155).
+const CANCEL: Variant = variant::OUTLINE;
+/// `AlertDialogAction`'s button, `variant="default"` (alert-dialog.tsx:137).
+const DEFAULT: Variant = variant::PRIMARY;
+/// The dialog's and the sheet's ×, `variant="ghost"` (dialog.tsx:69, sheet.tsx:73).
+const CLOSE: Variant = variant::GHOST;
+/// The ×'s size, `size="icon-sm"` (dialog.tsx:69, sheet.tsx:73).
+const CLOSE_SIZE: Size = size::ICON_SM;
 
 /// Tailwind spacing units, from shadcn's `dialog.tsx` and `sheet.tsx`.
 mod units {
@@ -414,12 +422,7 @@ fn header<A>(s: &mut Scope<'_, '_, A>, shape: Shape, dialog: &Dialog) {
     });
 }
 
-fn buttons<'f, A: 'static>(
-    s: &mut Scope<'_, 'f, A>,
-    style: &Style,
-    shape: Shape,
-    footer: Footer<'_, 'f, A>,
-) {
+fn buttons<'f, A: 'static>(s: &mut Scope<'_, 'f, A>, shape: Shape, footer: Footer<'_, 'f, A>) {
     let Footer {
         leading,
         cancel,
@@ -437,7 +440,7 @@ fn buttons<'f, A: 'static>(
         if let Some(Button { face, then }) = cancel {
             then(
                 s.button(Node::Cancel, face)
-                    .variant(style.cancel)
+                    .variant(CANCEL)
                     .cancel_action()
                     .dismisses(),
             );
@@ -445,7 +448,7 @@ fn buttons<'f, A: 'static>(
         if let Some(Button { face, then }) = default {
             then(
                 s.button(Node::Default, face)
-                    .variant(style.default)
+                    .variant(DEFAULT)
                     .default_action(),
             );
         }

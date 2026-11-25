@@ -1293,9 +1293,6 @@ pub struct Style {
     /// TODO(prose): the command palette, the combobox and the autosuggest.
     #[cfg(feature = "command")]
     pub command: crate::owned::command::Style,
-    /// TODO(prose): dialogs, alert dialogs, sheets and popovers.
-    #[cfg(feature = "dialog")]
-    pub dialog: crate::owned::dialog::Style,
     /// TODO(prose): disclosures and accordions.
     #[cfg(feature = "disclosure")]
     pub disclosure: crate::owned::disclosure::Style,
@@ -1649,8 +1646,6 @@ impl Style {
         let badge = crate::theme::Shadcn::badge(t, &base);
         #[cfg(feature = "command")]
         let command = crate::theme::Shadcn::command(t, &base);
-        #[cfg(feature = "dialog")]
-        let dialog = crate::theme::Shadcn::dialog(t, &base);
         #[cfg(feature = "disclosure")]
         let disclosure = crate::theme::Shadcn::disclosure(t, &base);
         #[cfg(feature = "form")]
@@ -1789,8 +1784,6 @@ impl Style {
             badge,
             #[cfg(feature = "command")]
             command,
-            #[cfg(feature = "dialog")]
-            dialog,
             #[cfg(feature = "disclosure")]
             disclosure,
             #[cfg(feature = "form")]

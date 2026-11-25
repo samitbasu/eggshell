@@ -19,7 +19,6 @@ use {
 };
 
 use crate::theme::ShadcnStyle;
-use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
 #[cfg(any(
     feature = "badge",
     feature = "command",
@@ -31,7 +30,8 @@ use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
     feature = "notify",
     feature = "skeleton"
 ))]
-use crate::theme::{size, variant};
+use crate::theme::variant;
+use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -473,23 +473,6 @@ impl Shadcn {
     #[cfg(feature = "markdown")]
     pub(crate) fn markdown(t: &Tokens) -> crate::owned::markdown::Style {
         crate::owned::markdown::Typeset::default().markdown_style(&Self::typeset_ink(t))
-    }
-
-    /// TODO(prose): the look of the dialog surface, the sheet and the
-    /// popover: shadcn's `dialog::Content`, `SheetContent` and
-    /// `PopoverContent`. Placeholder values until the render round.
-    #[cfg(feature = "dialog")]
-    pub(crate) fn dialog(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::dialog::Style {
-        use crate::owned::dialog::{self, Surface, shadow_lg};
-        let mut dialog = dialog::Style::from_base(style);
-        dialog.surface = Surface::new(t.background, t.foreground, t.border)
-            .rounded(t.radius_lg())
-            .shadow(shadow_lg());
-        dialog.cancel = variant::OUTLINE;
-        dialog.default = variant::PRIMARY;
-        dialog.close = variant::GHOST;
-        dialog.close_size = size::ICON_SM;
-        dialog
     }
 
     /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
