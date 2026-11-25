@@ -1613,3 +1613,132 @@ mod container_layout {
         assert_eq!(d.rect(Target::suffix(LIST)).size(), Vec2::ZERO);
     }
 }
+
+fn touch(phase: egui::TouchPhase, pos: Pos2) -> Event {
+    Event::Touch {
+        device_id: egui::TouchDeviceId(1),
+        id: egui::TouchId(1),
+        phase,
+        pos,
+        force: None,
+    }
+}
+
+fn finger(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+/// One frame with `events`, and the list's offset after it.
+fn touch_frame(d: &mut H, events: Vec<Event>) -> f32 {
+    d.harness_mut().input_mut().events.extend(events);
+    d.harness_mut().step();
+    offset(d).y
+}
+
+/// A list of 400 rows at a sixtieth of a second a frame, on a display of
+/// `scale`, that egui knows is a touch screen: it learns that from a first
+/// touch.
+fn touch_screen(scale: f32) -> H {
+    let mut d = support::driver(
+        SIZE,
+        base(),
+        App {
+            rows: 400,
+            ..App::default()
+        },
+        view,
+    )
+    .step(Duration::from_secs_f32(1.0 / 60.0))
+    .pixels_per_point(eggshell_ui::testing::PixelsPerPoint::new(scale))
+    .build();
+    d.frames(2);
+    let tap = Pos2::new(100.0, 140.0);
+    touch_frame(
+        &mut d,
+        vec![touch(egui::TouchPhase::Start, tap), finger(tap, true)],
+    );
+    touch_frame(
+        &mut d,
+        vec![
+            touch(egui::TouchPhase::End, tap),
+            finger(tap, false),
+            Event::PointerGone,
+        ],
+    );
+    touch_frame(&mut d, vec![]);
+    d
+}
+
+/// A finger that goes down at `start` and, after `still` frames, moves up by
+/// each of `moves` in turn, a frame each: the list's offset after each frame.
+fn touch_drag(d: &mut H, start: Pos2, still: usize, moves: &[f32]) -> Vec<f32> {
+    use egui::TouchPhase;
+    let mut offsets = vec![touch_frame(
+        d,
+        vec![touch(TouchPhase::Start, start), finger(start, true)],
+    )];
+    for _ in 0..still {
+        offsets.push(touch_frame(d, vec![]));
+    }
+    let mut at = start;
+    for step in moves {
+        at.y -= step;
+        offsets.push(touch_frame(
+            d,
+            vec![touch(TouchPhase::Move, at), Event::PointerMoved(at)],
+        ));
+    }
+    offsets.push(touch_frame(d, vec![]));
+    offsets
+}
+
+/// iOS holds a touch's moves back until the finger is past its slop, then
+/// sends the distance at once: the content takes that first movement up and
+/// follows the finger from there, rather than leaping it in one frame.
+#[test]
+fn a_touch_drags_first_movement_is_taken_up() {
+    let mut d = touch_screen(1.0);
+    let offsets = touch_drag(
+        &mut d,
+        Pos2::new(100.0, 140.0),
+        2,
+        &[30.0, 10.0, 10.0, 10.0],
+    );
+    let steps: Vec<f32> = offsets.windows(2).map(|w| w[1] - w[0]).collect();
+    assert!(
+        steps.iter().all(|step| step.abs() <= 10.0),
+        "no frame leaps the first movement: {offsets:?}"
+    );
+    assert_eq!(offsets.last().copied(), Some(30.0), "{offsets:?}");
+}
+
+/// Text is drawn on whole pixels, each paragraph rounded on its own: the
+/// content is laid out at a whole-pixel offset, so a scroll moves it rigidly
+/// rather than each paragraph stepping at its own moment.
+#[test]
+fn the_content_is_laid_out_at_whole_pixels_of_scroll() {
+    const SCALE: f32 = 3.0;
+    let mut d = touch_screen(SCALE);
+    let offsets = touch_drag(
+        &mut d,
+        Pos2::new(100.0, 140.0),
+        0,
+        &[5.0, 0.2, 0.25, 0.4, 0.7],
+    );
+    assert!(
+        offsets.iter().any(|offset| *offset > 0.0),
+        "precondition: the drag scrolls: {offsets:?}"
+    );
+    for offset in &offsets {
+        let pixels = offset * SCALE;
+        assert!(
+            (pixels - pixels.round()).abs() < 1e-3,
+            "every offset is a whole number of pixels: {offsets:?}"
+        );
+    }
+}

@@ -182,12 +182,16 @@ fn rect_of_control(h: &H) -> egui::Rect {
 const DISTANCES: [f32; 3] = [10.0, 50.0, 200.0];
 const FLICK: f32 = 10.0;
 
+/// The content follows the finger from its first movement on: that movement
+/// is taken up, as a phone holds a touch's moves back until the finger is
+/// past its slop and then sends them at once.
 fn assert_follows_finger(start: Start, warm: bool) {
     for distance in DISTANCES {
         let held = drag(start, distance, FLICK, warm).held;
+        let followed = distance - FLICK.min(distance);
         assert!(
-            (held - distance).abs() < 0.5,
-            "{start:?} (warm: {warm}): a finger that moved {distance} moved the content {held}"
+            (held - followed).abs() < 0.5,
+            "{start:?} (warm: {warm}): a finger that moved {distance}, its first {FLICK} taken up, moved the content {held}"
         );
     }
 }
