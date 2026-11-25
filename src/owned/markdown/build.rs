@@ -64,13 +64,13 @@ impl<A> Links<A> {
 /// keyed under the document, however deep they sit, so that this needs no
 /// layout.
 pub(super) fn heading_id(doc: Id, anchor: &str) -> Id {
-    child_id(doc, &Part::Heading(anchor.to_owned()))
+    child_id(doc, &Node::Heading(anchor.to_owned()))
 }
 
 /// The keys of a document's nodes. A heading is keyed by its anchor, so that
 /// its id survives edits above it.
 #[derive(Clone, Debug, Hash)]
-enum Part {
+enum Node {
     Block(usize),
     Heading(String),
     Item(usize),
@@ -131,7 +131,7 @@ fn emit<'f, A: 'static>(
         };
         previous = Some(block);
         let at = tw().mt(top);
-        let key = Part::Block(index);
+        let key = Node::Block(index);
         match block {
             Block::Paragraph(spans) => paragraph(s, key, prose(at, style), spans, context),
             Block::Heading(heading) => {
@@ -153,7 +153,7 @@ fn emit<'f, A: 'static>(
                 };
                 context.links.heading(&heading.anchor);
                 s.keyed_under(context.links.doc, |s| {
-                    let key = Part::Heading(heading.anchor.clone());
+                    let key = Node::Heading(heading.anchor.clone());
                     paragraph(s, key, at, &heading.spans, context);
                 });
             }
@@ -242,7 +242,7 @@ fn paragraph<'f, A: 'static>(
 /// every row padded or cut to that many cells, whose text wraps.
 fn table<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    key: Part,
+    key: Node,
     at: Tw,
     table: &Table,
     context: &Context<'_, 'f, A>,
@@ -257,14 +257,14 @@ fn table<'f, A: 'static>(
             let spans = row.get(column);
             cells.cell(|b| {
                 if let Some(spans) = spans {
-                    paragraph(b, Part::Cell, cell_text(&context.style), spans, context);
+                    paragraph(b, Node::Cell, cell_text(&context.style), spans, context);
                 }
             });
         }
     };
     let rows: Vec<(usize, &Vec<Spans>)> = table.rows.iter().enumerate().collect();
     s.div_id(key, at, |s| {
-        s.table(Part::Table)
+        s.table(Node::Table)
             .columns(columns)
             .header(|cells| row(cells, &table.header))
             .rows(
@@ -278,7 +278,7 @@ fn table<'f, A: 'static>(
 
 fn list<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    key: Part,
+    key: Node,
     at: Tw,
     list: &List,
     context: &Context<'_, 'f, A>,
@@ -294,7 +294,7 @@ fn list<'f, A: 'static>(
                 .items_start()
                 .gap(look.marker_gap)
                 .mt(top);
-            s.div_id(Part::Item(index), row, |s| {
+            s.div_id(Node::Item(index), row, |s| {
                 let column = prose(tw(), &context.style)
                     .w(look.indent)
                     .shrink_0()
@@ -302,15 +302,15 @@ fn list<'f, A: 'static>(
                     .text(look.marker);
                 match marker(list, index, item, depth) {
                     Marker::Number(number) => {
-                        s.span(Part::Marker, column, format!("{number}."));
+                        s.span(Node::Marker, column, format!("{number}."));
                     }
                     Marker::Shape(shape) => {
-                        s.span(Part::Marker, column, " ")
+                        s.span(Node::Marker, column, " ")
                             .draw(move |_, ui| shape.paint(ui));
                     }
                 }
                 let content = tw().flex().flex_col().grow().min_w_0();
-                s.div_id(Part::Content, content, |s| {
+                s.div_id(Node::Content, content, |s| {
                     emit(s, &item.blocks, context, Depth(depth.0 + 1));
                 });
             });
@@ -387,7 +387,7 @@ impl Shape {
 
 fn code<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    key: Part,
+    key: Node,
     at: Tw,
     info: &str,
     text: &str,
@@ -416,7 +416,7 @@ fn code<'f, A: 'static>(
         .py(look.padding_y);
     s.div_id(key, block, |s| {
         s.span(
-            Part::Source,
+            Node::Source,
             tw().role(look.text.clone()),
             text.trim_end_matches('\n'),
         );
@@ -425,7 +425,7 @@ fn code<'f, A: 'static>(
 
 fn image<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    key: Part,
+    key: Node,
     at: Tw,
     uri: &str,
     alt: &str,
@@ -447,7 +447,7 @@ fn image<'f, A: 'static>(
         Ok(TexturePoll::Pending { .. }) => {
             let pending = tw().text(context.style.unsupported.label);
             s.div_id(key, at, |s| {
-                s.span(Part::Source, pending, alt.to_owned());
+                s.span(Node::Source, pending, alt.to_owned());
             });
         }
         Err(error) => {
@@ -459,7 +459,7 @@ fn image<'f, A: 'static>(
 
 fn unsupported<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
-    key: Part,
+    key: Node,
     at: Tw,
     label: &str,
     source: &str,
@@ -477,6 +477,6 @@ fn unsupported<'f, A: 'static>(
         .rounded_px(context.style.code.radius);
     s.div_id(key, block, |s| {
         s.text(tw().text(look.label), label);
-        s.span(Part::Source, tw().role(look.text.clone()), source);
+        s.span(Node::Source, tw().role(look.text.clone()), source);
     });
 }

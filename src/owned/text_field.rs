@@ -154,7 +154,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 }
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Leading,
     Field,
     Trailing,
@@ -510,7 +510,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 .classes(classes)
                 .children(|s| {
                     if let Some(icon) = leading {
-                        put(s, Part::Leading, INLINE_START, icon);
+                        put(s, Node::Leading, INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
                         let control = b.part(
@@ -518,7 +518,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                             &control_keys,
                             tw().w_full().h_full(),
                         );
-                        b.leaf(Part::Field, control, move |m| measure(m, &measured))
+                        b.leaf(Node::Field, control, move |m| measure(m, &measured))
                             .open_focus(autofocus.open_focus())
                             .draw_widgets(move |app, ui| {
                                 let mut edited = text;
@@ -535,7 +535,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                             });
                     });
                     if let Some(icon) = trailing {
-                        put(s, Part::Trailing, INLINE_END, icon);
+                        put(s, Node::Trailing, INLINE_END, icon);
                     }
                 });
             return;

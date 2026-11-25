@@ -14,7 +14,7 @@ use super::{ChangeFn, OnChange, Style, Unset, chevron, enablement_in, name_of, t
 
 /// The parts of a section, under its key.
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Header,
     Region,
 }
@@ -197,14 +197,14 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
         let content = b.part(accordion::Part::ContentInner, &[], content);
         let item = b.part(accordion::Part::Item, keys, tw().flex().flex_col());
         b.div_id(key, item, |b| {
-            let region = b.id_of(Part::Region);
+            let region = b.id_of(Node::Region);
             let region_classes = if current.is_open() {
                 tw().sense_hover().focusable_none()
             } else {
                 tw()
             };
             let region_classes = b.part(accordion::Part::Content, keys, region_classes);
-            b.collapsible(Part::Region, current)
+            b.collapsible(Node::Region, current)
                 .classes(region_classes)
                 .content(content)
                 .children_with_header(|b, open| header.build(b, open, region), body)
@@ -250,7 +250,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         let glyph = chevron(&style.section, open);
         let glyph_classes = b.part(accordion::Part::TriggerIcon, keys, tw());
         let handle = b
-            .div_id(Part::Header, box_classes.merge(classes), |b| {
+            .div_id(Node::Header, box_classes.merge(classes), |b| {
                 b.div(
                     tw().flex().items_center().gap(2.0).flex_1().min_w_0(),
                     |b| {

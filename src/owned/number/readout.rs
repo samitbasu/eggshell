@@ -22,7 +22,7 @@ use crate::owned::{
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Readout,
     Field,
 }
@@ -65,7 +65,7 @@ impl Readout {
         )
     }
 
-    /// Builds the readout under `Part::Readout`: its text, a button that
+    /// Builds the readout under `Node::Readout`: its text, a button that
     /// opens it while it is editable, or the field it opens into.
     pub(in crate::owned) fn show<A: 'static>(
         self,
@@ -96,10 +96,10 @@ impl Readout {
         .tabular_nums()
         .shrink_0();
         let Some(parse) = parse else {
-            b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
+            b.div_id(Node::Readout, classes, |b| b.text(tw(), shown));
             return;
         };
-        let editing = b.id_of(Part::Readout).with("editing");
+        let editing = b.id_of(Node::Readout).with("editing");
         let session = Session::of(editing);
         let accept = move |text: &str| {
             parse(text).map(|number| step.snap_from(origin, reach.clamp(number), reach))
@@ -108,7 +108,7 @@ impl Readout {
             let classes = enablement.apply(classes.sense_click());
             let label = format!("Edit {name}");
             let current = shown.clone();
-            b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
+            b.div_id(Node::Readout, classes, |b| b.text(tw(), shown))
                 .announces(Role::Button)
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Button, None, label.trim(), &None);
@@ -142,7 +142,7 @@ impl Readout {
         let frame = crate::owned::input_frame(&style, size);
         let field = Field::singleline("").sized(size).inset();
         let measured = field.clone();
-        let slot = b.slot(&Part::Readout);
+        let slot = b.slot(&Node::Readout);
         let shown_width = b
             .ctx()
             .data(|data| data.get_temp::<f32>(editing.with("width")))
@@ -168,7 +168,7 @@ impl Readout {
                     // text stays where the readout drew it.
                     tw().w_full().h_full().p(0.0).text_right(),
                 );
-                s.leaf(Part::Field, leaf, move |m| {
+                s.leaf(Node::Field, leaf, move |m| {
                     text_field::measure(m, &measured)
                 })
                 .draw_widgets(move |app, ui| {
