@@ -12,8 +12,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::owned::accordion::{AccordionExt, Single};
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::accordion::{AccordionExt, Single};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {

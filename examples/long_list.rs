@@ -11,8 +11,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Tw, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::Align;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

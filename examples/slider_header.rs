@@ -7,8 +7,8 @@
 mod common;
 
 use eggshell_ui::owned::Step;
+use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_shadcn::size;
 
 pub struct Levels {
     pub volume: f64,

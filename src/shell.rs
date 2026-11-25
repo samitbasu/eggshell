@@ -39,7 +39,7 @@ impl Shell {
         let theme = self.ctx.theme();
         self.kept
             .with(|kept| kept.style.as_ref().map(|style| style.get(theme).clone()))
-            .unwrap_or_else(|| crate::Style::derived(&self.ctx))
+            .unwrap_or_else(crate::Style::fallback)
     }
 
     /// The egui context the layout is laid out in, for a handler that holds a

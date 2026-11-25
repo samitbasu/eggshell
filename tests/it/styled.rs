@@ -4,8 +4,8 @@
 
 use eggshell_ui::owned::{Column, TablePart};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Theme, Vec2, vec2};
 
 use crate::support::{self, rest_for_tooltip};
@@ -37,7 +37,7 @@ fn spans() -> Spans {
 
 /// Notes the table rule width a draw closure's node is drawn with.
 fn seen(ui: &egui::Ui, at: &'static str) {
-    let padding = ui.node_style().table().rule_width;
+    let padding = ui.node_style().scroll.width;
     ui.ctx()
         .data_mut(|data| data.insert_temp(egui::Id::NULL.with(at), padding));
 }
@@ -66,9 +66,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             .draw(|_, ui| seen(ui, "outside"));
         b.styled(
             |style| {
-                let mut table = style.table().clone();
-                table.rule_width = PADDING;
-                style.set_table(table);
+                style.scroll.width = PADDING;
             },
             |b| {
                 b.span("scoped probe", tw(), "probe")
@@ -180,7 +178,7 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
             .data(|data| data.get_temp::<f32>(egui::Id::NULL.with(at)))
     };
     assert_eq!(seen("inside"), Some(PADDING));
-    assert_eq!(seen("outside"), Some(d.shell().style().table().rule_width));
+    assert_eq!(seen("outside"), Some(d.shell().style().scroll.width));
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
@@ -189,7 +187,7 @@ const TIP_OFFSET: f32 = 9.0;
 fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     fn tip(b: &mut Builder<'_, '_, ()>) {
         b.span("tip", tw(), "Tip").draw(|_, ui| {
-            let offset = f32::from(ui.node_style().tooltip().offset);
+            let offset = f32::from(ui.node_style().tooltip.offset);
             ui.ctx()
                 .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), offset));
         });
@@ -198,9 +196,9 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
         b.button("outside", "Outside").tooltip_with(tip).add();
         b.styled(
             |style| {
-                let mut tooltip = style.tooltip().clone();
+                let mut tooltip = style.tooltip.clone();
                 tooltip.offset = eggshell_ui::overlay::Distance::new(TIP_OFFSET);
-                style.set_tooltip(tooltip);
+                style.tooltip = tooltip;
                 style
                     .sheet
                     .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
@@ -245,7 +243,7 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<f32>, (f32, Vec2)) {
         padding.left.into_raw().value(),
         padding.top.into_raw().value(),
     );
-    (boxes[0], seen, (f32::from(style.tooltip().offset), padding))
+    (boxes[0], seen, (f32::from(style.tooltip.offset), padding))
 }
 
 #[test]

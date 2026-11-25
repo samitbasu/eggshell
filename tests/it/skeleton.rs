@@ -3,10 +3,10 @@
 
 use std::time::Duration;
 
+use eggshell_ui::owned::skeleton::{SkeletonExt as _, SkeletonStyle};
 use eggshell_ui::testing::{Animation, Driver, Target};
+use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_extras::skeleton::{SkeletonExt as _, SkeletonStyle};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Theme, vec2};
 
@@ -139,7 +139,7 @@ fn an_app_rule_restyles_a_skeleton() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui_extras::skeleton::SkeletonPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::skeleton::SkeletonPart::Root, |t, _| {
                     t.bg(Color32::RED)
                 });
         }))

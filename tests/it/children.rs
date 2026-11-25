@@ -7,8 +7,8 @@ use eggshell_ui::contract::{Disabled, Size, Themed, Variant};
 use eggshell_ui::owned::{ButtonPart, Enablement, Face};
 use eggshell_ui::sheet::{Key, When};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Aria, Builder, Opacity, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
 
 use crate::support::{self, box_at, shapes, text_color};

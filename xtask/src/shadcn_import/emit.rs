@@ -789,29 +789,32 @@ pub struct Widget {
     pub absent: &'static [(&'static str, &'static str)],
 }
 
-/// Where a widget's part enum lives: core's `owned`, or an extension
-/// crate's module, whose rules the preset writes only with its `extras`
-/// feature.
+/// Where a widget's part enum lives: core's `owned`, or an opt-in widget's
+/// module under it, whose rules are written only with its feature.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Home {
     Core,
-    Extension(&'static str),
+    /// An opt-in widget's module under `owned`, behind the feature of its
+    /// name.
+    Feature(&'static str),
 }
 
 impl Home {
     /// The module that names the part enum.
-    fn module(self) -> &'static str {
+    fn module(self) -> String {
         match self {
-            Self::Core => "eggshell_ui::owned",
-            Self::Extension(module) => module,
+            Self::Core => "crate::owned".to_owned(),
+            Self::Feature(module) => format!("crate::owned::{module}"),
         }
     }
 
-    /// The attribute an item of the preset's crate takes for it.
-    pub fn cfg(self) -> &'static str {
+    /// The attribute a sheet of this home takes in the index.
+    pub fn cfg(self) -> String {
         match self {
-            Self::Core => "",
-            Self::Extension(_) => "#[cfg(feature = \"extras\")] ",
+            Self::Core => String::new(),
+            Self::Feature(module) => {
+                format!("#[cfg(feature = \"{}\")] ", module.replace('_', "-"))
+            }
         }
     }
 }
@@ -1332,11 +1335,7 @@ pub fn emit(
         }
     }
     if !contract.is_empty() {
-        let _ = writeln!(
-            rust,
-            "use eggshell_ui::contract::{{{}}};",
-            contract.join(", ")
-        );
+        let _ = writeln!(rust, "use crate::contract::{{{}}};", contract.join(", "));
     }
     let _ = writeln!(
         rust,
@@ -1348,9 +1347,9 @@ pub fn emit(
         true => "{Sheet, When}",
         false => "Sheet",
     };
-    let _ = writeln!(rust, "use eggshell_ui::sheet::{sheet};");
+    let _ = writeln!(rust, "use crate::sheet::{sheet};");
     if !core.is_empty() {
-        let _ = writeln!(rust, "use eggshell_ui::{{{}}};", core.join(", "));
+        let _ = writeln!(rust, "use crate::{{{}}};", core.join(", "));
     }
     let _ = writeln!(rust);
     for (constant, path) in &constants {

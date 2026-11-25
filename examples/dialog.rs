@@ -16,11 +16,11 @@
 mod common;
 
 use eggshell_ui::overlay::{Modal, Nav, Shown, Side, Wrap};
+use eggshell_ui::owned::dialog::{Dialog, DialogExt};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::scroll::Axis;
+use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Scope, tw};
-use eggshell_ui_extras::dialog::{Dialog, DialogExt};
-use eggshell_ui_shadcn::variant;
 use egui::Role;
 
 #[derive(Clone, Copy, Debug, Hash)]

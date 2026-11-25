@@ -4,7 +4,7 @@
 //! apart from the generator so a mapping error cannot agree with itself.
 
 use eggshell_ui::contract::Variant;
-use eggshell_ui_shadcn::{Tokens, variant};
+use eggshell_ui::theme::{Tokens, variant};
 use egui::{Color32, Theme};
 
 /// A variant's colours at rest and under the pointer. Text a variant does

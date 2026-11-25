@@ -14,8 +14,8 @@
 mod common;
 
 use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Scope, Tw, tw};
-use eggshell_ui_shadcn::variant;
 use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

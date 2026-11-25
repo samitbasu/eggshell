@@ -5,10 +5,9 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Size, Variant};
 use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
-use eggshell_ui::{Builder, LayoutState, Problem, Style, TextSpec, TextStyle, Weight};
-use eggshell_ui_shadcn::Shadcn;
-use egui::{Color32, Context, FontFamily, Theme, vec2};
-use egui_kittest::Harness;
+use eggshell_ui::theme::Shadcn;
+use eggshell_ui::{Builder, LayoutState, Problem, Style, Weight};
+use egui::{Color32, Context, Theme, vec2};
 
 #[test]
 fn unknown_keys_fall_back_to_the_default_entry() {
@@ -62,80 +61,35 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
 }
 
 #[test]
-fn a_layout_given_no_style_derives_one_from_egui_and_keeps_it() {
+fn a_layout_given_no_style_draws_with_the_default_in_egui_s_fonts_and_keeps_it() {
     let ctx = Context::default();
     let shell = LayoutState::new().shell(&ctx);
     let style = shell.style();
-    let derived = Style::from_egui(&ctx.global_style());
+    let default = Style::default();
     let button = |style: &Style| {
         *crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT).paint_classes()
     };
-    assert_eq!(button(&style), button(&derived));
-    assert_eq!(style.toggle, derived.toggle);
-    assert_eq!(style.input(), derived.input());
-    assert_eq!(style.text, derived.text);
-    assert_eq!(button(&style), button(&Style::default()));
-    assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
-
-    let widgets = &ctx.global_style().visuals.widgets;
-    let fill = |style: &Style| {
-        crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT)
-            .paint_classes()
-            .background
-    };
-    assert_eq!(fill(&style), Some(widgets.inactive.weak_bg_fill));
-
-    ctx.all_styles_mut(|egui| egui.visuals.widgets.inactive.weak_bg_fill = Color32::RED);
-    let changed = shell.style();
-    assert!(!Arc::ptr_eq(&style, &changed));
-    assert_eq!(
-        fill(&changed),
-        Some(Color32::RED),
-        "the derived style follows egui's"
+    assert_eq!(button(&style), button(&default));
+    assert_eq!(style.input, default.input);
+    assert_eq!(style.text, default.text);
+    assert!(
+        style.faces.iter().count() > 0
+            && style
+                .faces
+                .iter()
+                .all(|face| face.face == egui::FontFamily::Proportional),
+        "every weight in egui's regular face: {:?}",
+        style.faces
     );
-}
-
-#[test]
-fn core_draws_a_button_with_no_preset() {
-    let ctx = Context::default();
-    let expected = Style::from_egui(&ctx.global_style());
-    let mut layout = LayoutState::new().with_base_text(TextStyle::new(
-        TextSpec {
-            size: 14.0,
-            line_height: 20.0,
-            family: FontFamily::Proportional,
-            weight: Weight::Normal,
-        },
-        Color32::BLACK,
-    ));
-    let mut harness = Harness::builder()
-        .with_size(vec2(200.0, 100.0))
-        .build_ui(move |ui| {
-            let area = ui.max_rect();
-            layout
-                .build(ui.ctx(), |b| b.button("plain", "Plain").add())
-                .layout(area)
-                .draw(&mut (), ui);
-        });
-    harness.run_steps(3);
-    let rest = crate::support::button::classes(&expected, Variant::DEFAULT, Size::DEFAULT)
-        .paint_classes()
-        .background
-        .expect("egui's button has a fill");
-    let fills: Vec<_> = harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            egui::Shape::Rect(r) => Some(r.fill),
-            _ => None,
-        })
-        .collect();
-    assert!(fills.contains(&rest), "{fills:?}");
+    assert_eq!(
+        style.toggle.text.as_ref().map(|text| text.weight),
+        Some(Weight::Normal)
+    );
+    assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
-    let mut all = vec![("label".to_string(), style.label().disabled)];
+    let mut all = vec![("label".to_string(), style.label.disabled)];
     let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
@@ -145,8 +99,6 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     for key in style.toggle.on.keys() {
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
-    look("slider thumb", &style.slider.thumb.paint);
-    look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
     let item = crate::support::part_at(
         style,
@@ -171,27 +123,37 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
             },
         ));
     }
-    all.push(("slider track".to_string(), style.slider.track.disabled));
-    all.push(("slider range".to_string(), style.slider.range.disabled));
+    let disabled = [eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled)];
+    for (name, part) in [
+        ("slider track", eggshell_ui::owned::SliderPart::Track),
+        ("slider range", eggshell_ui::owned::SliderPart::Range),
+        ("slider thumb", eggshell_ui::owned::SliderPart::Thumb),
+    ] {
+        let classes = crate::support::part_at(style, part, &disabled);
+        let paint = classes.paint_classes();
+        all.push((
+            name.to_string(),
+            eggshell_ui::contract::Colors {
+                fill: paint.background.unwrap_or(Color32::TRANSPARENT),
+                border: paint.border_colors.top.unwrap_or(Color32::TRANSPARENT),
+                text: Color32::TRANSPARENT,
+            },
+        ));
+    }
     all
 }
 
 #[test]
 fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
-    let ctx = Context::default();
     let mut styles = Vec::new();
     for theme in [Theme::Light, Theme::Dark] {
-        styles.push((
-            format!("egui {theme:?}"),
-            Style::from_egui(&ctx.style_of(theme)),
-        ));
         styles.push((format!("{theme:?}"), Shadcn::for_theme(theme).style()));
     }
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 8,
-            "precondition: the walk reaches every look (a button's is the sheet's)"
+            all.len() >= 7,
+            "precondition: the walk reaches the label, toggles, stepper buttons and slider parts"
         );
         for (name, colors) in all {
             for (part, color) in [
@@ -231,21 +193,16 @@ fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
 /// shows.
 #[test]
 fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
-    use eggshell_ui::contract::InputStyle;
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
-    let mut input = style.input().clone();
+    let mut input = style.input.clone();
     input.sizes = eggshell_ui::contract::Keyed::new(
         eggshell_ui::contract::Size::DEFAULT,
-        eggshell_ui::contract::InputMetrics {
-            text: None,
-            icon_size: 15.0,
-            icon_gap: 7.0,
-        },
+        eggshell_ui::contract::InputMetrics { text: None },
     );
     input.hint = Some(c(99));
     input.icon = c(55);
-    style.set_input(input);
+    style.input = input;
     style
         .sheet
         .as_app()
@@ -263,7 +220,6 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
         });
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
-    let _: &InputStyle = style.input();
 
     let mut egui_style = egui::Style::default();
     style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
@@ -290,29 +246,6 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
         "`py-1.25` at 4 points a unit"
     );
     assert_eq!(egui_style.spacing.interact_size.y, 41.0);
-}
-
-#[test]
-fn the_neutral_input_maps_to_egui_s_own_text_edit_style() {
-    let mut egui_style = egui::Style::default();
-    let original = egui_style.clone();
-    Style::from_egui(&original).map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
-    let (a, b) = (&original.visuals, &egui_style.visuals);
-    assert_eq!(a.text_edit_bg_color(), b.text_edit_bg_color());
-    assert_eq!(a.widgets.inactive.bg_stroke, b.widgets.inactive.bg_stroke);
-    assert_eq!(
-        a.widgets.hovered.bg_stroke.color,
-        b.widgets.hovered.bg_stroke.color
-    );
-    assert_eq!(a.selection, b.selection);
-    assert_eq!(
-        original.spacing.button_padding,
-        egui_style.spacing.button_padding
-    );
-    assert_eq!(
-        original.spacing.interact_size.y,
-        egui_style.spacing.interact_size.y
-    );
 }
 
 #[test]

@@ -11,9 +11,9 @@ mod common;
 
 use core::time::Duration;
 
+use eggshell_ui::owned::notify::{Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
+use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::notify::{Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
-use eggshell_ui_shadcn::variant;
 
 #[derive(Clone, Copy)]
 enum Act {

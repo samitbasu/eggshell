@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use eggshell_ui::overlay::{Distance, HoverIntent, Placement};
 use eggshell_ui::testing::{Animation, Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Problem, Style, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Pos2, Rect, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -31,9 +31,9 @@ struct App {
 }
 
 fn quick_tooltips(style: &mut Style) {
-    let mut tooltip = style.tooltip().clone();
+    let mut tooltip = style.tooltip.clone();
     tooltip.delay = TOOLTIP;
-    style.set_tooltip(tooltip);
+    style.tooltip = tooltip;
 }
 
 /// ```html

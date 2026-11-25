@@ -8,13 +8,10 @@
 //! rules of shadcn's `cn-checkbox*`, `cn-radio-group*`, `cn-switch*` and
 //! `cn-field*` replace them.
 
-use core::time::Duration;
-
-use crate::contract::{CheckboxStyle, Paint, RadioStyle, Size, States, SwitchStyle};
+use crate::contract::{CheckboxStyle, RadioStyle, Size, SwitchStyle};
 use crate::sheet::{Key, Part, Sheet, When};
-use crate::theme::Tokens;
-use crate::{Aria, Match, Tw, Weight};
-use egui::Color32;
+use crate::theme::{Tokens, size};
+use crate::{Aria, Match};
 
 use super::{Enablement, Mark, centered};
 
@@ -234,263 +231,6 @@ fn choice_keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
     keys
 }
 
-/// While the control is `mark`ed and `enablement`.
-fn state(mark: Mark, enablement: Enablement) -> When {
-    let when = match mark {
-        Mark::On => When::always().aria(Aria::Checked),
-        Mark::Off => When::always().not_aria(Aria::Checked),
-    };
-    match enablement {
-        Enablement::Enabled => when.not_aria(Aria::Disabled),
-        Enablement::Disabled => when.aria(Aria::Disabled),
-    }
-}
-
-/// Every combination [`state`] tells apart.
-const STATES: [(Mark, Enablement); 4] = [
-    (Mark::Off, Enablement::Enabled),
-    (Mark::Off, Enablement::Disabled),
-    (Mark::On, Enablement::Enabled),
-    (Mark::On, Enablement::Disabled),
-];
-
-/// What a control's box is painted with, `mark`ed.
-pub(crate) struct Painted {
-    pub off: Paint,
-    pub on: Paint,
-    pub border_width: f32,
-    pub transition: Duration,
-}
-
-impl Painted {
-    fn classes(&self, mark: Mark, radius: u8, enablement: Enablement, k: &Tokens) -> Tw {
-        let paint = match mark {
-            Mark::Off => &self.off,
-            Mark::On => &self.on,
-        };
-        paint.classes_in(
-            self.border_width,
-            (k.focus(), k.disabled),
-            radius,
-            enablement,
-            self.transition,
-        )
-    }
-}
-
-/// The controls a card holds, by slot.
-const CONTROLS: [&str; 3] = ["checkbox", "radio-group-item", "switch"];
-
-/// Writes the rules that draw a field and its label, in `label`'s colours,
-/// and a choice card, at the sheet's current layer.
-pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
-    let horizontal = When::always().attr(HORIZONTAL.0, HORIZONTAL.1);
-    sheet.rule_when(FieldPart::Root, horizontal, |t, _| {
-        t.flex()
-            .items_center()
-            .whitespace_nowrap()
-            .select_none()
-            .has_child(Match::slot(FieldPart::Content.slot()), |b| b.items_start())
-    });
-    write_card_rules(sheet);
-    sheet.rule_when(
-        FieldPart::Root,
-        When::always().aria(Aria::Disabled),
-        |t, k| Enablement::Disabled.apply_in(t, k.disabled),
-    );
-    for enablement in [Enablement::Enabled, Enablement::Disabled] {
-        let when = match enablement {
-            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
-            Enablement::Disabled => When::always().aria(Aria::Disabled),
-        };
-        sheet.rule_when(FieldPart::Label, when, move |t, k| {
-            t.text(enablement.colors_in(label, k.disabled).text)
-        });
-    }
-}
-
-/// Writes the rules of a choice card, a label that holds its field, after
-/// shadcn's `cn-field-label`, `cn-field-content`, `cn-field-title` and
-/// `cn-field-description`.
-///
-/// TODO(#446): written from the tokens until the importer generates them.
-fn write_card_rules(sheet: &mut Sheet) {
-    let field = Match::slot(FieldPart::Root.slot());
-    sheet.rule(FieldPart::Label, move |t, k| {
-        let radius = k.radius.md();
-        let mut card = t
-            .has_child(field, |b| {
-                b.flex()
-                    .flex_col()
-                    .w_full()
-                    .rounded_px(radius)
-                    .border(1.0)
-                    .border_color(k.border)
-            })
-            .has(Match::aria(Aria::Checked), |b| {
-                b.bg(k.primary.gamma_multiply(0.05))
-                    .border_color(k.primary.gamma_multiply(0.3))
-            })
-            .has(Match::focus_visible(), |b| {
-                b.border_color(k.ring)
-                    .ring(k.focus().width, k.focus().color)
-            })
-            .children(field, |t| t.p(3.0));
-        for control in CONTROLS {
-            card = card.descendants(Match::slot(control), |t| {
-                t.focus(|p| p.ring(0.0, Color32::TRANSPARENT).border_color(k.input))
-            });
-        }
-        for control in ["checkbox", "radio-group-item"] {
-            card = card
-                .descendants(Match::slot(control).with_aria(Aria::Checked), |t| {
-                    t.focus(|p| p.border_color(k.primary))
-                })
-                .descendants(Match::slot(control), |t| t.mt(0.25));
-        }
-        card.descendants(Match::slot("switch"), |t| {
-            t.focus(|p| p.border_color(Color32::TRANSPARENT))
-        })
-    });
-    sheet.rule_when(
-        FieldPart::Label,
-        When::always().not_aria(Aria::Disabled),
-        move |t, k| t.has_child(field, |b| b.hover(|p| p.bg(k.muted.gamma_multiply(0.5)))),
-    );
-    sheet.rule(FieldPart::Content, |t, _| {
-        t.flex().flex_1().flex_col().gap(1.0).whitespace_normal()
-    });
-    sheet.rule(FieldPart::Title, |t, k| {
-        let size = k.control_text_size().size;
-        t.flex()
-            .w_fit()
-            .items_center()
-            .gap(2.0)
-            .text_size(size, size * 1.375)
-            .font_weight(Weight::Medium)
-    });
-    sheet.rule(FieldPart::Description, |t, k| {
-        let size = k.control_text_size().size;
-        t.text_size(size, size * 1.5)
-            .font_weight(Weight::Normal)
-            .text(k.muted_foreground)
-    });
-}
-
-/// What a style without a preset paints a checkbox, a radio button and a
-/// switch with.
-pub(crate) struct ChoiceDefaults {
-    pub checkbox: Painted,
-    pub checkbox_radius: u8,
-    pub radio: Painted,
-    pub switch: Painted,
-}
-
-/// Writes `defaults` as the choice controls' rules in `sheet`: each look,
-/// checked or not, enabled or not.
-pub(crate) fn choice_defaults(sheet: &mut Sheet, defaults: ChoiceDefaults) {
-    let ChoiceDefaults {
-        checkbox,
-        checkbox_radius,
-        radio,
-        switch,
-    } = defaults;
-    let (checkbox, radio, switch) = (
-        std::sync::Arc::new(checkbox),
-        std::sync::Arc::new(radio),
-        std::sync::Arc::new(switch),
-    );
-    sheet.rule(CheckboxPart::Indicator, |t, _| centered(t.size_full()));
-    sheet.rule(RadioGroupPart::Root, |t, _| t.flex().flex_col().gap(3.0));
-    sheet.rule(RadioGroupPart::Indicator, |t, _| centered(t.size_full()));
-    sheet.rule(RadioGroupPart::IndicatorIcon, |t, _| t.rounded_full());
-    for enablement in [Enablement::Enabled, Enablement::Disabled] {
-        let when = match enablement {
-            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
-            Enablement::Disabled => When::always().aria(Aria::Disabled),
-        };
-        let on = radio.on.states;
-        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, k| {
-            t.bg(enablement.colors_in(on, k.disabled).text)
-        });
-    }
-    for (mark, enablement) in STATES {
-        let when = state(mark, enablement);
-        let painted = checkbox.clone();
-        sheet.rule_when(CheckboxPart::Root, when, move |t, k| {
-            let look = painted.classes(mark, checkbox_radius, enablement, k);
-            centered(t.merge(look)).shrink_0()
-        });
-        let painted = radio.clone();
-        sheet.rule_when(RadioGroupPart::Item, when, move |t, k| {
-            let look = painted.classes(mark, u8::MAX, enablement, k);
-            centered(t.merge(look)).shrink_0()
-        });
-        let painted = switch.clone();
-        sheet.rule_when(SwitchPart::Root, when, move |t, k| {
-            t.merge(painted.classes(mark, u8::MAX, enablement, k))
-                .flex()
-                .items_center()
-                .shrink_0()
-        });
-        let thumb = switch.clone();
-        sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
-            let paint = match mark {
-                Mark::Off => &thumb.off,
-                Mark::On => &thumb.on,
-            };
-            t.bg(enablement.colors_in(paint.states, k.disabled).text)
-        });
-    }
-}
-
-/// Writes the rules `checkbox`'s sizes give at the sheet's current layer.
-pub(crate) fn write_checkbox_rules(sheet: &mut Sheet, checkbox: &CheckboxStyle) {
-    for size in checkbox.sizes.keys() {
-        let metrics = *checkbox.sizes.get(size);
-        let when = When::always().size(size);
-        sheet.rule_when(CheckboxPart::Indicator, when, move |t, _| {
-            t.children(Match::glyph(), |g| g.size_px(metrics.glyph))
-        });
-        sheet.rule_when(CheckboxPart::Root, when, move |t, _| {
-            t.size_px(metrics.size)
-                .rounded_px(f32::from(metrics.radius))
-        });
-    }
-}
-
-/// Writes the rules `radio`'s sizes give at the sheet's current layer.
-pub(crate) fn write_radio_rules(sheet: &mut Sheet, radio: &RadioStyle) {
-    for size in radio.sizes.keys() {
-        let metrics = *radio.sizes.get(size);
-        let when = When::always().size(size);
-        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, _| {
-            t.size_px(metrics.dot)
-        });
-        sheet.rule_when(RadioGroupPart::Item, when, move |t, _| {
-            t.size_px(metrics.size)
-        });
-    }
-}
-
-/// Writes the rules `switch`'s sizes give at the sheet's current layer.
-pub(crate) fn write_switch_rules(sheet: &mut Sheet, switch: &SwitchStyle) {
-    for size in switch.sizes.keys() {
-        let metrics = *switch.sizes.get(size);
-        let when = When::always().size(size);
-        sheet.rule_when(SwitchPart::Root, when, move |t, _| {
-            t.w_px(metrics.track.x).h_px(metrics.track.y)
-        });
-        for (mark, diameter) in [(Mark::Off, metrics.thumb_off), (Mark::On, metrics.thumb_on)] {
-            let when = match mark {
-                Mark::On => when.aria(Aria::Checked),
-                Mark::Off => when.not_aria(Aria::Checked),
-            };
-            sheet.rule_when(SwitchPart::Thumb, when, move |t, _| t.size_px(diameter));
-        }
-    }
-}
-
 /// Writes the choice controls' recorded exceptions over the rules at the
 /// sheet's current layer.
 ///
@@ -530,12 +270,13 @@ pub(crate) fn write_exceptions(
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in checkbox.sizes.keys().filter(|size| *size != default) {
-        let m = *checkbox.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(CheckboxPart::Root, when, move |t, _| {
-            t.size_px(m.size).rounded_px(f32::from(m.radius))
+        sheet.rule_when(CheckboxPart::Root, when, move |t, k| {
+            let m = checkbox_box(k, size);
+            t.size_px(m.side).rounded_px(f32::from(m.radius))
         });
-        sheet.rule_when(CheckboxPart::Indicator, when, move |t, _| {
+        sheet.rule_when(CheckboxPart::Indicator, when, move |t, k| {
+            let m = checkbox_box(k, size);
             t.children(Match::glyph(), |g| g.size_px(m.glyph))
         });
     }
@@ -544,11 +285,12 @@ pub(crate) fn write_exceptions(
         sheet.rule_when(part, When::always().size(default), |t, _| t);
     }
     for size in radio.sizes.keys().filter(|size| *size != default) {
-        let m = *radio.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(RadioGroupPart::Item, when, move |t, _| t.size_px(m.size));
-        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, _| {
-            t.size_px(m.dot)
+        sheet.rule_when(RadioGroupPart::Item, when, move |t, k| {
+            t.size_px(radio_circle(k, size).0)
+        });
+        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, k| {
+            t.size_px(radio_circle(k, size).1)
         });
     }
     for size in switch.sizes.keys() {
@@ -558,17 +300,84 @@ pub(crate) fn write_exceptions(
         {
             continue;
         }
-        let m = *switch.sizes.get(size);
         let when = When::always().size(size);
-        sheet.rule_when(SwitchPart::Root, when, move |t, _| {
-            t.w_px(m.track.x).h_px(m.track.y)
+        sheet.rule_when(SwitchPart::Root, when, move |t, k| {
+            let track = switch_track(k, size);
+            t.w_px(track.x).h_px(track.y)
         });
-        for (mark, diameter) in [(Mark::Off, m.thumb_off), (Mark::On, m.thumb_on)] {
+        for mark in [Mark::Off, Mark::On] {
             let when = match mark {
                 Mark::Off => when.not_aria(Aria::Checked),
                 Mark::On => when.aria(Aria::Checked),
             };
-            sheet.rule_when(SwitchPart::Thumb, when, move |t, _| t.size_px(diameter));
+            sheet.rule_when(SwitchPart::Thumb, when, move |t, k| {
+                t.size_px(switch_thumb(k, size))
+            });
         }
     }
+}
+
+/// A checkbox's box at a size: eggshell's own smaller ones, which shadcn,
+/// with one size, does not draw.
+#[derive(Clone, Copy)]
+struct CheckboxBox {
+    side: f32,
+    radius: u8,
+    glyph: f32,
+}
+
+fn checkbox_box(k: &Tokens, size: Size) -> CheckboxBox {
+    let at = |side, glyph| CheckboxBox {
+        side: k.points(side),
+        radius: k.checkbox_radius,
+        glyph: k.points(glyph),
+    };
+    match size {
+        s if s == size::XS => at(3.0, 2.5),
+        s if s == size::SM => at(3.5, 3.0),
+        _ => CheckboxBox {
+            side: 16.0,
+            radius: k.checkbox_radius,
+            glyph: 14.0,
+        },
+    }
+}
+
+/// A radio button's circle and dot diameters at a size.
+fn radio_circle(k: &Tokens, size: Size) -> (f32, f32) {
+    match size {
+        s if s == size::XS => (k.points(3.0), k.points(1.5)),
+        s if s == size::SM => (k.points(3.5), k.points(1.75)),
+        _ => (16.0, 8.0),
+    }
+}
+
+/// The share of the default switch a switch at `size` is.
+fn switch_scale(size: Size) -> f32 {
+    match size {
+        s if s == size::XS => 0.625,
+        s if s == size::SM => 0.75,
+        _ => 1.0,
+    }
+}
+
+/// A switch's track at `size`.
+pub(crate) fn switch_track(k: &Tokens, size: Size) -> egui::Vec2 {
+    k.switch_track * switch_scale(size)
+}
+
+/// A switch's thumb diameter at `size`, on or off.
+fn switch_thumb(k: &Tokens, size: Size) -> f32 {
+    k.points(k.switch_thumb) * switch_scale(size)
+}
+
+/// field.tsx, a choice card's label in the dark theme:
+/// `dark:has-data-checked:bg-primary/10 dark:has-data-checked:border-primary/20`.
+pub(crate) fn write_dark_card_label(sheet: &mut Sheet) {
+    sheet.rule(FieldPart::Label, |t, k| {
+        t.has(Match::aria(Aria::Checked), |b| {
+            b.bg(k.primary.gamma_multiply(0.1))
+                .border_color(k.primary.gamma_multiply(0.2))
+        })
+    });
 }

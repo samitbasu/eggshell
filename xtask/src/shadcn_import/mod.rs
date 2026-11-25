@@ -148,7 +148,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "combobox",
-        home: Home::Extension("eggshell_ui_extras::command"),
+        home: Home::Feature("command"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -167,7 +167,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "command",
-        home: Home::Extension("eggshell_ui_extras::command"),
+        home: Home::Feature("command"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -342,7 +342,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "hover-card",
-        home: Home::Extension("eggshell_ui_extras::hover_card"),
+        home: Home::Feature("hover_card"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -358,7 +358,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "dialog",
-        home: Home::Extension("eggshell_ui_extras::dialog"),
+        home: Home::Feature("dialog"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -374,7 +374,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "alert-dialog",
-        home: Home::Extension("eggshell_ui_extras::dialog"),
+        home: Home::Feature("dialog"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -390,7 +390,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "sheet",
-        home: Home::Extension("eggshell_ui_extras::dialog"),
+        home: Home::Feature("dialog"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -406,7 +406,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "popover",
-        home: Home::Extension("eggshell_ui_extras::dialog"),
+        home: Home::Feature("dialog"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -422,7 +422,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "badge",
-        home: Home::Extension("eggshell_ui_extras::badge"),
+        home: Home::Feature("badge"),
         checked_in: true,
         variants: &[("default", &["primary"])],
         sizes: &[],
@@ -439,7 +439,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "card",
-        home: Home::Extension("eggshell_ui_extras::form"),
+        home: Home::Feature("form"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -471,7 +471,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "accordion",
-        home: Home::Extension("eggshell_ui_extras::disclosure"),
+        home: Home::Feature("disclosure"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -487,7 +487,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "sonner",
-        home: Home::Extension("eggshell_ui_extras::notify"),
+        home: Home::Feature("notify"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -503,7 +503,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "skeleton",
-        home: Home::Extension("eggshell_ui_extras::skeleton"),
+        home: Home::Feature("skeleton"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -519,7 +519,7 @@ const WIDGETS: [emit::Widget; 27] = [
     },
     emit::Widget {
         component: "spinner",
-        home: Home::Extension("eggshell_ui_extras::spinner"),
+        home: Home::Feature("spinner"),
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -838,9 +838,9 @@ const TABS: [emit::Assumed; 7] = {
     ]
 };
 
-/// The `sheets` module of the preset's crate: a module per migrated
-/// `component` and style, and `write`, which writes them all for a style and
-/// theme, in the order of `components`.
+/// The `sheets` module: a module per migrated `component` and style, and
+/// `write`, which writes them all for a style and theme, in the order of
+/// `components`.
 fn index(components: &[(&str, Home)]) -> String {
     let module = |style: &str, component: &str| format!("{style}_{}", component.replace('-', "_"));
     let mut out = String::from(
@@ -849,10 +849,12 @@ fn index(components: &[(&str, Home)]) -> String {
          //! (`--check`). Each rule's classes carry the shadcn class they came from.\n\
          //!\n\
          //! This file is generated too. Do not edit.\n\n\
-         use eggshell_ui::sheet::Sheet;\n\
+         use crate::sheet::Sheet;\n\
          use egui::Theme;\n\n\
-         use crate::ShadcnStyle;\n\n\
-         /// One half of a widget's rules: its light or its dark theme.\n\
+         use crate::theme::ShadcnStyle;\n",
+    );
+    out.push_str(
+        "\n/// One half of a widget's rules: its light or its dark theme.\n\
          type Half = fn(&mut Sheet);\n",
     );
     for style in STYLES {
@@ -890,9 +892,12 @@ fn index(components: &[(&str, Home)]) -> String {
 
 /// Where a widget's checked-in rules for `style` live.
 fn checked_in(root: &Path, style: &str, component: &str) -> PathBuf {
-    root.join("crates/eggshell-ui-shadcn/src/sheets")
+    root.join(SHEETS)
         .join(format!("{style}_{}.rs", component.replace('-', "_")))
 }
+
+/// Where the generated sheets are checked in, from the workspace root.
+const SHEETS: &str = "src/sheets";
 
 /// What the run does besides the report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -941,10 +946,7 @@ fn sheets(root: &Path, registry: &Path, classifier: &Classifier<'_>, mode: Mode)
         .filter(|w| w.checked_in)
         .map(|w| (w.component, w.home))
         .collect();
-    let mut files = vec![(
-        root.join("crates/eggshell-ui-shadcn/src/sheets/mod.rs"),
-        index(&migrated),
-    )];
+    let mut files = vec![(root.join(SHEETS).join("mod.rs"), index(&migrated))];
     for style in STYLES {
         let mut scratch = Sources::default();
         let (rows, _) = extract(registry, style, classifier, &mut scratch)?;
@@ -1276,10 +1278,8 @@ fn preset_dump(root: &Path) -> Result<String> {
         "cargo",
         "run",
         "-q",
-        "-p",
-        "eggshell-ui-shadcn",
         "--features",
-        "extras",
+        "badge,command,dialog,disclosure,form,hover-card,markdown,notify,skeleton",
         "--example",
         "preset_dump"
     )
@@ -1412,14 +1412,12 @@ mod tests {
         let index = index(&[
             ("button", Home::Core),
             ("input-group", Home::Core),
-            ("combobox", Home::Extension("eggshell_ui_extras::command")),
+            ("combobox", Home::Feature("command")),
         ]);
-        assert!(index.contains("\n#[cfg(feature = \"extras\")] mod vega_combobox;"));
-        assert!(
-            index.contains(
-                "#[cfg(feature = \"extras\")] (vega_combobox::light, vega_combobox::dark),"
-            )
-        );
+        assert!(index.contains("\n#[cfg(feature = \"command\")] mod vega_combobox;"));
+        assert!(index.contains(
+            "#[cfg(feature = \"command\")] (vega_combobox::light, vega_combobox::dark),"
+        ));
         for module in [
             "vega_button",
             "vega_input_group",

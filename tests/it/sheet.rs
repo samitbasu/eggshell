@@ -159,7 +159,7 @@ fn layers(b: &mut Builder<'_, '_, ()>, _: &()) {
             style.sheet.as_app().rule(Chip::Root, |t, _| t.w_px(80.0));
             style
                 .sheet
-                .as_preset()
+                .as_base()
                 .rule(Chip::Root, |t, _| t.w_px(100.0).h_px(30.0));
         },
         |b| {
@@ -178,7 +178,7 @@ fn a_later_layer_wins_whatever_order_its_rules_were_written_in() {
 fn replaced(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style.sheet.as_preset();
+            style.sheet.as_base();
             chip_rules(style);
             style
                 .sheet
@@ -249,17 +249,14 @@ fn a_negated_key_applies_while_the_node_lacks_the_state() {
 }
 
 #[test]
-fn a_preset_hands_out_the_sheet_of_each_theme_at_the_preset_layer() {
-    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+fn a_preset_hands_out_the_sheet_of_each_theme_at_the_base_layer() {
+    use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
-    assert_eq!(
-        themed.light.sheet.layer(),
-        eggshell_ui::sheet::Layer::Preset
-    );
-    assert_eq!(themed.dark.sheet.layer(), eggshell_ui::sheet::Layer::Preset);
+    assert_eq!(themed.light.sheet.layer(), eggshell_ui::sheet::Layer::Base);
+    assert_eq!(themed.dark.sheet.layer(), eggshell_ui::sheet::Layer::Base);
     assert_eq!(
         eggshell_ui::Style::default().sheet.layer(),
-        eggshell_ui::sheet::Layer::Defaults
+        eggshell_ui::sheet::Layer::Base
     );
 }
 
@@ -301,130 +298,9 @@ fn a_rule_body_is_given_the_tokens_of_the_style_it_is_resolved_in() {
 
 #[test]
 fn the_preset_fills_the_shadow_scale() {
-    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
     let tokens = &themed.light.tokens;
     assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);
     assert!(tokens.shadow_lg.offset[1] > tokens.shadow_md.offset[1]);
-}
-
-/// A preset writes every family's rules from its sections at its own layer,
-/// through the one list in `Style::rewrite_rules`, so nothing a preset draws
-/// resolves from the defaults under it.
-#[cfg(debug_assertions)]
-#[test]
-fn a_presets_generated_looks_resolve_from_the_preset_layer_and_sections_from_the_defaults() {
-    use eggshell_ui::owned::{
-        ButtonPart, CheckboxPart, InputPart, MenuPart, TablePart, TabsPart, TooltipPart,
-    };
-    use eggshell_ui::sheet::Layer;
-    use eggshell_ui::{Property, Tw};
-
-    let style = eggshell_ui_shadcn::Shadcn::light().style();
-    let parts: [(&str, Tw); 8] = [
-        (
-            "button",
-            style.sheet.resolve(ButtonPart::Root, &[], &style.tokens),
-        ),
-        (
-            "input",
-            style.sheet.resolve(InputPart::Root, &[], &style.tokens),
-        ),
-        (
-            "menu content",
-            style.sheet.resolve(MenuPart::Content, &[], &style.tokens),
-        ),
-        (
-            "menu item",
-            style.sheet.resolve(
-                MenuPart::Item,
-                &[Key::Variant(Variant::DEFAULT)],
-                &style.tokens,
-            ),
-        ),
-        (
-            "tabs list",
-            style.sheet.resolve(
-                TabsPart::List,
-                &TabsPart::list_keys(
-                    eggshell_ui::contract::Size::DEFAULT,
-                    eggshell_ui::owned::SegmentedRows::One,
-                    eggshell_ui::owned::Enablement::Enabled,
-                ),
-                &style.tokens,
-            ),
-        ),
-        (
-            "tooltip",
-            style
-                .sheet
-                .resolve(TooltipPart::Content, &[], &style.tokens),
-        ),
-        (
-            "table header",
-            style.sheet.resolve(TablePart::Header, &[], &style.tokens),
-        ),
-        (
-            "checkbox",
-            style.sheet.resolve(
-                CheckboxPart::Root,
-                &CheckboxPart::keys(
-                    eggshell_ui::contract::Size::DEFAULT,
-                    eggshell_ui::owned::Mark::On,
-                    eggshell_ui::owned::Enablement::Enabled,
-                ),
-                &style.tokens,
-            ),
-        ),
-    ];
-    for (name, classes) in parts {
-        let set: Vec<_> = [
-            Property::Background,
-            Property::RadiusNw,
-            Property::TextColor,
-            Property::TextSize,
-            Property::TextLineHeight,
-            Property::VariantHover,
-            Property::VariantFocus,
-        ]
-        .into_iter()
-        .filter_map(|property| Some((property, classes.origin_of(property)?)))
-        .collect();
-        assert!(!set.is_empty(), "precondition: the {name} rules set paint");
-        // A family the preset has no generated look for yet is drawn from
-        // its section, whose rules are the widgets' defaults.
-        let layer = match name {
-            "table header" => Layer::Defaults,
-            _ => Layer::Preset,
-        };
-        for (property, origin) in set {
-            assert_eq!(origin.layer, layer, "{name}: {property:?}");
-        }
-    }
-}
-
-/// Without a preset, the select trigger's rules read the disabled token
-/// when they resolve, so changing it after the style is built reaches them.
-#[test]
-fn a_select_trigger_reads_the_disabled_token() {
-    use eggshell_ui::contract::Disabled;
-    use eggshell_ui::owned::SelectPart;
-
-    let mut style = eggshell_ui::Style::default();
-    style.tokens.disabled = Disabled::Faded(eggshell_ui::Opacity::new(0.4));
-    let disabled = style.sheet.resolve(
-        SelectPart::Trigger,
-        &[Key::Aria(Aria::Disabled)],
-        &style.tokens,
-    );
-    assert_eq!(
-        disabled.paint_classes().opacity,
-        eggshell_ui::Opacity::new(0.4)
-    );
-    let enabled = style.sheet.resolve(SelectPart::Trigger, &[], &style.tokens);
-    assert_eq!(
-        enabled.paint_classes().opacity,
-        eggshell_ui::Opacity::new(1.0),
-        "precondition: only the disabled trigger fades"
-    );
 }

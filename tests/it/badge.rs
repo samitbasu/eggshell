@@ -2,11 +2,11 @@
 //! shadcn preset the rig applies.
 
 use eggshell_ui::contract::Variant;
+use eggshell_ui::owned::badge::{BadgeExt, BadgeStyle};
+use eggshell_ui::owned::spinner::SpinnerExt;
 use eggshell_ui::testing::{Animation, Driver, Target};
+use eggshell_ui::theme::{Tokens, size, variant};
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
-use eggshell_ui_extras::badge::{BadgeExt, BadgeStyle};
-use eggshell_ui_extras::spinner::SpinnerExt;
-use eggshell_ui_shadcn::{Tokens, size, variant};
 use egui::{Key, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -293,7 +293,7 @@ fn an_app_rule_restyles_a_badge() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui_extras::badge::BadgePart::Root, |t, _| {
+                .rule(eggshell_ui::owned::badge::BadgePart::Root, |t, _| {
                     t.bg(egui::Color32::RED)
                 });
         }))
@@ -339,7 +339,7 @@ fn an_app_rule_restyles_a_spinner() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui_extras::spinner::SpinnerPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::spinner::SpinnerPart::Root, |t, _| {
                     t.bg(egui::Color32::RED).size(10.0)
                 });
         }))

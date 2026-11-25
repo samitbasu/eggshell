@@ -6,8 +6,8 @@
 mod common;
 
 use eggshell_ui::owned::Mark;
+use eggshell_ui::owned::command::{CommandExt, Open};
 use eggshell_ui::{Builder, Chord, Command, Commands, tw};
-use eggshell_ui_extras::command::{CommandExt, Open};
 use egui::{Key, Modifiers};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]

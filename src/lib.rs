@@ -394,6 +394,8 @@ mod scroll_keys;
 mod shadow_corners;
 pub mod sheet;
 mod shell;
+#[rustfmt::skip]
+mod sheets;
 mod sizing;
 mod spans;
 mod stack;
@@ -435,7 +437,8 @@ pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;
-pub use report::{Problem, Report, report};
+pub(crate) use report::report;
+pub use report::{Problem, Report};
 pub use roots::OverlayRef;
 pub use shell::{Shell, ShellExt};
 pub use sizing::Width;

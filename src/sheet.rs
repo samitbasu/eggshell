@@ -44,10 +44,15 @@ pub trait Part: Copy + Eq + Ord + Debug + Send + Sync + 'static {
 /// TODO(prose): who wrote a rule, which decides whose wins. A later layer's classes win per property over an earlier one's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
-    /// TODO(prose): the widgets' own looks.
+    // #497 stage 5: delete, with Builder::part_over, when the extensions'
+    // looks are sheet rules.
+    /// TODO(prose): an extension's own look, under the sheet; see
+    /// [`Builder::part_over`](crate::Builder::part_over). No sheet rule is
+    /// written at it.
     Defaults,
-    /// TODO(prose): a design system's preset.
-    Preset,
+    /// TODO(prose): the widgets' look: the generated sheets and the recorded
+    /// exceptions.
+    Base,
     /// TODO(prose): the application's.
     App,
     /// TODO(prose): a [`Builder::styled`](crate::Builder::styled) scope's.
@@ -169,6 +174,7 @@ impl When {
     }
 }
 
+// #497 stage 5: delete, with Builder::part_over.
 /// TODO(prose): a widget's own look for a part, given at its call site:
 /// [`Builder::part_over`](crate::Builder::part_over) puts it under every
 /// layer of the sheet, as the widgets' defaults, for a widget whose looks
@@ -224,7 +230,7 @@ fn next_version() -> u64 {
 /// }
 ///
 /// let tokens = Tokens::light();
-/// let mut sheet = Sheet::defaults();
+/// let mut sheet = Sheet::new();
 /// sheet
 ///     .rule(Chip, |t, _| t.px(2.0).rounded_md())
 ///     .rule_when(Chip, When::always().variant(Variant("wide")), |t, _| t.px(4.0));
@@ -241,7 +247,7 @@ pub struct Sheet {
 
 impl Default for Sheet {
     fn default() -> Self {
-        Self::defaults()
+        Self::new()
     }
 }
 
@@ -256,18 +262,19 @@ impl PartialEq for Sheet {
 }
 
 impl Sheet {
-    /// TODO(prose): a sheet with no rules, written at the layer of the widgets' defaults.
-    pub fn defaults() -> Self {
+    /// TODO(prose): a sheet with no rules, written at the base layer.
+    pub fn new() -> Self {
         Self {
-            layer: Layer::Defaults,
+            layer: Layer::Base,
             rules: Arc::default(),
             version: 0,
         }
     }
 
-    /// TODO(prose): the rules written from here on are a preset's.
-    pub fn as_preset(&mut self) -> &mut Self {
-        self.layer = Layer::Preset;
+    /// TODO(prose): the rules written from here on are the widgets' look's,
+    /// under the application's.
+    pub fn as_base(&mut self) -> &mut Self {
+        self.layer = Layer::Base;
         self
     }
 
@@ -285,18 +292,6 @@ impl Sheet {
     /// TODO(prose): the layer the rules written now are in.
     pub fn layer(&self) -> Layer {
         self.layer
-    }
-
-    pub(crate) fn set_layer(&mut self, layer: Layer) {
-        self.layer = layer;
-    }
-
-    /// Whether any rule was written at `layer`.
-    pub(crate) fn has_rules_at(&self, layer: Layer) -> bool {
-        self.rules
-            .values()
-            .flatten()
-            .any(|rule| rule.layer == layer)
     }
 
     /// TODO(prose): adds the classes `body` writes for every node of `part`, given the style's tokens, at this sheet's layer, after the rules it has.
@@ -337,7 +332,7 @@ impl Sheet {
     /// }
     ///
     /// let tokens = Tokens::light();
-    /// let mut sheet = Sheet::defaults();
+    /// let mut sheet = Sheet::new();
     /// sheet.rule(Chip, |t, _| t.px(2.0).gap(1.0));
     /// sheet.as_app().replace(Chip, |t, _| t.px(4.0));
     /// let chip = sheet.resolve(Chip, &[], &tokens);
@@ -558,7 +553,7 @@ mod tests {
     const NARROW: Variant = Variant("narrow");
 
     fn sheet() -> Sheet {
-        let mut sheet = Sheet::defaults();
+        let mut sheet = Sheet::new();
         sheet
             .rule(Test::Root, |t, _| t.px(2.0).gap(1.0))
             .rule_when(Test::Root, When::always().variant(WIDE), |t, _| t.px(4.0))
@@ -587,7 +582,7 @@ mod tests {
 
     #[test]
     fn a_negated_key_holds_while_the_node_lacks_the_state() {
-        let mut sheet = Sheet::defaults();
+        let mut sheet = Sheet::new();
         sheet
             .rule_when(
                 Test::Root,
@@ -609,6 +604,25 @@ mod tests {
     }
 
     #[test]
+    fn core_writes_no_rule_at_the_defaults_layer() {
+        for theme in [crate::theme::Tokens::light(), crate::theme::Tokens::dark()] {
+            let style = crate::Style::new(&theme);
+            assert!(
+                !style.sheet.rules.is_empty(),
+                "precondition: core writes rules"
+            );
+            assert!(
+                style
+                    .sheet
+                    .rules
+                    .values()
+                    .flatten()
+                    .all(|rule| rule.layer != Layer::Defaults)
+            );
+        }
+    }
+
+    #[test]
     fn a_part_is_resolved_from_its_own_rules_only() {
         let icon = sheet().resolve(Test::Icon, &[Key::Variant(WIDE)], &tokens());
         assert_eq!(icon.style(), tw().size(4.0).style());
@@ -616,9 +630,9 @@ mod tests {
 
     #[test]
     fn a_later_layer_wins_whatever_the_order_the_rules_were_written_in() {
-        let mut sheet = Sheet::defaults();
+        let mut sheet = Sheet::new();
         sheet.as_app().rule(Test::Root, |t, _| t.px(8.0));
-        sheet.layer = Layer::Defaults;
+        sheet.layer = Layer::Base;
         sheet.rule(Test::Root, |t, _| t.px(2.0).gap(1.0));
         let root = sheet.resolve(Test::Root, &[], &tokens());
         assert_eq!(root.style(), tw().px(8.0).gap(1.0).style());
@@ -652,7 +666,7 @@ mod tests {
 
     #[test]
     fn sheets_are_equal_when_they_share_rules_or_have_none() {
-        assert_eq!(Sheet::defaults(), Sheet::defaults());
+        assert_eq!(Sheet::new(), Sheet::new());
         let (one, other) = (sheet(), sheet());
         assert_ne!(one, other, "built apart, whatever they would give");
         assert_eq!(one, one.clone());
@@ -674,7 +688,7 @@ mod tests {
     #[test]
     fn a_variant_only_a_replaced_rule_names_counts_as_left_out() {
         let mut sheet = sheet();
-        sheet.as_preset().replace(Test::Root, |t, _| t.px(3.0));
+        sheet.replace(Test::Root, |t, _| t.px(3.0));
         sheet.rule_when(Test::Root, When::always().variant(NARROW), |t, _| t);
         let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)], &tokens());
         assert_eq!(wide.style(), tw().px(3.0).style(), "precondition: replaced");

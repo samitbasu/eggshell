@@ -7,7 +7,7 @@
 
 use egui::{Color32, Vec2};
 
-use crate::contract::{Colors, Disabled, InputStyle, Look, Size, Spacing};
+use crate::contract::{InputStyle, Size, Spacing};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::theme::Tokens;
 use crate::{Aria, Match, Tw};
@@ -68,111 +68,6 @@ pub(crate) fn keys(size: Size, disabled: bool) -> Vec<Key> {
     keys
 }
 
-fn painted(classes: Tw, colors: Colors) -> Tw {
-    classes
-        .select_none()
-        .bg(colors.fill)
-        .border_color(colors.border)
-        .text(colors.text)
-}
-
-/// What a style without a preset draws a text field and an input group
-/// with: their colours per state, border, ring and shadow, and their radius,
-/// padding and height.
-pub(crate) struct InputDefaults {
-    pub look: Look,
-    pub radius: u8,
-    pub padding: Vec2,
-    pub height: f32,
-}
-
-/// Writes `defaults` as the input's rules in `sheet`.
-pub(crate) fn input_defaults(sheet: &mut Sheet, defaults: InputDefaults) {
-    let InputDefaults {
-        look,
-        radius,
-        padding,
-        height,
-    } = defaults;
-    let (states, shadow, width) = (look.paint.states, look.paint.shadow, look.border_width);
-    let ring = move |k: &Tokens| look.paint.focus.unwrap_or(k.focus());
-    let radius = f32::from(radius);
-
-    sheet.rule(InputPart::Root, move |t, k| {
-        let ring = ring(k);
-        let t = t
-            .rounded_px(radius)
-            .h_px(height)
-            .px_px(padding.x)
-            .py_px(padding.y);
-        painted(t.border(width), states.rest)
-            .hover(|p| p.border_color(states.hover.border))
-            .focus(|p| {
-                p.border_color(states.focused.border)
-                    .ring(ring.width, ring.color)
-            })
-    });
-    sheet.rule(InputGroupPart::Root, move |t, _| {
-        t.border(width)
-            .rounded_px(radius)
-            .h_px(height)
-            .px_px(padding.x)
-    });
-    let shadowed = move |classes: Tw| match shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    };
-    sheet.rule_when(
-        InputGroupPart::Root,
-        When::always().not_aria(Aria::Disabled),
-        move |t, k| {
-            let ring = ring(k);
-            shadowed(painted(t, states.rest).has(
-                Match::slot(InputGroupPart::Input.slot()).with_focus_visible(),
-                |b| {
-                    b.border_color(states.focused.border)
-                        .ring(ring.width, ring.color)
-                },
-            ))
-        },
-    );
-    sheet.rule_when(
-        InputGroupPart::Root,
-        When::always().aria(Aria::Disabled),
-        move |t, k| {
-            let (colors, faded): (Colors, Option<crate::Opacity>) = match k.disabled {
-                Disabled::Colors => (states.disabled, None),
-                Disabled::Faded(opacity) => (states.rest, Some(opacity)),
-            };
-            let classes = shadowed(painted(t, colors).inert());
-            match faded {
-                Some(opacity) => classes.opacity(opacity),
-                None => classes,
-            }
-        },
-    );
-}
-
-/// Writes an input group's layout and the rules `input`'s icon colour and
-/// sizes give at the sheet's current layer.
-pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
-    sheet.rule(InputGroupPart::Root, |t, _| t.flex());
-    let icon = input.icon;
-    sheet.rule(InputGroupPart::Addon, move |t, _| {
-        t.flex().items_center().shrink_0().text(icon)
-    });
-    for size in input.sizes.keys() {
-        let metrics = *input.sizes.get(size);
-        let when = When::always().size(size);
-        sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
-            t.children(Match::glyph(), |g| g.size_px(metrics.icon_size))
-        });
-        sheet.rule_when(InputGroupPart::Root, when, move |t, _| {
-            t.items_center().gap_px(metrics.icon_gap)
-        });
-    }
-}
-
 /// Writes the input's recorded exceptions (#446) over the generated look,
 /// at the sheet's current layer: a disabled group fades as a whole, and the
 /// sizes other than the default keep their metrics.
@@ -220,8 +115,8 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
                 t.text_size(text.size, text.line_height)
             });
         }
-        sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
-            t.children(Match::glyph(), |g| g.size_px(m.icon_size))
+        sheet.rule_when(InputGroupPart::Addon, when, move |t, k| {
+            t.children(Match::glyph(), |g| g.size_px(addon_icon(k, size).0))
         });
         for (side, pad) in [
             (INLINE_START, Tw::pl_px as fn(Tw, f32) -> Tw),
@@ -230,9 +125,20 @@ fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
             sheet.rule_when(
                 InputGroupPart::Input,
                 when.attr("addon", side),
-                move |t, _| pad(t, m.icon_gap),
+                move |t, k| pad(t, addon_icon(k, size).1),
             );
         }
+    }
+}
+
+/// The side of an addon's icon and its gap to the control's text at a size
+/// other than the default: eggshell's own smaller fields.
+fn addon_icon(k: &Tokens, size: Size) -> (f32, f32) {
+    use crate::theme::size;
+    match size {
+        s if s == size::XS => (k.points(3.0), k.points(1.5)),
+        s if s == size::SM => (k.points(3.5), k.points(1.5)),
+        _ => (k.points(4.0), k.points(2.0)),
     }
 }
 
@@ -276,4 +182,34 @@ impl Frame {
             radius: classes.paint.radius.nw,
         }
     }
+}
+
+/// TODO(prose): eggshell's smaller fields, which shadcn does not draw: a `sm`
+/// field a unit shorter than the preset's controls and a `xs` one three, each
+/// with its own inline padding, over the generated look.
+pub(crate) fn write_field_sizes(sheet: &mut Sheet, t: &Tokens) {
+    use crate::theme::size;
+    let own = t.own_input_padding_x;
+    for (size, height, padding_x) in [
+        (size::SM, t.control_units - 1.0, own),
+        (size::XS, t.control_units - 3.0, (own - 1.0).max(0.0)),
+    ] {
+        let when = When::always().size(size);
+        sheet.rule_when(InputPart::Root, when, move |c, _| c.h(height).px(padding_x));
+        sheet.rule_when(InputGroupPart::Root, when, move |c, _| c.h(height));
+        sheet.rule_when(InputGroupPart::Input, when, move |c, _| c.px(padding_x));
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-start"),
+            move |c, _| c.pl(padding_x),
+        );
+        sheet.rule_when(
+            InputGroupPart::Addon,
+            when.attr("align", "inline-end"),
+            move |c, _| c.pr(padding_x),
+        );
+    }
+    sheet.rule_when(InputPart::Root, When::always().size(size::XS), |c, _| {
+        c.py(0.5)
+    });
 }

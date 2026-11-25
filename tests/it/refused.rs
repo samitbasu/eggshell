@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Command, Commands, Style, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Role, Shape, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -38,9 +38,9 @@ struct App {
 }
 
 fn quick_tooltips(style: &mut Style) {
-    let mut tooltip = style.tooltip().clone();
+    let mut tooltip = style.tooltip.clone();
     tooltip.delay = Duration::from_millis(100);
-    style.set_tooltip(tooltip);
+    style.tooltip = tooltip;
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {

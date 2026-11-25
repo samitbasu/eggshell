@@ -103,7 +103,7 @@ pub enum Elevation {
 
 impl Elevation {
     /// TODO(prose): `shadow` on a raised control, or none on a flat one.
-    pub fn shadow(self, shadow: egui::Shadow) -> Option<egui::Shadow> {
+    pub(crate) fn shadow(self, shadow: egui::Shadow) -> Option<egui::Shadow> {
         match self {
             Self::Raised => Some(shadow),
             Self::Flat => None,

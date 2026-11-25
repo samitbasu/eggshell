@@ -6,8 +6,8 @@
 use eggshell_ui::overlay::{Nav, Wrap};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::testing::Driver;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Key, KeyboardShortcut, Modifiers, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

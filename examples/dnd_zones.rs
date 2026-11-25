@@ -12,9 +12,9 @@ mod common;
 
 use std::any::Any;
 
+use eggshell_ui::owned::DragChip as _;
 use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, tw};
-use eggshell_ui_shadcn::DragChip as _;
 use egui::{Ui, Vec2};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;

@@ -158,7 +158,7 @@ fn commands() -> Commands<State> {
 fn actions(b: &mut Builder<'_, '_, State>, state: &State) {
     let (snap, size) = (state.snap, state.size);
     b.dropdown_menu(Part::PopoverButton, "Actions")
-        .variant(eggshell_ui_shadcn::variant::OUTLINE)
+        .variant(eggshell_ui::theme::variant::OUTLINE)
         .chevron()
         .items(|m| {
             m.command(Part::Item(Item::Copy)).add();
@@ -206,7 +206,7 @@ fn accent(b: &mut Builder<'_, '_, State>, state: &State) {
         .get(chosen)
         .map_or(Color32::GRAY, |(_, color)| *color);
     b.dropdown_menu(Part::Accent, Face::Empty("Accent".into()))
-        .variant(eggshell_ui_shadcn::variant::OUTLINE)
+        .variant(eggshell_ui::theme::variant::OUTLINE)
         .children(move |s| {
             s.div_id(
                 Part::Swatch,

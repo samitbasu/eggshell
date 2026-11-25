@@ -2,8 +2,8 @@
 //! progress indicator.
 
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Progress, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -46,14 +46,12 @@ fn the_bar_is_the_styles_track_and_range_filled_to_the_fraction() {
     let d = harness(Progress::new(0.4));
     let progress = style().progress;
     let bar = d.rect(Target::suffix("/\"upload\""));
-    let tokens = eggshell_ui_shadcn::Tokens::for_theme(Theme::Light);
-    assert_eq!(progress.height, 6.0, "vega h-1.5");
-    // Recorded exception (#132): the tracks are the input token, not `bg-muted`.
-    assert_eq!(progress.track.fill, tokens.input);
+    let tokens = eggshell_ui::theme::Tokens::for_theme(Theme::Light);
     assert_eq!(progress.range.fill, tokens.primary, "bg-primary");
     assert_eq!(bar.width(), 200.0);
-    assert_eq!(bar.height(), progress.height);
-    assert_eq!(box_at(&d, bar).fill, progress.track.fill);
+    assert_eq!(bar.height(), 6.0, "vega h-1.5");
+    // Recorded exception (#132): the tracks are the input token, not `bg-muted`.
+    assert_eq!(box_at(&d, bar).fill, tokens.input);
     let fill = shapes(&d)
         .into_iter()
         .find_map(|shape| match shape {

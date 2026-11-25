@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{Headless, PixelsPerPoint};
+use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{Builder, Placed, Style, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
 
 use crate::support::{self, rect_of};
@@ -309,7 +309,7 @@ fn themed_width(theme: Theme) -> f32 {
                 Theme::Dark => 60.0,
             };
             assert!(
-                eggshell_ui_shadcn::tokens(b.ctx()).is_some(),
+                eggshell_ui::theme::tokens(b.ctx()).is_some(),
                 "prepare ran before the build"
             );
             b.div_id("t", tw().w_px(width), |_| {});
@@ -446,7 +446,7 @@ const CARD_BODY: &str = "Every sample the probes recorded since the last sweep, 
     written as one file per channel with the calibration it was taken under.";
 
 fn shadcn_body() -> TextStyle {
-    let tokens = eggshell_ui_shadcn::Tokens::for_theme(Theme::Light);
+    let tokens = eggshell_ui::theme::Tokens::for_theme(Theme::Light);
     TextStyle::new(tokens.text_role(), tokens.foreground)
 }
 

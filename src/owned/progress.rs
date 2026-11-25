@@ -3,7 +3,6 @@
 
 use egui::{Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 
-use super::slider::track_classes;
 use super::{Gate, IntoTip, options, tipped};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Progress, Tw, tw};
@@ -175,12 +174,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         let (_, tooltip) = gate.resolve(&mut b, slot.id, super::Enablement::Enabled);
         let style = b.style().clone();
         let bar = &style.progress;
-        let track = b.part_over(
-            ProgressPart::Root,
-            &[],
-            crate::sheet::Defaults(track_classes((bar.height, bar.radius), bar.track)),
-            classes,
-        );
+        let track = b.part(ProgressPart::Root, &[], classes);
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);
         let percent = f64::from(f32::from(progress) * 100.0);
         let name = name.unwrap_or_default();

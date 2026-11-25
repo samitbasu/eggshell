@@ -71,7 +71,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 .classes(tw().w_px(160.0))
                 .on_change(|state, text| state.name = text);
             s.button(Part::Rename, "Rename")
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .on_click(|state: &mut State| state.focus_name += 1);
         });
     });

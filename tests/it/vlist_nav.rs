@@ -6,9 +6,9 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Key, Pos2, Rect, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

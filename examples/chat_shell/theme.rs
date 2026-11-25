@@ -5,8 +5,8 @@
 
 use core::ops::Index;
 
+use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{TextSpec, TextStyle, Weight};
-use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily};
 
 /// A colour by what it is for.

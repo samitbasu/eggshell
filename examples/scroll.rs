@@ -14,8 +14,8 @@
 mod common;
 
 use eggshell_ui::scroll::{Axis, EdgeFade};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Opacity, Tw, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

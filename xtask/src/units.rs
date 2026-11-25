@@ -10,7 +10,7 @@ use anyhow::{Result, bail};
 
 use crate::process;
 
-const SOURCES: [&str; 4] = ["src", "crates", "examples", "tests"];
+const SOURCES: [&str; 3] = ["src", "examples", "tests"];
 
 /// What turns points into spacing units at Tailwind's 4 points a unit.
 const QUARTERS: [&str; 3] = ["/ 4.0", "/4.0", "* 0.25"];

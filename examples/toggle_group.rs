@@ -8,8 +8,8 @@ mod common;
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
+use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Scope, tw};
-use eggshell_ui_shadcn::{size, variant};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {

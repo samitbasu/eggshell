@@ -4,10 +4,10 @@
 
 use eggshell_ui::Style;
 use eggshell_ui::contract::Themed;
+use eggshell_ui::owned::command::{ComboboxPart, CommandExt};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_extras::command::{ComboboxPart, CommandExt};
-use eggshell_ui_shadcn::Tokens;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, vec2};
 
@@ -61,25 +61,6 @@ fn content(d: &Driver<App>) -> Rect {
         .expect("the list's box")
 }
 
-#[test]
-fn the_presets_look_replaces_the_combobox_defaults() {
-    // The widget's own box is the menu's, bordered; shadcn's is ringed.
-    let bare = opened(Some(Style::default()));
-    let boxed = content(&bare);
-    assert_eq!(
-        support::box_at(&bare, boxed).stroke.width,
-        1.0,
-        "the defaults' border"
-    );
-    let preset = opened(None);
-    let boxed = content(&preset);
-    assert_eq!(
-        support::box_at(&preset, boxed).stroke.width,
-        0.0,
-        "shadcn's content has no border: the defaults are cut"
-    );
-}
-
 /// The fills of `d`'s open list drawn in `fill`.
 fn drawn_in(d: &Driver<App>, fill: Color32) -> usize {
     let list = content(d);
@@ -104,23 +85,6 @@ fn without_a_preset_the_highlighted_option_takes_the_accent_token() {
 }
 
 #[test]
-fn without_a_preset_the_box_takes_the_menus_radius_from_the_sheet() {
-    let mut style = Style::default();
-    style
-        .sheet
-        .as_app()
-        .rule(eggshell_ui::owned::MenuPart::Content, |t, _| {
-            t.rounded_px(11.0)
-        });
-    let d = opened(Some(style));
-    let boxed = content(&d);
-    assert_eq!(
-        support::box_at(&d, boxed).corner_radius,
-        egui::CornerRadius::same(11)
-    );
-}
-
-#[test]
 fn the_highlighted_option_takes_shadcns_accent() {
     let d = opened(None);
     let t = Tokens::for_theme(d.ctx().theme());
@@ -141,7 +105,7 @@ fn the_highlighted_option_takes_shadcns_accent() {
 
 #[test]
 fn an_app_rule_restyles_an_option() {
-    let mut style = eggshell_ui_shadcn::Shadcn::light().style();
+    let mut style = eggshell_ui::theme::Shadcn::light().style();
     style
         .sheet
         .as_app()

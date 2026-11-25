@@ -14,10 +14,10 @@ use super::{
     tipped_whole,
 };
 use crate::builder::Slot;
-use crate::contract::{Colors, Size, SliderStyle};
+use crate::contract::{Colors, Size};
 use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
-use crate::sheet::{Defaults, Key as SheetKey};
+use crate::sheet::Key as SheetKey;
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -157,42 +157,28 @@ impl crate::sheet::Part for SliderPart {
 /// slider does not fade at its root, as eggshell fades shape by shape (#479)
 /// and the thumb would show the track through it; its parts draw opaque
 /// blends instead (#40).
-pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, slider: &SliderStyle) {
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
+    use crate::contract::States;
     use crate::sheet::When;
+    use egui::Color32;
     let disabled = || When::always().aria(crate::Aria::Disabled);
-    let (track, range) = (slider.track.disabled, slider.range.disabled);
-    let thumb = slider.thumb.paint.states.disabled;
+    let faded = |k: &crate::theme::Tokens, fill, border, text| {
+        States::still(Colors { fill, border, text }, k.background).disabled
+    };
+    let clear = Color32::TRANSPARENT;
     sheet.rule_when(SliderPart::Root, disabled(), |t, _| {
         t.opacity(crate::Opacity::new(1.0))
     });
-    sheet.rule_when(SliderPart::Track, disabled(), move |t, _| t.bg(track.fill));
-    sheet.rule_when(SliderPart::Range, disabled(), move |t, _| t.bg(range.fill));
-    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, _| {
+    sheet.rule_when(SliderPart::Track, disabled(), move |t, k| {
+        t.bg(faded(k, k.input, clear, k.foreground).fill)
+    });
+    sheet.rule_when(SliderPart::Range, disabled(), move |t, k| {
+        t.bg(faded(k, k.primary, clear, k.primary_foreground).fill)
+    });
+    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, k| {
+        let thumb = faded(k, Color32::WHITE, k.primary, k.foreground);
         t.bg(thumb.fill).border_color(thumb.border)
     });
-}
-
-/// The classes of a track `height` thick, filled with `colors`.
-pub(super) fn track_classes((height, radius): (f32, u8), colors: Colors) -> Tw {
-    painted(
-        tw().w_full()
-            .h_px(height)
-            .rounded_px(f32::from(radius))
-            .overflow_hidden(),
-        colors,
-    )
-}
-
-/// The classes of a track and of the part of it that is filled, up to
-/// `fraction`, with the colours of `track` and `range`.
-fn track_and_range(shape: (f32, u8), (track, range): (Colors, Colors), fraction: f32) -> (Tw, Tw) {
-    let range = painted(
-        tw().h_full()
-            .w_frac(fraction, 1.0)
-            .rounded_px(f32::from(shape.1)),
-        range,
-    );
-    (track_classes(shape, track), range)
 }
 
 impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
@@ -404,26 +390,15 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             Enablement::Enabled => own,
             Enablement::Disabled => own.inert(),
         };
-        let faded = enablement.apply(tw(), &style);
-        let hit = b.part_over(SliderPart::Root, keys, Defaults(faded), own);
-        let (bar, filled) = track_and_range(
-            (metrics.track_height, metrics.radius),
-            (
-                enablement.colors(slider.track, &style),
-                enablement.colors(slider.range, &style),
-            ),
-            fraction,
-        );
-        let bar = b.part_over(
+        let hit = b.part(SliderPart::Root, keys, own);
+        let bar = b.part(
             SliderPart::Track,
             keys,
-            Defaults(bar),
             tw().w_full().h_px(metrics.track_height),
         );
-        let filled = b.part_over(
+        let filled = b.part(
             SliderPart::Range,
             keys,
-            Defaults(filled),
             // eggshell clips to a rectangle, where CSS clips the range to the
             // track's rounding: the range rounds itself as the track does.
             tw().h_full()
@@ -431,13 +406,9 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 .rounded_px(f32::from(metrics.radius)),
         );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
-        let look = slider
-            .thumb
-            .classes(&style, metrics.radius, enablement, slider.transition);
-        let knob = b.part_over(
+        let knob = b.part(
             SliderPart::Thumb,
             keys,
-            Defaults(look),
             tw().absolute()
                 .top_px(0.0)
                 .left_frac(fraction, 1.0)

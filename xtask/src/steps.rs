@@ -225,17 +225,15 @@ pub fn screenshots() -> Step {
     })
 }
 
-/// The crates with optional features, built with none of them: what is
-/// gated on a feature must build, and lint, without it.
+/// The library built with none of its optional features: what is gated on
+/// a feature must build, and lint, without it.
 pub fn features() -> Step {
     Step::cargo(
         "features",
         &[
             "clippy",
             "-p",
-            "eggshell-ui-shadcn",
-            "-p",
-            "eggshell-ui-extras",
+            "eggshell-ui",
             "--no-default-features",
             "--",
             "-D",
@@ -367,7 +365,7 @@ mod tests {
                 "built-in clock check",
                 "built-in spacing-units check",
                 "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
-                "cargo clippy -p eggshell-ui-shadcn -p eggshell-ui-extras --no-default-features -- -D warnings",
+                "cargo clippy -p eggshell-ui --no-default-features -- -D warnings",
                 "built-in shadcn-sheets check",
                 "built-in test check",
                 "cargo test --workspace --doc",

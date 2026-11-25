@@ -3,10 +3,10 @@
 
 use core::time::Duration;
 
+use eggshell_ui::owned::hover_card::{HoverCardExt as _, HoverCardStyle};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_extras::hover_card::{HoverCardExt as _, HoverCardStyle};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -157,7 +157,7 @@ fn hovering_a_trigger_with_nothing_focusable_in_it_opens_the_card() {
 /// bordered; an App rule on its part restyles it.
 #[test]
 fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
-    use eggshell_ui_extras::hover_card::HoverCardPart;
+    use eggshell_ui::owned::hover_card::HoverCardPart;
     let open = |d: &mut Driver<App>| {
         d.hover(Target::suffix(HANDLE))
             .advance(Duration::from_millis(800));

@@ -3,8 +3,8 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{ButtonChain, ButtonOptions};
+use eggshell_ui::theme::{Shadcn, size, variant};
 use eggshell_ui::{Builder, LayoutState, Scope, tw};
-use eggshell_ui_shadcn::{Shadcn, size, variant};
 use egui::epaint::ClippedShape;
 use egui::{RawInput, Rect, pos2};
 

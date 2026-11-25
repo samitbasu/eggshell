@@ -234,7 +234,7 @@ impl RegistryMiss {
         let palette = Palette::new()
             .base(self.base.unwrap_or_default())
             .theme(self.colour.unwrap_or_default());
-        let registry = Tokens::for_theme(theme).with_palette(palette, theme);
+        let registry = Tokens::for_theme(theme).with_palette(palette);
         pair.colours(&registry) == pair.colours(tokens)
     }
 }
@@ -242,7 +242,8 @@ impl RegistryMiss {
 /// Reports, in a debug build, each pair of `tokens` under AA that is neither
 /// accepted nor a registry miss, once per pair and theme. The colours are not
 /// changed.
-pub fn warn_low_contrast(ctx: &Context, theme: Theme, tokens: &Tokens) {
+pub(crate) fn warn_low_contrast(ctx: &Context, tokens: &Tokens) {
+    let theme = tokens.theme;
     if !cfg!(debug_assertions) {
         return;
     }

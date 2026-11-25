@@ -106,10 +106,10 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.div_id(Part::Page, tw().flex().flex_col().gap(3.0).p(4.0), |s| {
         s.div(tw().flex().gap(2.0).items_center(), |s| {
             s.dropdown_menu(Part::Menu, "Edit")
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .items(|m| m.command(Cmd::Paste).add());
             s.button(Part::Button, "Paste")
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .command(Cmd::Paste);
         });
         match &state.arrived {

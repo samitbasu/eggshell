@@ -3,10 +3,10 @@
 //! their keys draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
-use eggshell_ui::contract::{Disabled, SegmentedMetrics, Size, Style};
+use eggshell_ui::contract::{Disabled, Size, Style};
 use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
 use egui_kittest::Harness;
 
@@ -39,24 +39,12 @@ struct App {
 fn edit(style: &mut Style, ambient: Ambient) {
     // The disabled token reaches the widgets' own look, not the preset's.
     if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
-        *style = Style::from_egui(&egui::Context::default().style_of(egui::Theme::Light));
+        *style = Style::default();
     }
     if ambient == Ambient::InertFaded {
         style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
-    let mut segmented = style.segmented().clone();
-    let default = *segmented.sizes.get(Size::DEFAULT);
-    segmented.sizes = segmented.sizes.clone().with(
-        SM,
-        SegmentedMetrics {
-            height: default.height - 8.0,
-            cell_padding: default.cell_padding / 2.0,
-            icon_size: default.icon_size - 4.0,
-            ..default
-        },
-    );
     style.sheet.as_app();
-    style.set_segmented(segmented);
 }
 
 /// The library's control, then the same one built from the public classes.
@@ -193,21 +181,6 @@ fn they_follow_the_size_a_subtree_gives() {
 #[test]
 fn they_follow_an_inert_subtree() {
     same_look(Ambient::Inert, SegmentedRows::One);
-}
-
-#[test]
-fn they_fade_as_the_style_fades_disabled_controls() {
-    let faded = harness(Ambient::InertFaded, SegmentedRows::One);
-    let colours = harness(Ambient::Inert, SegmentedRows::One);
-    let track = |harness: &Harness<'static, Rig<App>>| {
-        box_at(harness, rect_of(harness, "/\"library\"")).fill
-    };
-    assert_ne!(
-        track(&faded),
-        track(&colours),
-        "precondition: the faded style draws the library's track otherwise"
-    );
-    same_look(Ambient::InertFaded, SegmentedRows::One);
 }
 
 #[test]

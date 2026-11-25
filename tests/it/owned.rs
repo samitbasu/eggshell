@@ -10,8 +10,8 @@ use eggshell_ui::owned::ButtonPart;
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::sheet::{Key as Keyed, When};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens, variant};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
 use egui::{Color32, Key, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -169,7 +169,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
         assert_eq!(
             light.origin_of(property),
             Some(eggshell_ui::Origin {
-                layer: eggshell_ui::sheet::Layer::Preset,
+                layer: eggshell_ui::sheet::Layer::Base,
                 source: eggshell_ui::Source::Shadcn {
                     file: "registry/styles/style-vega.css",
                     line,
@@ -189,14 +189,7 @@ fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
         Some(Tokens::dark().input.gamma_multiply(0.3)),
         "dark:bg-input/30"
     );
-    assert_eq!(
-        style(Theme::Light)
-            .checkbox()
-            .sizes
-            .get(eggshell_ui::contract::Size::DEFAULT)
-            .radius,
-        4
-    );
+    assert_eq!(style(Theme::Light).tokens.checkbox_radius, 4);
 }
 
 #[test]
@@ -700,41 +693,6 @@ fn an_app_rule_can_take_the_press_shift_away() {
         box_at(&d, rect).rect.top(),
         rect.top(),
         "the pressed box stays put"
-    );
-}
-
-#[test]
-fn without_the_preset_a_button_reads_focus_and_disabled_from_the_tokens() {
-    let mut style = Style::default();
-    style.tokens.ring_width = 5.0;
-    style.tokens.ring = Color32::RED;
-    let focus = style.tokens.focus();
-    style.tokens.disabled = eggshell_ui::contract::Disabled::Faded(eggshell_ui::Opacity::new(0.4));
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(4);
-
-    let enabled = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
-    let disabled = d.rect(Target::suffix(&path(
-        variant::PRIMARY,
-        Enablement::Disabled,
-    )));
-    let rest = box_at(&d, enabled).fill;
-    assert!(rest.a() > 0, "precondition: the button has a fill");
-    assert_eq!(
-        box_at(&d, disabled).fill,
-        rest.gamma_multiply(0.4),
-        "the rest fill at the token's opacity"
-    );
-
-    support::drive_past_bar(&mut d);
-    d.press(Key::Tab).frames(11);
-    let node = path(variant::PRIMARY, Enablement::Enabled);
-    assert_eq!(focused_path(&d).as_deref(), Some(node.as_str()));
-    let ring = ring_at(&d, enabled).expect("a focus ring");
-    assert_eq!(
-        (ring.stroke.width, ring.stroke.color),
-        (focus.width, focus.color)
     );
 }
 

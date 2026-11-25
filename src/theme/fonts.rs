@@ -82,7 +82,7 @@ impl FontSet {
     }
 
     /// The named family of each weight but Normal, for the style contract.
-    pub fn declared(&self) -> Faces {
+    pub(crate) fn declared(&self) -> Faces {
         self.weighted().fold(Faces::default(), |faces, weight| {
             faces.with(FontFamily::Proportional, weight, self.family(weight))
         })
@@ -91,7 +91,7 @@ impl FontSet {
     /// Adds the faces to `ctx`'s fonts. The Normal face also backs every
     /// named family, for the glyphs a weighted face lacks. Adding a face egui
     /// has under its name already does nothing.
-    pub fn install(&self, ctx: &Context) {
+    pub(crate) fn install(&self, ctx: &Context) {
         for font in self.inserts() {
             ctx.add_font(font);
         }
@@ -99,7 +99,7 @@ impl FontSet {
 
     /// The faces as egui font insertions: each weight's face first in its
     /// own family, and the Normal face last in every weighted family.
-    pub fn inserts(&self) -> Vec<FontInsert> {
+    pub(crate) fn inserts(&self) -> Vec<FontInsert> {
         let first = |family| InsertFontFamily {
             family,
             priority: FontPriority::Highest,

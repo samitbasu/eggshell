@@ -219,7 +219,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 fn selectable() -> Driver<()> {
-    let tokens = eggshell_ui_shadcn::Tokens::light();
+    let tokens = eggshell_ui::theme::Tokens::light();
     let mut d = support::driver(
         vec2(300.0, 100.0),
         eggshell_ui::TextStyle::new(tokens.text_role(), tokens.foreground),

@@ -6,12 +6,10 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
-use eggshell_ui::owned::{
-    Cell, CheckboxPart, Choice, Enablement, Face, Mark, SegmentedRows, TabsPart,
-};
+use eggshell_ui::owned::{Cell, Choice, Enablement, Face, SegmentedRows, TabsPart};
 use eggshell_ui::sheet::When;
+use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
 use eggshell_ui::{Aria, Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
@@ -323,16 +321,18 @@ fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
     for (theme, shadcn) in COMBINATIONS {
-        let d = sections_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
-                let mut segmented = style.segmented().clone();
-                let metrics = segmented.sizes.default_entry_mut();
-                metrics.icon_size = 18.0;
-                metrics.icon_gap = 7.0;
-                metrics.column_gap = 3.0;
-                style.set_segmented(segmented);
+                style
+                    .sheet
+                    .as_app()
+                    .rule(TabsPart::List, |t, _| t.gap_x_px(3.0))
+                    .rule(TabsPart::Trigger, |t, _| {
+                        t.gap_px(7.0)
+                            .descendants(eggshell_ui::Match::glyph(), |g| g.size_px(18.0))
+                    });
             },
             icon_cells,
         );
@@ -423,14 +423,10 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = d.app().style.segmented().clone();
+        let height = d.app().style.tokens.control_height();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
-        assert_eq!(
-            track.height(),
-            seg.sizes.get(Size::DEFAULT).height,
-            "the styled height stays"
-        );
+        assert_eq!(track.height(), height, "the styled height stays");
         let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         let widths: Vec<_> = cells.iter().map(|cell| cell.width()).collect();
         assert!(
@@ -519,16 +515,10 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"select\""),
-            style.select().sizes.get(Size::DEFAULT).height
+            style.select.sizes.get(Size::DEFAULT).height
         );
-        assert_eq!(
-            height("/\"stepper\"/Box"),
-            style.stepper.sizes.get(Size::DEFAULT).height
-        );
-        assert_eq!(
-            height("/\"segmented\""),
-            style.segmented().sizes.get(Size::DEFAULT).height
-        );
+        assert_eq!(height("/\"stepper\"/Box"), style.tokens.control_height());
+        assert_eq!(height("/\"segmented\""), style.tokens.control_height());
     }
 }
 
@@ -565,7 +555,7 @@ fn size_of_text(d: &Harn, inside: &str, text: &str) -> f32 {
 #[test]
 fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
     for (theme, shadcn) in COMBINATIONS {
-        let plain = sections_with(theme, shadcn, |_| {}, roles);
+        let plain = harness_with(theme, shadcn, |_| {}, roles);
         let base = plain.app().style.text.size;
         for (path, text) in [
             ("/\"button\"", "Save"),
@@ -575,7 +565,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         ] {
             assert_eq!(size_of_text(&plain, path, text), base, "{path}: default");
         }
-        let d = sections_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
@@ -592,9 +582,9 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     .rule(eggshell_ui::owned::SelectPart::Trigger, |t, _| {
                         t.role(spec(19.0))
                     });
-                let mut checkbox = style.checkbox().clone();
+                let mut checkbox = style.checkbox.clone();
                 checkbox.text = Some(spec(23.0));
-                style.set_checkbox(checkbox);
+                style.checkbox = checkbox;
             },
             roles,
         );
@@ -698,7 +688,7 @@ fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             b.button(("button", enablement), "Save")
-                .variant(eggshell_ui_shadcn::variant::PRIMARY)
+                .variant(eggshell_ui::theme::variant::PRIMARY)
                 .enablement(enablement)
                 .on_click(|app: &mut App| app.clicks += 1);
             b.checkbox(("check", enablement), "Agree", true)
@@ -725,7 +715,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             },
             disabled_row,
         );
-        let rest = support::button::look(theme, eggshell_ui_shadcn::variant::PRIMARY);
+        let rest = support::button::look(theme, eggshell_ui::theme::variant::PRIMARY);
         let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
         let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
         assert_eq!(box_at(&d, enabled).fill, rest.fill, "precondition");
@@ -768,7 +758,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         |style| {
             style.sheet.as_app().rule_when(
                 eggshell_ui::owned::ButtonPart::Root,
-                eggshell_ui::sheet::When::always().variant(eggshell_ui_shadcn::variant::PRIMARY),
+                eggshell_ui::sheet::When::always().variant(eggshell_ui::theme::variant::PRIMARY),
                 move |t, _| t.bg(translucent),
             );
             style.sheet.as_app().rule_when(
@@ -789,49 +779,13 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
     d.frames(1);
 }
 
-#[test]
-fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let neutral = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
-    let d = drive(
-        Theme::Light,
-        ShadcnStyle::Vega,
-        neutral,
-        |_| {},
-        disabled_row,
-    );
-    let style = &d.app().style;
-    assert_eq!(style.tokens.disabled, Disabled::Colors);
-    let disabled = support::part_at(
-        style,
-        CheckboxPart::Root,
-        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Disabled),
-    );
-    let enabled = support::part_at(
-        style,
-        CheckboxPart::Root,
-        &CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled),
-    );
-    let fill = disabled.paint_classes().background;
-    assert_ne!(
-        fill,
-        enabled.paint_classes().background,
-        "precondition: disabled has colours of its own"
-    );
-    let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
-    assert_eq!(
-        Some(box_at(&d, checked).fill),
-        fill,
-        "a checkbox still draws the style's disabled colours"
-    );
-}
-
 // ----- #43 item 10: icon buttons -----
 
 fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.button("icon", (app.icon(), "Search"))
             .size(size::ICON)
-            .variant(eggshell_ui_shadcn::variant::GHOST)
+            .variant(eggshell_ui::theme::variant::GHOST)
             .on_click(|app: &mut App| app.clicks += 1);
         b.button("labelled", "Add")
             .icon(app.icon())
@@ -857,7 +811,7 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
         let (tint, glyph) = icon_in(&d, button);
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "[&_svg]:size-4");
         assert!(glyph.center().distance(button.center()) <= 0.75, "centred");
-        let ghost = support::button::look(theme, eggshell_ui_shadcn::variant::GHOST);
+        let ghost = support::button::look(theme, eggshell_ui::theme::variant::GHOST);
         assert_eq!(tint, ghost.text);
 
         d.hover(Target::suffix("/\"icon\""));
@@ -1149,12 +1103,12 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
         let d = harness_with(theme, shadcn, |_| {}, stepper);
         let style = &d.app().style;
         let group = d.rect(Target::suffix("/\"stepper\"/Box"));
-        let inside = group.shrink(style.stepper.group.border_width);
+        let inside = group.shrink(support::input_border(style).0);
         let field_box = d.rect(Target::suffix("/\"stepper\"/Box/<div>"));
         let field = d.rect(Target::suffix("/\"stepper\"/Box/Field"));
         assert_eq!(
             group.height(),
-            style.stepper.sizes.get(Size::DEFAULT).height,
+            style.tokens.control_height(),
             "precondition"
         );
         assert!(

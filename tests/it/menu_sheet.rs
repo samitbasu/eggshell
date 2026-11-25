@@ -49,33 +49,3 @@ fn a_rule_on_the_item_part_restyles_the_items_of_that_kind_only() {
         "the checkbox item is a part of its own"
     );
 }
-
-#[test]
-fn without_a_preset_the_highlighted_item_takes_egui_s_selection_fill() {
-    let text = TextStyle::new(
-        TextSpec {
-            size: 14.0,
-            line_height: 20.0,
-            family: FontFamily::Proportional,
-            weight: Weight::Normal,
-        },
-        Color32::BLACK,
-    );
-    let style = eggshell_ui::Style::default();
-    let selection = style.selection.fill;
-    let mut d = support::driver(vec2(400.0, 300.0), text, App, view)
-        .style(eggshell_ui::contract::Themed::both(std::sync::Arc::new(
-            style,
-        )))
-        .build();
-    d.frames(4);
-    d.click(Target::suffix(r#"/"file""#)).frames(5);
-    assert_ne!(
-        support::fill_of(&d, ITEM),
-        Some(selection),
-        "precondition: nothing is highlighted yet"
-    );
-    let item = d.rect(Target::suffix(ITEM));
-    d.hover(item.center()).frames(4);
-    assert_eq!(support::fill_of(&d, ITEM), Some(selection));
-}

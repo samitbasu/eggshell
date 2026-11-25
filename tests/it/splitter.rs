@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use eggshell_ui::owned::PaneSize;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Key, Modifiers, Pos2, Role, Theme, Vec2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

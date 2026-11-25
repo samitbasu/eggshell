@@ -50,7 +50,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn base() -> TextStyle {
-    let tokens = eggshell_ui_shadcn::Tokens::light();
+    let tokens = eggshell_ui::theme::Tokens::light();
     TextStyle::new(tokens.text_role(), tokens.foreground)
 }
 

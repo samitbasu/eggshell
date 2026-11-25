@@ -6,8 +6,8 @@ use std::sync::Arc;
 use eggshell_ui::contract::{Keyed, Metrics, Size, Themed};
 use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens, size};
 use eggshell_ui::{Builder, Problem, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

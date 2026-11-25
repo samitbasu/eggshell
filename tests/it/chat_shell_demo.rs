@@ -772,7 +772,7 @@ mod appearance {
 
 mod accents {
     use super::*;
-    use eggshell_ui_shadcn::ThemeColor;
+    use eggshell_ui::theme::ThemeColor;
     use egui::epaint::Shape;
 
     fn text_colors(d: &Driver<App>, text: &str) -> Vec<egui::Color32> {
@@ -800,9 +800,9 @@ mod accents {
             assert_eq!(text_colors(&d, "Running"), [k[Tok::Accent]]);
             assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
             assert_eq!(
-                eggshell_ui_shadcn::Shadcn::of(d.ctx()).tokens.primary,
-                eggshell_ui_shadcn::Shadcn::for_theme(theme)
-                    .with_palette(eggshell_ui_shadcn::Palette::new().theme(ThemeColor::Blue))
+                eggshell_ui::theme::Shadcn::of(d.ctx()).tokens.primary,
+                eggshell_ui::theme::Shadcn::for_theme(theme)
+                    .with_palette(eggshell_ui::theme::Palette::new().theme(ThemeColor::Blue))
                     .tokens
                     .primary,
                 "the example's accent is blue"

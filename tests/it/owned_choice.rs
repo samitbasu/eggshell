@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::{Cell, Enablement, Mark, SegmentedRows, SwitchPart, TabsPart};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
 use egui::{Key, KeyboardShortcut, Rect, Role, Theme, vec2};
 
@@ -316,27 +316,20 @@ fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let switch = style(theme).switch().clone();
-        let metrics = *switch.sizes.get(Size::DEFAULT);
+        let tokens = style(theme).tokens.clone();
+        let (track_size, diameter) = (tokens.switch_track, tokens.points(tokens.switch_thumb));
         for on in [false, true] {
             if on {
                 d.click(Target::suffix("/\"air\"/Track")).frames(12);
             }
             let (track_look, thumb_look) = switch_look(&style(theme), on);
             let (rect, thumb) = thumb(&d, "/\"air\"/Track");
-            assert!((rect.size() - metrics.track).abs().max_elem() < 0.01);
+            assert!((rect.size() - track_size).abs().max_elem() < 0.01);
             let track = box_at(&d, rect);
             assert_eq!(track.fill, track_look, "{theme:?} on {on}");
             assert_eq!(track.corner_radius, egui::CornerRadius::same(u8::MAX));
             assert_eq!(thumb.fill, thumb_look);
-            assert_eq!(
-                thumb.radius,
-                if on {
-                    metrics.thumb_on
-                } else {
-                    metrics.thumb_off
-                } / 2.0
-            );
+            assert_eq!(thumb.radius, diameter / 2.0);
             let inset = rect.height() / 2.0;
             let x = if on {
                 rect.right() - inset
@@ -414,15 +407,19 @@ fn cell_path(unit: Unit) -> String {
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let seg = style(theme).segmented().clone();
+        let tokens = style(theme).tokens.clone();
         let track = d.rect(Target::suffix("/\"seg\""));
-        assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
-        assert_eq!(box_at(&d, track).fill, seg.track_fill);
+        assert_eq!(track.height(), tokens.control_height());
+        assert_eq!(
+            box_at(&d, track).fill,
+            tokens.input,
+            "the recorded track fill"
+        );
         let metric = d.rect(Target::suffix(&cell_path(Unit::Metric)));
-        let metrics = seg.sizes.get(Size::DEFAULT);
         assert_eq!(
             metric.top() - track.top(),
-            metrics.track_padding + metrics.cell_trim / 2.0
+            tokens.list_padding + 0.5,
+            "`p-[3px]` and half the trigger's 1 px trim"
         );
         let selected = box_at(&d, metric);
         let trigger = support::part_at(
@@ -442,7 +439,7 @@ fn segmented_track_and_cells_are_the_styles() {
         );
         assert_eq!(
             selected.corner_radius,
-            egui::CornerRadius::same(seg.sizes.get(Size::DEFAULT).cell_radius)
+            egui::CornerRadius::same(tokens.radius_md())
         );
         assert_eq!(selected.stroke.width, 1.0, "shadcn's `border`");
         let imperial = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
@@ -471,11 +468,9 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
     tab_to(&mut d, &cell_path(Unit::Imperial));
     d.frames(12);
-    let seg = style(Theme::Light).segmented().clone();
     let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
-    let _ = seg;
     d.press(Key::Enter).frames(2);
     assert_eq!(d.app().segment, Unit::Imperial);
 
@@ -489,42 +484,6 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
         .map(|node| node.accesskit_node().toggled())
         .collect();
     assert_eq!(selected, [Some(egui::accesskit::Toggled::True)]);
-}
-
-#[test]
-fn a_modified_style_changes_every_owned_widget() {
-    // The sections draw the widgets where no preset's look is over them.
-    let mut style = support::sections_of(style(Theme::Light));
-    let red = egui::Color32::from_rgb(200, 30, 30);
-    let mut switch = style.switch().clone();
-    switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
-    style.set_switch(switch);
-    style.sheet.rule_when(
-        SwitchPart::Root,
-        eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Checked),
-        move |t, _| t.bg(red),
-    );
-    let mut radio = style.radio().clone();
-    radio.sizes.default_entry_mut().size = 24.0;
-    style.set_radio(radio);
-    let mut segmented = style.segmented().clone();
-    segmented.track_fill = red;
-    style.set_segmented(segmented);
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(4);
-    d.click(Target::suffix("/\"air\"/Track")).frames(12);
-    assert!(d.app().on, "precondition: the switch is on");
-    d.carry_to(egui::pos2(490.0, 590.0)).frames(11);
-
-    let track = d.rect(Target::suffix("/\"air\"/Track"));
-    assert_eq!(track.size(), vec2(60.0, 30.0));
-    assert_eq!(box_at(&d, track).fill, red);
-    assert_eq!(
-        d.rect(Target::suffix(&circle_path(Unit::Metric))).size(),
-        vec2(24.0, 24.0)
-    );
-    assert_eq!(box_at(&d, d.rect(Target::suffix("/\"seg\""))).fill, red);
 }
 
 #[test]
@@ -614,50 +573,6 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     d.pointer_down(Target::suffix("/\"air\"/Track")).frames(11);
     assert_eq!(thumb(&d, "/\"air\"/Track").1.fill, rest, "pressed");
     d.pointer_up(Target::suffix("/\"air\"/Track")).frames(11);
-}
-
-#[test]
-fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
-    // The preset's switch and cells take shadcn's
-    // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's, which
-    // the style without a preset draws them with.
-    let mut style = Style::from_egui(&egui::Context::default().style_of(Theme::Light));
-    style.tokens.ring_width = 5.0;
-    style.tokens.ring = egui::Color32::from_rgb(200, 30, 30);
-    let ring = style.tokens.focus();
-    assert_ne!(
-        Shadcn::for_theme(Theme::Light).tokens.focus(),
-        ring,
-        "precondition: the preset's ring is another"
-    );
-    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
-        let mut d = harness(Theme::Light);
-        d.set_style(Themed::both(Arc::new(style.clone())));
-        d.frames(4);
-        tab_to(&mut d, &path);
-        d.frames(12);
-        let drawn = ring_at(&d, d.rect(Target::suffix(&path))).expect("a focus ring");
-        assert_eq!(drawn.stroke.width, ring.width, "{path}");
-        assert_eq!(drawn.stroke.color, ring.color, "{path}");
-    }
-}
-
-#[test]
-fn the_neutral_style_draws_the_chosen_cell_in_egui_s_active_fill() {
-    let egui_style = egui::Context::default().style_of(Theme::Light);
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(Style::from_egui(&egui_style))));
-    d.frames(4);
-    let chosen = box_at(&d, d.rect(Target::suffix(&cell_path(Unit::Metric))));
-    assert_eq!(chosen.fill, egui_style.visuals.widgets.active.weak_bg_fill);
-    let other = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
-    assert!(
-        !shapes(&d).iter().any(|shape| matches!(
-            shape,
-            Shape::Rect(r) if support::same(r.rect, other) && r.fill != egui::Color32::TRANSPARENT
-        )),
-        "another cell has no fill"
-    );
 }
 
 #[test]

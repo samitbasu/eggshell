@@ -19,8 +19,8 @@ use eggshell_ui::contract::{Themed, Variant};
 use eggshell_ui::owned::{Cell, MenuPart};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::sheet::Key as SheetKey;
+use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};
-use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 pub mod dnd;
@@ -695,7 +695,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
         .border(1.0)
         .border_color(k.border)
         .rounded_px(menu_radius(b, MenuPart::Content, &[]))
-        .p_px(style.menu().padding)
+        .p_px(style.menu.padding)
         .text(k.popover_foreground)
         .shadow(k.shadow_md)
 }
@@ -703,7 +703,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
 /// An item of a hand-built list: the menu item look.
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
     let style = b.style();
-    let menu = style.menu();
+    let menu = &&&&&&style.menu;
     let (fill, text) = (style.tokens.accent, style.tokens.accent_foreground);
     tw().px_px(menu.item_padding.x)
         .py_px(menu.item_padding.y)

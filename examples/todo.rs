@@ -12,8 +12,8 @@ mod common;
 
 use core::time::Duration;
 
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Opacity, Tw, tw};
-use eggshell_ui_shadcn::Tokens;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
 

@@ -1,9 +1,9 @@
 //! The Markdown widget (#254) through the real path: its test page, built,
 //! laid out and drawn by the rig, clicked as a user would.
 
+use eggshell_ui::owned::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
 
@@ -271,7 +271,7 @@ fn a_registered_directive_mounts_a_live_example() {
 fn the_shadcn_preset_fills_the_markdown_style() {
     let d = driver();
     let tokens = common::tokens(d.ctx());
-    let preset = eggshell_ui_shadcn::Shadcn::of(d.ctx());
+    let preset = eggshell_ui::theme::Shadcn::of(d.ctx());
     let installed = style(&d);
     assert_eq!(*installed, preset.markdown());
     assert_eq!(installed.rule, tokens.border);

@@ -2408,7 +2408,7 @@ pub trait NodeUi {
     ///
     /// let ctx = egui::Context::default();
     /// ctx.run_ui(Default::default(), |ui| {
-    ///     let derived = Style::from_egui(&ui.ctx().global_style());
+    ///     let derived = Style::default();
     ///     assert_eq!(ui.node_style().text, derived.text);
     /// })
     /// .drop_without_applying_deltas();
@@ -2443,7 +2443,7 @@ impl NodeUi for Ui {
     fn node_style(&self) -> Arc<Style> {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<StyleTag>(scope))
-            .map_or_else(|| Style::derived(self.ctx()), |tag| tag.0)
+            .map_or_else(Style::fallback, |tag| tag.0)
     }
 
     #[track_caller]

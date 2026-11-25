@@ -103,7 +103,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
         tw().flex().items_center().gap(3.0).p(4.0),
         |s| {
             s.button(Part::Trigger, "Colour")
-                .variant(eggshell_ui_shadcn::variant::OUTLINE)
+                .variant(eggshell_ui::theme::variant::OUTLINE)
                 .on_click(|state: &mut State| state.open = !state.open);
             s.text(tw(), state.choice.name());
             if state.open {

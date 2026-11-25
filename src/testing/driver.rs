@@ -80,7 +80,7 @@ type Setup = Box<dyn FnOnce(&egui::Context)>;
 /// d.hover(d.path("help"));
 /// assert!(!d.painted().shows("More about this"));
 /// let style = d.shell().style();
-/// d.advance(style.tooltip().delay + style.motion.tooltip.enter + Duration::from_millis(100));
+/// d.advance(style.tooltip.delay + style.motion.tooltip.enter + Duration::from_millis(100));
 /// assert!(d.painted().shows("More about this"));
 /// ```
 ///

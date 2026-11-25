@@ -566,7 +566,7 @@ fn the_palettes_current_command_is_muted() {
         .harness()
         .get_by_role_and_label(Role::ListBoxOption, &label)
         .rect();
-    let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+    let tokens = eggshell_ui::theme::Tokens::for_theme(egui::Theme::Light);
     assert_eq!(support::box_at(&d, row).fill, tokens.muted, "bg-muted");
 }
 
@@ -577,7 +577,7 @@ fn an_app_rule_restyles_the_palette() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui_extras::command::CommandPart::Root, |t, _| {
+            .rule(eggshell_ui::owned::command::CommandPart::Root, |t, _| {
                 t.bg(Color32::RED)
             });
     });

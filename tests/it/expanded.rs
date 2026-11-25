@@ -2,10 +2,10 @@
 //! shadcn's open look, and a container's `has-aria-expanded` rule sees it.
 
 use eggshell_ui::contract::Variant;
+use eggshell_ui::owned::command::CommandExt as _;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Aria, Builder, Match, TextStyle, tw};
-use eggshell_ui_extras::command::CommandExt as _;
-use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Theme, vec2};
 
 use crate::support::{self, box_at};

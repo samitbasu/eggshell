@@ -48,9 +48,9 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn offset_12(style: &mut Style) {
-    let mut menu = style.menu().clone();
+    let mut menu = style.menu.clone();
     menu.offset = Distance::new(12.0);
-    style.set_menu(menu);
+    style.menu = menu;
 }
 
 fn harness(app: App, edit: fn(&mut Style)) -> Driver<App> {

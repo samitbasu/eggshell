@@ -4,8 +4,8 @@
 //! rows it shows are the ones its data puts there.
 
 use eggshell_ui::testing::Driver;
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{TextStyle, scroll};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, Theme, vec2};
 
 use crate::support::{self, View};

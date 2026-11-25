@@ -738,21 +738,6 @@ mod trigger {
         under(d, parent, "<glyph>").expect("the trigger draws a chevron")
     }
 
-    /// The most opaque vertex the chevron of the dropdown is drawn with.
-    fn chevron_alpha(d: &Driver<App>) -> u8 {
-        let at = glyph(d, DD);
-        support::shapes(d)
-            .into_iter()
-            .filter_map(|shape| match shape {
-                egui::Shape::Mesh(mesh) if at.expand(0.5).contains_rect(mesh.calc_bounds()) => {
-                    mesh.vertices.iter().map(|vertex| vertex.color.a()).max()
-                }
-                _ => None,
-            })
-            .max()
-            .unwrap_or_default()
-    }
-
     #[test]
     fn a_chevron_trails_the_label_at_the_triggers_gap_and_is_as_big_as_a_selects() {
         let d = opened(chevron_and_select);
@@ -773,28 +758,23 @@ mod trigger {
     }
 
     #[test]
-    fn the_chevron_takes_the_selects_size_and_tone_from_the_style() {
+    fn a_selects_chevron_takes_its_size_from_the_sheet() {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
-                *style = support::sections_of(style.clone());
-                let mut select = style.select().clone();
-                select.chevron = chevron;
-                select.chevron_opacity = Opacity::new(opacity);
-                style.set_select(select);
+                style
+                    .sheet
+                    .as_app()
+                    .rule(eggshell_ui::owned::SelectPart::Trigger, move |t, _| {
+                        t.descendants(eggshell_ui::Match::glyph(), |g| {
+                            g.size_px(chevron).opacity(Opacity::new(opacity))
+                        })
+                    });
             }));
             d.frames(4);
             d
         };
-        let (faint, full) = (restyled(20.0, 0.25), restyled(20.0, 1.0));
-        assert_eq!(glyph(&full, DD).size(), vec2(20.0, 20.0));
-        assert_eq!(glyph(&full, SEL).size(), vec2(20.0, 20.0));
-        let (faint, full) = (chevron_alpha(&faint), chevron_alpha(&full));
-        assert!(full > 0, "precondition: the chevron is drawn");
-        assert!(
-            faint < full / 2,
-            "a quarter opacity draws fainter: {faint} against {full}"
-        );
+        assert_eq!(glyph(&restyled(20.0, 1.0), SEL).size(), vec2(20.0, 20.0));
     }
 
     #[test]
@@ -885,8 +865,8 @@ mod open_query {
         let mut bar = support::Bar::new(base_text());
         let mut d = Driver::whole_frame(app, move |ui, app, layout| {
             let area = ui.max_rect();
-            if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
-                eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
+                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
             }
             bar.show(ui);
             let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
@@ -993,7 +973,7 @@ mod open_query {
 mod look {
     //! shadcn's dropdown-menu, as the preset draws it (`style-vega.css`).
     use super::*;
-    use eggshell_ui_shadcn::Tokens;
+    use eggshell_ui::theme::Tokens;
 
     fn tokens(d: &Driver<App>) -> Tokens {
         Tokens::for_theme(d.ctx().theme())

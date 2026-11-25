@@ -1,9 +1,9 @@
 //! The shadcn preset: what `apply` sets in egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
+use eggshell_ui::theme::{BaseColor, Palette, Shadcn, ThemeColor, Tokens, tokens};
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};
-use eggshell_ui_shadcn::{BaseColor, Palette, Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
 
@@ -728,13 +728,10 @@ fn a_section_set_after_the_preset_keeps_the_presets_look() {
         .resolve(TooltipPart::Content, &[], &style.tokens)
         .style()
         .clone();
-    let mut tooltip = style.tooltip().clone();
+    let mut tooltip = style.tooltip.clone();
     tooltip.delay = core::time::Duration::from_millis(123);
-    style.set_tooltip(tooltip);
-    assert_eq!(
-        style.tooltip().delay,
-        core::time::Duration::from_millis(123)
-    );
+    style.tooltip = tooltip;
+    assert_eq!(style.tooltip.delay, core::time::Duration::from_millis(123));
     let after = style
         .sheet
         .resolve(TooltipPart::Content, &[], &style.tokens)
@@ -743,64 +740,7 @@ fn a_section_set_after_the_preset_keeps_the_presets_look() {
     assert_eq!(after, before, "the preset's look");
     assert_eq!(
         style.sheet.layer(),
-        eggshell_ui::sheet::Layer::Preset,
+        eggshell_ui::sheet::Layer::Base,
         "the layer is kept"
     );
-}
-
-/// A metric the preset's recorded exceptions read, changed after the preset,
-/// lands: the exceptions are written again over its look.
-#[test]
-fn a_section_metric_an_exception_reads_lands_after_the_preset() {
-    use eggshell_ui::contract::Size;
-    use eggshell_ui::owned::{Enablement, SegmentedRows, TabsPart};
-    let mut style = Shadcn::for_theme(Theme::Light).style();
-    let sm = Size("sm");
-    let height = |style: &eggshell_ui::Style| {
-        style
-            .sheet
-            .resolve(
-                TabsPart::List,
-                &TabsPart::list_keys(sm, SegmentedRows::One, Enablement::Enabled),
-                &style.tokens,
-            )
-            .style()
-            .size
-            .height
-    };
-    let mut segmented = style.segmented().clone();
-    assert!(
-        segmented.sizes.keys().any(|size| size == sm),
-        "precondition: the preset has a small size"
-    );
-    let mut metrics = *segmented.sizes.get(sm);
-    metrics.height = 50.0;
-    segmented.sizes = segmented.sizes.clone().with(sm, metrics);
-    style.set_segmented(segmented);
-    assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
-}
-
-/// With no preset, a changed text role reaches the controls that take it by
-/// default once the rules are written again: an enabled button, a tooltip's
-/// box and a tab's trigger.
-#[test]
-fn a_new_text_role_reaches_the_widgets_own_looks() {
-    use eggshell_ui::owned::{ButtonPart, TabsPart, TooltipPart};
-    let mut style = eggshell_ui::Style::default();
-    let size = |style: &eggshell_ui::Style, classes: eggshell_ui::Tw| {
-        let page = eggshell_ui::TextStyle::new(style.text.clone(), Color32::PLACEHOLDER);
-        classes.text_classes().over(&page).spec.size
-    };
-    let sizes = |style: &eggshell_ui::Style| {
-        [
-            size(style, crate::support::part(style, ButtonPart::Root)),
-            size(style, crate::support::part(style, TooltipPart::Content)),
-            size(style, crate::support::part(style, TabsPart::Trigger)),
-        ]
-    };
-    assert_ne!(style.text.size, 31.0, "precondition");
-    style.text.size = 31.0;
-    assert_ne!(sizes(&style), [31.0; 3], "precondition: not yet written");
-    style.rewrite_rules();
-    assert_eq!(sizes(&style), [31.0; 3]);
 }

@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use eggshell_ui::owned::{Choice, Enablement, Face, TooltipPart};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Key, KeyboardShortcut, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -55,10 +55,10 @@ struct Mounted {
 static INSIDE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 fn timed(style: &mut Style) {
-    let mut tooltip = style.tooltip().clone();
+    let mut tooltip = style.tooltip.clone();
     tooltip.delay = DELAY;
     tooltip.grace = GRACE;
-    style.set_tooltip(tooltip);
+    style.tooltip = tooltip;
 }
 
 fn harness_of(view: support::View<App>) -> Driver<App> {
@@ -431,21 +431,9 @@ fn a_tooltip_opening_swapping_and_closing_never_teleports() {
 }
 
 #[test]
-fn the_neutral_style_takes_its_timing_and_width_from_egui() {
-    let mut egui_style = egui::Style::default();
-    egui_style.interaction.tooltip_delay = 0.25;
-    egui_style.interaction.tooltip_grace_time = 0.75;
-    let style = Style::from_egui(&egui_style);
-    assert_eq!(style.tooltip().delay, Duration::from_millis(250));
-    assert_eq!(style.tooltip().grace, Duration::from_millis(750));
-    assert_eq!(max_width(&style), egui_style.spacing.tooltip_width);
-    assert!(style.tooltip().arrow.is_none());
-}
-
-#[test]
 fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
     for theme in [Theme::Light, Theme::Dark] {
-        let preset = eggshell_ui_shadcn::Shadcn::for_theme(theme);
+        let preset = eggshell_ui::theme::Shadcn::for_theme(theme);
         let style = preset.style();
         let content = support::part(&style, TooltipPart::Content);
         assert_eq!(
@@ -453,7 +441,7 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
             Some(preset.tokens.foreground)
         );
         assert_eq!(support::ink(&style, &content), preset.tokens.background);
-        assert_eq!(style.tooltip().arrow.map(|arrow| arrow.size), Some(10.0));
+        assert_eq!(style.tooltip.arrow.map(|arrow| arrow.size), Some(10.0));
         assert_eq!(
             style.motion.tooltip.entry,
             eggshell_ui::contract::Entry::Zoom
@@ -953,7 +941,7 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
     );
     let style = d.shell().style();
     let size = style
-        .tooltip()
+        .tooltip
         .arrow
         .expect("precondition: the shadcn style has an arrow")
         .size;
@@ -1578,7 +1566,7 @@ fn the_tooltip_is_shadcns_after_a_section_change_and_reaches_its_kbd_chip() {
         );
     });
     assert_eq!(
-        d.shell().style().tooltip().delay,
+        d.shell().style().tooltip.delay,
         DELAY,
         "precondition: the delay is the one set after the preset"
     );

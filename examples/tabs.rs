@@ -1,4 +1,4 @@
-//! Tabs (`eggshell_ui_extras::tabs`): shadcn/ui's account and password demo,
+//! Tabs (`eggshell_ui::owned::tabs`): shadcn/ui's account and password demo,
 //! a code switcher, tabs with icons and a disabled one, and tabs that select
 //! on Enter rather than as the arrow keys move.
 //!
@@ -9,9 +9,9 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
+use eggshell_ui::owned::tabs::TabsExt;
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::tabs::TabsExt;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 

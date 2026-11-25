@@ -3,9 +3,9 @@
 //! widget. Each case varies the text, the font size and the style, and a
 //! width that makes text wrap.
 
+use eggshell_ui::theme::{Shadcn, ShadcnStyle};
 use eggshell_ui::widget::{Lines, Stock, TextEdit};
 use eggshell_ui::{TextSpec, TextStyle, Weight, Width};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
 };
@@ -127,8 +127,7 @@ struct Tweaked {
     style: std::sync::Arc<eggshell_ui::Style>,
 }
 
-/// The tweak's context and style: the preset's, else the one egui's tweaked
-/// style gives. A field is drawn with the style's input section mapped onto
+/// The tweak's context and style: the preset's, else the default. A field is drawn with the style's input section mapped onto
 /// its `Ui`, as the library draws its text edits.
 fn context(tweak: &Tweak) -> Tweaked {
     let ctx = Context::default();
@@ -141,7 +140,7 @@ fn context(tweak: &Tweak) -> Tweaked {
     ctx.global_style_mut(tweak.apply);
     ctx.run_ui(egui::RawInput::default(), |_| {})
         .drop_without_applying_deltas();
-    let style = preset.unwrap_or_else(|| eggshell_ui::Style::from_egui(&ctx.global_style()));
+    let style = preset.unwrap_or_default();
     Tweaked {
         ctx,
         style: std::sync::Arc::new(style),

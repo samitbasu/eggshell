@@ -6,8 +6,8 @@ use std::fmt;
 
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

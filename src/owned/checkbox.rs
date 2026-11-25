@@ -255,7 +255,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let (mark, toggled) = flip([off, on], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
-        let checkbox = &style.checkbox();
+        let checkbox = &style.checkbox;
         let size = b.size_of(size);
         let metrics = *checkbox.sizes.lookup(b.ctx(), size);
         let mut keys = form.keys(CheckboxPart::keys(

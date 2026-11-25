@@ -16,13 +16,13 @@ use super::{
 };
 use crate::Aria;
 use crate::builder::Slot;
-use crate::contract::{Disabled, SelectStyle, Size};
+use crate::contract::{SelectStyle, Size};
 use crate::focus::{Autofocus, Select};
 use crate::overlay::Fit;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::sheet::{Key as SheetKey, Part as SheetPart, Sheet, When};
-use crate::{Builder, NodeUi as _, Scope, Style, Tw, nav, tw};
+use crate::{Builder, NodeUi as _, Scope, Tw, nav, tw};
 
 /// The parts of a select's list.
 #[derive(Hash, Debug, Clone, Copy)]
@@ -71,107 +71,6 @@ impl SheetPart for SelectPart {
             Self::ItemIndicatorIcon => "select-item-indicator-icon",
         }
     }
-}
-
-/// What a style without a preset draws a select's trigger with.
-pub(crate) struct SelectDefaults {
-    pub trigger: crate::contract::Look,
-    pub radius: u8,
-    pub transition: std::time::Duration,
-}
-
-/// Writes `defaults` as the select trigger's rules in `sheet`: its look,
-/// enabled and disabled.
-pub(crate) fn select_defaults(sheet: &mut Sheet, defaults: SelectDefaults) {
-    let SelectDefaults {
-        trigger,
-        radius,
-        transition,
-    } = defaults;
-    for enablement in [Enablement::Enabled, Enablement::Disabled] {
-        let when = match enablement {
-            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
-            Enablement::Disabled => When::always().aria(Aria::Disabled),
-        };
-        sheet.replace_when(SelectPart::Trigger, when, move |t, k| {
-            t.merge(trigger.paint.classes_in(
-                trigger.border_width,
-                (k.focus(), k.disabled),
-                radius,
-                enablement,
-                transition,
-            ))
-        });
-    }
-}
-
-/// Writes the select's layout and the rules its sizes and chevron give into
-/// `style`'s sheet, with its list drawn from the `menu` look, at the sheet's
-/// current layer.
-pub(crate) fn write_select_rules(style: &mut Style) {
-    let select = style.select().clone();
-    let menu = style.menu().clone();
-    let list_text = style.role(&menu.text).clone();
-    let sheet = &mut style.sheet;
-    sheet.rule(SelectPart::Trigger, |t, _| {
-        t.flex()
-            .items_center()
-            .justify_between()
-            .whitespace_nowrap()
-            .w_fit()
-    });
-    sheet.rule_when(
-        SelectPart::Trigger,
-        When::always().aria(Aria::Disabled),
-        |t, k| match k.disabled {
-            Disabled::Faded(opacity) => t.opacity(opacity),
-            Disabled::Colors => t,
-        },
-    );
-    for enablement in [Enablement::Enabled, Enablement::Disabled] {
-        let when = match enablement {
-            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
-            Enablement::Disabled => When::always().aria(Aria::Disabled),
-        };
-        let item_menu = menu.clone();
-        let item_text = list_text.clone();
-        sheet.rule_when(SelectPart::Item, when, move |t, _| {
-            t.merge(item_menu.row_layout(enablement, &item_text))
-                .justify_between()
-                .focusable_none()
-        });
-    }
-    for size in select.sizes.keys() {
-        let m = *select.sizes.get(size);
-        sheet.rule_when(
-            SelectPart::Trigger,
-            When::always().size(size),
-            move |t, _| {
-                let t = t
-                    .h_px(m.height)
-                    .px_px(m.padding_x)
-                    .gap_px(m.gap)
-                    .rounded_px(f32::from(m.radius));
-                match m.text {
-                    Some(text) => t.text_size(text.size, text.line_height),
-                    None => t,
-                }
-            },
-        );
-    }
-    let (chevron, opacity) = (select.chevron, select.chevron_opacity);
-    sheet.replace(SelectPart::TriggerIcon, move |t, _| {
-        t.size_px(chevron).shrink_0().opacity(opacity)
-    });
-    sheet.rule(SelectPart::Content, move |t, _| {
-        t.merge(menu.box_layout(&list_text))
-    });
-    sheet.replace(SelectPart::ItemIndicator, move |t, _| {
-        t.size_px(chevron).shrink_0()
-    });
-    sheet.replace(SelectPart::ItemIndicatorIcon, move |t, _| {
-        t.size_px(chevron)
-    });
 }
 
 /// Writes the select's recorded exception over the rules at the sheet's
@@ -231,7 +130,7 @@ impl Listing {
 }
 
 /// A trigger that shows the chosen option and opens the list of `options`,
-/// drawn from the [`Style`]. Start one with [`Builder::select`] and finish it
+/// drawn from the [`Style`](crate::Style). Start one with [`Builder::select`] and finish it
 /// with [`on_change`](Self::on_change).
 ///
 /// With the trigger focused, Space, Enter, ArrowDown and ArrowUp open the
@@ -425,7 +324,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = b.style().clone();
-        let offset = offset.unwrap_or(style.menu().offset);
+        let offset = offset.unwrap_or(style.menu.offset);
         let mut keys = vec![SheetKey::Size(b.size_of(size))];
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(Aria::Disabled));

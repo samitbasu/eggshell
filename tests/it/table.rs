@@ -4,8 +4,8 @@
 
 use eggshell_ui::owned::{Align, Column, Stripes, TablePart};
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::accesskit::Action;
 use egui::epaint::Shape;
 use egui::{Color32, Key, Modifiers, Rect, Role, Theme, Vec2, vec2};
@@ -155,7 +155,7 @@ fn cell(band: &str, column: usize) -> String {
 }
 
 fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
-    d.shell().style().table().clone()
+    d.shell().style().table.clone()
 }
 
 /// The padding beside a body cell's content in `style`.
@@ -294,7 +294,7 @@ mod layout {
     #[test]
     fn rows_are_ruled_except_the_last() {
         let d = harness(Selection::Off);
-        let rule = style(&d).rule;
+        let rule = d.shell().style().tokens.border;
         for name in ["Header", "Row(7)", "Row(1024)"] {
             assert!(
                 rule_under(&d, d.rect(Target::suffix(&band(name))), rule),
@@ -315,9 +315,12 @@ mod stripe {
     const STRIPE: Color32 = Color32::from_rgb(200, 220, 240);
 
     fn striped(style: &mut Style) {
-        let mut table = style.table().clone();
-        table.stripe = STRIPE;
-        style.set_table(table);
+        style
+            .sheet
+            .as_app()
+            .rule_when(TablePart::Row, TablePart::striped_row(), |t, _| {
+                t.bg(STRIPE)
+            });
     }
 
     fn striped_fills(stripes: Stripes) -> [bool; 5] {
@@ -633,14 +636,19 @@ mod preset {
         let preset = Shadcn::for_theme(Theme::Light);
         let t = &preset.tokens;
         let style = preset.style();
-        let table = style.table().clone();
         assert_eq!(header_height(&style), 40.0);
         assert_eq!(cell_padding(&style), 8.0);
-        assert_eq!((table.rule, table.rule_width), (t.border, 1.0));
-        assert_ne!(table.stripe, Color32::TRANSPARENT);
+        let stripe = support::part_at(
+            &style,
+            TablePart::Row,
+            &[eggshell_ui::sheet::Key::Attr("stripe", "odd")],
+        )
+        .paint_classes()
+        .background;
+        assert_eq!(stripe, Some(t.muted.gamma_multiply(0.3)));
         assert_ne!(
-            table.stripe,
-            t.muted.gamma_multiply(0.5),
+            stripe,
+            Some(t.muted.gamma_multiply(0.5)),
             "a hovered stripe still changes"
         );
     }
@@ -821,16 +829,15 @@ mod spacing {
         d.rect(Target::suffix(&format!("/\"t\"/({band}, {column})")))
     }
 
-    fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
-        d.shell().style().table().clone()
-    }
-
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
         let d = harness(|style| {
-            let mut table = style.table().clone();
-            table.first_column_inset = Some(0.0);
-            style.set_table(table);
+            for part in [TablePart::Head, TablePart::Cell, TablePart::FooterCell] {
+                style
+                    .sheet
+                    .as_app()
+                    .rule_when(part, TablePart::first_column(), |t, _| t.pl_px(0.0));
+            }
         });
         let padding = cell_padding(&d.shell().style());
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
@@ -855,7 +862,7 @@ mod spacing {
     fn rule_below_last_rules_off_the_last_row() {
         let rule = |d: &Driver<fn(&mut Style)>| {
             let last = d.rect(Target::suffix("/\"t\"/Row(2)"));
-            let color = table(d).rule;
+            let color = d.shell().style().tokens.border;
             support::shapes(d).into_iter().any(|shape| match shape {
                 Shape::Rect(r) => {
                     r.fill == color
@@ -867,9 +874,12 @@ mod spacing {
         };
         assert!(!rule(&harness(|_| {})), "open by default");
         assert!(rule(&harness(|style| {
-            let mut table = style.table().clone();
-            table.rule_below_last = true;
-            style.set_table(table);
+            style
+                .sheet
+                .as_app()
+                .rule_when(TablePart::Row, TablePart::last_row(), |t, _| {
+                    t.border_b(1.0)
+                });
         })));
     }
 }
@@ -1004,7 +1014,7 @@ mod groups {
             ..App::new(Selection::Off)
         });
         d.frames(3);
-        let stripe = style(&d).stripe;
+        let stripe = d.shell().style().tokens.muted.gamma_multiply(0.3);
         assert_ne!(
             stripe,
             Color32::TRANSPARENT,
@@ -1157,9 +1167,9 @@ mod groups {
         }
 
         fn gapped(style: &mut Style) {
-            let mut table = style.table().clone();
+            let mut table = style.table.clone();
             table.group_end = GroupEnd::Gap(GAP);
-            style.set_table(table);
+            style.table = table;
         }
 
         fn harness_with(app: App, view: support::View<App>) -> Driver<App> {
@@ -1236,7 +1246,7 @@ mod groups {
                 },
                 ended,
             );
-            let stripe = style(&d).stripe;
+            let stripe = d.shell().style().tokens.muted.gamma_multiply(0.3);
             assert_ne!(
                 stripe,
                 Color32::TRANSPARENT,

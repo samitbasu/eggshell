@@ -549,7 +549,7 @@ mod example {
     fn a_modal_reports_how_it_presents() {
         use eggshell_ui::testing::Headless;
         let placed = Headless::new(SCREEN)
-            .prepare(eggshell_ui_shadcn::Shadcn::apply_both)
+            .prepare(eggshell_ui::theme::Shadcn::apply_both)
             .style(crate::support::shadcn())
             .layout(&State::default(), |b, _| {
                 let open = State {
@@ -852,24 +852,6 @@ mod example {
         d.press(Key::Escape).frames(11);
         assert!(!d.app().picker);
         assert!(d.app().dialog.is_open());
-    }
-}
-
-mod style {
-    use super::*;
-
-    #[test]
-    fn the_neutral_scrim_is_egui_modals_and_the_presets_is_black_at_half() {
-        assert_eq!(
-            eggshell_ui::Style::default().scrim,
-            Color32::from_black_alpha(100)
-        );
-        for preset in [
-            eggshell_ui_shadcn::Shadcn::light(),
-            eggshell_ui_shadcn::Shadcn::dark(),
-        ] {
-            assert_eq!(preset.style().scrim, Color32::from_black_alpha(204));
-        }
     }
 }
 

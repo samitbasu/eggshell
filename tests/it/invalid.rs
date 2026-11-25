@@ -4,10 +4,10 @@
 //! invalid either way.
 
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::owned::command::CommandExt;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, icons, tw};
-use eggshell_ui_extras::command::CommandExt;
-use eggshell_ui_shadcn::Tokens;
 use egui::accesskit::Invalid;
 use egui::{Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

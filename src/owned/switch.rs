@@ -254,11 +254,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
-        let switch = &style.switch();
+        let switch = &style.switch;
         let size = b.size_of(size);
         let metrics = *switch.sizes.lookup(b.ctx(), size);
         let size = switch.sizes.key_for(size);
-        let thumb_scale = track.map_or(1.0, |track| track.y / metrics.track.y);
+        let default_track = super::choices_sheet::switch_track(&style.tokens, size);
+        let thumb_scale = track.map_or(1.0, |track| track.y / default_track.y);
         let thumb = |b: &mut Builder<'_, '_, A>, mark| {
             let classes = b.resolved_part(
                 SwitchPart::Thumb,

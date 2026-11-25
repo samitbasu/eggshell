@@ -9,10 +9,10 @@
 mod common;
 
 use eggshell_ui::owned::Mark;
+use eggshell_ui::owned::markdown::{Directive, Directives, MarkdownExt, Typeset};
 use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::theme::ThemeColor;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
-use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt, Typeset};
-use eggshell_ui_shadcn::ThemeColor;
 use egui::{Key, Modifiers};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \

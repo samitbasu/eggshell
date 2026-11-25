@@ -1,11 +1,9 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
-use std::sync::Arc;
-
-use eggshell_ui::contract::{Size, Themed};
+use eggshell_ui::contract::Size;
 use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::theme::{Shadcn, size};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
-use eggshell_ui_shadcn::{Shadcn, size};
 use egui::{Color32, FontFamily, Theme, vec2};
 
 use crate::support::{self, box_at, ring_at};
@@ -55,7 +53,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                         .bare()
                         .on_change(|_: &mut App, _| {});
                     s.button("addon", "Go")
-                        .variant(eggshell_ui_shadcn::variant::GHOST)
+                        .variant(eggshell_ui::theme::variant::GHOST)
                         .size(size::SM)
                         .on_click(|_: &mut App| {});
                 });
@@ -100,7 +98,7 @@ const BOTH: &str = r#"/"Page"/"sized"/"both""#;
 const CUSTOM: &str = r#"/"Page"/"custom""#;
 
 fn input() -> eggshell_ui::contract::InputStyle {
-    Shadcn::for_theme(Theme::Light).style().input().clone()
+    Shadcn::for_theme(Theme::Light).style().input.clone()
 }
 
 /// The space between the border and an icon, and between the icon and the
@@ -114,7 +112,7 @@ fn spacing(size: Size) -> (f32, f32) {
         let style = Shadcn::for_theme(Theme::Light).style();
         (
             support::field_box(&style, size).padding.x,
-            input().sizes.get(size).icon_gap,
+            style.tokens.points(1.5),
         )
     }
 }
@@ -168,35 +166,6 @@ fn a_focused_addon_button_rings_itself_not_its_group() {
 }
 
 #[test]
-fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
-    // The widgets' own look, whose input has no ring of its own.
-    let mut style = eggshell_ui::Style::from_egui(&egui::Context::default().style_of(Theme::Light));
-    style.tokens.ring_width = 5.0;
-    style.tokens.ring = Color32::from_rgb(200, 30, 30);
-    let ring = style.tokens.focus();
-    let mut d = support::driver(
-        vec2(340.0, 360.0),
-        TextStyle::new(style.text.clone(), style.tokens.foreground),
-        App {
-            text: String::new(),
-            size: Size::DEFAULT,
-            disabled: false,
-        },
-        view,
-    )
-    .build();
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(6);
-    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
-    d.frames(6);
-    let drawn = ring_at(&d, d.rect(Target::suffix(CUSTOM))).expect("a focus ring");
-    assert_eq!(drawn.stroke.width, ring.width);
-    assert_eq!(drawn.stroke.color, ring.color);
-    // The widgets' own look has one size: the view's small box draws at it.
-    d.expect_reported(eggshell_ui::Problem::MissingStyleEntry);
-}
-
-#[test]
 fn a_disabled_field_box_is_inert() {
     let mut d = driver(Size::DEFAULT);
     d.app_mut().disabled = true;
@@ -215,7 +184,12 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
         (size::XS, "xs"),
     ] {
         let d = driver(size);
-        let metrics = *input().sizes.get(size);
+        let tokens = Shadcn::for_theme(Theme::Light).tokens;
+        let icon_side = tokens.points(match size {
+            s if s == size::SM => 3.5,
+            s if s == size::XS => 3.0,
+            _ => 4.0,
+        });
         let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
         let (boxed, icon, field) = (
             d.rect(Target::suffix(SEARCH)),
@@ -228,11 +202,7 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
             support::field_box(&Shadcn::for_theme(Theme::Light).style(), size).height,
             "{label}"
         );
-        assert_eq!(
-            icon.size(),
-            vec2(metrics.icon_size, metrics.icon_size),
-            "{label}"
-        );
+        assert_eq!(icon.size(), vec2(icon_side, icon_side), "{label}");
         assert!(
             (icon.left() - boxed.left() - border - edge).abs() < 0.6,
             "{label}: {icon:?} in {boxed:?}"

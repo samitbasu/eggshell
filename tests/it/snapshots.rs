@@ -5,8 +5,8 @@
 
 use std::sync::Once;
 
+use eggshell_ui::theme::{ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
-use eggshell_ui_shadcn::{ShadcnStyle, Tokens};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
@@ -2220,10 +2220,10 @@ mod tooltip_candidates {
 
     /// (b) the same without the arrow.
     fn inverted_without_arrow(_: &Tokens, style: &mut Style) {
-        let mut tooltip = style.tooltip().clone();
+        let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
-        style.set_tooltip(tooltip);
+        style.tooltip = tooltip;
     }
 
     /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
@@ -2243,10 +2243,10 @@ mod tooltip_candidates {
                     .text(text)
                     .shadow(shadow)
             });
-        let mut tooltip = style.tooltip().clone();
+        let mut tooltip = style.tooltip.clone();
         tooltip.arrow = None;
         tooltip.offset = Distance::new(4.0);
-        style.set_tooltip(tooltip);
+        style.tooltip = tooltip;
     }
 
     fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -2900,9 +2900,9 @@ fn palette_open_dark() {
 /// the rule drew. The inventory is in PHASE2-AUDIT.md.
 mod child_rules {
     use super::*;
+    use eggshell_ui::owned::badge::BadgeExt as _;
+    use eggshell_ui::owned::command::CommandExt as _;
     use eggshell_ui::{Icon, icons};
-    use eggshell_ui_extras::badge::BadgeExt as _;
-    use eggshell_ui_extras::command::CommandExt as _;
 
     fn suffix(theme: egui::Theme) -> &'static str {
         match theme {
