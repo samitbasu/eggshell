@@ -36,7 +36,7 @@
 //!    `&mut` the application.
 //!
 //! ```
-//! use eggshell_ui::{Builder, LayoutState, tw};
+//! use eggshell_ui::{Builder, LayoutState, SharedStyle, tw};
 //! use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
 //!
 //! struct App { count: u32 }
@@ -49,7 +49,8 @@
 //! }
 //!
 //! // Kept across frames: what eggshell remembers between them.
-//! let mut layout = LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+//! let style = SharedStyle::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+//! let mut layout = LayoutState::new(&style);
 //! let mut app = App { count: 0 };
 //! let ctx = egui::Context::default();
 //! ctx.run_ui(Default::default(), |ui| {
@@ -436,7 +437,7 @@ pub use measure::{Measure, fill};
 pub use mount::MountChain;
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
-pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
+pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode, SharedStyle};
 pub use prim::Icon;
 pub(crate) use report::report;
 pub use report::{Problem, Report};

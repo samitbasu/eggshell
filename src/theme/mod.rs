@@ -23,11 +23,13 @@
 //! the egui widgets an application draws outside eggshell.
 //!
 //! ```
-//! use eggshell_ui::LayoutState;
 //! use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor};
+//! use eggshell_ui::{LayoutState, SharedStyle};
 //!
-//! let mut layout = LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
-//! layout.set_style(Shadcn::themed(
+//! let style = SharedStyle::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+//! let _page = LayoutState::new(&style);
+//! let _bar = LayoutState::named("bar", &style);
+//! style.set(Shadcn::themed(
 //!     ShadcnStyle::Lyra,
 //!     Palette::new().theme(ThemeColor::Blue),
 //! ));

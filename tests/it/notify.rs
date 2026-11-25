@@ -462,14 +462,16 @@ fn a_notice_card_draws_from_the_sheet() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style
-            .sheet
-            .as_app()
-            .rule(eggshell_ui::owned::notify::Part::Toast, |t, _| {
-                t.bg(egui::Color32::RED)
-            });
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui::owned::notify::Part::Toast, |t, _| {
+                    t.bg(egui::Color32::RED)
+                });
+        },
+    )))
     .build();
     d.frames(2);
     d.app_mut().notices = vec![notice(1)];

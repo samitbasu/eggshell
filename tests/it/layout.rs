@@ -61,7 +61,8 @@ fn ctx() -> &'static Context {
 }
 
 fn fixed_state() -> LayoutState {
-    LayoutState::new(crate::support::shadcn()).with_base_text(base())
+    LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_base_text(base())
 }
 
 fn place(f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
@@ -1167,7 +1168,8 @@ fn fresh_ctx() -> Context {
 #[test]
 fn the_override_replaces_the_default() {
     let ctx = fresh_ctx();
-    let mut state = LayoutState::new(crate::support::shadcn()).with_base_text(base());
+    let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_base_text(base());
     assert_ne!(TextStyle::from_egui(&ctx), base());
     assert_eq!(root_text(&mut state, &ctx), base());
 }
@@ -1175,7 +1177,7 @@ fn the_override_replaces_the_default() {
 #[test]
 fn the_default_follows_the_theme() {
     let ctx = fresh_ctx();
-    let mut state = LayoutState::new(crate::support::shadcn());
+    let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     ctx.set_visuals(egui::Visuals::dark());
     let dark = root_text(&mut state, &ctx).color;
     ctx.set_visuals(egui::Visuals::light());

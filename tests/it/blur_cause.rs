@@ -235,8 +235,14 @@ struct Two {
 fn the_cause_does_not_leak_between_two_layouts() {
     use egui_kittest::kittest::Queryable as _;
     let state = Two {
-        top: eggshell_ui::LayoutState::new(crate::support::shadcn()).with_base_text(base_text()),
-        bottom: eggshell_ui::LayoutState::new(crate::support::shadcn()).with_base_text(base_text()),
+        top: eggshell_ui::LayoutState::new(
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        )
+        .with_base_text(base_text()),
+        bottom: eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(
+            crate::support::shadcn(),
+        ))
+        .with_base_text(base_text()),
         log: Log::default(),
     };
     let mut harness = Harness::builder()

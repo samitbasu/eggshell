@@ -30,11 +30,12 @@ use view::layout;
 
 fn main() -> eframe::Result {
     let mut app = App::default();
-    let mut layout_state = LayoutState::new(common::initial_style());
+    let shared = common::shared_style();
+    let mut layout_state = LayoutState::new(&shared);
     common::launch("chat_shell", Some(egui::vec2(1280.0, 800.0)), move |ui| {
         common::toggle_debug(ui.ctx());
         view::prepare(ui.ctx(), &app);
-        layout_state.set_style(common::style(ui.ctx()));
+        common::adopt(ui.ctx(), &shared);
         let k = Theme::of(ui.ctx());
         layout_state.set_base_text(Some(k.base_text()));
         egui::CentralPanel::default()

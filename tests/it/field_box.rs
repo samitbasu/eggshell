@@ -421,7 +421,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
     );
     let placed = eggshell_ui::testing::Headless::new(vec2(400.0, 300.0))
         .theme(Theme::Light)
-        .style(support::shadcn())
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn()))
         .base_text(TextStyle::new(
             Shadcn::for_theme(Theme::Light).tokens.text_role(),
             Color32::BLACK,

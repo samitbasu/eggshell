@@ -16,7 +16,7 @@ mod common;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame};
-use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
+use eggshell_ui::{Builder, LayoutState, SharedStyle, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
@@ -191,17 +191,15 @@ fn last_stop_id() -> egui::Id {
 }
 
 impl Bar {
-    pub fn new(base_text: TextStyle) -> Self {
+    /// A bar made from `style`, the handle of the page it sits over.
+    pub fn new(base_text: TextStyle, style: &SharedStyle) -> Self {
         Self {
-            layout: LayoutState::named("rig-bar", crate::support::shadcn())
-                .with_base_text(base_text),
+            layout: LayoutState::named("rig-bar", style).with_base_text(base_text),
             last_stop: None,
         }
     }
 
-    /// Shows the bar in `style`, the style of the page it sits over.
-    pub fn show(&mut self, ui: &mut egui::Ui, style: Themed<Arc<eggshell_ui::Style>>) {
-        self.layout.set_style(style);
+    pub fn show(&mut self, ui: &mut egui::Ui) {
         let window = ui.max_rect();
         let area = Rect::from_min_size(
             Pos2::new(window.min.x, window.min.y - BAR_HEIGHT),
@@ -278,6 +276,8 @@ pub struct Rig<A> {
     pub companion: Companion,
     pub bar: Bar,
     pub layout: LayoutState,
+    /// The handle the bar and the page are made from.
+    style: SharedStyle,
     pub app: A,
     view: View<A>,
     /// Sets egui's style before each frame is built, and with it the layout
@@ -296,6 +296,14 @@ pub fn harness<A>(
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
     harness_timed(size, 1.0, 0.05, base_text, app, view, None)
+}
+
+impl<A> Rig<A> {
+    /// Switches the bar's and the page's style, through the handle they are
+    /// made from; the next frame uses it.
+    pub fn set_style(&mut self, style: Themed<Arc<eggshell_ui::Style>>) {
+        self.style.set(style);
+    }
 }
 
 /// [`harness`] for an app that sets egui's style: `prepare` runs before
@@ -362,11 +370,13 @@ fn harness_timed<A>(
     view: View<A>,
     prepare: Option<fn(&egui::Context, &A)>,
 ) -> Harness<'static, Rig<A>> {
+    let style = SharedStyle::new(shadcn());
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
-        bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new(shadcn()).with_base_text(base_text),
+        bar: Bar::new(base_text.clone(), &style),
+        layout: LayoutState::new(&style).with_base_text(base_text),
+        style,
         app,
         view,
         prepare,
@@ -386,6 +396,7 @@ fn harness_timed<A>(
                     companion,
                     bar,
                     layout,
+                    style,
                     app,
                     view,
                     prepare,
@@ -395,7 +406,7 @@ fn harness_timed<A>(
                 full_motion(ui.ctx());
                 if let Some(prepare) = prepare {
                     prepare(ui.ctx(), &*app);
-                    layout.set_style(common::style(ui.ctx()));
+                    common::adopt(ui.ctx(), style);
                 }
                 if *page == Page::Themed {
                     let background = layout.shell(ui.ctx()).style().tokens.background;
@@ -403,7 +414,7 @@ fn harness_timed<A>(
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }
                 if *companion == Companion::Bar {
-                    bar.show(ui, layout.style());
+                    bar.show(ui);
                 }
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
@@ -750,10 +761,11 @@ pub fn frame_harness_scaled<A: 'static>(
     app: A,
     frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
 ) -> Harness<'static, FrameRig<A>> {
+    let style = SharedStyle::new(shadcn());
     let rig = FrameRig {
         app,
-        bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new(shadcn()).with_base_text(base_text),
+        bar: Bar::new(base_text.clone(), &style),
+        layout: LayoutState::new(&style).with_base_text(base_text),
     };
     let harness = Harness::builder()
         .with_size(size)
@@ -765,7 +777,7 @@ pub fn frame_harness_scaled<A: 'static>(
                 let background = rig.layout.shell(ui.ctx()).style().tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
-                rig.bar.show(ui, rig.layout.style());
+                rig.bar.show(ui);
                 frame(ui, &mut rig.app, &mut rig.layout);
             },
             rig,
@@ -876,7 +888,7 @@ pub fn driver<A: 'static>(
     app: A,
     view: View<A>,
 ) -> DriverBuilder<A> {
-    rig_driver(size, base_text, app, view, None).style(shadcn())
+    rig_driver(size, base_text, app, view, None)
 }
 
 /// [`driver`] for an app that sets egui's style: `prepare` runs before every
@@ -899,13 +911,15 @@ fn rig_driver<A: 'static>(
     view: View<A>,
     prepare: Option<fn(&egui::Context, &A)>,
 ) -> DriverBuilder<A> {
-    let mut bar = Bar::new(base_text.clone());
+    let style = SharedStyle::new(shadcn());
+    let mut bar = Bar::new(base_text.clone(), &style);
+    let adopted = style.clone();
     Driver::whole_frame(app, move |ui, app, layout| {
         let area = ui.max_rect();
         let Surround { page, companion } = surround(ui.ctx());
         if let Some(prepare) = prepare {
             prepare(ui.ctx(), &*app);
-            layout.set_style(common::style(ui.ctx()));
+            common::adopt(ui.ctx(), &adopted);
         }
         if page == Page::Themed {
             let background = layout.shell(ui.ctx()).style().tokens.background;
@@ -913,7 +927,7 @@ fn rig_driver<A: 'static>(
                 .rect_filled(ui.ctx().content_rect(), 0.0, background);
         }
         if companion == Companion::Bar {
-            bar.show(ui, layout.style());
+            bar.show(ui);
         }
         layout
             .build(ui.ctx(), |b| view(b, &*app))
@@ -922,6 +936,7 @@ fn rig_driver<A: 'static>(
     })
     .size(size)
     .base_text(base_text)
+    .style(&style)
     .step(STEP)
     .after(After::Frames(0))
     .settle_within(STEP * 4)
@@ -936,18 +951,19 @@ pub fn frame_driver<A: 'static>(
     app: A,
     frame: fn(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame,
 ) -> DriverBuilder<A> {
-    let mut bar = Bar::new(base_text.clone());
+    let style = SharedStyle::new(shadcn());
+    let mut bar = Bar::new(base_text.clone(), &style);
     let step = Duration::from_nanos(1_000_000_000 / 60);
     Driver::whole_frame(app, move |ui, app, layout| {
         let background = layout.shell(ui.ctx()).style().tokens.background;
         ui.painter()
             .rect_filled(ui.ctx().content_rect(), 0.0, background);
-        bar.show(ui, layout.style());
+        bar.show(ui);
         frame(ui, app, layout)
     })
     .size(size)
     .base_text(base_text)
-    .style(shadcn())
+    .style(&style)
     .step(step)
     .after(After::Frames(0))
     .settle_within(step * 4)

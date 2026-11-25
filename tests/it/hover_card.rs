@@ -182,12 +182,14 @@ fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style
-            .sheet
-            .as_app()
-            .rule(hover_card::Part::Content, |t, _| t.bg(egui::Color32::RED));
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(hover_card::Part::Content, |t, _| t.bg(egui::Color32::RED));
+        },
+    )))
     .build();
     still(d.ctx(), d.app());
     d.frames(4);

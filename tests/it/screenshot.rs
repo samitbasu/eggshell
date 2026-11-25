@@ -31,7 +31,7 @@ fn harness(scale: Scale, theme: Theme) -> Harness<'static, Scene> {
                 placed.draw(&mut (), ui);
             },
             Scene {
-                layout: LayoutState::new(crate::support::shadcn()),
+                layout: LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
                 swatch: None,
             },
         )
@@ -162,7 +162,7 @@ fn popped_out(scale: Scale, windows: Windows) -> Harness<'static, PopOut> {
                     .draw(&mut (), ui);
             },
             PopOut {
-                layout: LayoutState::new(crate::support::shadcn()),
+                layout: LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
                 pane: None,
             },
         )

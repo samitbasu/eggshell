@@ -150,8 +150,16 @@ fn a_layouts_clipboard_is_its_own() {
     a.set_text("a");
     b.set_text("b");
     let (a_layout, b_layout) = (
-        LayoutState::named("a", crate::support::shadcn()).with_clipboard(Arc::new(a.clone())),
-        LayoutState::named("b", crate::support::shadcn()).with_clipboard(Arc::new(b.clone())),
+        LayoutState::named(
+            "a",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        )
+        .with_clipboard(Arc::new(a.clone())),
+        LayoutState::named(
+            "b",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        )
+        .with_clipboard(Arc::new(b.clone())),
     );
     let text = |layout: &LayoutState| layout.shell(&ctx).read_clipboard().expect("read").text;
     assert_eq!(text(&a_layout).as_deref(), Some("a"));
@@ -162,7 +170,8 @@ fn a_layouts_clipboard_is_its_own() {
 fn an_image_written_through_the_shell_reaches_the_source_and_a_refusal_is_reported() {
     let ctx = egui::Context::default();
     let fake = FakeClipboard::default();
-    let layout = LayoutState::new(crate::support::shadcn()).with_clipboard(Arc::new(fake.clone()));
+    let layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_clipboard(Arc::new(fake.clone()));
     let shell = layout.shell(&ctx);
     assert_eq!(shell.write_clipboard_image(&pixel()), Ok(()));
     assert_eq!(fake.written(), [pixel()]);

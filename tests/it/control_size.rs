@@ -56,7 +56,9 @@ fn height(d: &Driver<()>, path: &str) -> f32 {
 #[test]
 fn a_control_takes_its_own_size_else_its_subtrees_else_the_default() {
     let mut d = support::driver(vec2(300.0, 300.0), base_text(), (), view)
-        .style(support::shadcn_with(small_buttons))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            small_buttons,
+        )))
         .build();
     d.frames(4);
     let default = height(&d, r#"/"Page"/"outside""#);

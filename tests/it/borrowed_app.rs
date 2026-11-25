@@ -27,7 +27,7 @@ fn a_borrowing_app_builds_lays_out_and_draws() {
     let text = String::from("borrowed");
     let mut app = App { label: &text };
     let ctx = egui::Context::default();
-    let mut layout = LayoutState::new(crate::support::shadcn());
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     let screen = Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0));
     let input = RawInput {
         screen_rect: Some(screen),

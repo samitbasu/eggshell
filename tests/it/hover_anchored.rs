@@ -92,7 +92,9 @@ fn harness_with(app: App) -> Driver<App> {
         app,
         view,
     )
-    .style(support::shadcn_with(quick_tooltips))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        quick_tooltips,
+    )))
     // Motion off: a card that closes is gone in the same frame.
     .motion(Animation::Reduced)
     .build();

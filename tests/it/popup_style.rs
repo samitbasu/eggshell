@@ -35,7 +35,7 @@ fn a_popup_opened_in_a_node_takes_the_global_style_not_the_nodes() {
                     Color32::BLACK,
                 );
                 probe.global = Some(ui.ctx().global_style().spacing.item_spacing);
-                LayoutState::new(crate::support::shadcn())
+                LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
                     .with_base_text(base)
                     .build(ui.ctx(), |b| {
                         b.div_id("host", tw().w_px(100.0).h_px(30.0).sense_click(), |_| {})
@@ -81,7 +81,10 @@ impl Default for Pick {
     fn default() -> Self {
         Self(
             0,
-            LayoutState::new(Shadcn::themed(ShadcnStyle::Lyra, Palette::new())),
+            LayoutState::new(&eggshell_ui::SharedStyle::new(Shadcn::themed(
+                ShadcnStyle::Lyra,
+                Palette::new(),
+            ))),
         )
     }
 }

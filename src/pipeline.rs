@@ -598,6 +598,32 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
     }
 }
 
+/// TODO(prose): a style, light and dark, that every [`LayoutState`] made from
+/// it builds and draws with; [`set`](Self::set) switches them all from their
+/// next build. A cheap handle: clones share the style.
+#[derive(Clone)]
+pub struct SharedStyle(
+    std::sync::Arc<std::sync::Mutex<crate::contract::Themed<std::sync::Arc<crate::Style>>>>,
+);
+
+impl SharedStyle {
+    /// TODO(prose): a handle holding `style`.
+    pub fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(style)))
+    }
+
+    /// TODO(prose): switches the style of every layout made from this handle,
+    /// from their next build.
+    pub fn set(&self, style: crate::contract::Themed<std::sync::Arc<crate::Style>>) {
+        *crate::sync::lock(&self.0) = style;
+    }
+
+    /// TODO(prose): the style, light and dark.
+    pub fn get(&self) -> crate::contract::Themed<std::sync::Arc<crate::Style>> {
+        crate::sync::lock(&self.0).clone()
+    }
+}
+
 /// Owns the state a frame is built in; reuse one across frames.
 ///
 /// The root's text style defaults to the layout's own [`Style`](crate::Style)'s
@@ -631,7 +657,7 @@ fn fresh_scope() -> Id {
 /// their visuals and fonts from the context.
 fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
     use std::sync::Arc;
-    let style = kept.with(|kept| kept.style.clone());
+    let style = kept.with(|kept| kept.style.get());
     let given = kept.with(|kept| {
         kept.egui_applied.as_ref().is_some_and(|applied| {
             Arc::ptr_eq(&applied.light, &style.light) && Arc::ptr_eq(&applied.dark, &style.dark)
@@ -653,15 +679,7 @@ fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
             ctx.add_font(font.clone());
         }
     }
-    #[cfg(debug_assertions)]
-    let look = egui_look(&style);
-    kept.with(|kept| {
-        kept.egui_applied = Some(style);
-        #[cfg(debug_assertions)]
-        {
-            kept.egui_look = Some(look);
-        }
-    });
+    kept.with(|kept| kept.egui_applied = Some(style));
 }
 
 impl LayoutState {
@@ -681,12 +699,13 @@ impl LayoutState {
     }
 
     /// TODO(prose): an empty state that builds, draws and gives egui its
-    /// look in `style`, the half for the context's theme.
+    /// look in `style`'s style, the half for the context's theme; it follows
+    /// [`SharedStyle::set`].
     ///
     /// Node ids derive from a root shared by every unnamed state, so two
     /// unnamed states in one egui context must not use the same top-level
     /// key; [`named`](Self::named) keeps their ids apart.
-    pub fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+    pub fn new(style: &SharedStyle) -> Self {
         Self::with_name(None, style)
     }
 
@@ -701,17 +720,11 @@ impl LayoutState {
     /// In debug builds, another state of the context built with the same
     /// name in the same pass is reported as
     /// [`Problem::LayoutNameClash`](crate::Problem::LayoutNameClash).
-    pub fn named(
-        name: &'static str,
-        style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
-    ) -> Self {
+    pub fn named(name: &'static str, style: &SharedStyle) -> Self {
         Self::with_name(Some(name), style)
     }
 
-    fn with_name(
-        name: Option<&'static str>,
-        style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
-    ) -> Self {
+    fn with_name(name: Option<&'static str>, style: &SharedStyle) -> Self {
         Self {
             st: BuildState {
                 scope: fresh_scope(),
@@ -719,7 +732,7 @@ impl LayoutState {
                 name,
                 alive: std::sync::Arc::default(),
                 built_at: std::panic::Location::caller(),
-                kept: Handle::new(style),
+                kept: Handle::new(style.clone()),
                 tree: LayoutTree::new(),
                 seen: Seen::default(),
                 observed: std::collections::HashMap::new(),
@@ -737,16 +750,6 @@ impl LayoutState {
     pub fn with_base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
         self
-    }
-
-    /// TODO(prose): this layout's style, light and dark.
-    pub fn style(&self) -> crate::contract::Themed<std::sync::Arc<crate::Style>> {
-        self.st.kept.with(|kept| kept.style.clone())
-    }
-
-    /// TODO(prose): swaps this layout's style; the builds that follow use it.
-    pub fn set_style(&mut self, style: crate::contract::Themed<std::sync::Arc<crate::Style>>) {
-        self.st.kept.with(|kept| kept.style = style);
     }
 
     /// Uses `source` for the clipboard reads and writes of this layout, in
@@ -796,8 +799,6 @@ impl LayoutState {
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
         #[cfg(debug_assertions)]
-        report_egui_style_clash(ctx, st);
-        #[cfg(debug_assertions)]
         if st.name.is_some() {
             crate::key::claims::name(ctx, st.root, &st.claimant(), st.built_at);
         }
@@ -828,54 +829,6 @@ impl LayoutState {
             root,
         }
     }
-}
-
-/// Reports a layout that gives egui a look other than another layout of the
-/// context built in the same pass gives it. A style switched on every layout
-/// in one pass is not a clash: each compares with the others of that pass.
-#[cfg(debug_assertions)]
-fn report_egui_style_clash(ctx: &egui::Context, st: &BuildState) {
-    type Given = std::collections::HashMap<Id, (u64, std::sync::Arc<str>)>;
-    let id = root_id().with("egui-style-given");
-    let pass = ctx.cumulative_pass_nr();
-    let Some(look) = st.kept.with(|kept| kept.egui_look.clone()) else {
-        return;
-    };
-    let clash = ctx.data_mut(|data| {
-        let given = data.get_temp_mut_or_default::<Given>(id);
-        given.retain(|_, (at, _)| *at == pass);
-        let clash = given
-            .iter()
-            .any(|(scope, (_, other))| *scope != st.scope && **other != *look);
-        given.insert(st.scope, (pass, look));
-        clash
-    });
-    if clash {
-        crate::report::report_at(
-            ctx,
-            crate::Problem::EguiStyleClash,
-            Some(st.scope),
-            st.built_at,
-            || {
-                "two layouts on this context give egui different styles in one pass, so \
-                 egui's own widgets draw in whichever gave it last"
-                    .to_owned()
-            },
-        );
-    }
-}
-
-/// The egui styles, light and dark, that `style` gives egui, in their debug
-/// form: their number formatters compare by pointer, and each style makes
-/// its own.
-#[cfg(debug_assertions)]
-fn egui_look(style: &crate::contract::Themed<std::sync::Arc<crate::Style>>) -> std::sync::Arc<str> {
-    let of = |theme: egui::Theme| {
-        let mut egui = egui::Style::default();
-        style.get(theme).egui_style(theme, &mut egui);
-        format!("{egui:?}")
-    };
-    format!("{}\n{}", of(egui::Theme::Light), of(egui::Theme::Dark)).into()
 }
 
 /// A built frame, ready to be laid out.

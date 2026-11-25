@@ -203,7 +203,9 @@ fn shows_after(d: &mut Driver<App>, wait: Duration) -> bool {
 fn a_driver_builds_with_the_style_it_is_given() {
     let mut d = Driver::new(App::default(), view)
         .size(vec2(400.0, 300.0))
-        .style(waiting(Duration::from_secs(3)))
+        .style(&eggshell_ui::SharedStyle::new(waiting(
+            Duration::from_secs(3),
+        )))
         .build();
     let enter = d.shell().style().motion.tooltip.enter;
     assert!(!shows_after(&mut d, Duration::from_secs(2)));
@@ -217,7 +219,9 @@ fn a_driver_builds_with_the_style_it_is_given() {
 fn set_style_gives_the_layout_a_new_style_from_the_next_frame() {
     let mut d = Driver::new(App::default(), view)
         .size(vec2(400.0, 300.0))
-        .style(waiting(Duration::from_secs(3)))
+        .style(&eggshell_ui::SharedStyle::new(waiting(
+            Duration::from_secs(3),
+        )))
         .build();
     let enter = d.shell().style().motion.tooltip.enter;
     let quick = Duration::from_millis(200) + enter + Duration::from_millis(100);

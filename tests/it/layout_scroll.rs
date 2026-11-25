@@ -35,8 +35,8 @@ fn lay_out(layout: &mut LayoutState, ctx: &Context, content: f32) -> Id {
 fn a_layouts_viewport_survives_another_layout_of_the_context() {
     let ctx = context();
     let (mut a, mut b) = (
-        LayoutState::new(crate::support::shadcn()),
-        LayoutState::new(crate::support::shadcn()),
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
     );
     let list = lay_out(&mut a, &ctx, 300.0);
     assert_eq!(
@@ -82,8 +82,14 @@ fn draw_pass(layout: &mut LayoutState, ctx: &Context, ask: fn(&egui::Ui, Id)) ->
 fn a_draw_closure_scrolls_its_own_layout_through_the_ui() {
     let ctx = context();
     let (mut a, mut b) = (
-        LayoutState::named("a", crate::support::shadcn()),
-        LayoutState::named("b", crate::support::shadcn()),
+        LayoutState::named(
+            "a",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        ),
+        LayoutState::named(
+            "b",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        ),
     );
     let (list_a, list_b) = (
         draw_pass(&mut a, &ctx, |ui, list| {

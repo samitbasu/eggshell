@@ -17,7 +17,7 @@ const PANES: usize = 8;
 
 fn place(width: f32) -> Placed<()> {
     Headless::new(vec2(width, 800.0))
-        .style(crate::support::shadcn())
+        .style(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
         .base_text(TextStyle::new(
             TextSpec {
                 size: 14.0,

@@ -43,7 +43,7 @@ pub(super) fn shapes<A>(
     let mut build = Some(build);
     let mut output = ctx.run_ui(input, |ui| {
         let build = build.take().expect("one pass");
-        LayoutState::new(crate::support::shadcn())
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
             .with_base_text(base())
             .build(ui.ctx(), build)
             .layout(SCREEN)
@@ -790,7 +790,8 @@ enum Host {
 fn node_ui_ids(host: Host) -> (Id, Vec<(Option<Id>, Id)>) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let expected = Rc::new(Cell::new(Id::NULL));
-    let mut layout = LayoutState::new(crate::support::shadcn()).with_base_text(base());
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_base_text(base());
     let mut draw_into = |ui: &mut egui::Ui| {
         let probe = Rc::clone(&seen);
         layout
@@ -876,7 +877,8 @@ fn node_accessors_on_a_ui_nested_in_a_draw_closure_answer_without_panicking() {
     let ctx = egui::Context::default();
     ctx.run_ui(RawInput::default(), |ui| {
         let probe = Rc::clone(&probe);
-        let mut layout = LayoutState::new(crate::support::shadcn()).with_base_text(base());
+        let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+            .with_base_text(base());
         layout
             .build(ui.ctx(), |b| {
                 b.div_id("node", tw().w_px(10.0).h_px(10.0), |_| {})
@@ -923,7 +925,7 @@ fn observed_backdrops(
             .frame(egui::Frame::NONE.fill(PANEL))
             .show(ui, |ui| {
                 let build = build.take().expect("one pass");
-                LayoutState::new(crate::support::shadcn())
+                LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
                     .with_base_text(base())
                     .build(ui.ctx(), build)
                     .layout(SCREEN)

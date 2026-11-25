@@ -137,6 +137,17 @@ impl Faces {
         self
     }
 
+    /// Every weight in egui's regular face, which every font has: the faces
+    /// of a style whose tokens carry no font of their own.
+    pub(crate) fn egui_regular() -> Self {
+        Weight::ALL
+            .into_iter()
+            .filter(|weight| *weight != Weight::Normal)
+            .fold(Self::default(), |faces, weight| {
+                faces.with(FontFamily::Proportional, weight, FontFamily::Proportional)
+            })
+    }
+
     /// Every declared face.
     pub fn iter(&self) -> impl Iterator<Item = &Face> {
         self.0.iter()

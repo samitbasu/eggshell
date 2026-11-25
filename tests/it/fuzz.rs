@@ -510,7 +510,9 @@ fn gallery_hand() -> (Hand<'static>, Session) {
                 ui,
                 app,
                 layout,
-                &mut eggshell_ui::LayoutState::new(crate::support::shadcn()),
+                &mut eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(
+                    crate::support::shadcn(),
+                )),
             );
         },
     );

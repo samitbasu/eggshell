@@ -121,7 +121,9 @@ fn drive(
         app,
         view,
     )
-    .style(Themed::both(Arc::new(style)))
+    .style(&eggshell_ui::SharedStyle::new(Themed::both(Arc::new(
+        style,
+    ))))
     .build();
     d.ctx().set_theme(theme);
     let texture = d.ctx().load_texture(

@@ -135,14 +135,16 @@ fn an_app_rule_restyles_a_skeleton() {
         .step(FRAME)
         .theme(Theme::Light)
         .motion(Animation::Reduced)
-        .style(support::shadcn_with(|style| {
-            style
-                .sheet
-                .as_app()
-                .rule(eggshell_ui::owned::skeleton::Part::Root, |t, _| {
-                    t.bg(Color32::RED)
-                });
-        }))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            |style| {
+                style
+                    .sheet
+                    .as_app()
+                    .rule(eggshell_ui::owned::skeleton::Part::Root, |t, _| {
+                        t.bg(Color32::RED)
+                    });
+            },
+        )))
         .build();
     d.frames(4);
     let skeleton = d.rect(Target::suffix("/\"sk\""));

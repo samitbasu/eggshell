@@ -43,7 +43,7 @@ fn override_style() -> TextStyle {
 #[test]
 fn switching_egui_theme_between_builds_changes_the_default_base_text() {
     let ctx = context(Theme::Light);
-    let mut layout = LayoutState::new(crate::support::shadcn());
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     let (light, _) = body_color(&mut layout, &ctx);
     ctx.set_theme(Theme::Dark);
     let (dark, _) = body_color(&mut layout, &ctx);
@@ -55,7 +55,7 @@ fn switching_egui_theme_between_builds_changes_the_default_base_text() {
 #[test]
 fn setting_and_clearing_the_override_takes_effect_on_the_next_build() {
     let ctx = context(Theme::Light);
-    let mut layout = LayoutState::new(crate::support::shadcn());
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     let (natural, natural_size) = body_color(&mut layout, &ctx);
     assert_ne!(natural, Color32::RED, "precondition");
 
@@ -78,7 +78,8 @@ fn setting_and_clearing_the_override_takes_effect_on_the_next_build() {
     ctx.set_theme(Theme::Light);
     assert_eq!(body_color(&mut layout, &ctx), (natural, natural_size));
 
-    let mut built = LayoutState::new(crate::support::shadcn()).with_base_text(override_style());
+    let mut built = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_base_text(override_style());
     assert_eq!(body_color(&mut built, &ctx).0, Color32::RED, "builder form");
     built.set_base_text(None);
     assert_eq!(body_color(&mut built, &ctx).0, natural);

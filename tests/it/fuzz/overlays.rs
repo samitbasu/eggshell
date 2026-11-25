@@ -351,10 +351,11 @@ struct Rig {
 fn rig_harness() -> Harness<'static, Rig> {
     let tokens = eggshell_ui::theme::Tokens::for_theme(egui::Theme::Light);
     let base = TextStyle::new(tokens.text_role(), tokens.foreground);
+    let style = eggshell_ui::SharedStyle::new(crate::support::shadcn());
     let rig = Rig {
         app: App::default(),
-        layout: LayoutState::new(crate::support::shadcn()).with_base_text(base.clone()),
-        bar: Bar::new(base),
+        layout: LayoutState::new(&style).with_base_text(base.clone()),
+        bar: Bar::new(base, &style),
         seen: Seen::default(),
         focus_after_bar: Vec::new(),
     };
@@ -375,7 +376,7 @@ fn rig_harness() -> Harness<'static, Rig> {
                 let background = layout.shell(ui.ctx()).style().tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
-                bar.show(ui, layout.style());
+                bar.show(ui);
                 focus_after_bar.push(ui.ctx().memory(|memory| memory.focused()));
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *seen = Seen::of(&placed);

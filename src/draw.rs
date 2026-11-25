@@ -1808,7 +1808,7 @@ impl<A> Placed<A> {
     ///         state.drawn = Some(placed.draw(&mut (), ui));
     ///     },
     ///     State {
-    ///         layout: LayoutState::new(eggshell_ui::theme::Shadcn::themed(eggshell_ui::theme::ShadcnStyle::Vega, eggshell_ui::theme::Palette::new())),
+    ///         layout: LayoutState::new(&eggshell_ui::SharedStyle::new(eggshell_ui::theme::Shadcn::themed(eggshell_ui::theme::ShadcnStyle::Vega, eggshell_ui::theme::Palette::new()))),
     ///         drawn: None,
     ///     },
     /// );

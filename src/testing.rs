@@ -82,7 +82,7 @@
 //!             placed.draw(app, ui);
 //!         },
 //!         (
-//!             LayoutState::new(Themed::both(Arc::new(Style::default()))),
+//!             LayoutState::new(&eggshell_ui::SharedStyle::new(Themed::both(Arc::new(Style::default())))),
 //!             App::default(),
 //!         ),
 //!     );
@@ -153,7 +153,7 @@
 //! #             let view = |b: &mut Builder<'_, '_, ()>| { b.div_id("card", tw().w_px(80.0).h_px(40.0), |_| {}); };
 //! #             layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
 //! #         },
-//! #         LayoutState::new(Themed::both(Arc::new(Style::default()))),
+//! #         LayoutState::new(&eggshell_ui::SharedStyle::new(Themed::both(Arc::new(Style::default())))),
 //! #     );
 //! harness.run_steps(10);
 //! eggshell_ui::testing::Timeline::recorded(&harness.ctx).assert_continuous();
@@ -230,7 +230,8 @@ pub struct Headless {
     ctx: egui::Context,
     size: Vec2,
     base_text: Option<TextStyle>,
-    style: Option<Themed<Arc<Style>>>,
+    style: crate::SharedStyle,
+    name: Option<&'static str>,
     state: LayoutState,
     theme: Option<Theme>,
     pixels_per_point: PixelsPerPoint,
@@ -245,8 +246,9 @@ impl Headless {
             ctx: egui::Context::default(),
             size,
             base_text: None,
-            style: None,
-            state: LayoutState::new(default_style()),
+            style: crate::SharedStyle::new(default_style()),
+            name: None,
+            state: LayoutState::new(&crate::SharedStyle::new(default_style())),
             theme: None,
             pixels_per_point: PixelsPerPoint::default(),
             pending: Vec::new(),
@@ -267,16 +269,26 @@ impl Headless {
         self
     }
 
-    /// TODO(prose): the layout's style, as [`LayoutState::set_style`]; the default shadcn style when unset.
-    pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
-        self.style = Some(style);
+    /// TODO(prose): the layout's style, the handle it is made from, as
+    /// [`LayoutState::new`]; shadcn's default when unset.
+    pub fn style(mut self, style: &crate::SharedStyle) -> Self {
+        self.style = style.clone();
+        self.state = self.fresh_state();
         self
+    }
+
+    fn fresh_state(&self) -> LayoutState {
+        match self.name {
+            Some(name) => LayoutState::named(name, &self.style),
+            None => LayoutState::new(&self.style),
+        }
     }
 
     /// Names the layout's [`LayoutState`], for a context that other named
     /// layouts share.
     pub fn named(mut self, name: &'static str) -> Self {
-        self.state = LayoutState::named(name, default_style());
+        self.name = Some(name);
+        self.state = self.fresh_state();
         self
     }
 
@@ -324,15 +336,11 @@ impl Headless {
             ctx,
             size,
             base_text,
-            style,
             state,
             theme,
             pixels_per_point,
             ..
         } = self;
-        if let Some(style) = style.take() {
-            state.set_style(style);
-        }
         in_pass(ctx, *size, *theme, *pixels_per_point, |ctx| {
             state.set_base_text(base_text.clone());
             state.build(ctx, |b| view(b, app)).layout(area)

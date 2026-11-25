@@ -36,7 +36,7 @@ fn shapes(view: impl for<'f> FnOnce(&mut Builder<'_, 'f, App>)) -> Vec<ClippedSh
     let mut app = App::default();
     let mut output = ctx.run_ui(input, |ui| {
         let view = view.take().expect("one pass");
-        LayoutState::new(crate::support::shadcn())
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
             .build(ui.ctx(), view)
             .layout(SCREEN)
             .draw(&mut app, ui);

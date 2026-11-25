@@ -73,7 +73,7 @@ fn harness_styled(view: support::View<App>, edit: fn(&mut Style)) -> Driver<App>
         App::default(),
         view,
     )
-    .style(support::shadcn_with(edit))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .build();
     d.frames(12);
     d
@@ -754,7 +754,8 @@ fn closed_builds(accesskit: bool) -> usize {
     if accesskit {
         ctx.enable_accesskit();
     }
-    let mut state = eggshell_ui::LayoutState::new(crate::support::shadcn());
+    let mut state =
+        eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     for _ in 0..4 {
         let mut output = ctx.run_pass(Default::default(), |ctx| {
             let builds = builds.clone();
@@ -1127,7 +1128,9 @@ mod dismissed {
             },
             view,
         )
-        .style(support::shadcn_with(super::timed))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            super::timed,
+        )))
         .build();
         d.frames(12);
         d

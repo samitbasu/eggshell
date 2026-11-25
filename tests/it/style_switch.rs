@@ -48,7 +48,7 @@ fn context(theme: Theme, style: ShadcnStyle) -> Context {
 }
 
 fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
-    LayoutState::new(common::style(ctx))
+    LayoutState::new(&eggshell_ui::SharedStyle::new(common::style(ctx)))
         .with_base_text(common::base_text_in(ctx))
         .build(ctx, build)
         .layout(AREA)
@@ -60,7 +60,7 @@ fn place_borrowing<A>(
     app: &A,
     build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
 ) -> Placed<A> {
-    LayoutState::new(common::style(ctx))
+    LayoutState::new(&eggshell_ui::SharedStyle::new(common::style(ctx)))
         .with_base_text(common::base_text_in(ctx))
         .build(ctx, |b| build(b, app))
         .layout(AREA)

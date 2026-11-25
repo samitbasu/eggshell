@@ -56,8 +56,8 @@ fn pass(layout: &mut LayoutState, ctx: &Context, with_y: bool, watch: Option<Id>
 fn a_layout_does_not_answer_for_the_subtrees_of_another() {
     let ctx = context();
     let (mut a, mut b) = (
-        LayoutState::new(crate::support::shadcn()),
-        LayoutState::new(crate::support::shadcn()),
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
+        LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn())),
     );
     let first = pass(&mut a, &ctx, true, None);
     let y = first.y.expect("a has a y");

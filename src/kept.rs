@@ -41,17 +41,14 @@ pub(crate) struct Kept {
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
-    /// The layout's own style, given to its state.
-    pub(crate) style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
+    /// The layout's style: the handle it was made from.
+    pub(crate) style: crate::SharedStyle,
     /// The layout's style as it was last given to egui.
     pub(crate) egui_applied: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
-    /// The egui styles, light and dark, the layout last gave egui.
-    #[cfg(debug_assertions)]
-    pub(crate) egui_look: Option<std::sync::Arc<str>>,
 }
 
 impl Kept {
-    fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+    fn new(style: crate::SharedStyle) -> Self {
         Self {
             listbox: Default::default(),
             menus: Default::default(),
@@ -68,8 +65,6 @@ impl Kept {
             clipboard: Default::default(),
             style,
             egui_applied: Default::default(),
-            #[cfg(debug_assertions)]
-            egui_look: None,
         }
     }
 
@@ -106,7 +101,7 @@ pub(crate) struct Handle(Arc<Mutex<Kept>>);
 
 impl Handle {
     /// What a layout of `style` keeps, before its first frame.
-    pub(crate) fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+    pub(crate) fn new(style: crate::SharedStyle) -> Self {
         Self(Arc::new(Mutex::new(Kept::new(style))))
     }
 

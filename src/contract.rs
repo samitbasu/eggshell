@@ -1670,8 +1670,7 @@ impl Style {
             faces: t
                 .font
                 .as_ref()
-                .map(crate::theme::FontSet::declared)
-                .unwrap_or_default(),
+                .map_or_else(Faces::egui_regular, crate::theme::FontSet::declared),
             label,
             toggle,
             checkbox,

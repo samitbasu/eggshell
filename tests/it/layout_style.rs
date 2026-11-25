@@ -1,14 +1,15 @@
 //! TODO(prose): a layout's own style (#435): given to the `LayoutState` as a light and
 //! dark pair and swapped through it, in place of the one derived from
 //! egui's, for the build, the draw, the shell, tooltips, the base text and
-//! the faces text is drawn in; and two layouts that give egui different
-//! looks are reported.
+//! the faces text is drawn in.
 
 use std::sync::Arc;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::reports;
-use eggshell_ui::{Builder, LayoutState, NodeUi as _, Problem, Style, TextSpec, Weight, tw};
+use eggshell_ui::{
+    Builder, LayoutState, NodeUi as _, Problem, SharedStyle, Style, TextSpec, Weight, tw,
+};
 use egui::{FontFamily, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
@@ -81,14 +82,14 @@ fn derived() -> f32 {
 #[test]
 fn a_layout_s_own_style_is_the_one_it_builds_and_draws_with() {
     assert_ne!(derived(), LIGHT, "precondition");
-    let harness = harness(LayoutState::new(pair()));
+    let harness = harness(LayoutState::new(&eggshell_ui::SharedStyle::new(pair())));
     assert_eq!(harness.state().built, Some(LIGHT));
     assert_eq!(harness.state().drawn, Some(LIGHT));
 }
 
 #[test]
 fn the_pair_follows_the_context_s_theme() {
-    let mut harness = harness(LayoutState::new(pair()));
+    let mut harness = harness(LayoutState::new(&eggshell_ui::SharedStyle::new(pair())));
     assert_eq!(harness.state().built, Some(LIGHT), "precondition: light");
     harness.ctx.set_theme(Theme::Dark);
     harness.run_steps(2);
@@ -97,9 +98,10 @@ fn the_pair_follows_the_context_s_theme() {
 }
 
 #[test]
-fn set_style_swaps_the_style_from_the_next_build() {
-    let mut harness = harness(LayoutState::new(pair()));
-    harness.state_mut().layout.set_style(Themed {
+fn set_swaps_the_style_from_the_next_build() {
+    let shared = SharedStyle::new(pair());
+    let mut harness = harness(LayoutState::new(&shared));
+    shared.set(Themed {
         light: padded(33.0),
         dark: padded(33.0),
     });
@@ -108,11 +110,32 @@ fn set_style_swaps_the_style_from_the_next_build() {
 }
 
 #[test]
+fn every_layout_made_from_a_handle_follows_its_set() {
+    let shared = SharedStyle::new(pair());
+    let mut layouts = [
+        LayoutState::new(&shared),
+        LayoutState::named("second", &shared),
+    ];
+    shared.set(Themed::both(padded(44.0)));
+    let ctx = egui::Context::default();
+    let mut built = Vec::new();
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        for layout in &mut layouts {
+            let _ = layout.build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                built.push(b.style().scroll.width);
+            });
+        }
+    })
+    .drop_without_applying_deltas();
+    assert_eq!(built, [44.0, 44.0]);
+}
+
+#[test]
 fn the_shell_reads_the_layout_s_style() {
-    let harness = harness(LayoutState::new(pair()));
+    let harness = harness(LayoutState::new(&eggshell_ui::SharedStyle::new(pair())));
     let shell = harness.state().layout.shell(&harness.ctx);
     assert_eq!(shell.style().scroll.width, LIGHT);
-    let plain = LayoutState::new(crate::support::shadcn());
+    let plain = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     assert_eq!(
         plain.shell(&harness.ctx).style().scroll.width,
         derived(),
@@ -141,10 +164,10 @@ fn without_base_text_the_root_text_is_the_layout_s_style_text() {
                     .data_mut(|data| data.insert_temp(egui::Id::NULL.with("height"), height));
                 placed.draw(&mut (), ui);
             },
-            LayoutState::new(Themed {
+            LayoutState::new(&eggshell_ui::SharedStyle::new(Themed {
                 light: tall(),
                 dark: tall(),
-            }),
+            })),
         );
     harness.run_steps(2);
     let height: Option<f32> = harness
@@ -176,10 +199,10 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
                     .layout(ui.max_rect())
                     .draw(&mut (), ui);
             },
-            LayoutState::new(Themed {
+            LayoutState::new(&eggshell_ui::SharedStyle::new(Themed {
                 light: delayed(std::time::Duration::ZERO),
                 dark: delayed(std::time::Duration::ZERO),
-            }),
+            })),
         );
     assert!(
         Style::default().tooltip.delay > std::time::Duration::from_millis(300),
@@ -201,6 +224,13 @@ fn fontless() -> Style {
         font: None,
         ..eggshell_ui::theme::Tokens::light()
     })
+}
+
+/// A style that declares no face for any weight.
+fn faceless() -> Style {
+    let mut style = fontless();
+    style.faces = Default::default();
+    style
 }
 
 fn with_medium() -> Arc<Style> {
@@ -248,144 +278,30 @@ fn medium_reports(layout: LayoutState) -> (usize, bool) {
 
 #[test]
 fn text_is_drawn_in_the_faces_the_layout_s_style_declares() {
-    let (missing, _) = medium_reports(LayoutState::new(Themed::both(Arc::new(fontless()))));
+    let (missing, _) = medium_reports(LayoutState::new(&eggshell_ui::SharedStyle::new(
+        Themed::both(Arc::new(faceless())),
+    )));
     assert_eq!(
         missing, 1,
         "precondition: the style declares no medium face"
     );
-    let (missing, _) = medium_reports(LayoutState::new(Themed {
+    let (missing, _) = medium_reports(LayoutState::new(&eggshell_ui::SharedStyle::new(Themed {
         light: with_medium(),
         dark: with_medium(),
-    }));
+    })));
     assert_eq!(missing, 0, "the layout's style declares one");
 }
 
 #[test]
 fn the_symbol_face_backs_the_families_the_layout_s_style_declares() {
-    let (_, registered) = medium_reports(LayoutState::new(crate::support::shadcn()));
+    let (_, registered) = medium_reports(LayoutState::new(&eggshell_ui::SharedStyle::new(
+        crate::support::shadcn(),
+    )));
     assert!(!registered, "precondition: no layout declares the family");
-    let (_, registered) = medium_reports(LayoutState::new(Themed {
-        light: with_medium(),
-        dark: with_medium(),
-    }));
+    let (_, registered) =
+        medium_reports(LayoutState::new(&eggshell_ui::SharedStyle::new(Themed {
+            light: with_medium(),
+            dark: with_medium(),
+        })));
     assert!(registered, "the build registers the symbol face under it");
-}
-
-fn vega() -> Themed<Arc<Style>> {
-    eggshell_ui::theme::Shadcn::themed(
-        eggshell_ui::theme::ShadcnStyle::Vega,
-        eggshell_ui::theme::Palette::new(),
-    )
-}
-
-fn lyra() -> Themed<Arc<Style>> {
-    eggshell_ui::theme::Shadcn::themed(
-        eggshell_ui::theme::ShadcnStyle::Lyra,
-        eggshell_ui::theme::Palette::new(),
-    )
-}
-
-/// A new style given before the frame `at`: to the second layout, and to
-/// the first too if `both` says so.
-#[derive(Clone, Copy)]
-struct Switch {
-    at: usize,
-    to: fn() -> Themed<Arc<Style>>,
-    both: Both,
-}
-
-/// Two layouts built on one context for `frames` frames, with `switch`;
-/// the reports of layouts giving egui different looks.
-fn clash_reports(
-    layouts: (LayoutState, LayoutState),
-    switch: Option<Switch>,
-    frames: usize,
-) -> usize {
-    let mut harness = Harness::builder()
-        .with_size(vec2(300.0, 200.0))
-        .build_ui_state(
-            |ui, (first, second): &mut (LayoutState, LayoutState)| {
-                for layout in [first, second] {
-                    layout
-                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
-                            b.text(tw(), "x");
-                        })
-                        .layout(ui.max_rect())
-                        .draw(&mut (), ui);
-                }
-            },
-            layouts,
-        );
-    for frame in 0..frames {
-        if let Some(Switch { at, to, both }) = switch
-            && at == frame
-        {
-            let (first, second) = harness.state_mut();
-            second.set_style(to());
-            if both == Both::Switched {
-                first.set_style(to());
-            }
-        }
-        harness.step();
-    }
-    reports(&harness.ctx)
-        .iter()
-        .filter(|report| report.problem == Problem::EguiStyleClash)
-        .count()
-}
-
-/// Whether a switch goes to both layouts or to the second alone.
-#[derive(Clone, Copy, PartialEq)]
-enum Both {
-    Switched,
-    SecondOnly,
-}
-
-#[test]
-fn two_layouts_that_give_egui_different_looks_are_reported() {
-    let layouts = (LayoutState::new(vega()), LayoutState::new(lyra()));
-    assert_eq!(clash_reports(layouts, None, 4), 1);
-}
-
-#[test]
-fn the_same_style_given_by_two_layouts_is_not_reported() {
-    let shared = vega();
-    let layouts = (LayoutState::new(shared.clone()), LayoutState::new(shared));
-    assert_eq!(clash_reports(layouts, None, 4), 0, "one style, shared");
-    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
-    assert_eq!(clash_reports(layouts, None, 4), 0, "one style, built twice");
-}
-
-#[test]
-fn a_style_switched_on_every_layout_at_once_is_not_reported() {
-    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
-    assert_eq!(
-        clash_reports(
-            layouts,
-            Some(Switch {
-                at: 2,
-                to: lyra,
-                both: Both::Switched
-            }),
-            5
-        ),
-        0
-    );
-}
-
-#[test]
-fn a_style_switched_on_one_layout_alone_is_reported() {
-    let layouts = (LayoutState::new(vega()), LayoutState::new(vega()));
-    assert_eq!(
-        clash_reports(
-            layouts,
-            Some(Switch {
-                at: 2,
-                to: lyra,
-                both: Both::SecondOnly
-            }),
-            5
-        ),
-        1
-    );
 }

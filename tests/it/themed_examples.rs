@@ -49,7 +49,7 @@ fn place<A>(
     build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>),
 ) -> (Placed<A>, Tokens) {
     let ctx = ctx_in(theme);
-    let placed = LayoutState::new(crate::support::shadcn())
+    let placed = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
         .with_base_text(common::base_text(theme))
         .build(&ctx, build)
         .layout(AREA);

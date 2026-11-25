@@ -99,6 +99,7 @@ pub struct Driver<A: 'static> {
     reports: Reports,
     claimed: Vec<Problem>,
     start: f64,
+    style: crate::SharedStyle,
 }
 
 /// TODO(prose): what the driver's harness holds: the app, its layout and the last frame
@@ -336,7 +337,7 @@ pub struct DriverBuilder<A: 'static> {
     step: Duration,
     motion: Animation,
     base_text: Option<TextStyle>,
-    style: Option<Themed<Arc<Style>>>,
+    style: Option<crate::SharedStyle>,
     setup: Option<Setup>,
     after: After,
     cap: Duration,
@@ -382,9 +383,10 @@ impl<A: 'static> DriverBuilder<A> {
         self
     }
 
-    /// TODO(prose): the layout's style, as [`LayoutState::set_style`]; the default shadcn style when unset.
-    pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
-        self.style = Some(style);
+    /// TODO(prose): the layout's style, the handle it is made from, as
+    /// [`LayoutState::new`]; shadcn's default when unset.
+    pub fn style(mut self, style: &crate::SharedStyle) -> Self {
+        self.style = Some(style.clone());
         self
     }
 
@@ -469,7 +471,8 @@ impl<A: 'static> DriverBuilder<A> {
         if let Some(setup) = setup {
             builder = builder.with_context_setup(setup);
         }
-        let layout = LayoutState::new(style.unwrap_or_else(super::default_style));
+        let style = style.unwrap_or_else(|| crate::SharedStyle::new(super::default_style()));
+        let layout = LayoutState::new(&style);
         let layout = match base_text {
             Some(base) => layout.with_base_text(base),
             None => layout,
@@ -500,6 +503,7 @@ impl<A: 'static> DriverBuilder<A> {
             reports,
             claimed: Vec::new(),
             start,
+            style,
         };
         if after == After::Settle && driver.repainting() {
             driver.unsettled(driver.max_steps).fail();
@@ -940,9 +944,10 @@ impl<A: 'static> Driver<A> {
         &self.harness.state().layout
     }
 
-    /// TODO(prose): swaps the layout's style, as [`LayoutState::set_style`]; the next frame uses it.
+    /// TODO(prose): swaps the layout's style, through the handle it is made
+    /// from ([`SharedStyle::set`](crate::SharedStyle::set)); the next frame uses it.
     pub fn set_style(&mut self, style: Themed<Arc<Style>>) -> &mut Self {
-        self.harness.state_mut().layout.set_style(style);
+        self.style.set(style);
         self
     }
 

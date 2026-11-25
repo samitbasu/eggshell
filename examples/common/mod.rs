@@ -20,7 +20,9 @@ use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::owned::{menu, segmented::Cell};
 use eggshell_ui::sheet::Key as SheetKey;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
-use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};
+use eggshell_ui::{
+    Aria, Builder, LayoutState, Match, SharedStyle, TextSpec, TextStyle, Tw, Weight, tw,
+};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 pub mod dnd;
@@ -80,6 +82,36 @@ fn chosen(ctx: &Context) -> Chosen {
 
 fn choose(ctx: &Context, Chosen { style, palette }: Chosen) {
     ctx.data_mut(|data| data.insert_temp(chosen_id(), (style, palette)));
+    sync(ctx);
+}
+
+fn adopted_id() -> egui::Id {
+    egui::Id::NULL.with("examples-shared-style")
+}
+
+/// The handle an example's layouts are made from, in the default style and
+/// palette until [`adopt`] has the choice follow it.
+pub fn shared_style() -> SharedStyle {
+    SharedStyle::new(initial_style())
+}
+
+/// Makes `shared` the handle the style and palette pickers switch on `ctx`,
+/// in the style already chosen. Safe to call every frame.
+pub fn adopt(ctx: &Context, shared: &SharedStyle) {
+    ctx.data_mut(|data| data.insert_temp(adopted_id(), shared.clone()));
+    sync(ctx);
+}
+
+/// Gives the adopted handle the chosen style, unless it has it.
+fn sync(ctx: &Context) {
+    let Some(shared) = ctx.data(|data| data.get_temp::<SharedStyle>(adopted_id())) else {
+        return;
+    };
+    let want = style(ctx);
+    let have = shared.get();
+    if !(Arc::ptr_eq(&have.light, &want.light) && Arc::ptr_eq(&have.dark, &want.dark)) {
+        shared.set(want);
+    }
 }
 
 /// Draws the examples in `style` from the next frame on.
@@ -98,9 +130,8 @@ pub fn style_of(ctx: &Context) -> ShadcnStyle {
     chosen(ctx).style
 }
 
-/// The style an example's layout starts with, before a frame has chosen one:
-/// the preset in its default style and palette.
-pub fn initial_style() -> Themed<Arc<eggshell_ui::Style>> {
+/// The preset in its default style and palette.
+fn initial_style() -> Themed<Arc<eggshell_ui::Style>> {
     let Chosen { style, palette } = Chosen::default();
     Shadcn::themed(style, palette)
 }
@@ -270,13 +301,14 @@ fn shell<S: 'static>(
     prepare: fn(&egui::Context, &S),
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
 ) -> eframe::Result {
-    let mut layout_state = LayoutState::new(initial_style());
-    let mut theme_bar = ThemeBar::new();
+    let shared = shared_style();
+    let mut layout_state = LayoutState::new(&shared);
+    let mut theme_bar = ThemeBar::new(&shared);
     launch(title, inner_size, move |ui| {
         let ctx = ui.ctx().clone();
+        adopt(&ctx, &shared);
         prepare(&ctx, &state);
         theme_bar.show(ui);
-        layout_state.set_style(style(&ctx));
         layout_state.set_base_text(Some(base_text_in(&ctx)));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens(&ctx).background))
@@ -421,18 +453,16 @@ where
 /// ```
 pub struct ThemeBar {
     layout: LayoutState,
-}
-
-impl Default for ThemeBar {
-    fn default() -> Self {
-        Self::new()
-    }
+    shared: SharedStyle,
 }
 
 impl ThemeBar {
-    pub fn new() -> Self {
+    /// A strip whose layout is made from `shared`, the handle its pickers
+    /// switch.
+    pub fn new(shared: &SharedStyle) -> Self {
         Self {
-            layout: LayoutState::named("theme-bar", initial_style()),
+            layout: LayoutState::named("theme-bar", shared),
+            shared: shared.clone(),
         }
     }
 
@@ -440,7 +470,7 @@ impl ThemeBar {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         toggle_debug(&ctx);
-        self.layout.set_style(style(&ctx));
+        adopt(&ctx, &self.shared);
         self.layout.set_base_text(Some(base_text_in(&ctx)));
         let t = tokens(&ctx);
         egui::Panel::top("theme_bar")

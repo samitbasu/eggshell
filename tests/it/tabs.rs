@@ -499,7 +499,6 @@ mod look {
         );
         harness
             .state_mut()
-            .layout
             .set_style(support::shadcn_with(restyled));
         harness.run_steps(4);
         let fill = |path: &str| support::box_at(&harness, rect_of(&harness, path)).fill;

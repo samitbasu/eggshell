@@ -10,7 +10,7 @@ egui's state for a widget follows the data it shows.
 
 ```rust,no_run
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
-use eggshell_ui::{Builder, LayoutState, tw};
+use eggshell_ui::{Builder, LayoutState, SharedStyle, tw};
 
 struct App {
     count: u32,
@@ -24,7 +24,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn main() -> eframe::Result {
-    let mut layout = LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+    let style = SharedStyle::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+    let mut layout = LayoutState::new(&style);
     let mut app = App { count: 0 };
     eframe::run_ui_native("counter", Default::default(), move |ui, _| {
         egui::CentralPanel::default().show(ui, |ui| {

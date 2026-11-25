@@ -243,7 +243,7 @@ fn snapshot_ink(
     layout: impl for<'f> Fn(&mut Builder<'_, 'f, ()>, ImageSource<'static>),
 ) {
     report_renderer();
-    let mut state = LayoutState::new(crate::support::shadcn())
+    let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
         .with_base_text(TextStyle::new(layouts::BODY, ink));
     let mut logo: Option<TextureHandle> = None;
     let mut harness = Harness::builder()
@@ -1494,7 +1494,12 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
         common::base_text(theme),
         state,
         |ui, app, layout| {
-            dnd_gallery::window(ui, app, layout, &mut LayoutState::new(support::shadcn()));
+            dnd_gallery::window(
+                ui,
+                app,
+                layout,
+                &mut LayoutState::new(&eggshell_ui::SharedStyle::new(support::shadcn())),
+            );
         },
     );
     harness.ctx.set_theme(theme);
@@ -2265,7 +2270,6 @@ mod tooltip_candidates {
         );
         harness
             .state_mut()
-            .layout
             .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         harness.state_mut().page = support::Page::Themed;
         harness.state_mut().companion = support::Companion::Alone;
@@ -2412,7 +2416,6 @@ mod kbd_candidates {
         );
         harness
             .state_mut()
-            .layout
             .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         rich_tooltip_open(&mut harness, theme);
         let label = if theme == egui::Theme::Light {

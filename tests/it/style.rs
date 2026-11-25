@@ -34,7 +34,9 @@ fn context(theme: Theme) -> Context {
 /// A layout given `preset`'s style, built once on `ctx`: what it gives egui.
 fn given(ctx: &Context, preset: &Shadcn) -> LayoutState {
     let half = std::sync::Arc::new(preset.style());
-    let mut layout = LayoutState::new(eggshell_ui::contract::Themed::both(half));
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(
+        eggshell_ui::contract::Themed::both(half),
+    ));
     ctx.run_ui(egui::RawInput::default(), |ui| {
         let _ = layout.build(ui.ctx(), |_: &mut Builder<'_, '_, ()>| {});
     })

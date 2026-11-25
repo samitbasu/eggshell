@@ -89,14 +89,16 @@ fn an_app_rule_restyles_the_track() {
         },
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style
-            .sheet
-            .as_app()
-            .rule(eggshell_ui::owned::progress::Part::Root, |t, _| {
-                t.bg(egui::Color32::RED)
-            });
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui::owned::progress::Part::Root, |t, _| {
+                    t.bg(egui::Color32::RED)
+                });
+        },
+    )))
     .build();
     d.ctx().set_theme(Theme::Light);
     d.frames(6);

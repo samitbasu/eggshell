@@ -118,13 +118,14 @@ fn borders_and_inputs_against_the_page_are_reported() {
 fn applied(preset: &Shadcn) -> Context {
     let ctx = Context::default();
     let given = || Themed::both(Arc::new(preset.style()));
-    let mut layout = LayoutState::new(given());
+    let shared = eggshell_ui::SharedStyle::new(given());
+    let mut layout = LayoutState::new(&shared);
     for _ in 0..2 {
         ctx.run_ui(egui::RawInput::default(), |ui| {
             let _ = layout.build(ui.ctx(), |_: &mut Builder<'_, '_, ()>| {});
         })
         .drop_without_applying_deltas();
-        layout.set_style(given());
+        shared.set(given());
     }
     ctx
 }

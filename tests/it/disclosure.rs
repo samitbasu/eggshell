@@ -341,7 +341,9 @@ fn an_unnamed_disclosure_button_is_reported() {
                     .draw(fold, ui);
             },
             Rig {
-                layout: eggshell_ui::LayoutState::new(crate::support::shadcn()),
+                layout: eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(
+                    crate::support::shadcn(),
+                )),
                 fold: Shown::Closed,
             },
         );
@@ -381,7 +383,7 @@ fn driver_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing::
         App::default(),
         view,
     )
-    .style(support::shadcn_with(edit))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .build();
     d.frames(4);
     d

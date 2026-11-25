@@ -63,7 +63,9 @@ fn applied(style: ShadcnStyle) -> (String, String, Vec<String>) {
 fn themed(style: ShadcnStyle) -> (String, String, Vec<String>) {
     egui_after(
         |_| {},
-        Some(LayoutState::new(Shadcn::themed(style, Palette::new()))),
+        Some(LayoutState::new(&eggshell_ui::SharedStyle::new(
+            Shadcn::themed(style, Palette::new()),
+        ))),
     )
 }
 
@@ -100,6 +102,7 @@ fn set_style_gives_egui_the_new_look_on_the_next_build() {
     let (lyra_light, _, _) = applied(ShadcnStyle::Lyra);
     let (vega_light, _, _) = applied(ShadcnStyle::Vega);
     assert!(lyra_light != vega_light, "precondition: the styles differ");
+    let shared = eggshell_ui::SharedStyle::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
     let mut harness = Harness::builder()
         .with_size(vec2(200.0, 100.0))
         .with_theme(Theme::Light)
@@ -112,16 +115,14 @@ fn set_style_gives_egui_the_new_look_on_the_next_build() {
                     .layout(ui.max_rect())
                     .draw(&mut (), ui);
             },
-            LayoutState::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new())),
+            LayoutState::new(&shared),
         );
     harness.run_steps(2);
     assert!(
         format!("{:#?}", harness.ctx.style_of(Theme::Light)) == vega_light,
         "precondition: Vega"
     );
-    harness
-        .state_mut()
-        .set_style(Shadcn::themed(ShadcnStyle::Lyra, Palette::new()));
+    shared.set(Shadcn::themed(ShadcnStyle::Lyra, Palette::new()));
     harness.run_steps(2);
     assert!(format!("{:#?}", harness.ctx.style_of(Theme::Light)) == lyra_light);
 }

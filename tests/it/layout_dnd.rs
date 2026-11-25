@@ -56,7 +56,7 @@ fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
 
 fn harness() -> Driver<App> {
     let app = App {
-        watcher: LayoutState::named("watcher", support::shadcn()),
+        watcher: LayoutState::named("watcher", &eggshell_ui::SharedStyle::new(support::shadcn())),
         carried: None,
         watched: None,
     };

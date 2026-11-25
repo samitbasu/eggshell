@@ -95,7 +95,7 @@ impl Shadcn {
     /// use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     ///
     /// let style = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
-    /// let _layout = LayoutState::new(style);
+    /// let _layout = LayoutState::new(&eggshell_ui::SharedStyle::new(style));
     /// ```
     pub fn themed(
         style: ShadcnStyle,
