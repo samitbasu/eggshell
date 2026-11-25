@@ -612,6 +612,69 @@ pub(crate) fn drag_scrolls(ctx: &Context) -> bool {
     source().drag.enabled(ctx)
 }
 
+/// A touch drag's first movement, taken up instead of scrolled. iOS holds a
+/// touch's moves back until the finger has travelled past its slop, then
+/// sends them at once, and egui would scroll that whole distance in one
+/// frame: a coasting page caught by a finger would stand still, then leap.
+/// As UIKit's scroll views do, the content follows the finger from where it
+/// is when its first movement arrives.
+#[derive(Clone, Copy)]
+struct FirstMoveTaken;
+
+/// The salt egui gives the id dragging a `ScrollArea`'s content senses on.
+const CONTENT_DRAG_SALT: &str = "area";
+
+/// The offset a container returns to: egui's before the drag's first
+/// movement. Layout reads it in place of egui's, and the draw hands it back.
+#[derive(Clone, Copy)]
+struct Rewind(Vec2);
+
+fn first_move_id(node: Id) -> Id {
+    state_id(node).with("first-move-taken")
+}
+
+fn rewind_id(node: Id) -> Id {
+    state_id(node).with("rewind")
+}
+
+/// The offset to hand back to egui this frame, if a drag's first movement
+/// was taken up last frame.
+pub(crate) fn take_rewind(ctx: &Context, node: Id) -> Option<Vec2> {
+    ctx.data_mut(|data| {
+        let rewind = data.get_temp::<Rewind>(rewind_id(node));
+        data.remove::<Rewind>(rewind_id(node));
+        rewind.map(|Rewind(to)| to)
+    })
+}
+
+/// Takes up the first movement of a touch drag on the content of the
+/// container `node`, whose `ScrollArea` is `area`: egui moved its offset from
+/// `before` this frame.
+pub(crate) fn take_first_touch_move(ctx: &Context, node: Id, area: Id, before: Option<Vec2>) {
+    let dragging = ctx.dragged_id() == Some(area.with(CONTENT_DRAG_SALT))
+        && ctx.input(|input| input.any_touches());
+    if !dragging {
+        ctx.data_mut(|data| data.remove::<FirstMoveTaken>(first_move_id(node)));
+        return;
+    }
+    let taken = ctx.data(|data| {
+        data.get_temp::<FirstMoveTaken>(first_move_id(node))
+            .is_some()
+    });
+    let (Some(before), Some(state)) = (before, egui::scroll_area::State::load(ctx, state_id(node)))
+    else {
+        return;
+    };
+    if taken || state.unclamped_offset() == before {
+        return;
+    }
+    ctx.data_mut(|data| {
+        data.insert_temp(first_move_id(node), FirstMoveTaken);
+        data.insert_temp(rewind_id(node), Rewind(before));
+    });
+    ctx.request_repaint();
+}
+
 /// The scope of the `Ui` a container's `ScrollArea` is shown in.
 pub(crate) fn area_scope(node: Id) -> Id {
     node.with("eggshell-scroll")
@@ -914,12 +977,19 @@ pub(crate) fn stored_offset(
     let Some(state) = egui::scroll_area::State::load(ctx, state_id(node)) else {
         return Vec2::ZERO;
     };
-    let offset = state.unclamped_offset();
+    let rewind = ctx.data(|data| data.get_temp::<Rewind>(rewind_id(node)));
+    let offset = rewind.map_or_else(|| state.unclamped_offset(), |Rewind(to)| to);
     let offset = if state.overscroll() == Vec2::ZERO {
         clamp_vec2(offset, Vec2::ZERO, limit(content, viewport))
     } else {
         offset
     };
+    // Text is drawn on whole physical pixels, each paragraph rounded on its
+    // own: at a fractional offset, paragraphs round differently from frame to
+    // frame and shimmer against each other. A whole-pixel offset moves the
+    // content rigidly, as a browser's scroll does.
+    let pixels_per_point = ctx.pixels_per_point();
+    let offset = (offset * pixels_per_point).round() / pixels_per_point;
     masked(offset, axis)
 }
 
