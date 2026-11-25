@@ -564,7 +564,7 @@ pub struct Metrics {
 
 /// TODO(prose): toggle buttons: their sizes and their looks off and on. A
 /// plain button's look is the [`sheet`](Style::sheet)'s
-/// ([`ButtonPart`](crate::owned::button::ButtonPart)); a toggle's moves there with
+/// ([`button::Part`](crate::owned::button::Part)); a toggle's moves there with
 /// its own shadcn source, `toggle.tsx`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -686,7 +686,7 @@ pub struct ProgressStyle {
     pub range: Colors,
 }
 
-/// TODO(prose): Select triggers: each size's metrics and the chevron. The trigger's look is the sheet's [`SelectPart::Trigger`](crate::owned::select::SelectPart::Trigger); the list it opens is drawn from [`MenuStyle`].
+/// TODO(prose): Select triggers: each size's metrics and the chevron. The trigger's look is the sheet's [`select::Part::Trigger`](crate::owned::select::Part::Trigger); the list it opens is drawn from [`MenuStyle`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
@@ -701,7 +701,7 @@ pub struct SelectStyle {
     pub chevron_opacity: Opacity,
 }
 
-/// TODO(prose): Menus: the metrics of a dropdown's, a context menu's and a submenu's box, items and shortcuts, and of the list a select opens. Their look is the sheet's [`MenuPart`](crate::owned::menu::MenuPart)s and [`SelectPart`](crate::owned::select::SelectPart)s.
+/// TODO(prose): Menus: the metrics of a dropdown's, a context menu's and a submenu's box, items and shortcuts, and of the list a select opens. Their look is the sheet's [`menu::Part`](crate::owned::menu::Part)s and [`select::Part`](crate::owned::select::Part)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MenuStyle {
@@ -737,7 +737,7 @@ pub struct Arrow {
     pub size: f32,
 }
 
-/// TODO(prose): Tooltips: the optional arrow, where the box sits and the timing. The box's look is the sheet's [`TooltipPart::Content`](crate::owned::tooltip::TooltipPart::Content); how one enters and leaves is [`MotionStyle::tooltip`].
+/// TODO(prose): Tooltips: the optional arrow, where the box sits and the timing. The box's look is the sheet's [`tooltip::Part::Content`](crate::owned::tooltip::Part::Content); how one enters and leaves is [`MotionStyle::tooltip`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TooltipStyle {
@@ -885,7 +885,7 @@ pub struct InputMetrics {
 
 /// TODO(prose): Text fields, which are egui's `TextEdit` wrapped: egui paints them from
 /// fixed widget slots, so [`Style::map_input`] approximates the sheet's
-/// [`InputPart::Root`](crate::owned::input::InputPart::Root) and this section on
+/// [`input::Part::Root`](crate::owned::input::Part::Root) and this section on
 /// the field's own `Ui`, and the library's size estimate reads the same
 /// values.
 ///
@@ -1056,7 +1056,7 @@ pub enum GroupEnd {
     },
 }
 
-/// TODO(prose): Tables: a group's title and end. The rest of a table's look is the sheet's [`TablePart`](crate::owned::table::TablePart)s.
+/// TODO(prose): Tables: a group's title and end. The rest of a table's look is the sheet's [`table::Part`](crate::owned::table::Part)s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableStyle {
@@ -1289,34 +1289,34 @@ pub struct Style {
     pub fonts: Vec<egui::FontInsert>,
     /// TODO(prose): badges and chips.
     #[cfg(feature = "badge")]
-    pub badge: crate::owned::badge::BadgeStyle,
+    pub badge: crate::owned::badge::Style,
     /// TODO(prose): the command palette, the combobox and the autosuggest.
     #[cfg(feature = "command")]
-    pub command: crate::owned::command::CommandStyle,
+    pub command: crate::owned::command::Style,
     /// TODO(prose): dialogs, alert dialogs, sheets and popovers.
     #[cfg(feature = "dialog")]
-    pub dialog: crate::owned::dialog::DialogStyle,
+    pub dialog: crate::owned::dialog::Style,
     /// TODO(prose): disclosures and accordions.
     #[cfg(feature = "disclosure")]
-    pub disclosure: crate::owned::disclosure::DisclosureStyle,
+    pub disclosure: crate::owned::disclosure::Style,
     /// TODO(prose): form sections.
     #[cfg(feature = "form")]
-    pub form: crate::owned::form::FormStyle,
+    pub form: crate::owned::form::Style,
     /// TODO(prose): hover cards.
     #[cfg(feature = "hover-card")]
-    pub hover_card: crate::owned::hover_card::HoverCardStyle,
+    pub hover_card: crate::owned::hover_card::Style,
     /// TODO(prose): Markdown.
     #[cfg(feature = "markdown")]
-    pub markdown: crate::owned::markdown::MarkdownStyle,
+    pub markdown: crate::owned::markdown::Style,
     /// TODO(prose): notifications.
     #[cfg(feature = "notify")]
-    pub notify: crate::owned::notify::NotifyStyle,
+    pub notify: crate::owned::notify::Style,
     /// TODO(prose): skeletons.
     #[cfg(feature = "skeleton")]
-    pub skeleton: crate::owned::skeleton::SkeletonStyle,
+    pub skeleton: crate::owned::skeleton::Style,
     /// TODO(prose): spinners.
     #[cfg(feature = "spinner")]
-    pub spinner: crate::owned::spinner::SpinnerStyle,
+    pub spinner: crate::owned::spinner::Style,
 }
 
 impl Style {
@@ -1560,7 +1560,7 @@ impl Style {
             }
         };
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
-        // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
+        // selects: `zoom-in-95 slide-in-from-*-2`. dialog::Content:
         // `zoom-in-95 duration-200`. SheetContent:
         // `slide-in-from-*`, `ease-in-out`, 500 ms open and 300 ms close.
         let animate = KindMotion {
@@ -1679,7 +1679,7 @@ impl Style {
         #[cfg(feature = "skeleton")]
         let skeleton = crate::theme::Shadcn::skeleton(t, &base);
         #[cfg(feature = "spinner")]
-        let spinner = crate::owned::spinner::SpinnerStyle::from_base(&base);
+        let spinner = crate::owned::spinner::Style::from_base(&base);
         let mut style = Self {
             text,
             faces: t
@@ -1860,7 +1860,7 @@ impl Style {
         {
             // The section's own look, not its preset's: what the generated
             // look's exceptions have always been written from.
-            let disclosure = crate::owned::disclosure::DisclosureStyle::from_base(&self.base());
+            let disclosure = crate::owned::disclosure::Style::from_base(&self.base());
             crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
         }
         #[cfg(feature = "command")]
@@ -1885,12 +1885,12 @@ impl Style {
         size: Size,
         aria: Option<crate::Aria>,
     ) {
-        use crate::owned::input::{Frame, InputPart, keys as input_keys};
+        use crate::owned::input::{self, Frame, keys as input_keys};
         let input = &self.input;
         let size = input.sizes.key_for(size);
         let mut keys = input_keys(size, false);
         keys.extend(aria.map(crate::sheet::Key::Aria));
-        let classes = self.sheet.resolve(InputPart::Root, &keys, &self.tokens);
+        let classes = self.sheet.resolve(input::Part::Root, &keys, &self.tokens);
         let frame = Frame::of(&classes, self.tokens.spacing);
         let v = &mut egui.visuals;
         v.text_edit_bg_color = frame.fill;

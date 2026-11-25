@@ -6,7 +6,7 @@ use std::sync::Arc;
 use eggshell_ui::contract::{Size, Themed, Variant};
 use eggshell_ui::owned::{
     Enablement,
-    button::{ButtonPart, Face},
+    button::{self, Face},
 };
 use eggshell_ui::sheet::{Key, When};
 use eggshell_ui::testing::{Driver, Target};
@@ -86,7 +86,7 @@ fn driver(faded: bool) -> Driver<App> {
     let mut style = Shadcn::for_theme(Theme::Light).style();
     if faded {
         style.sheet.as_app().rule_when(
-            ButtonPart::Root,
+            button::Part::Root,
             When::always().aria(Aria::Disabled),
             |t, _| t.opacity(Opacity::new(0.4)),
         );
@@ -125,7 +125,7 @@ fn an_absolute_child_is_placed_inside_the_buttons_border() {
     let border = style
         .sheet
         .resolve(
-            ButtonPart::Root,
+            button::Part::Root,
             &[Key::Variant(Variant::DEFAULT), Key::Size(Size::DEFAULT)],
             &style.tokens,
         )

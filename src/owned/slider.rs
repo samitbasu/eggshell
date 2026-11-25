@@ -21,7 +21,7 @@ use crate::sheet::Key as SheetKey;
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Box,
     Header,
     Label,
@@ -128,7 +128,7 @@ impl Scale {
 ///
 /// TODO(prose): the keys its rules see: `aria-disabled`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SliderPart {
+pub enum Part {
     /// TODO(prose): the slider: the track and its thumb, the room the
     /// pointer takes.
     Root,
@@ -140,7 +140,7 @@ pub enum SliderPart {
     Thumb,
 }
 
-impl crate::sheet::Part for SliderPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "slider.tsx";
 
     fn slot(self) -> &'static str {
@@ -166,16 +166,16 @@ pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
         States::still(Colors { fill, border, text }, k.background).disabled
     };
     let clear = Color32::TRANSPARENT;
-    sheet.rule_when(SliderPart::Root, disabled(), |t, _| {
+    sheet.rule_when(Part::Root, disabled(), |t, _| {
         t.opacity(crate::Opacity::new(1.0))
     });
-    sheet.rule_when(SliderPart::Track, disabled(), move |t, k| {
+    sheet.rule_when(Part::Track, disabled(), move |t, k| {
         t.bg(faded(k, k.input, clear, k.foreground).fill)
     });
-    sheet.rule_when(SliderPart::Range, disabled(), move |t, k| {
+    sheet.rule_when(Part::Range, disabled(), move |t, k| {
         t.bg(faded(k, k.primary, clear, k.primary_foreground).fill)
     });
-    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, k| {
+    sheet.rule_when(Part::Thumb, disabled(), move |t, k| {
         let thumb = faded(k, Color32::WHITE, k.primary, k.foreground);
         t.bg(thumb.fill).border_color(thumb.border)
     });
@@ -390,14 +390,10 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             Enablement::Enabled => own,
             Enablement::Disabled => own.inert(),
         };
-        let hit = b.part(SliderPart::Root, keys, own);
-        let bar = b.part(
-            SliderPart::Track,
-            keys,
-            tw().w_full().h_px(metrics.track_height),
-        );
+        let hit = b.part(Part::Root, keys, own);
+        let bar = b.part(Part::Track, keys, tw().w_full().h_px(metrics.track_height));
         let filled = b.part(
-            SliderPart::Range,
+            Part::Range,
             keys,
             // eggshell clips to a rectangle, where CSS clips the range to the
             // track's rounding: the range rounds itself as the track does.
@@ -407,7 +403,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = b.part(
-            SliderPart::Thumb,
+            Part::Thumb,
             keys,
             tw().absolute()
                 .top_px(0.0)
@@ -460,11 +456,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             let set_readout = set.clone();
             let readout_edits = edits.clone();
             let track_node = |b: &mut Builder<'_, '_, A>| {
-                let track = b.id_of(Part::Track);
-                b.div_id(Part::Track, hit, |b| {
+                let track = b.id_of(Node::Track);
+                b.div_id(Node::Track, hit, |b| {
                     b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
-                        b.div_id(Part::Thumb, knob, |_| {})
+                        b.div_id(Node::Thumb, knob, |_| {})
                             .open_focus(autofocus.open_focus())
                             .draw(move |app, ui| {
                                 let response = ui.node_response();
@@ -526,7 +522,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             match boxed {
                 None => track_node(b),
                 Some(boxed) => {
-                    b.div_id(Part::Box, boxed, |b| {
+                    b.div_id(Node::Box, boxed, |b| {
                         row.show(b, set_readout, readout_edits);
                         track_node(b);
                     });
@@ -577,11 +573,11 @@ impl Row {
         } else {
             row
         };
-        b.div_id(Part::Header, row, |b| {
+        b.div_id(Node::Header, row, |b| {
             match &header.label {
                 Some(label_text) => {
                     let classes = painted(text.clone(), label);
-                    b.div_id(Part::Label, classes, |b| b.text(tw(), label_text.clone()));
+                    b.div_id(Node::Label, classes, |b| b.text(tw(), label_text.clone()));
                 }
                 None => b.div(tw(), |_| {}),
             }

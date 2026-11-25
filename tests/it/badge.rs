@@ -292,7 +292,7 @@ fn an_app_rule_restyles_a_badge() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::badge::BadgePart::Root, |t, _| {
+                .rule(eggshell_ui::owned::badge::Part::Root, |t, _| {
                     t.bg(egui::Color32::RED)
                 });
         }))
@@ -338,7 +338,7 @@ fn an_app_rule_restyles_a_spinner() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::spinner::SpinnerPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::spinner::Part::Root, |t, _| {
                     t.bg(egui::Color32::RED).size(10.0)
                 });
         }))

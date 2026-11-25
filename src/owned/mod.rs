@@ -136,7 +136,7 @@ use egui::{Id, Response, Role, Ui, WidgetInfo};
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
     let keys = input_keys(style.input.sizes.key_for(size), false);
-    let classes = style.sheet.resolve(InputPart::Root, &keys, &style.tokens);
+    let classes = style.sheet.resolve(input::Part::Root, &keys, &style.tokens);
     Frame::of(&classes, style.tokens.spacing)
 }
 
@@ -145,18 +145,15 @@ pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
 /// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the
 /// segmented control's is written with the tabs'.
 pub(crate) fn write_track_exceptions(sheet: &mut crate::sheet::Sheet) {
-    sheet.rule(SliderPart::Track, |t, k| t.bg(k.input));
-    sheet.rule(ProgressPart::Root, |t, k| t.bg(k.input));
+    sheet.rule(slider::Part::Track, |t, k| t.bg(k.input));
+    sheet.rule(progress::Part::Root, |t, k| t.bg(k.input));
 }
 
 use crate::contract::{Colors, Focus, Look, Paint, Size, States, Style};
 use crate::owned::tooltip::{Content, Tooltip};
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
-use field::FieldPart;
-use input::{Frame, InputPart, keys as input_keys};
+use input::{Frame, keys as input_keys};
 use options::Validity;
-use progress::ProgressPart;
-use slider::SliderPart;
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -654,7 +651,7 @@ pub(crate) fn text_field_classes<A: 'static>(
     let style = b.style().clone();
     let mut keys = input_keys(style.input.sizes.key_for(size), false);
     keys.extend(aria.map(crate::sheet::Key::Aria));
-    let root = b.resolved_part(InputPart::Root, &keys);
+    let root = b.resolved_part(input::Part::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
     let own_text = style.input.sizes.get(style.input.sizes.key_for(size)).text;
     let leaf = match (own_text, root.text.size, root.text.line_height) {
@@ -716,9 +713,9 @@ fn choice_row<A>(
         Enablement::Enabled => own,
         Enablement::Disabled => own.inert(),
     };
-    let mut keys = FieldPart::keys(enablement);
+    let mut keys = field::Part::keys(enablement);
     keys.extend(validity.field_key(enablement));
-    b.part(FieldPart::Root, &keys, own)
+    b.part(field::Part::Root, &keys, own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -732,8 +729,8 @@ fn choice_label<A: 'static, K: crate::Key>(
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
     let classes = b.part(
-        FieldPart::Label,
-        &FieldPart::keys(enablement),
+        field::Part::Label,
+        &field::Part::keys(enablement),
         tw().sense_click().focusable_none(),
     );
     let name = text.clone();
@@ -794,19 +791,23 @@ fn choice_card<A: 'static, K: crate::Key>(
         enablement,
         classes,
     } = card;
-    let keys = FieldPart::card_keys(enablement);
+    let keys = field::Part::card_keys(enablement);
     let own = enablement.senses();
-    let label = b.part(FieldPart::Label, &keys, own.focusable_none().merge(classes));
+    let label = b.part(
+        field::Part::Label,
+        &keys,
+        own.focusable_none().merge(classes),
+    );
     let name = title.clone();
     b.div_id(key, label, |b| {
         b.div(row, |b| {
-            let content = b.part(FieldPart::Content, &[], tw());
-            let keys = FieldPart::keys(enablement);
+            let content = b.part(field::Part::Content, &[], tw());
+            let keys = field::Part::keys(enablement);
             b.div(content, |b| {
-                let title_classes = b.part(FieldPart::Title, &keys, tw());
+                let title_classes = b.part(field::Part::Title, &keys, tw());
                 b.text(title_classes, title);
                 if let Some(description) = description {
-                    let classes = b.part(FieldPart::Description, &keys, tw());
+                    let classes = b.part(field::Part::Description, &keys, tw());
                     b.text(classes, description);
                 }
             });

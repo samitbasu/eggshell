@@ -11,7 +11,7 @@ use egui::Color32;
 /// that takes input. Lengths are in points.
 ///
 /// ```
-/// use eggshell_ui::owned::badge::BadgeStyle;
+/// use eggshell_ui::owned::badge::Style;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = style.badge.clone();
@@ -21,7 +21,7 @@ use egui::Color32;
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct BadgeStyle {
+pub struct Style {
     /// The variants the style defines; the default entry is the variant of a
     /// badge that names none. A badge draws only the `rest` colours; a chip
     /// draws every state and the focus ring.
@@ -54,7 +54,7 @@ pub struct RemoveStyle {
     pub hover: Opacity,
 }
 
-impl BadgeStyle {
+impl Style {
     /// TODO(prose): a badge in the style's secondary colours, the accent's
     /// under the pointer, in 12 pt medium text.
     pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {

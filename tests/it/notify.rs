@@ -466,7 +466,7 @@ fn a_notice_card_draws_from_the_sheet() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::notify::NotifyPart::Toast, |t, _| {
+            .rule(eggshell_ui::owned::notify::Part::Toast, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))

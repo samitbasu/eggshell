@@ -16,7 +16,7 @@ mod common;
 use core::time::Duration;
 
 use common::glyphs::{self, Glyph};
-use eggshell_ui::owned::drag_chip::DragChip as _;
+use eggshell_ui::owned::drag_chip::Chip as _;
 use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, Opacity, tw};
 use egui::{Context, Key, Ui, vec2};

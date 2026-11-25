@@ -218,11 +218,8 @@ impl Shadcn {
     ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
     ///   536).
     #[cfg(feature = "notify")]
-    pub(crate) fn notify(
-        t: &Tokens,
-        style: &contract::Base<'_>,
-    ) -> crate::owned::notify::NotifyStyle {
-        let mut notify = crate::owned::notify::NotifyStyle::from_base(style);
+    pub(crate) fn notify(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::notify::Style {
+        let mut notify = crate::owned::notify::Style::from_base(style);
         notify.fill = t.popover;
         notify.border = t.border;
         notify.text = t.popover_foreground;
@@ -272,8 +269,8 @@ impl Shadcn {
     pub(crate) fn skeleton(
         t: &Tokens,
         style: &contract::Base<'_>,
-    ) -> crate::owned::skeleton::SkeletonStyle {
-        let mut skeleton = crate::owned::skeleton::SkeletonStyle::from_base(style);
+    ) -> crate::owned::skeleton::Style {
+        let mut skeleton = crate::owned::skeleton::Style::from_base(style);
         skeleton.fill = t.muted;
         skeleton.radius = t.radius_md();
         skeleton
@@ -300,7 +297,7 @@ impl Shadcn {
     /// assert_eq!(badge.height, 20.0);
     /// ```
     #[cfg(feature = "badge")]
-    pub(crate) fn badge(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::badge::BadgeStyle {
+    pub(crate) fn badge(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::badge::Style {
         let dark = t.theme == Theme::Dark;
         let clear = Color32::TRANSPARENT;
         let flat = |fill, text| Colors {
@@ -326,7 +323,7 @@ impl Shadcn {
             border: t.border,
             text: t.foreground,
         };
-        let mut badge = crate::owned::badge::BadgeStyle::from_base(style);
+        let mut badge = crate::owned::badge::Style::from_base(style);
         badge.variants = Keyed::new(
             variant::PRIMARY,
             look(
@@ -387,11 +384,8 @@ impl Shadcn {
     /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
     /// and its list `max-h-72`.
     #[cfg(feature = "command")]
-    pub(crate) fn command(
-        t: &Tokens,
-        style: &contract::Base<'_>,
-    ) -> crate::owned::command::CommandStyle {
-        let mut command = crate::owned::command::CommandStyle::from_base(style);
+    pub(crate) fn command(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::command::Style {
+        let mut command = crate::owned::command::Style::from_base(style);
         command.selected_fill = t.muted;
         command.selected_text = t.foreground;
         command
@@ -434,9 +428,9 @@ impl Shadcn {
     pub(crate) fn disclosure(
         t: &Tokens,
         style: &contract::Base<'_>,
-    ) -> crate::owned::disclosure::DisclosureStyle {
+    ) -> crate::owned::disclosure::Style {
         let lyra = t.style == ShadcnStyle::Lyra;
-        let mut disclosure = crate::owned::disclosure::DisclosureStyle::from_base(style);
+        let mut disclosure = crate::owned::disclosure::Style::from_base(style);
         disclosure.section.size = 16.0;
         disclosure.tree.size = 16.0;
         disclosure.tone = Some(t.muted_foreground);
@@ -485,9 +479,9 @@ impl Shadcn {
     /// assert_eq!(form.radius, 14);
     /// ```
     #[cfg(feature = "form")]
-    pub(crate) fn form(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::form::FormStyle {
+    pub(crate) fn form(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::form::Style {
         let vega = t.style == ShadcnStyle::Vega;
-        let mut form = crate::owned::form::FormStyle::from_base(style);
+        let mut form = crate::owned::form::Style::from_base(style);
         form.fill = t.card;
         form.border = t.border;
         form.border_width = 1.0;
@@ -523,8 +517,8 @@ impl Shadcn {
     pub(crate) fn hover_card(
         t: &Tokens,
         style: &contract::Base<'_>,
-    ) -> crate::owned::hover_card::HoverCardStyle {
-        let mut card = crate::owned::hover_card::HoverCardStyle::from_base(style);
+    ) -> crate::owned::hover_card::Style {
+        let mut card = crate::owned::hover_card::Style::from_base(style);
         card.radius = t.radius_lg();
         card.transition = Duration::from_millis(100);
         card
@@ -533,20 +527,17 @@ impl Shadcn {
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
     /// defaults, in this preset's colours.
     #[cfg(feature = "markdown")]
-    pub(crate) fn markdown(t: &Tokens) -> crate::owned::markdown::MarkdownStyle {
+    pub(crate) fn markdown(t: &Tokens) -> crate::owned::markdown::Style {
         crate::owned::markdown::Typeset::default().markdown_style(&Self::typeset_ink(t))
     }
 
     /// TODO(prose): the look of the dialog surface, the sheet and the
-    /// popover: shadcn's `DialogContent`, `SheetContent` and
+    /// popover: shadcn's `dialog::Content`, `SheetContent` and
     /// `PopoverContent`. Placeholder values until the render round.
     #[cfg(feature = "dialog")]
-    pub(crate) fn dialog(
-        t: &Tokens,
-        style: &contract::Base<'_>,
-    ) -> crate::owned::dialog::DialogStyle {
-        use crate::owned::dialog::{DialogStyle, Surface, shadow_lg};
-        let mut dialog = DialogStyle::from_base(style);
+    pub(crate) fn dialog(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::dialog::Style {
+        use crate::owned::dialog::{self, Surface, shadow_lg};
+        let mut dialog = dialog::Style::from_base(style);
         dialog.surface = Surface::new(t.background, t.foreground, t.border)
             .rounded(t.radius_lg())
             .shadow(shadow_lg());

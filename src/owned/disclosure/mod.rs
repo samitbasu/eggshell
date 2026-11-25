@@ -28,7 +28,7 @@
 mod section;
 mod style;
 
-use crate::owned::accordion::AccordionPart;
+use crate::owned::accordion;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
@@ -37,7 +37,7 @@ use crate::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
 use egui::{Color32, Role};
 
 pub use section::SectionChain;
-pub use style::{DisclosureStyle, Glyph, HeaderStyle, Hover};
+pub use style::{Glyph, HeaderStyle, Hover, Style};
 
 /// TODO(prose): a section's `on_change`, not yet given.
 pub struct Unset;
@@ -52,10 +52,10 @@ type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the
 /// header keeps its gap between the title and the chevron, and the chevron
 /// its nudge down to the title's line.
-pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &DisclosureStyle) {
+pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &Style) {
     let (gap, nudge) = (style.header.gap, style.nudge);
-    sheet.rule(AccordionPart::Trigger, move |t, _| t.gap_px(gap));
-    sheet.rule(AccordionPart::TriggerIcon, move |t, _| {
+    sheet.rule(accordion::Part::Trigger, move |t, _| t.gap_px(gap));
+    sheet.rule(accordion::Part::TriggerIcon, move |t, _| {
         t.mt_px(nudge).mb_px(-nudge)
     });
 }
@@ -80,7 +80,7 @@ pub fn chevron(glyph: &Glyph, open: Progress) -> Icon {
 }
 
 /// The classes of a chevron drawn in `style`.
-fn chevron_classes(style: &DisclosureStyle, glyph: &Glyph) -> Tw {
+fn chevron_classes(style: &Style, glyph: &Glyph) -> Tw {
     let classes = tw()
         .size_px(glyph.size)
         .shrink_0()
@@ -116,7 +116,7 @@ fn enablement_in<A>(b: &Builder<'_, '_, A>, own: Enablement) -> Enablement {
 /// The classes of a header or button box in `style`: a Tab stop with the
 /// focus ring, and inert and faded while disabled, as shadcn's
 /// `disabled:opacity-50`. The text keeps the colour it inherits.
-fn box_classes(style: &DisclosureStyle, enablement: Enablement) -> Tw {
+fn box_classes(style: &Style, enablement: Enablement) -> Tw {
     let header = &style.header;
     let classes = tw()
         .sense_click()

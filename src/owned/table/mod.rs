@@ -13,8 +13,8 @@ mod sheet;
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
+pub use sheet::Part;
 use sheet::RowState;
-pub use sheet::TablePart;
 pub(crate) use sheet::{write_exceptions, write_group_band};
 
 /// TODO(prose): where a column's cells place their content.
@@ -565,14 +565,14 @@ enum Band<K> {
 
 /// Which part of the table a row is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Part {
+enum Node {
     Header,
     Body,
     Group,
     Footer,
 }
 
-impl Part {
+impl Node {
     fn of<K>(band: &Band<K>) -> Self {
         match band {
             Band::Header => Self::Header,
@@ -628,7 +628,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();
         let classes = b.part(
-            TablePart::Root,
+            Part::Root,
             &[],
             tw().grid().grid_cols_tracks(&tracks).sense_hover(),
         );
@@ -737,7 +737,7 @@ struct Pending<A, K> {
     /// Where the band goes among the table's children: before its cells.
     at: usize,
     slot: Slot,
-    part: Part,
+    part: Node,
     stripe: Stripe,
     index: usize,
     line: i16,
@@ -819,13 +819,13 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
             });
             return;
         };
-        let part = Part::of(&band);
+        let part = Node::of(&band);
         let stripe = match part {
-            Part::Body => {
+            Node::Body => {
                 self.bodies += 1;
                 Stripe::of(self.bodies, self.stripes)
             }
-            Part::Header | Part::Group | Part::Footer => Stripe::Plain,
+            Node::Header | Node::Group | Node::Footer => Stripe::Plain,
         };
         let label = format!("{band:?}");
         let slot = self.b.slot(&band);
@@ -886,12 +886,12 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
             return;
         };
         let (band, keys, behavior) = match part {
-            Part::Header => (TablePart::Header, Vec::new(), tw().sense_hover()),
-            Part::Group => (TablePart::Group, Vec::new(), tw().sense_hover()),
-            Part::Footer => (TablePart::Footer, Vec::new(), tw().sense_hover()),
-            Part::Body => (
-                TablePart::Row,
-                TablePart::row_keys(RowState {
+            Node::Header => (Part::Header, Vec::new(), tw().sense_hover()),
+            Node::Group => (Part::Group, Vec::new(), tw().sense_hover()),
+            Node::Footer => (Part::Footer, Vec::new(), tw().sense_hover()),
+            Node::Body => (
+                Part::Row,
+                Part::row_keys(RowState {
                     striped: stripe == Stripe::Striped,
                     last: last == Last::Yes,
                     selected: picking.as_ref().is_some_and(|picking| picking.selected),
@@ -938,7 +938,7 @@ pub struct Cells<'r, 'f, A> {
     label: String,
     line: i16,
     index: usize,
-    part: Part,
+    part: Node,
     count: usize,
 }
 
@@ -1030,20 +1030,20 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         body: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) {
         let (part, role) = match self.part {
-            Part::Header => (TablePart::Head, Role::ColumnHeader),
-            Part::Body => (
-                TablePart::Cell,
+            Node::Header => (Part::Head, Role::ColumnHeader),
+            Node::Body => (
+                Part::Cell,
                 match self.columns.get(column).map(|spec| spec.cells) {
                     Some(CellRole::RowHeader) => Role::RowHeader,
                     Some(CellRole::Data) | None => Role::Cell,
                 },
             ),
-            Part::Group => (TablePart::GroupCell, Role::RowHeader),
-            Part::Footer => (TablePart::FooterCell, Role::Cell),
+            Node::Group => (Part::GroupCell, Role::RowHeader),
+            Node::Footer => (Part::FooterCell, Role::Cell),
         };
         let classes = self.b.part(
             part,
-            &TablePart::cell_keys(column == 0),
+            &Part::cell_keys(column == 0),
             classes.row_start(self.line),
         );
         let key = CellKey {

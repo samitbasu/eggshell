@@ -162,7 +162,7 @@ impl Readout {
             .children(|s| {
                 let keys = crate::owned::input::keys(style.input.sizes.key_for(size), false);
                 let leaf = s.part(
-                    crate::owned::input::InputGroupPart::Input,
+                    crate::owned::input::GroupPart::Input,
                     &keys,
                     // The field is inset by egui's margin already, so its
                     // text stays where the readout drew it.

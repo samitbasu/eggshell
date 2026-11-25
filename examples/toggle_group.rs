@@ -1,5 +1,5 @@
 //! Exclusive toggles: a tool cluster of icon cells with a rule and a caret
-//! button among them, and a 2×2 picker of cards. Both are one `ToggleGroup`
+//! button among them, and a 2×2 picker of cards. Both are one `toggle_group::Group`
 //! whose members sit wherever the layout puts them.
 
 #[path = "common/mod.rs"]
@@ -9,7 +9,7 @@ use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{
     button::{self, Face},
-    toggle_group::ToggleGroup,
+    toggle_group,
 };
 use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Scope, tw};
@@ -94,7 +94,7 @@ impl Default for State {
 /// ```
 fn tool_cluster(b: &mut Builder<'_, '_, State>, state: &State) {
     let border = common::tokens(b.ctx()).border;
-    let tools = ToggleGroup::new(Part::Tools, state.tool)
+    let tools = toggle_group::Group::new(Part::Tools, state.tool)
         .with_options(button::Options::new().size(size::ICON))
         .on_change(|state: &mut State, tool| state.tool = tool);
     let icon = |b: &Builder<'_, '_, State>, tool: Tool| {
@@ -133,7 +133,7 @@ fn tool_cluster(b: &mut Builder<'_, '_, State>, state: &State) {
 fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
     let check = glyphs::icon(b.ctx(), Glyph::Check);
     let tokens = common::tokens(b.ctx());
-    let lettering = ToggleGroup::new(Part::Lettering, state.lettering)
+    let lettering = toggle_group::Group::new(Part::Lettering, state.lettering)
         .with_options(
             button::Options::new().classes(
                 tw().flex_col()

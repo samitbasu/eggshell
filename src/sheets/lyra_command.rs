@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::Shadow;
-use crate::owned::command::CommandPart;
+use crate::owned::command;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity, Tracking};
 
@@ -15,7 +15,7 @@ const REGISTRY: &str = "registry/bases/radix/registry.ts";
 
 /// TODO(prose): shadcn's `command` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use CommandPart::*;
+    use command::Part::*;
     s.replace(InputGroup, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -270,7 +270,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `command` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use CommandPart::*;
+    use command::Part::*;
     s.replace(InputGroup, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

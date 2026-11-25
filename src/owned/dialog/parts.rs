@@ -2,11 +2,9 @@
 //! `dialog`, `alert-dialog`, `sheet` and `popover`, each drawn by the
 //! surface it names.
 
-use crate::sheet::Part;
-
 /// TODO(prose): a centred dialog's anatomy: shadcn's `dialog`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DialogPart {
+pub enum Part {
     /// TODO(prose): the box.
     Content,
     /// TODO(prose): the close button (×).
@@ -21,7 +19,7 @@ pub enum DialogPart {
     Description,
 }
 
-impl Part for DialogPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "dialog.tsx";
 
     fn slot(self) -> &'static str {
@@ -51,7 +49,7 @@ pub enum AlertDialogPart {
     Description,
 }
 
-impl Part for AlertDialogPart {
+impl crate::sheet::Part for AlertDialogPart {
     const SOURCE: &'static str = "alert-dialog.tsx";
 
     fn slot(self) -> &'static str {
@@ -82,7 +80,7 @@ pub enum SheetPart {
     Description,
 }
 
-impl Part for SheetPart {
+impl crate::sheet::Part for SheetPart {
     const SOURCE: &'static str = "sheet.tsx";
 
     fn slot(self) -> &'static str {
@@ -104,7 +102,7 @@ pub enum PopoverPart {
     Content,
 }
 
-impl Part for PopoverPart {
+impl crate::sheet::Part for PopoverPart {
     const SOURCE: &'static str = "popover.tsx";
 
     fn slot(self) -> &'static str {

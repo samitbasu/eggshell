@@ -3,7 +3,7 @@
 
 use crate::Aria;
 use crate::contract::Variant;
-use crate::sheet::{Key, Part, Sheet, When};
+use crate::sheet::{Key, Sheet, When};
 
 use super::Tone;
 use crate::owned::Enablement;
@@ -14,7 +14,7 @@ use crate::owned::Enablement;
 /// TODO(prose): the keys its rules see: an item's variant (shadcn's
 /// `data-variant`, `default` or `destructive`) and `aria-disabled`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MenuPart {
+pub enum Part {
     /// TODO(prose): the box that holds the items.
     Content,
     /// TODO(prose): an item that runs a handler.
@@ -37,7 +37,7 @@ pub enum MenuPart {
     SubContent,
 }
 
-impl Part for MenuPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "dropdown-menu.tsx";
 
     fn slot(self) -> &'static str {
@@ -69,7 +69,7 @@ fn variant(tone: Tone) -> Variant {
     }
 }
 
-impl MenuPart {
+impl Part {
     /// The keys of an item that is `tone` and `enablement`.
     pub(crate) fn item_keys(tone: Tone, enablement: Enablement) -> Vec<Key> {
         let mut keys = vec![Key::Variant(variant(tone))];
@@ -86,7 +86,7 @@ impl MenuPart {
 /// parts' rules leave out is a mistake.
 pub(crate) fn write_exceptions(sheet: &mut Sheet) {
     sheet.rule_when(
-        MenuPart::Item,
+        Part::Item,
         When::always().variant(Variant::DEFAULT),
         |t, _| t,
     );

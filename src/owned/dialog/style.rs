@@ -9,7 +9,7 @@ use egui::epaint::Shadow;
 /// Placeholder values until the render round settles them.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct DialogStyle {
+pub struct Style {
     /// The box of a dialog or a sheet.
     pub surface: Surface,
     /// The box of a popover.
@@ -84,7 +84,7 @@ pub fn shadow_lg() -> Shadow {
     }
 }
 
-impl DialogStyle {
+impl Style {
     /// A look derived from the core `style` and egui's `visuals`: the panel
     /// fill and window stroke for the box, the menu's popup for the popover,
     /// and the style's default button variant everywhere.

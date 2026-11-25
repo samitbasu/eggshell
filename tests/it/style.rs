@@ -678,8 +678,8 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
     use eggshell_ui::contract::Size;
     use eggshell_ui::owned::{
         Enablement,
-        segmented::{Cell, SegmentedRows},
-        tabs::TabsPart,
+        segmented::{self, Cell},
+        tabs,
     };
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
@@ -687,10 +687,10 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
         let trigger = |cell| {
             crate::support::part_at(
                 &style,
-                TabsPart::Trigger,
-                &TabsPart::trigger_keys(
+                tabs::Part::Trigger,
+                &tabs::Part::trigger_keys(
                     Size::DEFAULT,
-                    SegmentedRows::One,
+                    segmented::Rows::One,
                     cell,
                     Enablement::Enabled,
                 ),
@@ -725,11 +725,11 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
 /// preset's.
 #[test]
 fn a_section_set_after_the_preset_keeps_the_presets_look() {
-    use eggshell_ui::owned::tooltip::TooltipPart;
+    use eggshell_ui::owned::tooltip;
     let mut style = Shadcn::for_theme(Theme::Light).style();
     let before = style
         .sheet
-        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .resolve(tooltip::Part::Content, &[], &style.tokens)
         .style()
         .clone();
     let mut tooltip = style.tooltip.clone();
@@ -738,7 +738,7 @@ fn a_section_set_after_the_preset_keeps_the_presets_look() {
     assert_eq!(style.tooltip.delay, core::time::Duration::from_millis(123));
     let after = style
         .sheet
-        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .resolve(tooltip::Part::Content, &[], &style.tokens)
         .style()
         .clone();
     assert_eq!(after, before, "the preset's look");

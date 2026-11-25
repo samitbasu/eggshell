@@ -17,8 +17,8 @@ use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
-pub use parts::{ComboboxPart, CommandPart};
-pub use style::CommandStyle;
+pub use parts::{ComboboxPart, Part};
+pub use style::Style;
 
 use list::{First, ListOptions, Query};
 
@@ -50,7 +50,7 @@ type Cleared<A> = Rc<dyn Fn(&mut A)>;
 /// TODO(prose): the builder methods of this module.
 pub trait Ext<'b, 'f, A> {
     /// TODO(prose): an inline command list: a search field over the results.
-    fn command_list<K: Key>(&mut self, key: K) -> CommandList<'_, 'b, 'f, A>;
+    fn command_list<K: Key>(&mut self, key: K) -> List<'_, 'b, 'f, A>;
 
     /// TODO(prose): a command list in a centred modal dialog, shown while `open`; a pick or a dismissal runs `on_close`.
     fn command_dialog<K: Key>(
@@ -58,7 +58,7 @@ pub trait Ext<'b, 'f, A> {
         key: K,
         open: Open,
         on_close: impl Fn(&mut A) + 'static,
-    ) -> CommandList<'_, 'b, 'f, A>;
+    ) -> List<'_, 'b, 'f, A>;
 
     /// TODO(prose): a combobox: a trigger showing `value`'s label that opens a searchable list of `options`; a pick runs `on_change`.
     fn combobox<K: Key, V: Key + Copy + PartialEq>(
@@ -93,7 +93,7 @@ impl From<bool> for Open {
 }
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Dialog,
     Box,
     Group,
@@ -115,7 +115,7 @@ enum Shape<A> {
 
 /// TODO(prose): a command list, started with [`Ext::command_list`] or [`Ext::command_dialog`] and finished with [`items`](Self::items).
 #[must_use = "a command list is not added until you call `.items(..)`"]
-pub struct CommandList<'s, 'b, 'f, A> {
+pub struct List<'s, 'b, 'f, A> {
     b: &'s mut Builder<'b, 'f, A>,
     key: Id,
     shape: Shape<A>,
@@ -149,7 +149,7 @@ impl<A> Default for Options<'_, A> {
     }
 }
 
-impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
+impl<'f, A: 'static> List<'_, '_, 'f, A> {
     /// TODO(prose): greyed text in the empty search field.
     pub fn placeholder(mut self, text: impl Into<String>) -> Self {
         self.options.placeholder = Some(text.into());
@@ -214,14 +214,14 @@ impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
             } => {
                 let name = options.name.clone().unwrap_or_default();
                 let dismiss = Rc::clone(&close);
-                b.overlay((key, Part::Dialog))
+                b.overlay((key, Node::Dialog))
                     .modal(Modal::Center)
                     .role(Role::Dialog)
                     .named(name)
                     .on_dismiss(move |app| dismiss(app))
                     .children(|s| {
-                        let classes = s.part(CommandPart::Dialog, &[], tw());
-                        s.div_id(Part::Box, classes, |s| {
+                        let classes = s.part(Part::Dialog, &[], tw());
+                        s.div_id(Node::Box, classes, |s| {
                             list::show(s, key, given, options, ListOptions::palette(Some(close)));
                         });
                     });
@@ -231,8 +231,8 @@ impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
 }
 
 impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn command_list<K: Key>(&mut self, key: K) -> CommandList<'_, 'b, 'f, A> {
-        CommandList {
+    fn command_list<K: Key>(&mut self, key: K) -> List<'_, 'b, 'f, A> {
+        List {
             key: self.id_of(key),
             b: self,
             shape: Shape::Inline,
@@ -245,8 +245,8 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
         key: K,
         open: Open,
         on_close: impl Fn(&mut A) + 'static,
-    ) -> CommandList<'_, 'b, 'f, A> {
-        CommandList {
+    ) -> List<'_, 'b, 'f, A> {
+        List {
             key: self.id_of(key),
             b: self,
             shape: Shape::Dialog {
@@ -418,7 +418,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             .clone()
             .unwrap_or_else(|| chosen.clone().unwrap_or_default());
         let style = Arc::clone(b.style());
-        let group_id = b.id_of((key, Part::Group));
+        let group_id = b.id_of((key, Node::Group));
         let mut field_id = Id::NULL;
         let caller = std::mem::replace(&mut options.classes, tw());
         let group_classes = b.part(ComboboxPart::Input, &[], caller);
@@ -426,10 +426,10 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         let error = options.error.take();
         let open = state.open;
         let clearing = clear.filter(|_| value.is_some());
-        b.div_id((key, Part::Group), group_classes, |s| {
-            field_id = s.id_of((key, Part::Field));
+        b.div_id((key, Node::Group), group_classes, |s| {
+            field_id = s.id_of((key, Node::Field));
             let mut field = s
-                .text_field((key, Part::Field), text.clone())
+                .text_field((key, Node::Field), text.clone())
                 .bare()
                 .role(Role::ComboBox)
                 .invalid(error)
@@ -487,7 +487,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 Some(clear) => {
                     let cleared = ctx.clone();
                     let icon = s.part(ComboboxPart::ClearIcon, &[], tw());
-                    s.div_id((key, Part::Clear), list::end_button_classes(&style), |s| {
+                    s.div_id((key, Node::Clear), list::end_button_classes(&style), |s| {
                         s.glyph(icon, Icon::new(icons::CLOSE));
                     })
                     .role(Role::Button)
@@ -500,7 +500,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 None => {
                     let icon = s.part(ComboboxPart::TriggerIcon, &[], tw());
                     s.div_id(
-                        (key, Part::Chevron),
+                        (key, Node::Chevron),
                         list::end_button_classes(&style),
                         |s| s.glyph(icon, Icon::new(icons::CHEVRON_DOWN)),
                     )
@@ -532,7 +532,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         }
         let (close, dismiss) = (ctx.clone(), ctx.clone());
         let after: Rc<dyn Fn(&mut A)> = Rc::new(move |_| Typing::CLOSED.store(&close, key));
-        b.overlay((key, Part::Popover))
+        b.overlay((key, Node::Popover))
             .anchor(Anchor::Node(group_id))
             .placement(Placement::below().gap(list::list_offset()))
             .match_width(MatchWidth::Anchor)
@@ -540,7 +540,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             .on_dismiss(move |_| Typing::CLOSED.store(&dismiss, key))
             .children(|s| {
                 let content = s.part(ComboboxPart::Content, &[], tw().flex().flex_col().min_h_0());
-                s.div_id(Part::Box, content, |s| {
+                s.div_id(Node::Box, content, |s| {
                     list::show(
                         s,
                         key,
@@ -617,7 +617,7 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         self
     }
 
-    /// TODO(prose): who filters; see [`CommandList::filtering`].
+    /// TODO(prose): who filters; see [`List::filtering`].
     pub fn filtering(mut self, filtering: Filtering) -> Self {
         self.options.filtering = filtering;
         self
@@ -641,9 +641,9 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         let ctx = b.ctx().clone();
         let on_change: Typed<A> = Rc::new(on_change);
         let classes = std::mem::replace(&mut options.classes, tw());
-        let field_id = b.id_of((key, Part::Field));
+        let field_id = b.id_of((key, Node::Field));
         let mut field = b
-            .text_field((key, Part::Field), text.clone())
+            .text_field((key, Node::Field), text.clone())
             .role(Role::ComboBox)
             .classes(classes);
         if let Some(placeholder) = options.placeholder.take() {
@@ -667,7 +667,7 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             typed(app, text);
         });
         let suggesting = Suggesting::load(&ctx, field_id);
-        let focused = b.has_focus_within((key, Part::Field));
+        let focused = b.has_focus_within((key, Node::Field));
         if !focused || suggesting == Suggesting::Dismissed || text.trim().is_empty() {
             return;
         }
@@ -689,14 +689,14 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             Rc::new(move |_| Suggesting::Dismissed.store(&close, field_id));
         let style = Arc::clone(b.style());
         options.empty = Some(Box::new(|_| {}));
-        b.overlay((key, Part::Suggestions))
+        b.overlay((key, Node::Suggestions))
             .anchor(Anchor::Node(field_id))
             .placement(Placement::below().gap(style.menu.offset))
             .match_width(MatchWidth::Anchor)
             .focus(Focus::Stay)
             .on_dismiss(move |_| Suggesting::Dismissed.store(&dismiss, field_id))
             .children(|s| {
-                s.div_id(Part::Box, list::popover_classes(&style), |s| {
+                s.div_id(Node::Box, list::popover_classes(&style), |s| {
                     list::show(
                         s,
                         key,

@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::Color32;
-use crate::owned::input::InputPart;
+use crate::owned::input;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 
@@ -14,7 +14,7 @@ const REGISTRY: &str = "registry/bases/radix/registry.ts";
 
 /// TODO(prose): shadcn's `input` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use InputPart::*;
+    use input::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -78,7 +78,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `input` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use InputPart::*;
+    use input::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

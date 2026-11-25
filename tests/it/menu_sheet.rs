@@ -1,7 +1,7 @@
 //! A menu's parts are drawn from the style's sheet, so a rule on a part
 //! restyles every menu that builds it.
 
-use eggshell_ui::owned::{Mark, menu::MenuPart};
+use eggshell_ui::owned::{Mark, menu};
 use eggshell_ui::testing::Target;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
@@ -37,7 +37,10 @@ fn a_rule_on_the_item_part_restyles_the_items_of_that_kind_only() {
     );
     let mut d = support::driver(vec2(400.0, 300.0), text, App, view)
         .style(support::shadcn_with(|style| {
-            style.sheet.as_app().rule(MenuPart::Item, |t, _| t.bg(RED));
+            style
+                .sheet
+                .as_app()
+                .rule(menu::Part::Item, |t, _| t.bg(RED));
         }))
         .build();
     d.frames(4);

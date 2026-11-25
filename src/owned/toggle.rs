@@ -7,10 +7,10 @@ use super::{Enablement, Mark, Unset, button, button::Face, flip};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Scope, Tw};
 
-/// A member of a [`ToggleGroup`](super::toggle_group::ToggleGroup): a toggle with the
+/// A member of a [`toggle_group::Group`](super::toggle_group::Group): a toggle with the
 /// group's options, finished with [`add`](Chain::add). Start one with
 /// [`Builder::toggle_item`].
-pub type ToggleItemChain<'a, 'f, A, T> = Chain<'a, 'f, A, T, Member<A, T>>;
+pub type ItemChain<'a, 'f, A, T> = Chain<'a, 'f, A, T, Member<A, T>>;
 
 /// A toggle button drawn from the [`Style`](crate::Style)'s toggle looks,
 /// with an icon, a label or both. Start one with [`Builder::toggle`] and
@@ -59,7 +59,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// Makes the toggle a member of a toggle group: on when `current` is the
     /// member's value, reported as a radio button, and finished with
     /// [`add`](Chain::add).
-    pub(super) fn member(self, member: Member<A, T>) -> ToggleItemChain<'a, 'f, A, T> {
+    pub(super) fn member(self, member: Member<A, T>) -> ItemChain<'a, 'f, A, T> {
         Chain {
             button: self.button.role(Role::RadioButton),
             current: self.current,
@@ -209,7 +209,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
     }
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleItemChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ItemChain<'a, 'f, A, T> {
     /// Adds the member. It is on when the group's current value is its own;
     /// pressing it calls the group's `on_change` with its value, unless it is
     /// already on.
@@ -246,10 +246,10 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
     /// sees each member as a `Role::RadioButton`.
     pub fn toggle_item<T: Copy + PartialEq + std::hash::Hash + std::fmt::Debug + 'static>(
         &mut self,
-        group: &super::toggle_group::ToggleGroup<A, T>,
+        group: &super::toggle_group::Group<A, T>,
         value: T,
         face: impl Into<Face>,
-    ) -> ToggleItemChain<'_, 'f, A, T> {
+    ) -> ItemChain<'_, 'f, A, T> {
         group.item(self.reborrow(), value, face.into())
     }
 }

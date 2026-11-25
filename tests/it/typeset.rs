@@ -224,7 +224,7 @@ fn a_tables_cells_are_padded_in_ems_and_its_first_column_is_flush() {
 fn a_table_outside_the_document_keeps_the_pages_style() {
     let d = rich_driver();
     let page = d.shell().style();
-    let page_padding = crate::support::part(&page, eggshell_ui::owned::table::TablePart::Cell)
+    let page_padding = crate::support::part(&page, eggshell_ui::owned::table::Part::Cell)
         .style_at(page.tokens.spacing)
         .padding
         .left

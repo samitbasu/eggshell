@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 use crate::contract::{Look, Variant};
 use crate::owned::Enablement;
-use crate::{Builder, Icon, Key, NodeUi as _, Style, Tw, icons, tw};
+use crate::{Builder, Icon, Key, NodeUi as _, Tw, icons, tw};
 use egui::{Modifiers, Role};
 
-use super::{BadgeStyle, End, Face, Options};
+use super::{End, Face, Options, Style};
 
 /// TODO(prose): a chip handler not yet given.
 pub struct Unset;
@@ -246,7 +246,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
 }
 
 /// The ring of a chip whose × is its Tab stop, shown while the × has focus.
-fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
+fn focus_ring(look: Look, core: &crate::Style, enablement: Enablement) -> Tw {
     match enablement {
         Enablement::Enabled => {
             let ring = look.paint.focus.unwrap_or(core.tokens.focus());
@@ -260,7 +260,7 @@ fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
 /// The × of a removable chip named `name`.
 fn remove_button<A: 'static>(
     b: &mut Builder<'_, '_, A>,
-    style: &BadgeStyle,
+    style: &Style,
     name: &str,
     stop: Stop,
     remove: Rc<dyn Fn(&mut A)>,

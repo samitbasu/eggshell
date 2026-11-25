@@ -9,7 +9,7 @@
 
 mod sheet;
 
-pub use sheet::TooltipPart;
+pub use sheet::Part;
 
 use core::time::Duration;
 use std::hash::Hash;
@@ -337,8 +337,8 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
         let gap = f32::from(tooltip.offset) + arrow.map_or(0.0, |arrow| arrow.size);
         let trigger = tip.trigger;
         b.with_style(style, |b| {
-            let classes = b.part(TooltipPart::Content, &[], tw());
-            let resolved = b.resolved_part(TooltipPart::Content, &[]);
+            let classes = b.part(Part::Content, &[], tw());
+            let resolved = b.resolved_part(Part::Content, &[]);
             let fill = resolved
                 .paint
                 .background

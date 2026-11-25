@@ -7,7 +7,7 @@ use egui::Color32;
 /// the lists of a combobox and an autosuggest.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct CommandStyle {
+pub struct Style {
     /// TODO(prose): the fill of the highlighted row, which the pointer and
     /// the arrow keys move.
     pub selected_fill: Color32,
@@ -17,7 +17,7 @@ pub struct CommandStyle {
     pub list_height: f32,
 }
 
-impl CommandStyle {
+impl Style {
     /// TODO(prose): the accent as the highlight, and a list `max-h-72` tall.
     pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         Self {

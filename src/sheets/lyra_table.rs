@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::owned::table::TablePart;
+use crate::owned::table;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match};
 
@@ -13,7 +13,7 @@ const TABLE: &str = "registry/bases/radix/ui/table.tsx";
 
 /// TODO(prose): shadcn's `table` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use TablePart::*;
+    use table::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(LYRA, 1247, "w-full")
@@ -99,7 +99,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `table` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use TablePart::*;
+    use table::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(LYRA, 1247, "w-full")

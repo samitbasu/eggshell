@@ -1,10 +1,10 @@
 //! How the Markdown widget looks.
 
 use crate::contract::Em;
-use crate::owned::table::TablePart;
+use crate::owned::table;
 use crate::sheet::Sheet;
 use crate::theme::Tokens;
-use crate::{Style, TextSpec, Tracking, Tw, Weight};
+use crate::{TextSpec, Tracking, Tw, Weight};
 use egui::Color32;
 
 use super::parse::Level;
@@ -15,7 +15,7 @@ use super::parse::Level;
 /// spacing classes take them.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct MarkdownStyle {
+pub struct Style {
     /// TODO(prose): the text of paragraphs, list items and table cells;
     /// `None` keeps the text of the page around the document.
     pub body: Option<TextSpec>,
@@ -108,25 +108,25 @@ impl TableLook {
             ..
         } = self.clone();
         let ruled = move |t: Tw, _: &Tokens| t.border_b(1.0).border_b_color(rule);
-        sheet.replace(TablePart::Root, |t, _| t.grid().w_full());
-        sheet.replace(TablePart::Header, ruled);
-        sheet.replace(TablePart::Row, ruled);
+        sheet.replace(table::Part::Root, |t, _| t.grid().w_full());
+        sheet.replace(table::Part::Header, ruled);
+        sheet.replace(table::Part::Row, ruled);
         let cell = move |t: Tw| t.flex().items_center().px_px(padding_x);
-        sheet.replace(TablePart::Cell, move |t, _| cell(t).py_px(padding_y));
-        sheet.replace(TablePart::Head, move |t, _| {
+        sheet.replace(table::Part::Cell, move |t, _| cell(t).py_px(padding_y));
+        sheet.replace(table::Part::Head, move |t, _| {
             cell(t).font_weight(header_weight).py_px(header_padding_y)
         });
-        for part in [TablePart::Head, TablePart::Cell] {
-            sheet.rule_when(part, TablePart::first_column(), move |t, _| {
+        for part in [table::Part::Head, table::Part::Cell] {
+            sheet.rule_when(part, table::Part::first_column(), move |t, _| {
                 t.pl_px(first_column_inset)
             });
         }
     }
 }
 
-impl MarkdownStyle {
+impl Style {
     /// The page's style with this document's tables and rich text over it.
-    pub(super) fn restyle(&self, style: &mut Style) {
+    pub(super) fn restyle(&self, style: &mut crate::Style) {
         if let Some(look) = &self.table {
             look.write_rules(&mut style.sheet);
         }
@@ -259,7 +259,7 @@ pub struct UnsupportedStyle {
     pub text: TextSpec,
 }
 
-impl MarkdownStyle {
+impl Style {
     /// The style of `level`'s headings.
     pub fn heading(&self, level: Level) -> &HeadingStyle {
         let [h1, h2, h3, h4, h5, h6] = &self.headings;

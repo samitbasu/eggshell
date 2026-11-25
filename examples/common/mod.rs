@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use eggshell_ui::contract::{Themed, Variant};
 use eggshell_ui::owned::text_field::Field;
-use eggshell_ui::owned::{menu::MenuPart, segmented::Cell};
+use eggshell_ui::owned::{menu, segmented::Cell};
 use eggshell_ui::sheet::Key as SheetKey;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};
@@ -678,7 +678,7 @@ pub fn text_box<S, K>(
 }
 
 /// The radius the style's sheet gives a menu's `part`.
-fn menu_radius<S>(b: &Builder<'_, '_, S>, part: MenuPart, keys: &[SheetKey]) -> f32 {
+fn menu_radius<S>(b: &Builder<'_, '_, S>, part: menu::Part, keys: &[SheetKey]) -> f32 {
     let style = b.style();
     let classes = style.sheet.resolve(part, keys, &style.tokens);
     f32::from(classes.paint_classes().radius.nw)
@@ -694,7 +694,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
         .bg(k.popover)
         .border(1.0)
         .border_color(k.border)
-        .rounded_px(menu_radius(b, MenuPart::Content, &[]))
+        .rounded_px(menu_radius(b, menu::Part::Content, &[]))
         .p_px(style.menu.padding)
         .text(k.popover_foreground)
         .shadow(k.shadow_md)
@@ -709,7 +709,7 @@ pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
         .py_px(menu.item_padding.y)
         .rounded_px(menu_radius(
             b,
-            MenuPart::Item,
+            menu::Part::Item,
             &[SheetKey::Variant(Variant::DEFAULT)],
         ))
         .sense_click()

@@ -4,7 +4,7 @@
 use egui::Color32;
 use egui::Shadow;
 use crate::contract::{Size};
-use crate::owned::input::InputGroupPart;
+use crate::owned::input;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -16,7 +16,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `input-group` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use InputGroupPart::*;
+    use input::GroupPart::*;
     s.replace(Input, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -355,7 +355,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `input-group` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use InputGroupPart::*;
+    use input::GroupPart::*;
     s.replace(Input, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

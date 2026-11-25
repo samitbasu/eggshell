@@ -248,7 +248,7 @@ fn a_choices_field_label_turns_destructive_when_it_is_invalid() {
 }
 
 fn hinted(b: &mut Builder<'_, '_, ()>, _: &()) {
-    use eggshell_ui::owned::field::FieldPart;
+    use eggshell_ui::owned::field;
     use eggshell_ui::sheet::Key;
     b.div_id(
         "Page",
@@ -258,7 +258,7 @@ fn hinted(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .named("Plain")
                 .hint("Ada")
                 .on_change(|_, _| {});
-            let field = s.part(FieldPart::Root, &[Key::Attr("invalid", "true")], tw());
+            let field = s.part(field::Part::Root, &[Key::Attr("invalid", "true")], tw());
             s.div_id("field", field, |s| {
                 s.text_field("bad", "")
                     .named("Bad")

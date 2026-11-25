@@ -2,7 +2,7 @@
 //! builds a style edited from their parent's, read at build, measure and
 //! draw, and leaves every node outside it alone.
 
-use eggshell_ui::owned::table::{Column, TablePart};
+use eggshell_ui::owned::table::{self, Column};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};
@@ -47,7 +47,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
         table(b, "plain");
         b.styled(
             |style| {
-                style.sheet.rule(TablePart::Cell, |t, _| t.py_px(PADDING));
+                style.sheet.rule(table::Part::Cell, |t, _| t.py_px(PADDING));
             },
             |b| {
                 table(b, "styled");
@@ -56,7 +56,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
                         // Only the bottom: the top is the scope around's.
                         style
                             .sheet
-                            .rule(TablePart::Cell, |t, _| t.pb_px(PADDING + 2.0 * MORE));
+                            .rule(table::Part::Cell, |t, _| t.pb_px(PADDING + 2.0 * MORE));
                     },
                     |b| table(b, "nested"),
                 );
@@ -101,7 +101,7 @@ fn harness() -> Driver<()> {
 
 /// The padding above a body cell in `style`.
 fn cell_padding(style: &eggshell_ui::Style) -> f32 {
-    support::part(style, TablePart::Cell)
+    support::part(style, table::Part::Cell)
         .style_at(style.tokens.spacing)
         .padding
         .top
@@ -201,7 +201,7 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
                 style.tooltip = tooltip;
                 style
                     .sheet
-                    .rule(eggshell_ui::owned::tooltip::TooltipPart::Content, |t, _| {
+                    .rule(eggshell_ui::owned::tooltip::Part::Content, |t, _| {
                         t.px_px(TIP_PADDING.x).py_px(TIP_PADDING.y)
                     });
             },
@@ -236,7 +236,7 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<f32>, (f32, Vec2)) {
         .ctx()
         .data(|data| data.get_temp::<f32>(egui::Id::NULL.with("tip")));
     let style = d.shell().style();
-    let padding = support::part(&style, eggshell_ui::owned::tooltip::TooltipPart::Content)
+    let padding = support::part(&style, eggshell_ui::owned::tooltip::Part::Content)
         .style_at(style.tokens.spacing)
         .padding;
     let padding = vec2(

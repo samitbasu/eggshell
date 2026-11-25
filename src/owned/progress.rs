@@ -73,12 +73,12 @@ fn paint_fill(painter: &Painter, track: Rect, radius: f32, value: Progress, colo
 /// fill is painted, to end straight at the value and follow the track's
 /// rounded end, in the style's range colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ProgressPart {
+pub enum Part {
     /// TODO(prose): the track.
     Root,
 }
 
-impl crate::sheet::Part for ProgressPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "progress.tsx";
 
     fn slot(self) -> &'static str {
@@ -174,7 +174,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let (_, tooltip) = gate.resolve(&mut b, slot.id, super::Enablement::Enabled);
         let style = b.style().clone();
         let bar = &style.progress;
-        let track = b.part(ProgressPart::Root, &[], classes);
+        let track = b.part(Part::Root, &[], classes);
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);
         let percent = f64::from(f32::from(progress) * 100.0);
         let name = name.unwrap_or_default();

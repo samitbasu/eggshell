@@ -1,18 +1,18 @@
 //! What a notice looks like: its card, its stack and its sentence, from the
-//! [`NotifyStyle`].
+//! [`Style`].
 
 use std::sync::Arc;
 
 use crate::{Tw, tw};
 
-use super::NotifyStyle;
+use super::Style;
 
 pub(super) struct Look {
-    pub(super) style: Arc<NotifyStyle>,
+    pub(super) style: Arc<Style>,
 }
 
 impl Look {
-    pub(super) fn new(style: Arc<NotifyStyle>) -> Self {
+    pub(super) fn new(style: Arc<Style>) -> Self {
         Self { style }
     }
 

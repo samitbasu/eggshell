@@ -8,11 +8,11 @@ mod widget;
 pub use widget::{Chain, Changes, Ext, Unset};
 
 use crate::contract::{Keyed, Size, Variant};
-use crate::sheet::{Key, Part, Sheet, When};
+use crate::sheet::{Key, Sheet, When};
 use crate::theme::{Tokens, size};
 use crate::{Aria, Builder, Match};
 
-use super::{Enablement, segmented::Cell, segmented::SegmentedRows};
+use super::{Enablement, segmented, segmented::Cell};
 
 /// TODO(prose): the anatomy of tabs: shadcn's `tabs`. A segmented control is
 /// a list of triggers alone.
@@ -23,7 +23,7 @@ use super::{Enablement, segmented::Cell, segmented::SegmentedRows};
 /// list and its triggers when they wrap, a key of eggshell's own: shadcn's
 /// lists do not wrap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TabsPart {
+pub enum Part {
     /// TODO(prose): the tabs, holding the list and the panel.
     Root,
     /// TODO(prose): the track of triggers.
@@ -34,7 +34,7 @@ pub enum TabsPart {
     Content,
 }
 
-impl Part for TabsPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "tabs.tsx";
 
     fn slot(self) -> &'static str {
@@ -51,9 +51,9 @@ impl Part for TabsPart {
 const WRAPPING: (&str, &str) = ("rows", "wrapping");
 
 /// The keys a list and its triggers share.
-fn shared_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
+fn shared_keys(size: Size, rows: segmented::Rows, enablement: Enablement) -> Vec<Key> {
     let mut keys = vec![Key::Size(size)];
-    if rows == SegmentedRows::Wrapping {
+    if rows == segmented::Rows::Wrapping {
         keys.push(Key::Attr(WRAPPING.0, WRAPPING.1));
     }
     if enablement == Enablement::Disabled {
@@ -62,7 +62,7 @@ fn shared_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<K
     keys
 }
 
-impl TabsPart {
+impl Part {
     /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
     pub fn size_key<A>(b: &Builder<'_, '_, A>, size: Size) -> Size {
@@ -75,12 +75,12 @@ impl TabsPart {
     ///
     /// ```
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, segmented::SegmentedRows, tabs::TabsPart};
+    /// use eggshell_ui::owned::{Enablement, segmented, tabs::Part};
     ///
-    /// let keys = TabsPart::list_keys(Size::DEFAULT, SegmentedRows::One, Enablement::Enabled);
+    /// let keys = Part::list_keys(Size::DEFAULT, segmented::Rows::One, Enablement::Enabled);
     /// assert_eq!(keys.len(), 2);
     /// ```
-    pub fn list_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
+    pub fn list_keys(size: Size, rows: segmented::Rows, enablement: Enablement) -> Vec<Key> {
         let mut keys = shared_keys(size, rows, enablement);
         keys.push(Key::Variant(Variant::DEFAULT));
         keys
@@ -91,12 +91,12 @@ impl TabsPart {
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{segmented::{Cell, SegmentedRows}, Enablement, tabs::TabsPart};
+    /// use eggshell_ui::owned::{segmented::{Cell, self}, Enablement, tabs::Part};
     /// use eggshell_ui::sheet::Key;
     ///
-    /// let keys = TabsPart::trigger_keys(
+    /// let keys = Part::trigger_keys(
     ///     Size::DEFAULT,
-    ///     SegmentedRows::One,
+    ///     segmented::Rows::One,
     ///     Cell::Pressed,
     ///     Enablement::Enabled,
     /// );
@@ -104,7 +104,7 @@ impl TabsPart {
     /// ```
     pub fn trigger_keys(
         size: Size,
-        rows: SegmentedRows,
+        rows: segmented::Rows,
         cell: Cell,
         enablement: Enablement,
     ) -> Vec<Key> {
@@ -172,30 +172,30 @@ fn metrics(k: &Tokens, size: Size) -> Metrics {
 /// wrapping lists, eggshell's own, keep their rows, with each trigger growing
 /// from its content's width where `flex-1` would share a row equally.
 pub(crate) fn write_exceptions(sheet: &mut Sheet) {
-    sheet.rule(TabsPart::List, |t, k| t.bg(k.input));
+    sheet.rule(Part::List, |t, k| t.bg(k.input));
     let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
     let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
     let sizes = sizes();
     let default = sizes.default_key();
     for size in sizes.keys() {
         let when = When::always().size(size);
-        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+        sheet.rule_when(Part::Trigger, when, move |t, k| {
             t.py_px(metrics(k, size).cell_padding.y)
         });
-        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+        sheet.rule_when(Part::List, one_row.size(size), move |t, k| {
             t.py_px(metrics(k, size).track_padding + CELL_TRIM / 2.0)
         });
-        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, k| {
+        sheet.rule_when(Part::List, wrapping.size(size), move |t, k| {
             t.flex_wrap().h_auto().gap_px(metrics(k, size).row_gap)
         });
         if size == default {
-            sheet.rule_when(TabsPart::List, when, |t, _| t);
+            sheet.rule_when(Part::List, when, |t, _| t);
             continue;
         }
-        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+        sheet.rule_when(Part::List, one_row.size(size), move |t, k| {
             t.h_px(metrics(k, size).height)
         });
-        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+        sheet.rule_when(Part::Trigger, when, move |t, k| {
             let m = metrics(k, size);
             let t = t
                 .px_px(m.cell_padding.x)
@@ -206,6 +206,6 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet) {
             }
         });
     }
-    sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
-    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto().basis_auto());
+    sheet.rule_when(Part::Trigger, one_row, |t, _| t.h_full());
+    sheet.rule_when(Part::Trigger, wrapping, |t, _| t.h_auto().basis_auto());
 }

@@ -19,7 +19,7 @@ use crate::transition;
 use crate::{Builder, Easing, Progress, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Track,
     Label,
 }
@@ -261,10 +261,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
         let default_track = super::field::switch_track(&style.tokens, size);
         let thumb_scale = track.map_or(1.0, |track| track.y / default_track.y);
         let thumb = |b: &mut Builder<'_, '_, A>, mark| {
-            let classes = b.resolved_part(
-                SwitchPart::Thumb,
-                &form.keys(SwitchPart::keys(size, mark, enablement)),
-            );
+            let classes =
+                b.resolved_part(Part::Thumb, &form.keys(Part::keys(size, mark, enablement)));
             let diameter = b.layout_of(&classes).size.width.into_raw().value() * thumb_scale;
             let fill = classes
                 .paint
@@ -288,7 +286,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
         };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let control = b.id_of(Part::Track);
+            let control = b.id_of(Node::Track);
             let tint = transition::animate(
                 b.ctx(),
                 control.with("slide"),
@@ -305,8 +303,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                 false => {
                     let [off, on] = [Mark::Off, Mark::On].map(|mark| {
                         let classes = b.resolved_part(
-                            SwitchPart::Root,
-                            &form.keys(SwitchPart::keys(size, mark, enablement)),
+                            Part::Root,
+                            &form.keys(Part::keys(size, mark, enablement)),
                         );
                         (classes.paint.background, classes.paint.border_colors.top)
                     });
@@ -322,9 +320,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                         .active(|p| p.bg(fill).border_color(border))
                 }
             };
-            let mut keys = form.keys(SwitchPart::keys(size, mark, enablement));
+            let mut keys = form.keys(Part::keys(size, mark, enablement));
             keys.extend(validity.key(enablement));
-            let classes = b.part(SwitchPart::Root, &keys, own);
+            let classes = b.part(Part::Root, &keys, own);
             let row = choice_row(
                 b,
                 &style.role_sized(&switch.text, metrics.text),
@@ -333,7 +331,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
             );
             let on_press = on_toggle.clone();
             let build_track = move |b: &mut Builder<'_, '_, A>| {
-                b.div_id(Part::Track, classes, |b| {
+                b.div_id(Node::Track, classes, |b| {
                     b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                         let t = f32::from(transition::animate(
                             painter.ctx(),
@@ -368,7 +366,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                 Form::Row => b.div(row.merge(caller), |b| {
                     build_track(b);
                     if let Some(label) = label {
-                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                        choice_label(b, Node::Label, control, label, enablement, move |app| {
                             on_toggle(app)
                         });
                     }
@@ -383,7 +381,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                     };
                     choice_card(
                         b,
-                        Part::Label,
+                        Node::Label,
                         card,
                         row,
                         move |app| on_toggle(app),
@@ -402,14 +400,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
 /// painted, sliding between its two places: its rules give the size and fill
 /// it is painted at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SwitchPart {
+pub enum Part {
     /// TODO(prose): the track.
     Root,
     /// TODO(prose): the thumb.
     Thumb,
 }
 
-impl crate::sheet::Part for SwitchPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "switch.tsx";
 
     fn slot(self) -> &'static str {
@@ -420,14 +418,14 @@ impl crate::sheet::Part for SwitchPart {
     }
 }
 
-impl SwitchPart {
+impl Part {
     /// TODO(prose): the keys of a switch of `size` and its thumb, on if `mark` is, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, switch::SwitchPart};
+    /// use eggshell_ui::owned::{Enablement, Mark, switch::Part};
     ///
-    /// let keys = SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
+    /// let keys = Part::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
     /// assert_eq!(keys.len(), 1);
     /// ```
     pub fn keys(

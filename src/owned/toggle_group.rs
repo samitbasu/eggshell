@@ -6,14 +6,14 @@ use std::rc::Rc;
 
 use egui::Id;
 
-use super::toggle::{self, ToggleItemChain};
+use super::toggle::{self};
 use super::{button, button::Face};
 use crate::key::child_id;
 use crate::{Builder, Key};
 
 type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 
-/// A set of toggles of which exactly one is on, as Radix's ToggleGroup of
+/// A set of toggles of which exactly one is on, as Radix's Group of
 /// `type="single"`: radio semantics with toggle looks, with icons, labels or
 /// any [`children`](super::button::Chain::children) as the members' content.
 ///
@@ -40,7 +40,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
-/// use eggshell_ui::owned::{button, toggle_group::ToggleGroup};
+/// use eggshell_ui::owned::{button, toggle_group::Group};
 /// use eggshell_ui::{Builder, tw};
 ///
 /// #[derive(Clone, Copy, Debug, Hash, PartialEq)]
@@ -48,7 +48,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// struct App { tool: Tool }
 ///
 /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-///     let tools = ToggleGroup::new("tools", app.tool)
+///     let tools = Group::new("tools", app.tool)
 ///         .with_options(button::Options::new().classes(tw().w_px(80.0)))
 ///         .on_change(|app: &mut App, tool| app.tool = tool);
 ///     b.div(tw().flex().gap(2.0), |b| {
@@ -60,7 +60,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 ///     });
 /// }
 /// ```
-pub struct ToggleGroup<A, T> {
+pub struct Group<A, T> {
     id: Id,
     label: Rc<str>,
     current: T,
@@ -70,7 +70,7 @@ pub struct ToggleGroup<A, T> {
     on_change: Option<OnChange<A, T>>,
 }
 
-impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T> {
+impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> Group<A, T> {
     /// A group named `key` whose `current` member is on.
     pub fn new<K: Key>(key: K, current: T) -> Self {
         Self {
@@ -102,7 +102,7 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T>
         b: Builder<'a, 'f, A>,
         value: T,
         face: Face,
-    ) -> ToggleItemChain<'a, 'f, A, T> {
+    ) -> toggle::ItemChain<'a, 'f, A, T> {
         let key = MemberKey {
             group: self.id,
             label: self.label.clone(),
@@ -117,7 +117,7 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T>
     }
 }
 
-/// What a [`ToggleItemChain`] knows of its group: its own value and the
+/// What a [`toggle::ItemChain`] knows of its group: its own value and the
 /// group's handler.
 pub struct Member<A, T> {
     pub(super) value: T,

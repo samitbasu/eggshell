@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Variant};
-use crate::owned::tabs::TabsPart;
+use crate::owned::tabs;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -15,7 +15,7 @@ const TABS: &str = "registry/bases/radix/ui/tabs.tsx";
 
 /// TODO(prose): shadcn's `tabs` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use TabsPart::*;
+    use tabs::Part::*;
     s.replace(List, |t, k| {
         t
             .from(LYRA, 1296, "rounded-none")
@@ -137,7 +137,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `tabs` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use TabsPart::*;
+    use tabs::Part::*;
     s.replace(List, |t, k| {
         t
             .from(LYRA, 1296, "rounded-none")

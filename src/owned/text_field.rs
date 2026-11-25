@@ -17,9 +17,7 @@ use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
 use crate::owned::input::{INLINE_END, INLINE_START};
 use crate::owned::options::{self, Gate, Validity};
-use crate::owned::{
-    Enablement, field_box, input::InputGroupPart, options::IntoTip, text_sized, tipped,
-};
+use crate::owned::{Enablement, field_box, input, options::IntoTip, text_sized, tipped};
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
 use crate::{Builder, Icon, Key, Measure, Tw, tw};
@@ -497,7 +495,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 if enablement == Enablement::Disabled {
                     keys.push(SheetKey::Aria(crate::Aria::Disabled));
                 }
-                let addon = s.part(InputGroupPart::Addon, &keys, tw().attr("align", side));
+                let addon = s.part(input::GroupPart::Addon, &keys, tw().attr("align", side));
                 s.div(addon, |s| {
                     s.icon(part, tw().shrink_0(), icon);
                 });
@@ -515,8 +513,11 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         put(s, Part::Leading, INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
-                        let control =
-                            b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
+                        let control = b.part(
+                            input::GroupPart::Input,
+                            &control_keys,
+                            tw().w_full().h_full(),
+                        );
                         b.leaf(Part::Field, control, move |m| measure(m, &measured))
                             .open_focus(autofocus.open_focus())
                             .draw_widgets(move |app, ui| {
@@ -540,11 +541,11 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             return;
         }
         let classes = text_sized(&b, style.input.sizes.lookup(b.ctx(), size).text).merge(classes);
-        let in_group = b.within_part() == Some(InputGroupPart::Root.slot());
+        let in_group = b.within_part() == Some(input::GroupPart::Root.slot());
         let classes = if field.is_bare() && in_group {
             let control = match field.is_single_line() {
-                true => InputGroupPart::Input,
-                false => InputGroupPart::Textarea,
+                true => input::GroupPart::Input,
+                false => input::GroupPart::Textarea,
             };
             b.part(control, &control_keys, classes)
         } else if field.is_bare() {

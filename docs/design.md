@@ -221,7 +221,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn toggle(&mut self, key: K, face: impl Into<Face>, current: T) -> toggle::Chain<T>; // [.values(off, on)] .on_change(|app, T|)
     pub fn checkbox(&mut self, key: K, label: impl Into<String>, current: T) -> checkbox::Chain<T>; // [.values(off, on)] .on_change(|app, T|)
     pub fn switch(&mut self, key: K, label: impl Into<String>, current: T) -> switch::Chain<T>;     // [.values(off, on)] .on_change(|app, T|)
-    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> RadioGroupChain; // .on_change(f)
+    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> radio::Chain; // .on_change(f)
     pub fn segmented<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> segmented::Chain; // .on_change(f) | .on_change_with(f): f also gets &egui::Context
     pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> slider::Chain;            // .on_change(f)
     pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> select::Chain; // .on_change(f) | .on_change_with(f)

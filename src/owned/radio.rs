@@ -18,7 +18,7 @@ use crate::overlay::{Nav, Wrap};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Circle(usize),
     Label(usize),
 }
@@ -32,7 +32,7 @@ enum Part {
 /// with it, to the next or previous enabled option, wrapping around; Tab
 /// leaves the group.
 #[must_use = "a radio group is not added until you call `.on_change(..)`"]
-pub struct RadioGroupChain<'a, 'f, A, T> {
+pub struct Chain<'a, 'f, A, T> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     current: T,
@@ -48,7 +48,7 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     autofocus: Autofocus,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// A group of `options` of which `current` is chosen.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
@@ -195,7 +195,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         let size = b.size_of(size);
         let metrics = *radio.sizes.lookup(b.ctx(), size);
         let size = radio.sizes.key_for(size);
-        let group = b.part(RadioGroupPart::Root, &[], classes);
+        let group = b.part(Part::Root, &[], classes);
         let group = match &group_tip {
             Some(_) => group.sense_hover(),
             None => group,
@@ -209,7 +209,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 } else {
                     Autofocus::Never
                 };
-                let control = b.id_of(Part::Circle(index));
+                let control = b.id_of(Node::Circle(index));
                 let (enablement, tooltip) = option.gated(enablement, refused);
                 let Choice {
                     value,
@@ -220,13 +220,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
 
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
-                let mut keys = form.keys(RadioGroupPart::item_keys(
-                    size,
-                    Mark::from(chosen),
-                    enablement,
-                ));
+                let mut keys = form.keys(Part::item_keys(size, Mark::from(chosen), enablement));
                 keys.extend(validity.key(enablement));
-                let circle = b.part(RadioGroupPart::Item, &keys, enablement.senses());
+                let circle = b.part(Part::Item, &keys, enablement.senses());
                 let on_response = on_response.clone();
                 let (on_circle, on_label) = (select.clone(), select.clone());
                 let row = choice_row(
@@ -243,12 +239,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 };
                 let validity = validity.clone();
                 let build_circle = move |b: &mut Builder<'_, '_, A>| {
-                    b.div_id(Part::Circle(index), circle, |b| {
+                    b.div_id(Node::Circle(index), circle, |b| {
                         // The dot of an unchosen circle is there, unseen, so
                         // choosing moves no node.
                         let shown = if chosen { tw() } else { tw().invisible() };
-                        let indicator = b.part(RadioGroupPart::Indicator, &keys, tw());
-                        let icon = b.part(RadioGroupPart::IndicatorIcon, &keys, shown);
+                        let indicator = b.part(Part::Indicator, &keys, tw());
+                        let icon = b.part(Part::IndicatorIcon, &keys, shown);
                         b.div(indicator, |b| b.div(icon, |_| {}));
                     })
                     .role(Role::RadioButton)
@@ -273,7 +269,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                         build_circle(b);
                         choice_label(
                             b,
-                            Part::Label(index),
+                            Node::Label(index),
                             control,
                             label,
                             enablement,
@@ -291,7 +287,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                             classes: tw(),
                         };
                         let on_card = move |app: &mut A| on_label(app, value);
-                        choice_card(b, Part::Label(index), card, row, on_card, build_circle);
+                        choice_card(b, Node::Label(index), card, row, on_card, build_circle);
                     }
                 }
             }
@@ -310,7 +306,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
 /// TODO(prose): the keys its rules see: an item's size, `aria-checked`
 /// (shadcn's `data-checked`) and `aria-disabled`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RadioGroupPart {
+pub enum Part {
     /// TODO(prose): the group, holding a field per option.
     Root,
     /// TODO(prose): one option's circle.
@@ -322,7 +318,7 @@ pub enum RadioGroupPart {
     IndicatorIcon,
 }
 
-impl crate::sheet::Part for RadioGroupPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "radio-group.tsx";
 
     fn slot(self) -> &'static str {
@@ -335,16 +331,16 @@ impl crate::sheet::Part for RadioGroupPart {
     }
 }
 
-impl RadioGroupPart {
+impl Part {
     /// TODO(prose): the keys of an item of `size` and its dot, chosen if `mark` is on, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, radio::RadioGroupPart};
+    /// use eggshell_ui::owned::{Enablement, Mark, radio::Part};
     /// use eggshell_ui::sheet::Key;
     ///
-    /// let keys = RadioGroupPart::item_keys(Size::DEFAULT, Mark::Off, Enablement::Disabled);
+    /// let keys = Part::item_keys(Size::DEFAULT, Mark::Off, Enablement::Disabled);
     /// assert!(keys.contains(&Key::Aria(Aria::Disabled)));
     /// ```
     pub fn item_keys(
@@ -365,7 +361,7 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> RadioGroupChain<'_, 'f, A, T> {
-        RadioGroupChain::new(self.reborrow(), key, current, options)
+    ) -> Chain<'_, 'f, A, T> {
+        Chain::new(self.reborrow(), key, current, options)
     }
 }

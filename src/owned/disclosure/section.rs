@@ -1,6 +1,6 @@
 //! The section: a header that opens and closes a collapsible region.
 
-use crate::owned::accordion::AccordionPart;
+use crate::owned::accordion;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
@@ -10,7 +10,7 @@ use egui::Role;
 
 use crate::sheet::Key as SheetKey;
 
-use super::{ChangeFn, DisclosureStyle, OnChange, Unset, chevron, enablement_in, name_of, toggled};
+use super::{ChangeFn, OnChange, Style, Unset, chevron, enablement_in, name_of, toggled};
 
 /// The parts of a section, under its key.
 #[derive(Clone, Copy, Debug, Hash)]
@@ -194,8 +194,8 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             on_change,
         };
         let keys = keys_of(enablement);
-        let content = b.part(AccordionPart::ContentInner, &[], content);
-        let item = b.part(AccordionPart::Item, keys, tw().flex().flex_col());
+        let content = b.part(accordion::Part::ContentInner, &[], content);
+        let item = b.part(accordion::Part::Item, keys, tw().flex().flex_col());
         b.div_id(key, item, |b| {
             let region = b.id_of(Part::Region);
             let region_classes = if current.is_open() {
@@ -203,7 +203,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             } else {
                 tw()
             };
-            let region_classes = b.part(AccordionPart::Content, keys, region_classes);
+            let region_classes = b.part(accordion::Part::Content, keys, region_classes);
             b.collapsible(Part::Region, current)
                 .classes(region_classes)
                 .content(content)
@@ -216,7 +216,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
 
 /// A section's header, ready to build.
 struct Header<'a, 'f, A> {
-    style: &'a DisclosureStyle,
+    style: &'a Style,
     face: Face,
     header_children: Option<HeaderChildren<'f, A>>,
     classes: Tw,
@@ -245,10 +245,10 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             Enablement::Disabled => tw().sense_click().inert(),
         };
         let keys = keys_of(enablement);
-        let box_classes = b.part(AccordionPart::Trigger, keys, sense);
+        let box_classes = b.part(accordion::Part::Trigger, keys, sense);
         let name = name_of(&face).to_owned();
         let glyph = chevron(&style.section, open);
-        let glyph_classes = b.part(AccordionPart::TriggerIcon, keys, tw());
+        let glyph_classes = b.part(accordion::Part::TriggerIcon, keys, tw());
         let handle = b
             .div_id(Part::Header, box_classes.merge(classes), |b| {
                 b.div(

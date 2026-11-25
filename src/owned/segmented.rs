@@ -10,7 +10,7 @@ use super::choice::{self, Choice, IntoChoice};
 use super::options::Refused;
 use super::{
     Enablement, OnResponse, Tip, announce_group, described, options, options::Gate,
-    options::IntoTip, tabs::TabsPart, tip_describes, tipped_whole,
+    options::IntoTip, tabs, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -30,7 +30,7 @@ pub enum Cell {
 
 /// TODO(prose): whether a segmented track keeps its cells on one row or wraps them onto more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SegmentedRows {
+pub enum Rows {
     /// TODO(prose): one row, at the size's height.
     One,
     /// TODO(prose): as many rows as the width needs, the track as tall as they are.
@@ -73,7 +73,7 @@ pub struct Chain<'a, 'f, A, T> {
     slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
-    rows: SegmentedRows,
+    rows: Rows,
     enablement: Enablement,
     size: Option<Size>,
     gate: Gate,
@@ -105,7 +105,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             b,
             current,
             options: choice::collect(options),
-            rows: SegmentedRows::One,
+            rows: Rows::One,
             enablement: Enablement::Enabled,
             size: None,
             gate: Gate::default(),
@@ -121,7 +121,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// A track that wraps its cells onto more rows when it is narrower than
     /// they are, and takes its height from the rows.
     pub fn wrapping(mut self) -> Self {
-        self.rows = SegmentedRows::Wrapping;
+        self.rows = Rows::Wrapping;
         self
     }
 
@@ -289,19 +289,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             );
             return;
         }
-        let size = TabsPart::size_key(&b, b.size_of(size));
+        let size = tabs::Part::size_key(&b, b.size_of(size));
         let container = b.part(
-            TabsPart::List,
-            &TabsPart::list_keys(size, rows, enablement),
+            tabs::Part::List,
+            &tabs::Part::list_keys(size, rows, enablement),
             track,
         );
         let mut trigger = |cell: Cell, enablement| {
-            let keys = TabsPart::trigger_keys(size, rows, cell, enablement);
+            let keys = tabs::Part::trigger_keys(size, rows, cell, enablement);
             let own = match enablement {
                 Enablement::Enabled => tw().text_center(),
                 Enablement::Disabled => tw().text_center().inert(),
             };
-            b.part(TabsPart::Trigger, &keys, own.merge(caller.clone()))
+            b.part(tabs::Part::Trigger, &keys, own.merge(caller.clone()))
         };
         let (released, pressed) = (
             trigger(Cell::Released, Enablement::Enabled),

@@ -3,7 +3,7 @@
 //! and what assistive technology reads.
 
 use eggshell_ui::overlay::{Anchor, Modal, Shown, Side};
-use eggshell_ui::owned::dialog::{Dialog, DialogContent};
+use eggshell_ui::owned::dialog::{self, Dialog};
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};
@@ -98,7 +98,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     }
 }
 
-fn content<'c, 'f>(app: &'c App) -> impl FnOnce(&mut DialogContent<'c, 'f, App>) + 'c {
+fn content<'c, 'f>(app: &'c App) -> impl FnOnce(&mut dialog::Content<'c, 'f, App>) + 'c {
     move |d| {
         if app.field {
             d.body(move |s| {

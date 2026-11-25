@@ -2,7 +2,7 @@
 //! key events and the accessibility check the support harness switches on.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{Enablement, number::Step, slider::SliderPart};
+use eggshell_ui::owned::{Enablement, number::Step, slider};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -349,9 +349,9 @@ fn a_disabled_slider_ignores_the_pointer_and_the_keyboard() {
             .background
     };
     let bar = bar(&d, "locked");
-    assert_eq!(Some(box_at(&d, bar).fill), fill(SliderPart::Track));
+    assert_eq!(Some(box_at(&d, bar).fill), fill(slider::Part::Track));
     let thumb = d.rect(Target::suffix("/\"locked\"/Track/Thumb"));
-    assert_eq!(Some(box_at(&d, thumb).fill), fill(SliderPart::Thumb));
+    assert_eq!(Some(box_at(&d, thumb).fill), fill(slider::Part::Thumb));
     assert!(
         d.harness()
             .get_by_role_and_label(Role::Slider, "Locked")
@@ -937,7 +937,7 @@ fn an_app_rule_restyles_a_sliders_range() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::slider::SliderPart::Range, |t, _| {
+            .rule(eggshell_ui::owned::slider::Part::Range, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))
@@ -961,7 +961,7 @@ fn an_app_rule_restyles_a_disabled_sliders_thumb() {
     )
     .style(support::shadcn_with(|style| {
         style.sheet.as_app().rule_when(
-            eggshell_ui::owned::slider::SliderPart::Thumb,
+            eggshell_ui::owned::slider::Part::Thumb,
             eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
             |t, _| t.bg(egui::Color32::RED),
         );
@@ -985,7 +985,7 @@ fn an_app_rule_restyles_a_steppers_group() {
     )
     .style(support::shadcn_with(|style| {
         style.sheet.as_app().rule_when(
-            eggshell_ui::owned::input::InputGroupPart::Root,
+            eggshell_ui::owned::input::GroupPart::Root,
             eggshell_ui::sheet::When::always().attr("stepper", "true"),
             |t, _| t.bg(egui::Color32::RED),
         );

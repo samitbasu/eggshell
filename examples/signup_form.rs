@@ -228,14 +228,14 @@ fn field<'f>(
     classes: eggshell_ui::Tw,
     body: impl FnOnce(&mut B<'_, 'f>),
 ) {
-    use eggshell_ui::owned::field::FieldPart;
+    use eggshell_ui::owned::field;
     use eggshell_ui::sheet::Key;
     let keys: &[Key] = match error {
         Some(_) => &[Key::Attr("invalid", "true")],
         None => &[],
     };
     let own = tw().flex().flex_col().gap(1.0).merge(classes);
-    let classes = b.part(FieldPart::Root, keys, own);
+    let classes = b.part(field::Part::Root, keys, own);
     b.div(classes, |b| {
         body(b);
         error_line(b, error);

@@ -202,12 +202,12 @@ const SHIFT_STEP: f32 = 50.0;
 /// # }
 /// ```
 #[must_use = "a splitter is not added until you call `.before(..)` or `.after(..)`, then `.on_resize(..)`"]
-pub struct SplitterStart<'a, 'f, A> {
+pub struct Start<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
 }
 
-impl<'a, 'f, A: 'static> SplitterStart<'a, 'f, A> {
+impl<'a, 'f, A: 'static> Start<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K) -> Self {
         Self {
             slot: b.slot(&key),
@@ -288,7 +288,7 @@ impl<'a, 'f, A> Chain<'a, 'f, A> {
 }
 
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
-    fn new(start: SplitterStart<'a, 'f, A>, side: Side, size: PaneSize) -> Self {
+    fn new(start: Start<'a, 'f, A>, side: Side, size: PaneSize) -> Self {
         Self {
             b: start.b,
             slot: start.slot,
@@ -557,7 +557,7 @@ impl Handle {
 impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
     /// TODO(prose): a splitter between two panes of the flex container it is
     /// built in.
-    pub fn splitter<K: crate::Key>(&mut self, key: K) -> SplitterStart<'_, 'f, A> {
-        SplitterStart::new(self.reborrow(), key)
+    pub fn splitter<K: crate::Key>(&mut self, key: K) -> Start<'_, 'f, A> {
+        Start::new(self.reborrow(), key)
     }
 }

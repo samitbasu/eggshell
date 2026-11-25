@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::owned::checkbox::CheckboxPart;
+use crate::owned::checkbox;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 
@@ -13,7 +13,7 @@ const REGISTRY: &str = "registry/bases/radix/registry.ts";
 
 /// TODO(prose): shadcn's `checkbox` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use CheckboxPart::*;
+    use checkbox::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -106,7 +106,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `checkbox` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use CheckboxPart::*;
+    use checkbox::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

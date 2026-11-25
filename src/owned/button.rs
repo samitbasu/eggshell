@@ -13,19 +13,19 @@ use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
 use crate::focus::{Autofocus, Select};
-use crate::sheet::{Key, Part};
+use crate::sheet::Key;
 use crate::{Builder, Icon, Scope, Tw, tw};
 
 /// TODO(prose): a button's anatomy for the [`Sheet`](crate::sheet::Sheet): its box. shadcn styles
 /// the icons inside it from the box (`[&_svg]:size-4`), so an icon is not a
 /// part of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ButtonPart {
+pub enum Part {
     /// TODO(prose): the button's box.
     Root,
 }
 
-impl Part for ButtonPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "button.tsx";
 
     fn slot(self) -> &'static str {
@@ -680,11 +680,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                 keys.extend(expanded);
                 let own = tw().relative().sense_click();
                 let own = if disabled { own.inert() } else { own };
-                (
-                    b.part(ButtonPart::Root, &keys, own.merge(caller)),
-                    None,
-                    None,
-                )
+                (b.part(Part::Root, &keys, own.merge(caller)), None, None)
             }
             Some(mark) => {
                 let toggles = &style.toggle;

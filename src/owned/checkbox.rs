@@ -18,7 +18,7 @@ use crate::focus::{Autofocus, Select};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Box,
     Label,
 }
@@ -258,13 +258,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
         let checkbox = &style.checkbox;
         let size = b.size_of(size);
         let metrics = *checkbox.sizes.lookup(b.ctx(), size);
-        let mut keys = form.keys(CheckboxPart::keys(
-            checkbox.sizes.key_for(size),
-            mark,
-            enablement,
-        ));
+        let mut keys = form.keys(Part::keys(checkbox.sizes.key_for(size), mark, enablement));
         keys.extend(validity.key(enablement));
-        let box_classes = b.part(CheckboxPart::Root, &keys, enablement.senses());
+        let box_classes = b.part(Part::Root, &keys, enablement.senses());
         // A card's label is drawn before the control it holds, so the
         // control names itself by the card's title.
         let name = match form {
@@ -273,7 +269,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
         };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let control = b.id_of(Part::Box);
+            let control = b.id_of(Node::Box);
             let row = choice_row(
                 b,
                 &style.role_sized(&checkbox.text, metrics.text),
@@ -283,8 +279,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
             let on_press = on_toggle.clone();
             let validity = validity.clone();
             let build_box = move |b: &mut Builder<'_, '_, A>| {
-                b.div_id(Part::Box, box_classes, |b| {
-                    let indicator = b.part(CheckboxPart::Indicator, &keys, tw());
+                b.div_id(Node::Box, box_classes, |b| {
+                    let indicator = b.part(Part::Indicator, &keys, tw());
                     b.div(indicator, |b| {
                         if mark == Mark::On {
                             b.glyph(tw(), check());
@@ -306,7 +302,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                 Form::Row => b.div(row.merge(caller), |b| {
                     build_box(b);
                     if let Some(label) = label {
-                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                        choice_label(b, Node::Label, control, label, enablement, move |app| {
                             on_toggle(app)
                         });
                     }
@@ -321,7 +317,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                     };
                     choice_card(
                         b,
-                        Part::Label,
+                        Node::Label,
                         card,
                         row,
                         move |app| on_toggle(app),
@@ -338,14 +334,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
 /// TODO(prose): the keys its rules see: the size, `aria-checked` (shadcn's
 /// `data-checked`) and `aria-disabled`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CheckboxPart {
+pub enum Part {
     /// TODO(prose): the box.
     Root,
     /// TODO(prose): the check glyph in a ticked box.
     Indicator,
 }
 
-impl crate::sheet::Part for CheckboxPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "checkbox.tsx";
 
     fn slot(self) -> &'static str {
@@ -356,16 +352,16 @@ impl crate::sheet::Part for CheckboxPart {
     }
 }
 
-impl CheckboxPart {
+impl Part {
     /// TODO(prose): the keys of a checkbox of `size`, ticked if `mark` is on, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
     /// use eggshell_ui::Aria;
     /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{checkbox::CheckboxPart, Enablement, Mark};
+    /// use eggshell_ui::owned::{checkbox::Part, Enablement, Mark};
     /// use eggshell_ui::sheet::Key;
     ///
-    /// let keys = CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
+    /// let keys = Part::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
     /// assert!(keys.contains(&Key::Aria(Aria::Checked)));
     /// ```
     pub fn keys(

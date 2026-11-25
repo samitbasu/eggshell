@@ -29,12 +29,12 @@ use crate::pipeline::OpenFocus;
 use crate::sheet::Key;
 use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 use sheet::INSET;
-pub use sheet::MenuPart;
+pub use sheet::Part;
 pub(crate) use sheet::write_exceptions;
 
 /// The parts of a menu.
 #[derive(Hash, Debug, Clone, Copy)]
-enum Part {
+enum Node {
     Menu,
     Box,
     Rows,
@@ -346,13 +346,13 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
 
     /// A line between groups of items.
     pub fn separator(&mut self) {
-        let classes = self.b.part(MenuPart::Separator, &[], tw());
+        let classes = self.b.part(Part::Separator, &[], tw());
         self.b.div(classes, |_| {});
     }
 
     /// A heading over a group of items. It takes no input.
     pub fn label(&mut self, text: impl Into<String>) {
-        let classes = self.b.part(MenuPart::Label, &[], tw());
+        let classes = self.b.part(Part::Label, &[], tw());
         let text = text.into();
         self.b.div(classes, |b| b.text(tw(), text));
     }
@@ -369,7 +369,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
     ) {
         let label = label.into();
-        let overlay = self.b.slot(&(key.clone(), Part::Submenu));
+        let overlay = self.b.slot(&(key.clone(), Node::Submenu));
         let slot = self.b.slot(&key);
         let item = slot.id;
         self.add_row(Row {
@@ -422,14 +422,14 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
         let shared = self.shared.clone();
         let part = match (&lead, &trail) {
-            (_, Trail::Chevron) => MenuPart::SubTrigger,
-            (Lead::Check(_), _) => MenuPart::CheckboxItem,
-            (Lead::Dot(_), _) => MenuPart::RadioItem,
-            _ => MenuPart::Item,
+            (_, Trail::Chevron) => Part::SubTrigger,
+            (Lead::Check(_), _) => Part::CheckboxItem,
+            (Lead::Dot(_), _) => Part::RadioItem,
+            _ => Part::Item,
         };
         let (root, depth, id) = (shared.root, self.depth, slot.id);
         let expanded = shared.kept.with(|kept| kept.menus.submenu(root, depth)) == Some(id);
-        let mut keys = MenuPart::item_keys(tone, enablement);
+        let mut keys = Part::item_keys(tone, enablement);
         if matches!(lead, Lead::Inset) {
             keys.push(Key::Attr(INSET.0, INSET.1));
         }
@@ -453,7 +453,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                         b.icon("icon", tw(), icon);
                     }
                     Lead::Check(mark) | Lead::Dot(mark) => {
-                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
+                        let classes = b.part(Part::ItemIndicator, &[], tw());
                         b.div(classes, |b| {
                             if mark == Mark::On {
                                 b.glyph(tw(), check());
@@ -465,7 +465,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 match trail {
                     Trail::Nothing => {}
                     Trail::Shortcut(keys) => {
-                        let classes = b.part(MenuPart::Shortcut, &[], tw());
+                        let classes = b.part(Part::Shortcut, &[], tw());
                         b.text(classes, keys);
                     }
                     Trail::Chevron => {
@@ -532,13 +532,13 @@ fn menu_box<'f, A: 'static>(
     items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
 ) {
     let part = if depth == 0 {
-        MenuPart::Content
+        Part::Content
     } else {
-        MenuPart::SubContent
+        Part::SubContent
     };
     let classes = s.reborrow().part(part, &[], caller);
     let shared = shared.clone();
-    super::fitted_box(s, fit, (Part::Box, Part::Rows), classes, |s| {
+    super::fitted_box(s, fit, (Node::Box, Node::Rows), classes, |s| {
         items(&mut Menu {
             b: s.reborrow(),
             shared,
@@ -795,7 +795,7 @@ fn hold_vertical_arrows(ctx: &Context, trigger: Id) {
 /// </DropdownMenu>
 /// ```
 #[must_use = "a dropdown menu is not added until you call `.items(..)`"]
-pub struct DropdownChain<'a, 'f, A, K> {
+pub struct Chain<'a, 'f, A, K> {
     b: Builder<'a, 'f, A>,
     key: K,
     face: Face,
@@ -809,7 +809,7 @@ pub struct DropdownChain<'a, 'f, A, K> {
     autofocus: Autofocus,
 }
 
-/// What a dropdown trigger's [`children`](DropdownChain::children) build.
+/// What a dropdown trigger's [`children`](Chain::children) build.
 type Body<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 
 /// What a dropdown trigger shows after its content.
@@ -819,7 +819,7 @@ enum TriggerTrail {
     Chevron,
 }
 
-impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
+impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
     pub(super) fn new(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
         Self {
             b,
@@ -962,7 +962,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         } = self;
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
-        let list = b.slot(&(key.clone(), Part::Menu));
+        let list = b.slot(&(key.clone(), Node::Menu));
         let enablement = b.enablement_of(enablement.and(options.refusal()));
         if enablement == Enablement::Disabled {
             shared.close();
@@ -1050,7 +1050,7 @@ pub(crate) fn context<'f, A: 'static>(
         return;
     };
     let slot = b
-        .slot(&(Part::Context, owner))
+        .slot(&(Node::Context, owner))
         .relabelled(format!("ContextMenu({owner_path})"));
     let close = shared.clone();
     OverlayChain::new(b.reborrow(), slot)
@@ -1085,8 +1085,8 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         &mut self,
         key: K,
         face: impl Into<Face>,
-    ) -> DropdownChain<'_, 'f, A, K> {
-        DropdownChain::new(self.reborrow(), key, face.into())
+    ) -> Chain<'_, 'f, A, K> {
+        Chain::new(self.reborrow(), key, face.into())
     }
 }
 

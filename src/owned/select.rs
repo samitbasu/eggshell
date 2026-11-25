@@ -26,7 +26,7 @@ use crate::{Builder, NodeUi as _, Scope, Tw, nav, tw};
 
 /// The parts of a select's list.
 #[derive(Hash, Debug, Clone, Copy)]
-enum Part {
+enum Node {
     List,
     Box,
     Rows,
@@ -37,7 +37,7 @@ enum Part {
 /// TODO(prose): a select's anatomy for the [`Sheet`],
 /// as shadcn's `select.tsx` names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SelectPart {
+pub enum Part {
     /// TODO(prose): the box that shows the chosen option.
     Trigger,
     /// TODO(prose): the chosen option's label in the trigger.
@@ -56,7 +56,7 @@ pub enum SelectPart {
     ItemIndicatorIcon,
 }
 
-impl SheetPart for SelectPart {
+impl SheetPart for Part {
     const SOURCE: &'static str = "select.tsx";
 
     fn slot(self) -> &'static str {
@@ -78,27 +78,23 @@ impl SheetPart for SelectPart {
 pub(crate) fn write_select_exceptions(sheet: &mut Sheet, select: &SelectStyle) {
     for size in select.sizes.keys() {
         if sheet
-            .unnamed(SelectPart::Trigger, &[SheetKey::Size(size)])
+            .unnamed(Part::Trigger, &[SheetKey::Size(size)])
             .is_none()
         {
             continue;
         }
         let m = *select.sizes.get(size);
-        sheet.rule_when(
-            SelectPart::Trigger,
-            When::always().size(size),
-            move |t, _| {
-                let t = t
-                    .h_px(m.height)
-                    .px_px(m.padding_x)
-                    .gap_px(m.gap)
-                    .rounded_px(f32::from(m.radius));
-                match m.text {
-                    Some(text) => t.text_size(text.size, text.line_height),
-                    None => t,
-                }
-            },
-        );
+        sheet.rule_when(Part::Trigger, When::always().size(size), move |t, _| {
+            let t = t
+                .h_px(m.height)
+                .px_px(m.padding_x)
+                .gap_px(m.gap)
+                .rounded_px(f32::from(m.radius));
+            match m.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
+            }
+        });
     }
 }
 
@@ -172,7 +168,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     ) -> Self {
         Self {
             slot: b.slot(&key),
-            list: b.slot(&(key, Part::List)),
+            list: b.slot(&(key, Node::List)),
             b,
             current,
             options: choice::collect(options),
@@ -338,9 +334,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             Enablement::Enabled => own,
             Enablement::Disabled => own.inert(),
         };
-        let classes = b.part(SelectPart::Trigger, &keys, own.merge(caller));
-        let value_classes = b.part(SelectPart::Value, &[], tw());
-        let icon = b.part(SelectPart::TriggerIcon, &[], tw());
+        let classes = b.part(Part::Trigger, &keys, own.merge(caller));
+        let value_classes = b.part(Part::Value, &[], tw());
+        let icon = b.part(Part::TriggerIcon, &[], tw());
         let current = options.iter().position(|option| option.value == chosen);
         let shown = current
             .and_then(|at| options.get(at))
@@ -425,10 +421,10 @@ impl<T: Copy + 'static> List<T> {
     }
 
     fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>, fit: Fit) {
-        let content = s.part(SelectPart::Content, &[], tw().flex().flex_col().min_h_0());
-        let group = s.part(SelectPart::Group, &[], tw().flex().flex_col());
-        super::fitted_box(s, fit, (Part::Box, Part::Rows), content, |s| {
-            s.div_id(Part::Group, group, |s| self.rows(s, choose, fit));
+        let content = s.part(Part::Content, &[], tw().flex().flex_col().min_h_0());
+        let group = s.part(Part::Group, &[], tw().flex().flex_col());
+        super::fitted_box(s, fit, (Node::Box, Node::Rows), content, |s| {
+            s.div_id(Node::Group, group, |s| self.rows(s, choose, fit));
         });
     }
 
@@ -444,7 +440,7 @@ impl<T: Copy + 'static> List<T> {
             .or_else(|| (0..self.options.len()).find(|&at| enabled(at)));
         // Scrolled to once the list is drawn, in the container it is drawn in.
         if let Some(at) = start.filter(|_| fit != Fit::Measuring) {
-            let item = s.id_of(Part::Option(at));
+            let item = s.id_of(Node::Option(at));
             nav::highlight_initially(s.ctx(), s.kept(), self.list, item, self.trigger);
         }
         let ctx = s.ctx().clone();
@@ -457,11 +453,11 @@ impl<T: Copy + 'static> List<T> {
                 Enablement::Disabled => &[SheetKey::Aria(Aria::Disabled)],
             };
             let own = enablement.senses();
-            let item = s.part(SelectPart::Item, keys, own.focusable_none());
-            let indicator = s.part(SelectPart::ItemIndicator, &[], tw());
-            let mark = s.part(SelectPart::ItemIndicatorIcon, &[], tw());
+            let item = s.part(Part::Item, keys, own.focusable_none());
+            let indicator = s.part(Part::ItemIndicator, &[], tw());
+            let mark = s.part(Part::ItemIndicatorIcon, &[], tw());
             let row = s
-                .div_id(Part::Option(index), item, |s| {
+                .div_id(Node::Option(index), item, |s| {
                     s.text(tw(), label.clone());
                     s.div(indicator, |s| {
                         if marked {

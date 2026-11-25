@@ -50,18 +50,18 @@ use egui::{Context, Id, Modifiers, Role};
 
 use dwell::{Countdown, Dwell, Hold};
 use look::Look;
-pub use style::NotifyStyle;
+pub use style::Style;
 
 /// TODO(prose): a notice's anatomy for the style's sheet, as shadcn's
 /// `sonner.tsx` names it. shadcn's classes style over sonner's own
 /// stylesheet, which is the notice's look here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NotifyPart {
+pub enum Part {
     /// TODO(prose): a notice's card.
     Toast,
 }
 
-impl crate::sheet::Part for NotifyPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "sonner.tsx";
 
     fn slot(self) -> &'static str {
@@ -440,7 +440,7 @@ fn card<A: 'static, Act: Clone + 'static>(
     handlers: &Handlers<A, Act>,
 ) {
     let id = notice.id;
-    let classes = s.part(NotifyPart::Toast, &[], tw());
+    let classes = s.part(Part::Toast, &[], tw());
     let card = s.div_id(id, classes, |s| {
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
@@ -507,9 +507,9 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
 
 /// Writes the notice's recorded exception: its card, sonner's toast, which
 /// the generated look does not carry, from `notify`.
-pub(crate) fn write_exceptions(notify: &NotifyStyle, sheet: &mut crate::sheet::Sheet) {
+pub(crate) fn write_exceptions(notify: &Style, sheet: &mut crate::sheet::Sheet) {
     let notify = std::sync::Arc::new(notify.clone());
-    sheet.rule_under(NotifyPart::Toast, move |_, _| {
+    sheet.rule_under(Part::Toast, move |_, _| {
         look::Look::new(notify.clone()).card()
     });
 }

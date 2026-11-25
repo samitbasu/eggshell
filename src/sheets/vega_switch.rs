@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Size};
-use crate::owned::switch::SwitchPart;
+use crate::owned::switch;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 
@@ -15,7 +15,7 @@ const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `switch` in `style-vega.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use SwitchPart::*;
+    use switch::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")
@@ -124,7 +124,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `switch` in `style-vega.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use SwitchPart::*;
+    use switch::Part::*;
     s.replace(Root, |t, k| {
         t
             .from(REGISTRY, 24, "border-border")

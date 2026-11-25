@@ -31,8 +31,8 @@ use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
 pub use style::{
-    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, MarkdownStyle, QuoteStyle,
-    RichLook, TableLook, UnsupportedStyle,
+    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, QuoteStyle, RichLook, Style,
+    TableLook, UnsupportedStyle,
 };
 pub use typeset::{Measure, Typeset, TypesetInk};
 

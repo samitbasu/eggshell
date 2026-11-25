@@ -1,7 +1,7 @@
 //! The Markdown widget (#254) through the real path: its test page, built,
 //! laid out and drawn by the rig, clicked as a user would.
 
-use eggshell_ui::owned::markdown::{Level, MarkdownStyle, heading_id, headings};
+use eggshell_ui::owned::markdown::{self, Level, heading_id, headings};
 use eggshell_ui::prelude::*;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, Target};
@@ -35,7 +35,7 @@ fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
     d
 }
 
-fn style(d: &Driver<page::State>) -> MarkdownStyle {
+fn style(d: &Driver<page::State>) -> markdown::Style {
     d.shell().style().markdown.clone()
 }
 

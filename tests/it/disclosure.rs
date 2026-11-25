@@ -405,10 +405,12 @@ fn a_sections_header_is_shadcns_accordion_trigger() {
 #[test]
 fn an_app_rule_restyles_a_sections_header() {
     let d = driver_with(|style| {
-        style.sheet.as_app().rule(
-            eggshell_ui::owned::accordion::AccordionPart::Trigger,
-            |t, _| t.bg(egui::Color32::RED),
-        );
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui::owned::accordion::Part::Trigger, |t, _| {
+                t.bg(egui::Color32::RED)
+            });
     });
     let header = d.rect(Target::suffix(HEADER));
     assert_eq!(support::box_at(&d, header).fill, egui::Color32::RED);

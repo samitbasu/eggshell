@@ -577,7 +577,7 @@ fn an_app_rule_restyles_the_palette() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::command::CommandPart::Root, |t, _| {
+            .rule(eggshell_ui::owned::command::Part::Root, |t, _| {
                 t.bg(Color32::RED)
             });
     });

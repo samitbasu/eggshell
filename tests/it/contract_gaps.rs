@@ -10,8 +10,8 @@ use eggshell_ui::owned::{
     Enablement,
     button::Face,
     choice::Choice,
-    segmented::{Cell, SegmentedRows},
-    tabs::TabsPart,
+    segmented::{self, Cell},
+    tabs,
 };
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens, size};
@@ -334,8 +334,8 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
                 style
                     .sheet
                     .as_app()
-                    .rule(TabsPart::List, |t, _| t.gap_x_px(3.0))
-                    .rule(TabsPart::Trigger, |t, _| {
+                    .rule(tabs::Part::List, |t, _| t.gap_x_px(3.0))
+                    .rule(tabs::Part::Trigger, |t, _| {
                         t.gap_px(7.0)
                             .descendants(eggshell_ui::Match::glyph(), |g| g.size_px(18.0))
                     });
@@ -387,7 +387,7 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
         ShadcnStyle::Vega,
         |style| {
             style.sheet.rule_when(
-                TabsPart::Trigger,
+                tabs::Part::Trigger,
                 When::always().not_aria(Aria::Selected),
                 |t, _| t.hover(|p| p.text(Color32::from_rgb(200, 30, 30))),
             );
@@ -440,14 +440,14 @@ fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
             "flex-1 shares the track equally: {widths:?}"
         );
         assert!(widths[0] > 100.0, "precondition: the cells are wide");
-        let keys = TabsPart::trigger_keys(
+        let keys = tabs::Part::trigger_keys(
             Size::DEFAULT,
-            SegmentedRows::One,
+            segmented::Rows::One,
             Cell::Pressed,
             Enablement::Enabled,
         );
         let style = &d.app().style;
-        let fill = support::part_at(style, TabsPart::Trigger, &keys)
+        let fill = support::part_at(style, tabs::Part::Trigger, &keys)
             .paint_classes()
             .background;
         assert_eq!(Some(box_at(&d, cells[0]).fill), fill, "styled paint");
@@ -576,16 +576,16 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             shadcn,
             |style| {
                 style.sheet.as_app().rule_when(
-                    eggshell_ui::owned::button::ButtonPart::Root,
+                    eggshell_ui::owned::button::Part::Root,
                     eggshell_ui::sheet::When::always(),
                     |t, _| t.role(spec(21.0)),
                 );
                 style
                     .sheet
-                    .rule(TabsPart::Trigger, |t, _| t.role(spec(17.0)));
+                    .rule(tabs::Part::Trigger, |t, _| t.role(spec(17.0)));
                 style
                     .sheet
-                    .rule(eggshell_ui::owned::select::SelectPart::Trigger, |t, _| {
+                    .rule(eggshell_ui::owned::select::Part::Trigger, |t, _| {
                         t.role(spec(19.0))
                     });
                 let mut checkbox = style.checkbox.clone();
@@ -862,7 +862,7 @@ fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
             .with_options(named())
             .add();
         b.toggle_item(
-            &eggshell_ui::owned::toggle_group::ToggleGroup::new("group", 0u8),
+            &eggshell_ui::owned::toggle_group::Group::new("group", 0u8),
             1,
             "One",
         )
@@ -1067,10 +1067,10 @@ fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
                 };
                 style
                     .sheet
-                    .rule(TabsPart::Trigger, move |t, _| t.role(text.clone()));
+                    .rule(tabs::Part::Trigger, move |t, _| t.role(text.clone()));
                 if let Some(weight) = selected_weight {
                     style.sheet.rule_when(
-                        TabsPart::Trigger,
+                        tabs::Part::Trigger,
                         When::always().aria(Aria::Selected),
                         move |t, _| t.font_weight(weight),
                     );

@@ -6,8 +6,7 @@ use crate::contract::Size;
 use crate::{Builder, Tw, tw};
 
 use super::{
-    Enablement, input::InputGroupPart, options, options::Gate, options::IntoTip, text_sized,
-    tipped_whole,
+    Enablement, input, options, options::Gate, options::IntoTip, text_sized, tipped_whole,
 };
 
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
@@ -103,7 +102,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             Enablement::Disabled => tw().inert(),
         };
         let classes = b.part(
-            InputGroupPart::Root,
+            input::GroupPart::Root,
             &keys,
             own.control_size(size)
                 .merge(text_sized(&b, metrics.text))

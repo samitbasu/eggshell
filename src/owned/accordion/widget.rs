@@ -191,7 +191,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        let column = b.part(super::AccordionPart::Root, &[], column.merge(classes));
+        let column = b.part(super::Part::Root, &[], column.merge(classes));
         b.div_id(key, column, |b| {
             items(&mut Items {
                 b,

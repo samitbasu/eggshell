@@ -2,7 +2,7 @@
 //! inherits, else the default (#127).
 
 use eggshell_ui::contract::{Size, Style};
-use eggshell_ui::owned::button::ButtonPart;
+use eggshell_ui::owned::button;
 use eggshell_ui::sheet::When;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
@@ -29,7 +29,7 @@ fn small_buttons(style: &mut Style) {
     style
         .sheet
         .as_app()
-        .rule_when(ButtonPart::Root, When::always().size(SM), |t, _| {
+        .rule_when(button::Part::Root, When::always().size(SM), |t, _| {
             t.h_px(18.0)
         });
 }

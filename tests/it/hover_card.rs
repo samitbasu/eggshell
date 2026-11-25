@@ -157,7 +157,7 @@ fn hovering_a_trigger_with_nothing_focusable_in_it_opens_the_card() {
 /// bordered; an App rule on its part restyles it.
 #[test]
 fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
-    use eggshell_ui::owned::hover_card::HoverCardPart;
+    use eggshell_ui::owned::hover_card;
     let open = |d: &mut Driver<App>| {
         d.hover(Target::suffix(HANDLE))
             .advance(Duration::from_millis(800));
@@ -184,7 +184,7 @@ fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
         style
             .sheet
             .as_app()
-            .rule(HoverCardPart::Content, |t, _| t.bg(egui::Color32::RED));
+            .rule(hover_card::Part::Content, |t, _| t.bg(egui::Color32::RED));
     }))
     .build();
     still(d.ctx(), d.app());

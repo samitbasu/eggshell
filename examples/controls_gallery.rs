@@ -858,7 +858,7 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
             |style| {
                 style
                     .sheet
-                    .rule(owned::tooltip::TooltipPart::Content, move |classes, _| {
+                    .rule(owned::tooltip::Part::Content, move |classes, _| {
                         classes
                             .px(6.0)
                             .py(3.0)

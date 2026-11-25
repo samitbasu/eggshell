@@ -139,7 +139,7 @@ fn an_app_rule_restyles_a_skeleton() {
             style
                 .sheet
                 .as_app()
-                .rule(eggshell_ui::owned::skeleton::SkeletonPart::Root, |t, _| {
+                .rule(eggshell_ui::owned::skeleton::Part::Root, |t, _| {
                     t.bg(Color32::RED)
                 });
         }))

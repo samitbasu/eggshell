@@ -36,7 +36,7 @@ pub use widget::{
 /// style's sheet, as shadcn's `accordion.tsx` names it: a section is an
 /// accordion's item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AccordionPart {
+pub enum Part {
     /// TODO(prose): an accordion's column of items.
     Root,
     /// TODO(prose): a section: its header and its region.
@@ -51,7 +51,7 @@ pub enum AccordionPart {
     ContentInner,
 }
 
-impl crate::sheet::Part for AccordionPart {
+impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "accordion.tsx";
 
     fn slot(self) -> &'static str {

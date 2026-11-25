@@ -2,7 +2,7 @@
 //! (`registry/bases/radix/ui/slider.tsx`, `registry/styles/style-lyra.css`). Do not edit.
 
 use egui::Color32;
-use crate::owned::slider::SliderPart;
+use crate::owned::slider;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 
@@ -12,7 +12,7 @@ const SLIDER: &str = "registry/bases/radix/ui/slider.tsx";
 
 /// TODO(prose): shadcn's `slider` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
-    use SliderPart::*;
+    use slider::Part::*;
     s.replace(Root, |t, _| {
         t
             .from(SLIDER, 33, "relative")
@@ -101,7 +101,7 @@ pub(crate) fn light(s: &mut Sheet) {
 
 /// TODO(prose): shadcn's `slider` in `style-lyra.css`, dark.
 pub(crate) fn dark(s: &mut Sheet) {
-    use SliderPart::*;
+    use slider::Part::*;
     s.replace(Root, |t, _| {
         t
             .from(SLIDER, 33, "relative")

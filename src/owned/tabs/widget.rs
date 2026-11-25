@@ -28,8 +28,8 @@ use crate::overlay::{Nav, Wrap};
 use crate::owned::{
     Enablement, Mark,
     choice::{Choice, IntoChoice},
-    segmented::{Cell, SegmentedRows},
-    tabs::TabsPart,
+    segmented::{self, Cell},
+    tabs::Part,
 };
 use crate::{Builder, Key, Tw, tw};
 use egui::Role;
@@ -89,7 +89,7 @@ enum Activation {
 
 /// The nodes of a tabs control, under its key.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-enum Part {
+enum Node {
     List,
     Tab(usize),
     Panel(usize),
@@ -198,20 +198,20 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
             panel,
             handler: Changes(on_change),
         } = self;
-        let size = TabsPart::size_key(b, size.unwrap_or(b.control_size()));
+        let size = Part::size_key(b, size.unwrap_or(b.control_size()));
         let enablement = enablement.and(b.enablement());
         let selected = options.iter().position(|option| option.value == current);
-        let rows = SegmentedRows::One;
-        let root = b.part(TabsPart::Root, &[], tw());
+        let rows = segmented::Rows::One;
+        let root = b.part(Part::Root, &[], tw());
         b.div_id(key, root, |b| {
-            let panel_id = selected.map(|index| b.id_of(Part::Panel(index)));
+            let panel_id = selected.map(|index| b.id_of(Node::Panel(index)));
             let track = b.part(
-                TabsPart::List,
-                &TabsPart::list_keys(size, rows, enablement),
+                Part::List,
+                &Part::list_keys(size, rows, enablement),
                 tw().sense_hover().merge(list),
             );
             let tabs = b
-                .div_id(Part::List, track, |b| {
+                .div_id(Node::List, track, |b| {
                     for (index, option) in options.iter().enumerate() {
                         let own = enablement.and(option.enablement).and(match option.refusal {
                             Some(_) => Enablement::Disabled,
@@ -223,16 +223,16 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                             Cell::Released
                         };
                         let classes = b.part(
-                            TabsPart::Trigger,
-                            &TabsPart::trigger_keys(size, rows, cell, own),
+                            Part::Trigger,
+                            &Part::trigger_keys(size, rows, cell, own),
                             match own {
                                 Enablement::Enabled => tw().sense_click().text_center(),
                                 Enablement::Disabled => tw().sense_click().text_center().inert(),
                             },
                         );
                         let tab = match &option.icon {
-                            None => b.span(Part::Tab(index), classes, option.label.clone()),
-                            Some(glyph) => b.div_id(Part::Tab(index), classes, |b| {
+                            None => b.span(Node::Tab(index), classes, option.label.clone()),
+                            Some(glyph) => b.div_id(Node::Tab(index), classes, |b| {
                                 b.glyph(tw(), glyph.clone());
                                 b.text(tw(), option.label.clone());
                             }),
@@ -268,8 +268,8 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                     .get(index)
                     .map(|option| option.label.clone())
                     .unwrap_or_default();
-                let content = b.part(TabsPart::Content, &[], tw().sense_hover().merge(panel));
-                b.div_id(Part::Panel(index), content, |b| build(b, current))
+                let content = b.part(Part::Content, &[], tw().sense_hover().merge(panel));
+                b.div_id(Node::Panel(index), content, |b| build(b, current))
                     .role(Role::TabPanel)
                     .named(label);
             }

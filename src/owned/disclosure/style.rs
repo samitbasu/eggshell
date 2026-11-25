@@ -12,7 +12,7 @@ use egui::Color32;
 /// in points.
 ///
 /// ```
-/// use eggshell_ui::owned::disclosure::DisclosureStyle;
+/// use eggshell_ui::owned::disclosure::Style;
 ///
 /// let mut style = eggshell_ui::Style::default();
 /// let mut look = style.disclosure.clone();
@@ -22,7 +22,7 @@ use egui::Color32;
 /// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct DisclosureStyle {
+pub struct Style {
     /// A section header's chevron.
     pub section: Glyph,
     /// A disclosure button's chevron.
@@ -100,7 +100,7 @@ pub enum Hover {
     None,
 }
 
-impl DisclosureStyle {
+impl Style {
     /// TODO(prose): headers in the style's text, medium, with a muted
     /// `chevron-down` that turns over trailing a section's title and a
     /// `chevron-right` that turns down in a disclosure button.

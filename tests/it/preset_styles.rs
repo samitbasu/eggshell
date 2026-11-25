@@ -3,10 +3,7 @@
 
 use eggshell_ui::Tw;
 use eggshell_ui::contract::{Size, Style, TextScale, TextSize, TextStep, Variant};
-use eggshell_ui::owned::{
-    Enablement, button::ButtonPart, input::InputPart, segmented::SegmentedRows, slider::SliderPart,
-    tabs::TabsPart,
-};
+use eggshell_ui::owned::{Enablement, button, input, segmented, slider, tabs};
 use eggshell_ui::sheet::Key;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Theme, vec2};
@@ -18,7 +15,7 @@ fn style_of(theme: Theme, style: ShadcnStyle) -> Style {
 /// The classes `style`'s sheet gives a button of `variant` and `size`.
 fn button(style: &Style, variant: Variant, size: Size) -> Tw {
     style.sheet.resolve(
-        ButtonPart::Root,
+        button::Part::Root,
         &[Key::Variant(variant), Key::Size(size)],
         &style.tokens,
     )
@@ -41,7 +38,7 @@ fn box_of(style: &Style, size: Size) -> (Option<f32>, u8) {
 fn field_of(style: &Style, size: Size) -> (f32, egui::Vec2, u8) {
     let classes = style
         .sheet
-        .resolve(InputPart::Root, &[Key::Size(size)], &style.tokens);
+        .resolve(input::Part::Root, &[Key::Size(size)], &style.tokens);
     let layout = classes.style_at(style.tokens.spacing);
     (
         layout.size.height.into_raw().value(),
@@ -125,7 +122,7 @@ fn both_styles_tint_the_destructive_button() {
 
 #[test]
 fn every_style_names_the_same_variants_and_sizes() {
-    let keys = |style: &Style| -> Vec<Key> { style.sheet.keys::<ButtonPart>().collect() };
+    let keys = |style: &Style| -> Vec<Key> { style.sheet.keys::<button::Part>().collect() };
     let vega = style_of(Theme::Light, ShadcnStyle::Vega);
     let lyra = style_of(Theme::Light, ShadcnStyle::Lyra);
     assert_eq!(keys(&vega), keys(&lyra));
@@ -205,15 +202,19 @@ fn slider_and_segmented_tracks_read_on_a_muted_panel() {
             );
             let track = s
                 .sheet
-                .resolve(SliderPart::Track, &[], &s.tokens)
+                .resolve(slider::Part::Track, &[], &s.tokens)
                 .paint_classes()
                 .background;
             assert_eq!(track, Some(tokens.input), "{theme:?} {style:?}");
             let list = s
                 .sheet
                 .resolve(
-                    TabsPart::List,
-                    &TabsPart::list_keys(Size::DEFAULT, SegmentedRows::One, Enablement::Enabled),
+                    tabs::Part::List,
+                    &tabs::Part::list_keys(
+                        Size::DEFAULT,
+                        segmented::Rows::One,
+                        Enablement::Enabled,
+                    ),
                     &s.tokens,
                 )
                 .paint_classes()
@@ -268,10 +269,11 @@ fn a_presets_control_text_is_the_step_its_generated_classes_name() {
             },
             egui::Color32::BLACK,
         );
-        let input =
-            style
-                .sheet
-                .resolve(InputPart::Root, &[Key::Size(Size::DEFAULT)], &style.tokens);
+        let input = style.sheet.resolve(
+            input::Part::Root,
+            &[Key::Size(Size::DEFAULT)],
+            &style.tokens,
+        );
         let button = button(&style, Variant::DEFAULT, Size::DEFAULT);
         for (part, classes) in [("input", input), ("button", button)] {
             assert_eq!(

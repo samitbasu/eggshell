@@ -9,9 +9,8 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::field::Session;
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::{
-    Chevron, Enablement, FieldHooks, Tip, button::ButtonPart, centered, described,
-    input::InputGroupPart, options, options::Gate, options::IntoTip, options::Validity, text_sized,
-    tip_describes, tipped_whole,
+    Chevron, Enablement, FieldHooks, Tip, button, centered, described, input, options,
+    options::Gate, options::IntoTip, options::Validity, text_sized, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Size, StepperStyle};
@@ -289,7 +288,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         } else {
             own
         };
-        let group = b.part(InputGroupPart::Root, &keys, own.merge(classes));
+        let group = b.part(input::GroupPart::Root, &keys, own.merge(classes));
         let tooltip = spec.tooltip.clone();
         let field_box = centered(text_sized(&b, metrics.text))
             .justify_start()
@@ -300,7 +299,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         control_keys.push(SheetKey::Attr("addon", "inline-end"));
         control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         control_keys.extend(invalid);
-        let control = b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
+        let control = b.part(
+            input::GroupPart::Input,
+            &control_keys,
+            tw().w_full().h_full(),
+        );
         let inner_radius =
             f32::from(metrics.radius) - super::input_frame(&style, b.size_of(size)).border_width;
         let button = |b: &mut Builder<'_, '_, A>, at_end: bool, corner: fn(Tw, f32) -> Tw| {
@@ -333,8 +336,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             };
             // Square but the outer corner, which egui cannot clip to the group's.
             let own = corner(own.rounded_px(0.0), inner_radius);
-            b.part(ButtonPart::Root, &keys, tw())
-                .merge(b.part(InputGroupPart::Button, &[], own))
+            b.part(button::Part::Root, &keys, tw()).merge(b.part(
+                input::GroupPart::Button,
+                &[],
+                own,
+            ))
         };
         let (up, down) = (
             button(&mut b, value >= high, Tw::rounded_tr_px),
@@ -357,7 +363,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                     .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
                 let buttons = b.part(
-                    InputGroupPart::Addon,
+                    input::GroupPart::Addon,
                     &[
                         SheetKey::Attr("align", "inline-end"),
                         SheetKey::Attr(STEPPER.0, STEPPER.1),
@@ -411,17 +417,17 @@ const STEPPER: (&str, &str) = ("stepper", "true");
 pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &StepperStyle) {
     use crate::sheet::When;
     let marked = || When::always().attr(STEPPER.0, STEPPER.1);
-    sheet.rule_when(InputGroupPart::Root, marked(), |t, k| {
+    sheet.rule_when(input::GroupPart::Root, marked(), |t, k| {
         t.gap_px(1.0).divide_x(1.0, k.input)
     });
-    sheet.rule_when(InputGroupPart::Addon, marked(), |t, k| {
+    sheet.rule_when(input::GroupPart::Addon, marked(), |t, k| {
         t.p(0.0)
             .gap_px(1.0)
             .divide_y(1.0, k.input)
             .text(k.foreground)
     });
     for size in stepper.sizes.keys() {
-        sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, k| {
+        sheet.rule_when(input::GroupPart::Input, marked().size(size), move |t, k| {
             t.pl_px(value_inset(k, size))
         });
     }

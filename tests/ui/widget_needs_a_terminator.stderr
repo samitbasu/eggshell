@@ -39,7 +39,7 @@ help: use `let _ = ...` to ignore the resulting value
 7 |     let _ = b.switch("switch", "Alerts", false);
   |     +++++++
 
-error: unused `RadioGroupChain` that must be used
+error: unused `eggshell_ui::owned::radio::Chain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:8:5
   |
 8 |     b.radio_group("radio", 0, [(0, "Zero")]);

@@ -102,7 +102,7 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     look("stepper button", &style.stepper.button.paint);
     let item = crate::support::part_at(
         style,
-        eggshell_ui::owned::menu::MenuPart::Item,
+        eggshell_ui::owned::menu::Part::Item,
         &[
             eggshell_ui::sheet::Key::Variant(Variant::DEFAULT),
             eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled),
@@ -125,18 +125,9 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     }
     let disabled = [eggshell_ui::sheet::Key::Aria(eggshell_ui::Aria::Disabled)];
     for (name, part) in [
-        (
-            "slider track",
-            eggshell_ui::owned::slider::SliderPart::Track,
-        ),
-        (
-            "slider range",
-            eggshell_ui::owned::slider::SliderPart::Range,
-        ),
-        (
-            "slider thumb",
-            eggshell_ui::owned::slider::SliderPart::Thumb,
-        ),
+        ("slider track", eggshell_ui::owned::slider::Part::Track),
+        ("slider range", eggshell_ui::owned::slider::Part::Range),
+        ("slider thumb", eggshell_ui::owned::slider::Part::Thumb),
     ] {
         let classes = crate::support::part_at(style, part, &disabled);
         let paint = classes.paint_classes();
@@ -215,7 +206,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     style
         .sheet
         .as_app()
-        .rule(eggshell_ui::owned::input::InputPart::Root, move |t, _| {
+        .rule(eggshell_ui::owned::input::Part::Root, move |t, _| {
             t.bg(c(10))
                 .border(3.0)
                 .border_color(c(20))
@@ -259,9 +250,9 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
 
 #[test]
 fn the_input_frame_is_drawn_from_the_sheets_rule() {
-    use eggshell_ui::owned::input::InputPart;
+    use eggshell_ui::owned::input;
     let mut style = Style::default();
-    style.sheet.as_app().rule(InputPart::Root, |t, _| {
+    style.sheet.as_app().rule(input::Part::Root, |t, _| {
         t.bg(Color32::from_rgb(1, 2, 3))
             .border_color(Color32::from_rgb(4, 5, 6))
     });
