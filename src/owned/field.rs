@@ -39,6 +39,8 @@ pub enum Part {
     Title,
     /// TODO(prose): a card's description.
     Description,
+    /// TODO(prose): a form section's title.
+    Legend,
 }
 
 impl crate::sheet::Part for Part {
@@ -47,6 +49,7 @@ impl crate::sheet::Part for Part {
     fn slot(self) -> &'static str {
         match self {
             Self::Root => "field",
+            Self::Legend => "field-legend",
             Self::Label => "field-label",
             Self::Content => "field-content",
             Self::Title => "field-title",

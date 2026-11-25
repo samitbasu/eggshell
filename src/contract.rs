@@ -1200,7 +1200,6 @@ impl<T> Themed<T> {
 /// sections it follows.
 #[cfg(any(
     feature = "badge",
-    feature = "form",
     feature = "hover-card",
     feature = "notify",
     feature = "skeleton",
@@ -1209,20 +1208,15 @@ impl<T> Themed<T> {
 pub(crate) struct Base<'a> {
     #[cfg(any(
         feature = "badge",
-        feature = "form",
         feature = "hover-card",
         feature = "notify",
         feature = "skeleton"
     ))]
     pub tokens: &'a Tokens,
-    #[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
+    #[cfg(any(feature = "badge", feature = "notify"))]
     pub text: &'a TextSpec,
-    #[cfg(any(feature = "badge", feature = "form", feature = "spinner"))]
+    #[cfg(any(feature = "badge", feature = "spinner"))]
     pub toggle: &'a ToggleStyle,
-    #[cfg(feature = "form")]
-    pub label: &'a States,
-    #[cfg(feature = "form")]
-    pub slider: &'a SliderStyle,
     #[cfg(any(feature = "hover-card", feature = "notify"))]
     pub menu: &'a MenuStyle,
     #[cfg(feature = "hover-card")]
@@ -1237,10 +1231,6 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    // #497 stage 5: read only by extras' form and markdown.
-    /// The text beside a checkbox, radio button or switch; only `rest` and
-    /// `disabled` apply.
-    pub label: States,
     /// TODO(prose): toggle buttons.
     pub toggle: ToggleStyle,
     /// Checkboxes.
@@ -1297,9 +1287,6 @@ pub struct Style {
     /// TODO(prose): disclosures and accordions.
     #[cfg(feature = "disclosure")]
     pub disclosure: crate::owned::disclosure::Style,
-    /// TODO(prose): form sections.
-    #[cfg(feature = "form")]
-    pub form: crate::owned::form::Style,
     /// TODO(prose): hover cards.
     #[cfg(feature = "hover-card")]
     pub hover_card: crate::owned::hover_card::Style,
@@ -1573,7 +1560,6 @@ impl Style {
             },
         };
         let text = t.text_role();
-        let label = States::still(flat(clear, t.foreground), t.background);
         let select = SelectStyle {
             sizes: Keyed::new(Size::DEFAULT, control)
                 .with(size::SM, small(control))
@@ -1614,7 +1600,6 @@ impl Style {
         };
         #[cfg(any(
             feature = "badge",
-            feature = "form",
             feature = "hover-card",
             feature = "notify",
             feature = "skeleton",
@@ -1623,20 +1608,15 @@ impl Style {
         let base = Base {
             #[cfg(any(
                 feature = "badge",
-                feature = "form",
                 feature = "hover-card",
                 feature = "notify",
                 feature = "skeleton"
             ))]
             tokens: t,
-            #[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
+            #[cfg(any(feature = "badge", feature = "notify"))]
             text: &text,
-            #[cfg(any(feature = "badge", feature = "form", feature = "spinner"))]
+            #[cfg(any(feature = "badge", feature = "spinner"))]
             toggle: &toggle,
-            #[cfg(feature = "form")]
-            label: &label,
-            #[cfg(feature = "form")]
-            slider: &slider,
             #[cfg(any(feature = "hover-card", feature = "notify"))]
             menu: &menu,
             #[cfg(feature = "hover-card")]
@@ -1651,8 +1631,6 @@ impl Style {
         let badge = crate::theme::Shadcn::badge(t, &base);
         #[cfg(feature = "disclosure")]
         let disclosure = crate::theme::Shadcn::disclosure(t);
-        #[cfg(feature = "form")]
-        let form = crate::theme::Shadcn::form(t, &base);
         #[cfg(feature = "hover-card")]
         let hover_card = crate::theme::Shadcn::hover_card(t, &base);
         #[cfg(feature = "markdown")]
@@ -1669,7 +1647,6 @@ impl Style {
                 .font
                 .as_ref()
                 .map_or_else(Faces::egui_regular, crate::theme::FontSet::declared),
-            label,
             toggle,
             checkbox,
             radio,
@@ -1787,8 +1764,6 @@ impl Style {
             badge,
             #[cfg(feature = "disclosure")]
             disclosure,
-            #[cfg(feature = "form")]
-            form,
             #[cfg(feature = "hover-card")]
             hover_card,
             #[cfg(feature = "markdown")]
@@ -1833,6 +1808,8 @@ impl Style {
         crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
         #[cfg(feature = "badge")]
         crate::owned::badge::write_exceptions(&mut self.sheet);
+        #[cfg(feature = "form")]
+        crate::owned::form::write_exceptions(&mut self.sheet);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

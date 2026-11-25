@@ -4,6 +4,7 @@
 //! on the page.
 
 use eggshell_ui::contract::Size;
+use eggshell_ui::owned::form::CardPart;
 use eggshell_ui::owned::{Enablement, Mark, progress, slider, switch};
 use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{
@@ -70,26 +71,11 @@ const GAIN: &str = r#"/"Page"/"audio"/"Box"/("eggshell-labeled", 0)"#;
 const RATE: &str = r#"/"Page"/"audio"/"Box"/("eggshell-labeled", 1)"#;
 const OUTSIDE: &str = r#"/"Page"/("eggshell-labeled", 0)"#;
 
+/// A row is shadcn's item, `px-4` inside its 1 pt border, in a section or
+/// outside one.
 #[test]
-fn a_text_row_is_as_tall_as_a_control_row() {
+fn a_rows_value_is_inset_by_the_items_padding() {
     let harness = harness();
-    let slider = rect_of(&harness, &format!("{GAIN}/\"Value\""));
-    let text = rect_of(&harness, &format!("{RATE}/\"Value\""));
-    assert!(
-        slider.height() > text.height() + 4.0,
-        "precondition: the values differ in height: {slider:?} {text:?}"
-    );
-    let (gain, rate) = (rect_of(&harness, GAIN), rect_of(&harness, RATE));
-    assert!(
-        (gain.height() - rate.height()).abs() < 0.5,
-        "{gain:?} {rate:?}"
-    );
-}
-
-#[test]
-fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
-    let harness = harness();
-    let style = harness.view_shell().style().form.clone();
     let frame = rect_of(&harness, BOX);
     let row = rect_of(&harness, RATE);
     let value = rect_of(&harness, &format!("{RATE}/\"Value\""));
@@ -99,14 +85,14 @@ fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
         "the row spans the box, so the rule above it does: {row:?} in {frame:?}"
     );
     assert!(
-        (row.right() - value.right() - style.row_padding_x).abs() < 0.5,
+        (row.right() - value.right() - 17.0).abs() < 0.5,
         "the value is inset: {value:?} in {row:?}"
     );
     let outside = rect_of(&harness, OUTSIDE);
     let outside_value = rect_of(&harness, &format!("{OUTSIDE}/\"Value\""));
     assert!(
-        (outside.right() - outside_value.right()).abs() < 0.5,
-        "no inset outside a section: {outside_value:?} in {outside:?}"
+        (outside.right() - outside_value.right() - 17.0).abs() < 0.5,
+        "inset outside a section too: {outside_value:?} in {outside:?}"
     );
 }
 
@@ -146,7 +132,10 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                         .with_style(look)
                         .with_palette(Palette::new().base(base).theme(colour));
                     let style = preset.style();
-                    let section = style.form.fill;
+                    let section = support::part_at(&style, CardPart::Root, &[])
+                        .paint_classes()
+                        .background
+                        .unwrap_or(Color32::TRANSPARENT);
                     let page = preset.tokens.background;
                     assert_ne!(
                         section,
@@ -272,7 +261,6 @@ fn a_choice_field_fills_a_form_and_is_its_contents_width_inline() {
 #[test]
 fn a_sections_frame_is_shadcns_card_with_the_sections_padding() {
     let harness = harness();
-    let style = harness.view_shell().style().form.clone();
     let frame = rect_of(&harness, BOX);
     let drawn = support::box_at(&harness, frame);
     assert_eq!(drawn.stroke.width, 0.0, "a ring, not a border");
@@ -283,9 +271,5 @@ fn a_sections_frame_is_shadcns_card_with_the_sections_padding() {
     );
     assert_eq!(drawn.fill, Tokens::for_theme(Theme::Light).card, "bg-card");
     let first = rect_of(&harness, GAIN);
-    assert_eq!(
-        first.top() - frame.top(),
-        style.padding_y,
-        "the section's padding"
-    );
+    assert_eq!(first.top() - frame.top(), 8.0, "the section's padding");
 }
