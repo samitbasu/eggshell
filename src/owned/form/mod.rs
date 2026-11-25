@@ -29,7 +29,7 @@
 mod style;
 
 use crate::owned::FieldPart;
-use crate::sheet::{Defaults, Part};
+use crate::sheet::Part;
 use crate::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
@@ -136,11 +136,6 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             rules,
         } = self;
         let style = b.style().form.clone();
-        let surface = tw()
-            .bg(style.fill)
-            .border(style.border_width)
-            .border_color(style.border)
-            .rounded_px(f32::from(style.radius));
         // Recorded exception (#446): the section keeps its own padding and
         // row spacing, not the card's `py`/`gap`, which space a card's
         // header, content and footer.
@@ -153,7 +148,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
         if rules == Rules::Between {
             own = own.divide_y(style.rule_width, style.rule);
         }
-        let frame = b.part_over(CardPart::Root, &[], Defaults(surface), own);
+        let frame = b.part(CardPart::Root, &[], own);
         let section = b.div_id(key, tw().flex().flex_col().sense_hover(), |b| {
             if let Some(title) = &title {
                 b.text(

@@ -1,7 +1,7 @@
 //! How dialogs, sheets and popovers look.
 
 use crate::contract::{Size, Variant};
-use crate::{TextSpec, Tw, Weight, tw};
+use crate::{TextSpec, Weight};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -75,20 +75,6 @@ impl Surface {
         Self {
             shadow: Some(shadow),
             ..self
-        }
-    }
-
-    /// The classes that paint the box, with its border on every side.
-    pub(super) fn classes(&self) -> Tw {
-        let classes = tw()
-            .bg(self.fill)
-            .text(self.text)
-            .border(self.border_width)
-            .border_color(self.border)
-            .rounded_px(f32::from(self.radius));
-        match self.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
         }
     }
 }

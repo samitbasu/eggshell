@@ -22,18 +22,6 @@ pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
     keyed.get(key)
 }
 
-#[cfg(any(feature = "command", feature = "markdown"))]
-/// The border colour `style`'s sheet gives a text field at rest.
-pub(crate) fn input_border(style: &crate::Style) -> egui::Color32 {
-    style
-        .sheet
-        .resolve(crate::owned::InputPart::Root, &[], &style.tokens)
-        .paint_classes()
-        .border_colors
-        .top
-        .unwrap_or(egui::Color32::TRANSPARENT)
-}
-
 #[cfg(any(
     feature = "command",
     feature = "dialog",
@@ -43,6 +31,7 @@ pub(crate) fn input_border(style: &crate::Style) -> egui::Color32 {
     feature = "skeleton"
 ))]
 /// TODO(prose): the box a widget draws as `style`'s menus draw theirs: the popover's colours and shadow from the tokens, a 1 pt border, and the radius of the sheet's menu box.
+#[derive(Clone, Copy)]
 pub(crate) struct Popover {
     pub colors: crate::contract::Colors,
     pub border_width: f32,

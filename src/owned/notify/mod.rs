@@ -441,12 +441,7 @@ fn card<A: 'static, Act: Clone + 'static>(
     handlers: &Handlers<A, Act>,
 ) {
     let id = notice.id;
-    let classes = s.part_over(
-        NotifyPart::Toast,
-        &[],
-        crate::sheet::Defaults(look.card()),
-        tw(),
-    );
+    let classes = s.part(NotifyPart::Toast, &[], tw());
     let card = s.div_id(id, classes, |s| {
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
@@ -509,4 +504,13 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
         before
     });
     now || before
+}
+
+/// Writes the notice's recorded exception: its card, sonner's toast, which
+/// the generated look does not carry, from `notify`.
+pub(crate) fn write_exceptions(notify: &NotifyStyle, sheet: &mut crate::sheet::Sheet) {
+    let notify = std::sync::Arc::new(notify.clone());
+    sheet.rule_under(NotifyPart::Toast, move |_, _| {
+        look::Look::new(notify.clone()).card()
+    });
 }

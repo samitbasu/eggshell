@@ -151,10 +151,9 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
         let name = name.unwrap_or_else(|| "Loading".to_owned());
         // The size is the widget's, from its size's entry (#348), over the
         // sheet's `size-4`.
-        let classes = b.part_over(
+        let classes = b.part(
             SpinnerPart::Root,
             &[],
-            crate::sheet::Defaults(tw()),
             tw().size_px(side)
                 .shrink_0()
                 .sense_hover()

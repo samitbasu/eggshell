@@ -7,11 +7,11 @@ use crate::owned::{Enablement, Face};
 use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 
-use crate::sheet::{Defaults, Key as SheetKey};
+use crate::sheet::Key as SheetKey;
 
 use super::{
-    AccordionPart, ChangeFn, DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron,
-    chevron_classes, enablement_in, name_of, toggled,
+    AccordionPart, ChangeFn, DisclosureStyle, OnChange, Unset, chevron, enablement_in, name_of,
+    toggled,
 };
 
 /// The parts of a section, under its key.
@@ -181,7 +181,6 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             membership,
             header_children,
         } = self;
-        let _ctx = b.ctx().clone();
         let style = b.style().disclosure.clone();
         let enablement = enablement_in(b, enablement);
         let name = name_of(&face).to_owned();
@@ -197,18 +196,8 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             on_change,
         };
         let keys = keys_of(enablement);
-        let content = b.part_over(
-            AccordionPart::ContentInner,
-            &[],
-            Defaults(tw().pb_px(style.content_padding_bottom)),
-            content,
-        );
-        let item = b.part_over(
-            AccordionPart::Item,
-            keys,
-            Defaults(tw()),
-            tw().flex().flex_col(),
-        );
+        let content = b.part(AccordionPart::ContentInner, &[], content);
+        let item = b.part(AccordionPart::Item, keys, tw().flex().flex_col());
         b.div_id(key, item, |b| {
             let region = b.id_of(Part::Region);
             let region_classes = if current.is_open() {
@@ -216,8 +205,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             } else {
                 tw()
             };
-            let region_classes =
-                b.part_over(AccordionPart::Content, keys, Defaults(tw()), region_classes);
+            let region_classes = b.part(AccordionPart::Content, keys, region_classes);
             b.collapsible(Part::Region, current)
                 .classes(region_classes)
                 .content(content)
@@ -254,39 +242,15 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             current,
             on_change,
         } = self;
-        let header = &style.header;
-        let mut look = box_classes(style, enablement)
-            .flex()
-            .items_start()
-            .justify_between()
-            .gap_px(header.gap)
-            .py_px(header.padding_y)
-            .role(header.text.clone());
-        if enablement == Enablement::Enabled {
-            look = match header.hover {
-                Hover::Underline => look.hover(|paint| paint.underline()),
-                Hover::Tint(fill) => look.hover(|paint| paint.bg(fill)),
-                Hover::None => look,
-            };
-        }
         let sense = match enablement {
             Enablement::Enabled => tw().sense_click(),
             Enablement::Disabled => tw().sense_click().inert(),
         };
         let keys = keys_of(enablement);
-        let box_classes = b.part_over(AccordionPart::Trigger, keys, Defaults(look), sense);
+        let box_classes = b.part(AccordionPart::Trigger, keys, sense);
         let name = name_of(&face).to_owned();
         let glyph = chevron(&style.section, open);
-        let glyph_classes = b.part_over(
-            AccordionPart::TriggerIcon,
-            keys,
-            Defaults(
-                chevron_classes(style, &style.section)
-                    .mt_px(style.nudge)
-                    .mb_px(-style.nudge),
-            ),
-            tw(),
-        );
+        let glyph_classes = b.part(AccordionPart::TriggerIcon, keys, tw());
         let handle = b
             .div_id(Part::Header, box_classes.merge(classes), |b| {
                 b.div(

@@ -25,7 +25,7 @@ mod chip;
 mod style;
 
 use crate::contract::{Look, Variant};
-use crate::sheet::{Defaults, Key as SheetKey, Part};
+use crate::sheet::{Key as SheetKey, Part};
 use crate::{Builder, Icon, Key, Tw, tw};
 
 /// TODO(prose): a badge's anatomy for the style's sheet: shadcn's `badge`.
@@ -37,6 +37,13 @@ use crate::{Builder, Icon, Key, Tw, tw};
 pub enum BadgePart {
     /// TODO(prose): the badge.
     Root,
+}
+
+/// Whether a badge's root takes clicks, as a chip that is a button does.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Root {
+    Static,
+    Clickable,
 }
 
 impl Part for BadgePart {
@@ -133,6 +140,11 @@ enum End {
 impl Face {
     /// The look of the face's variant, else the style's default.
     #[track_caller]
+    /// Reports a variant `style` does not define.
+    fn check_variant(&self, ctx: &egui::Context, style: &BadgeStyle) {
+        crate::owned::styles::entry(ctx, &style.variants, self.variant(style));
+    }
+
     fn look(&self, ctx: &egui::Context, style: &BadgeStyle) -> Look {
         *crate::owned::styles::entry(ctx, &style.variants, self.variant(style))
     }
@@ -147,56 +159,26 @@ impl Face {
         style.variants.key_for(self.variant(style))
     }
 
-    /// The badge's classes: `own`, its look, as the defaults of its part,
-    /// under the style's sheet, then `call_site` and the caller's over them.
+    /// The badge's classes: the style's sheet, then `call_site` and the
+    /// caller's over them.
     #[track_caller]
     fn part<A>(
         &mut self,
         b: &mut Builder<'_, '_, A>,
         style: &BadgeStyle,
-        (own, link): (Tw, bool),
+        root: Root,
         call_site: Tw,
     ) -> Tw {
         let mut keys = vec![SheetKey::Variant(self.drawn(style))];
-        let stop = match link {
-            true => {
+        let stop = match root {
+            Root::Clickable => {
                 keys.push(SheetKey::Attr(LINK.0, LINK.1));
                 tw().sense_click()
             }
-            false => tw(),
+            Root::Static => tw(),
         };
         let caller = std::mem::replace(&mut self.options.classes, tw());
-        b.part_over(
-            BadgePart::Root,
-            &keys,
-            Defaults(own),
-            stop.merge(call_site).merge(caller),
-        )
-    }
-
-    /// The classes that size and lay out the face's box, before its colours.
-    fn frame(&self, style: &BadgeStyle, end: End) -> Tw {
-        let start = match self.options.icon {
-            Some(_) => style.icon_padding,
-            None => style.padding_x,
-        };
-        let end = match end {
-            End::Label => style.padding_x,
-            End::Remove => style.remove.padding_end,
-        };
-        tw().flex()
-            .items_center()
-            .justify_center()
-            .w_fit()
-            .shrink_0()
-            .h_px(style.height)
-            .pl_px(start)
-            .pr_px(end)
-            .gap_px(style.gap)
-            .rounded_px(f32::from(style.radius))
-            .role(style.text.clone())
-            .whitespace_nowrap()
-            .select_none()
+        b.part(BadgePart::Root, &keys, stop.merge(call_site).merge(caller))
     }
 
     /// Builds the icon and the label.
@@ -253,15 +235,8 @@ impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
     pub fn add(self) {
         let Self { b, key, mut face } = self;
         let style = b.style().badge.clone();
-        let look = face.look(b.ctx(), &style);
-        let rest = look.paint.states.rest;
-        let own = face
-            .frame(&style, End::Label)
-            .border(look.border_width)
-            .bg(rest.fill)
-            .border_color(rest.border)
-            .text(rest.text);
-        let classes = face.part(b, &style, (own, false), tw());
+        face.check_variant(b.ctx(), &style);
+        let classes = face.part(b, &style, Root::Static, tw());
         b.div_id(key, classes, |s| face.content(s, &style));
     }
 }

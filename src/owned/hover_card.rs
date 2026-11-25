@@ -41,7 +41,7 @@ use core::time::Duration;
 
 use crate::contract::Look;
 use crate::overlay::{Align, Distance, HoverIntent, Placement};
-use crate::sheet::{Defaults, Part};
+use crate::sheet::Part;
 use crate::{Builder, Key, Scope, Tw, tw};
 
 /// TODO(prose): the anatomy of a hover card for the style's sheet: shadcn's
@@ -103,23 +103,6 @@ impl HoverCardStyle {
             width: 256.0,
             offset: style.menu.offset,
             transition: style.motion.popover.enter,
-        }
-    }
-
-    /// The look of the card's box, the widget's own.
-    fn classes(&self) -> Tw {
-        let colors = self.look.paint.states.rest;
-        let classes = tw()
-            .w_px(self.width)
-            .p_px(self.padding)
-            .border(self.look.border_width)
-            .border_color(colors.border)
-            .bg(colors.fill)
-            .text(colors.text)
-            .rounded_px(f32::from(self.radius));
-        match self.look.paint.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
         }
     }
 
@@ -248,12 +231,7 @@ where
                 .exit_transition(style.transition)
                 .placement(placement)
                 .children(|c| {
-                    let card = c.part_over(
-                        HoverCardPart::Content,
-                        &[],
-                        Defaults(style.classes()),
-                        tw().flex().flex_col(),
-                    );
+                    let card = c.part(HoverCardPart::Content, &[], tw().flex().flex_col());
                     c.div_id("Box", card, |c| content(c));
                 });
         });

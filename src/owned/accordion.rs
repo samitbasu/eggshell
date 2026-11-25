@@ -29,8 +29,6 @@ use crate::overlay::{Nav, Shown, Wrap};
 use crate::owned::{Enablement, Face};
 use crate::{Builder, Key, Scope, Tw, tw};
 
-use crate::sheet::Defaults;
-
 use crate::owned::disclosure::SectionExt;
 
 /// What an accordion runs with what a header asked for.
@@ -225,10 +223,9 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        let column = b.part_over(
+        let column = b.part(
             crate::owned::disclosure::AccordionPart::Root,
             &[],
-            Defaults(tw()),
             column.merge(classes),
         );
         b.div_id(key, column, |b| {

@@ -74,11 +74,9 @@ impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
         let style = self.style().skeleton.clone();
         let opacity = cycle(self.ctx(), style.period)
             .map_or(Opacity::OPAQUE, |phase| pulse(phase, style.low));
-        let look = tw().bg(style.fill).rounded_px(f32::from(style.radius));
-        let styled = self.part_over(
+        let styled = self.part(
             SkeletonPart::Root,
             &[],
-            crate::sheet::Defaults(look),
             tw().shrink_0().opacity(opacity).merge(classes),
         );
         self.div(styled, |_| {});

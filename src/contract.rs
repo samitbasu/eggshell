@@ -1863,6 +1863,10 @@ impl Style {
             let disclosure = crate::owned::disclosure::DisclosureStyle::from_base(&self.base());
             crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
         }
+        #[cfg(feature = "command")]
+        crate::owned::command::write_exceptions(self);
+        #[cfg(feature = "notify")]
+        crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

@@ -50,16 +50,22 @@ fn base() -> TextStyle {
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     let classes = tw().w_px(WIDTH).h_px(HEIGHT);
-    let classes = match app.bar {
-        Bar::Default => classes,
-        Bar::None => classes.scrollbar_none(),
-        Bar::FromSheet => b.part_over(
-            Lane,
-            &[],
-            eggshell_ui::sheet::Defaults(tw().scrollbar_none()),
-            classes,
+    match app.bar {
+        Bar::Default => list(b, classes),
+        Bar::None => list(b, classes.scrollbar_none()),
+        Bar::FromSheet => b.styled(
+            |style| {
+                style.sheet.rule(Lane, |t, _| t.scrollbar_none());
+            },
+            |b| {
+                let classes = b.part(Lane, &[], classes);
+                list(b, classes);
+            },
         ),
-    };
+    }
+}
+
+fn list(b: &mut Builder<'_, '_, App>, classes: eggshell_ui::Tw) {
     b.scroll("list", classes).children(|s| {
         s.div_id(
             "row",

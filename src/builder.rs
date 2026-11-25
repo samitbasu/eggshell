@@ -273,60 +273,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         keys: &[crate::sheet::Key],
         call_site: Tw,
     ) -> Tw {
-        self.part_over(part, keys, crate::sheet::Defaults(Tw::blank()), call_site)
-    }
-
-    // #497 stage 5: delete, with Layer::Defaults and sheet::Defaults, when
-    // the extensions' looks are sheet rules.
-    /// TODO(prose): [`part`](Self::part), with `defaults`, the widget's own
-    /// look for the part, under every layer of the sheet: the widgets'
-    /// defaults, which a rule that replaces the part's lower layers, such as
-    /// a generated look, replaces too. The inspector shows them as the
-    /// defaults layer, at the widget's own lines.
-    ///
-    /// TODO(prose): for the extension crates only, and only until their looks
-    /// are sheet rules; core's widgets draw from the sheet alone.
-    ///
-    /// ```
-    /// use eggshell_ui::sheet::{Defaults, Part};
-    /// use eggshell_ui::{Builder, tw};
-    ///
-    /// #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    /// enum ChipPart {
-    ///     Root,
-    /// }
-    ///
-    /// impl Part for ChipPart {
-    ///     const SOURCE: &'static str = "chip.tsx";
-    ///     fn slot(self) -> &'static str {
-    ///         "chip"
-    ///     }
-    /// }
-    ///
-    /// fn chip(b: &mut Builder<'_, '_, ()>) {
-    ///     let classes = b.part_over(ChipPart::Root, &[], Defaults(tw().px(2.0)), tw());
-    ///     b.div(classes, |_| {});
-    /// }
-    /// ```
-    #[track_caller]
-    pub fn part_over<P: crate::sheet::Part>(
-        &mut self,
-        part: P,
-        keys: &[crate::sheet::Key],
-        defaults: crate::sheet::Defaults,
-        call_site: Tw,
-    ) -> Tw {
         let sheet = self.resolved_part(part, keys);
-        let base = match self.style.sheet.replaces(part, keys) {
-            true => sheet,
-            false => defaults
-                .0
-                .staged(crate::sheet::Layer::Defaults)
-                .merge(sheet),
-        };
         let said = keys
             .iter()
-            .fold(Tw::over_sheet(base), |classes, key| match *key {
+            .fold(Tw::over_sheet(sheet), |classes, key| match *key {
                 crate::sheet::Key::Aria(state) => classes.aria(state),
                 crate::sheet::Key::Attr(name, value) => classes.attr(name, value),
                 _ => classes,
