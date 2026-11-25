@@ -98,12 +98,7 @@ pub(super) fn document<'f, A: 'static, K: Key>(
             emit(s, blocks, context, Depth::default());
         });
     };
-    let style = &context.style;
-    if style.restyles() {
-        b.styled(|page| style.restyle(page), body);
-    } else {
-        body(b);
-    }
+    b.styled(|page| context.style.restyle(page), body);
 }
 
 /// How many lists the blocks are inside.

@@ -10,7 +10,7 @@ use crate::contract::Em;
 use crate::{TextSpec, Tracking, Tw, Weight};
 use egui::FontFamily;
 
-use super::style::{HeadingFlow, NarrowStyle, RichLook, Style};
+use super::style::{HeadingFlow, RichLook, Style};
 use super::{Level, Part};
 use crate::owned::table;
 use crate::sheet::Key as SheetKey;
@@ -117,7 +117,7 @@ impl Measure {
     }
 }
 
-/// Points in a Tailwind spacing unit, which [`Style`]'s lengths are in.
+/// Points in a Tailwind spacing unit, which the widget's spacing is in.
 const UNIT: f32 = 4.0;
 
 /// The attribute of a document's tables, which its table rules are under.
@@ -241,12 +241,12 @@ impl Typeset {
 
     /// TODO(prose): the Markdown widget's look in `style`: its parts' rules
     /// in `style`'s sheet, at the layer it writes at, in place of the ones
-    /// there, and the space between its blocks. Every length and weight is
-    /// derived from these parameters as typeset.css derives them, in the
-    /// style's colours.
+    /// there, and this typeset as the one the widget spaces its blocks by.
+    /// Every length and weight is derived from these parameters as
+    /// typeset.css derives them, in the style's colours.
     pub fn apply(&self, style: &mut crate::Style) {
         self.write_rules(&mut style.sheet);
-        style.markdown = self.flow(&style.tokens);
+        style.markdown = self.clone();
     }
 
     /// One `em` of an element `ratio` times the body's size, in units.
@@ -406,9 +406,20 @@ impl Typeset {
         }
     }
 
-    /// The space between a document's blocks, and its tables and rich text
-    /// in `t`'s colours.
-    pub(crate) fn flow(&self, t: &Tokens) -> Style {
+    /// The spacing and rich text of a document in a viewport `width` points
+    /// wide, in `t`'s colours, and which of the parts' rule sets is for it.
+    pub(super) fn at(&self, width: f32, t: &Tokens) -> (Style, Viewport) {
+        match self.narrow {
+            Some(narrow) if width < narrow.below => {
+                (self.scaled(narrow.scale).flow(t), Viewport::Narrow)
+            }
+            _ => (self.flow(t), Viewport::Any),
+        }
+    }
+
+    /// The space between a document's blocks, and its rich text in `t`'s
+    /// colours.
+    fn flow(&self, t: &Tokens) -> Style {
         let base = self.size;
         let em = |ratio: f32| self.em(ratio);
         let flow = |ratio: f32| self.flow * em(ratio);
@@ -429,17 +440,11 @@ impl Typeset {
             rule_gap: 2.4 * flow(1.0),
             headings,
             item_gap: em(0.5),
-            narrow: self.narrow.map(|narrow| {
-                Box::new(NarrowStyle {
-                    below: narrow.below,
-                    style: self.scaled(narrow.scale).flow(t),
-                })
-            }),
             // `a { color: inherit; font-weight: 500; text-decoration-color:
             // color-mix(currentColor 30%) }`; `:not(pre) > code { font-size:
             // 0.85em; border-radius: min(var(--radius) * 0.6, 0.35em);
             // padding: 0.125em 0.3em }`, in `em` of the code.
-            rich: Some(RichLook {
+            rich: RichLook {
                 link: t.foreground,
                 link_underline: t.foreground.gamma_multiply(0.3),
                 link_weight: Weight::Medium,
@@ -448,7 +453,7 @@ impl Typeset {
                 code_size: Em::new(INLINE_CODE),
                 code_padding_x: 0.3 * INLINE_CODE * base,
                 code_padding_y: 0.125 * INLINE_CODE * base,
-            }),
+            },
         }
     }
 }

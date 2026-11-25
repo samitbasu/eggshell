@@ -30,7 +30,7 @@ use crate::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
-pub use style::{HeadingFlow, NarrowStyle, RichLook, Style};
+use style::Style;
 pub use typeset::{Measure, Narrow, Typeset};
 
 /// TODO(prose): a Markdown document's anatomy for the style's sheet. shadcn
@@ -163,12 +163,9 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
         let parsed = parsed(&ctx, self.source);
         let doc = self.b.id_of(self.key.clone());
         report_malformed(&ctx, doc, &parsed.malformed);
-        let page = self.b.style().markdown.clone();
         let width = ctx.input_for(self.b.viewport(), |i| i.viewport_rect().width());
-        let (style, viewport) = match page.narrow {
-            Some(narrow) if width < narrow.below => (narrow.style, typeset::Viewport::Narrow),
-            _ => (page, typeset::Viewport::Any),
-        };
+        let page = self.b.style();
+        let (style, viewport) = page.markdown.at(width, &page.tokens);
         let context = build::Context {
             style: Arc::new(style),
             viewport,

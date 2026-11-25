@@ -39,7 +39,7 @@ fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
     d
 }
 
-fn style(d: &Driver<page::State>) -> markdown::Style {
+fn style(d: &Driver<page::State>) -> markdown::Typeset {
     d.shell().style().markdown.clone()
 }
 
