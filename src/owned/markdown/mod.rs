@@ -30,8 +30,8 @@ use crate::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
-pub use style::{HeadingFlow, RichLook, Style};
-pub use typeset::{Measure, Typeset};
+pub use style::{HeadingFlow, NarrowStyle, RichLook, Style};
+pub use typeset::{Measure, Narrow, Typeset};
 
 /// TODO(prose): a Markdown document's anatomy for the style's sheet. shadcn
 /// has no Markdown component: these are eggshell's, and [`Typeset`] writes
@@ -163,8 +163,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
         let parsed = parsed(&ctx, self.source);
         let doc = self.b.id_of(self.key.clone());
         report_malformed(&ctx, doc, &parsed.malformed);
+        let page = self.b.style().markdown.clone();
+        let width = ctx.input_for(self.b.viewport(), |i| i.viewport_rect().width());
+        let (style, viewport) = match page.narrow {
+            Some(narrow) if width < narrow.below => (narrow.style, typeset::Viewport::Narrow),
+            _ => (page, typeset::Viewport::Any),
+        };
         let context = build::Context {
-            style: Arc::new(self.b.style().markdown.clone()),
+            style: Arc::new(style),
+            viewport,
             links: Rc::new(build::Links::new(self.on_link, self.b.shell(), doc)),
             directives: self.directives,
             ctx,

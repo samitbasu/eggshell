@@ -618,7 +618,7 @@ fn markdown_dark() {
 fn markdown_in(name: &str, theme: egui::Theme) {
     snapshot_themed(
         name,
-        Vec2::new(720.0, 1640.0),
+        Vec2::new(720.0, 1840.0),
         (
             markdown::State::default(),
             markdown::layout,
@@ -633,7 +633,7 @@ fn markdown_in(name: &str, theme: egui::Theme) {
 /// with shadcn's own.
 #[test]
 fn typeset_article_light() {
-    typeset_of("typeset_article_light", typeset::Fixture::Article, 2600.0);
+    typeset_of("typeset_article_light", typeset::Fixture::Article, 2900.0);
 }
 
 #[test]
@@ -646,15 +646,30 @@ fn typeset_changelog_light() {
     typeset_of(
         "typeset_changelog_light",
         typeset::Fixture::Changelog,
-        1300.0,
+        1480.0,
     );
 }
 
 fn typeset_of(name: &str, fixture: typeset::Fixture, height: f32) {
+    typeset_at(name, fixture, Vec2::new(720.0, height));
+}
+
+/// shadcn's docs fixture in a viewport of 48rem and wider, where typeset
+/// sets the body at its plain size, not the narrow ×1.125 of the others.
+#[test]
+fn typeset_docs_wide_light() {
+    typeset_at(
+        "typeset_docs_wide_light",
+        typeset::Fixture::Docs,
+        Vec2::new(800.0, 5600.0),
+    );
+}
+
+fn typeset_at(name: &str, fixture: typeset::Fixture, size: Vec2) {
     let theme = egui::Theme::Light;
     snapshot_themed(
         name,
-        Vec2::new(720.0, height),
+        size,
         (
             typeset::State { fixture },
             typeset::layout,

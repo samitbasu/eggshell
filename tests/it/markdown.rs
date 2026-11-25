@@ -20,8 +20,12 @@ const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code an
 const CODE: &str = "fn main() {\n    println!(\"plain for now\");\n}";
 
 fn driver() -> Driver<page::State> {
-    driver_sized(vec2(720.0, 1700.0))
+    driver_sized(vec2(720.0, PAGE_HEIGHT))
 }
+
+/// Tall enough for the whole page, set at the narrow look: 720 pt is under
+/// shadcn's 48rem.
+const PAGE_HEIGHT: f32 = 2000.0;
 
 fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
     let mut d = support::driver(
@@ -43,10 +47,14 @@ fn tokens(d: &Driver<page::State>) -> eggshell_ui::theme::Tokens {
     d.shell().style().tokens.clone()
 }
 
-/// The text size the sheet gives a heading at `level` (`"1"` to `"6"`).
+/// The text size the sheet gives a heading at `level` (`"1"` to `"6"`), in
+/// the driver's narrow viewport.
 fn heading_size(d: &Driver<page::State>, level: &'static str) -> f32 {
     let style = d.shell().style();
-    let keys = [eggshell_ui::sheet::Key::Attr("level", level)];
+    let keys = [
+        eggshell_ui::sheet::Key::Attr("level", level),
+        eggshell_ui::sheet::Key::Attr("viewport", "narrow"),
+    ];
     support::part_at(&style, markdown::Part::Heading, &keys)
         .text_classes()
         .over(&common::base_text(Theme::Light))
@@ -73,7 +81,7 @@ fn filled(d: &Driver<page::State>, color: egui::Color32) -> Vec<Rect> {
 fn the_page_shows_every_text_block() {
     let d = driver();
     assert!(
-        d.rect(Target::suffix("/Page/Followed")).max.y < 1700.0,
+        d.rect(Target::suffix("/Page/Followed")).max.y < PAGE_HEIGHT,
         "precondition: the whole page is in view"
     );
     for text in [

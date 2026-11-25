@@ -10,9 +10,10 @@ use crate::contract::Em;
 use crate::{TextSpec, Tracking, Tw, Weight};
 use egui::FontFamily;
 
-use super::style::{HeadingFlow, RichLook, Style};
+use super::style::{HeadingFlow, NarrowStyle, RichLook, Style};
 use super::{Level, Part};
 use crate::owned::table;
+use crate::sheet::Key as SheetKey;
 use crate::sheet::{Sheet, When};
 use crate::theme::Tokens;
 
@@ -47,6 +48,31 @@ pub struct Typeset {
     pub flow: f32,
     /// TODO(prose): the line length.
     pub measure: Measure,
+    /// TODO(prose): larger text on a narrow screen; `None` keeps `size`
+    /// at every width.
+    pub narrow: Option<Narrow>,
+}
+
+/// TODO(prose): shadcn/typeset's larger body text below a viewport width:
+/// `.typeset { font-size: calc(var(--typeset-size) * 1.125); @media
+/// (min-width: 48rem) { font-size: var(--typeset-size) } }`. Everything else
+/// is in `em`, so it follows. The width is the viewport's, as a media query
+/// measures it, not the document's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Narrow {
+    /// TODO(prose): the viewport width, in points, below which the text is
+    /// larger.
+    pub below: f32,
+    /// TODO(prose): the body size there, as a multiple of `size`.
+    pub scale: f32,
+}
+
+impl Narrow {
+    /// shadcn's: ×1.125 below 48rem (768 points).
+    pub const SHADCN: Self = Self {
+        below: 768.0,
+        scale: 1.125,
+    };
 }
 
 impl Default for Typeset {
@@ -59,6 +85,7 @@ impl Default for Typeset {
             leading: 1.75,
             flow: 1.25,
             measure: Measure::Ch80,
+            narrow: Some(Narrow::SHADCN),
         }
     }
 }
@@ -95,6 +122,41 @@ const UNIT: f32 = 4.0;
 
 /// The attribute of a document's tables, which its table rules are under.
 pub(super) const TABLE: (&str, &str) = ("markdown", "true");
+
+/// The attribute the narrow look's rules are under.
+const NARROW: (&str, &str) = ("viewport", "narrow");
+
+/// Which viewport a set of the parts' rules is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Viewport {
+    Any,
+    Narrow,
+}
+
+impl Viewport {
+    fn when(self, when: When) -> When {
+        match self {
+            Self::Any => when,
+            Self::Narrow => when.attr(NARROW.0, NARROW.1),
+        }
+    }
+
+    /// The attribute a document's table says in this viewport.
+    pub(super) fn attr(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Any => None,
+            Self::Narrow => Some(NARROW),
+        }
+    }
+
+    /// The keys a document's nodes say in this viewport.
+    pub(super) fn keys(self) -> &'static [SheetKey] {
+        match self {
+            Self::Any => &[],
+            Self::Narrow => &[SheetKey::Attr(NARROW.0, NARROW.1)],
+        }
+    }
+}
 
 /// A code block's size, in `em` of the body.
 const CODE: f32 = 0.875;
@@ -208,17 +270,37 @@ impl Typeset {
     }
 
     pub(crate) fn write_rules(&self, sheet: &mut Sheet) {
+        self.write_set(sheet, Viewport::Any);
+        if let Some(narrow) = self.narrow {
+            self.scaled(narrow.scale).write_set(sheet, Viewport::Narrow);
+        }
+    }
+
+    /// This typeset at `scale` times its size, without a narrow look of its
+    /// own.
+    fn scaled(&self, scale: f32) -> Self {
+        Self {
+            size: scale * self.size,
+            narrow: None,
+            ..self.clone()
+        }
+    }
+
+    /// The parts' rules for a viewport: each replaces the ones before it for
+    /// the nodes that viewport's key picks out.
+    fn write_set(&self, sheet: &mut Sheet, viewport: Viewport) {
+        let on = viewport.when(When::always());
         let body = self.text(1.0, self.leading, &self.body, Weight::Normal);
         let em = |ratio: f32| self.em(ratio);
-        sheet.replace(Part::Root, |t, _| t.flex().flex_col());
+        sheet.replace_when(Part::Root, on, |t, _| t.flex().flex_col());
         let text = body.clone();
-        sheet.replace(Part::Paragraph, move |t, k| {
+        sheet.replace_when(Part::Paragraph, on, move |t, k| {
             t.role(text.clone()).text(k.foreground)
         });
-        self.write_headings(sheet);
+        self.write_headings(sheet, viewport);
         // `blockquote { border-inline-start: 2px; padding-inline-start: 1em }`
         let padding = em(1.0);
-        sheet.replace(Part::Blockquote, move |t, k| {
+        sheet.replace_when(Part::Blockquote, on, move |t, k| {
             t.flex()
                 .flex_col()
                 .border_l(2.0)
@@ -228,28 +310,28 @@ impl Typeset {
         });
         // `pre { padding: 0.75em 1em }`, in `em` of the code.
         let (x, y) = (em(CODE), 0.75 * em(CODE));
-        sheet.replace(Part::CodeBlock, move |t, k| {
+        sheet.replace_when(Part::CodeBlock, on, move |t, k| {
             t.bg(k.muted).rounded_px(k.radius.lg()).px(x).py(y)
         });
         let code = self.code();
-        sheet.replace(Part::Code, move |t, _| t.role(code.clone()));
+        sheet.replace_when(Part::Code, on, move |t, _| t.role(code.clone()));
         // `ul, ol { padding-inline-start: 1.5em }`, `li { margin-block-start:
         // 0.5em; padding-inline-start: 0.4em }`
         let gap = em(0.5);
-        sheet.replace(Part::List, move |t, _| t.flex().flex_col().gap(gap));
+        sheet.replace_when(Part::List, on, move |t, _| t.flex().flex_col().gap(gap));
         let gap = em(0.4);
-        sheet.replace(Part::ListItem, move |t, _| {
+        sheet.replace_when(Part::ListItem, on, move |t, _| {
             t.flex().flex_row().items_start().gap(gap)
         });
         let indent = em(1.5);
-        sheet.replace(Part::ListMarker, move |t, k| {
+        sheet.replace_when(Part::ListMarker, on, move |t, k| {
             t.role(body.clone())
                 .text(k.muted_foreground)
                 .w(indent)
                 .shrink_0()
                 .text_right()
         });
-        sheet.replace(Part::Unsupported, |t, k| {
+        sheet.replace_when(Part::Unsupported, on, |t, k| {
             t.flex()
                 .flex_col()
                 .gap(1.0)
@@ -258,17 +340,19 @@ impl Typeset {
                 .border_color(k.border)
                 .rounded_px(k.radius.lg())
         });
-        sheet.replace(Part::UnsupportedLabel, |t, k| t.text(k.muted_foreground));
-        self.write_tables(sheet);
+        sheet.replace_when(Part::UnsupportedLabel, on, |t, k| {
+            t.text(k.muted_foreground)
+        });
+        self.write_tables(sheet, viewport);
     }
 
     /// A document's tables, over the page's: a rule under the header and
     /// every row, and typeset.css's `thead th { padding: 0.65em 1em }`,
     /// `td { padding: 0.75em 1em }`, `th:first-child, td:first-child {
     /// padding-inline-start: 0 }` and `table { line-height: 1.5 }`.
-    fn write_tables(&self, sheet: &mut Sheet) {
+    fn write_tables(&self, sheet: &mut Sheet, viewport: Viewport) {
         let base = self.size;
-        let ours = When::always().attr(TABLE.0, TABLE.1);
+        let ours = viewport.when(When::always()).attr(TABLE.0, TABLE.1);
         let ruled = |t: Tw, k: &Tokens| t.border_b(1.0).border_b_color(k.border);
         sheet.replace_when(table::Part::Root, ours, |t, _| t.grid().w_full());
         sheet.replace_when(table::Part::Header, ours, ruled);
@@ -290,15 +374,16 @@ impl Typeset {
             cell(t, k).font_weight(Weight::Medium).py_px(0.65 * base)
         });
         for part in [table::Part::Head, table::Part::Cell] {
-            let first = table::Part::first_column().attr(TABLE.0, TABLE.1);
+            let first = viewport.when(table::Part::first_column().attr(TABLE.0, TABLE.1));
             sheet.rule_when(part, first, |t, _| t.pl_px(0.0));
         }
     }
 
     /// Each heading's row of typeset.css, under its level's key.
-    fn write_headings(&self, sheet: &mut Sheet) {
+    fn write_headings(&self, sheet: &mut Sheet, viewport: Viewport) {
+        let on = viewport.when(When::always());
         let family = self.heading.as_ref().unwrap_or(&self.body);
-        sheet.replace(Part::Heading, |t, _| t);
+        sheet.replace_when(Part::Heading, on, |t, _| t);
         for (level, h) in Level::ALL.into_iter().zip(HEADINGS) {
             let text = self.text(h.size, h.leading, family, h.weight);
             let minor = h.minor;
@@ -308,7 +393,7 @@ impl Typeset {
             };
             sheet.rule_when(
                 Part::Heading,
-                When::always().attr("level", level.attr()),
+                on.attr("level", level.attr()),
                 move |t, k| {
                     let t = t.role(text.clone()).tracking(tracking);
                     match minor {
@@ -344,6 +429,12 @@ impl Typeset {
             rule_gap: 2.4 * flow(1.0),
             headings,
             item_gap: em(0.5),
+            narrow: self.narrow.map(|narrow| {
+                Box::new(NarrowStyle {
+                    below: narrow.below,
+                    style: self.scaled(narrow.scale).flow(t),
+                })
+            }),
             // `a { color: inherit; font-weight: 500; text-decoration-color:
             // color-mix(currentColor 30%) }`; `:not(pre) > code { font-size:
             // 0.85em; border-radius: min(var(--radius) * 0.6, 0.35em);
@@ -457,6 +548,26 @@ mod tests {
             .py(0.75 * 13.125 / UNIT);
         assert_eq!(block.style(), expected.style());
         assert_eq!(block.paint_classes(), expected.paint_classes());
+    }
+
+    #[test]
+    fn a_narrow_viewports_rules_are_the_typeset_at_1_125_times_its_size() {
+        let typeset = Typeset::default();
+        let narrow = Key::Attr("viewport", "narrow");
+        let body = text_of(&typeset, Part::Paragraph, &[narrow]).spec;
+        assert_eq!(body.size, 1.125 * 15.0);
+        let h1 = text_of(
+            &typeset,
+            Part::Heading,
+            &[Key::Attr("level", Level::H1.attr()), narrow],
+        );
+        assert_eq!(h1.spec.size, 1.75 * 1.125 * 15.0);
+        let plain = Typeset {
+            narrow: None,
+            ..typeset
+        };
+        let body = text_of(&plain, Part::Paragraph, &[narrow]).spec;
+        assert_eq!(body.size, 15.0, "no narrow look: the key picks nothing");
     }
 
     #[test]

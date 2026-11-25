@@ -30,6 +30,19 @@ pub struct Style {
     /// [`RichTextStyle`](crate::contract::RichTextStyle); `None` keeps
     /// the page's.
     pub rich: Option<RichLook>,
+    /// TODO(prose): the space between blocks on a narrow screen, and the
+    /// width below which it applies.
+    pub narrow: Option<Box<NarrowStyle>>,
+}
+
+/// TODO(prose): a document's spacing and rich text below a viewport width.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct NarrowStyle {
+    /// TODO(prose): the viewport width, in points.
+    pub below: f32,
+    /// TODO(prose)
+    pub style: Style,
 }
 
 /// TODO(prose): a document's links and inline code. Lengths are in points.
