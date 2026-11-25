@@ -11,6 +11,7 @@ use std::sync::Arc;
 use crate::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
 use crate::owned::Mark;
 use crate::owned::text_field::Select;
+use crate::sheet::Key as SheetKey;
 use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
@@ -415,7 +416,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             .query
             .clone()
             .unwrap_or_else(|| chosen.clone().unwrap_or_default());
-        let style = Arc::clone(b.style());
+        let _style = Arc::clone(b.style());
         let group_id = b.id_of((key, Node::Group));
         let mut field_id = Id::NULL;
         let caller = std::mem::replace(&mut options.classes, tw());
@@ -485,7 +486,8 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 Some(clear) => {
                     let cleared = ctx.clone();
                     let icon = s.part(ComboboxPart::ClearIcon, &[], tw());
-                    s.div_id((key, Node::Clear), list::end_button_classes(&style), |s| {
+                    let classes = end_button(s, ComboboxPart::Clear, &[]);
+                    s.div_id((key, Node::Clear), classes, |s| {
                         s.glyph(icon, Icon::new(icons::CLOSE));
                     })
                     .role(Role::Button)
@@ -497,11 +499,14 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 }
                 None => {
                     let icon = s.part(ComboboxPart::TriggerIcon, &[], tw());
-                    s.div_id(
-                        (key, Node::Chevron),
-                        list::end_button_classes(&style),
-                        |s| s.glyph(icon, Icon::new(icons::CHEVRON_DOWN)),
-                    )
+                    let expanded: &[SheetKey] = match open {
+                        true => &[SheetKey::Aria(crate::Aria::Expanded)],
+                        false => &[],
+                    };
+                    let classes = end_button(s, ComboboxPart::Trigger, expanded);
+                    s.div_id((key, Node::Chevron), classes, |s| {
+                        s.glyph(icon, Icon::new(icons::CHEVRON_DOWN))
+                    })
                     .role(Role::Button)
                     .named("Show options")
                     .on_click(move |_| {
@@ -711,4 +716,24 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
                 });
             });
     }
+}
+
+/// The classes of a combobox's trigger or clear, `part`: shadcn's
+/// `InputGroupButton size="icon-xs"`, a ghost `Button`, under the part's
+/// own rules, with `keys` for every rule.
+fn end_button<A>(s: &mut Builder<'_, '_, A>, part: ComboboxPart, keys: &[SheetKey]) -> Tw {
+    use crate::contract::Size;
+    use crate::theme::{size, variant};
+    let button = [
+        &[
+            SheetKey::Variant(variant::GHOST),
+            SheetKey::Size(Size::DEFAULT),
+        ][..],
+        keys,
+    ]
+    .concat();
+    let group = [&[SheetKey::Size(size::ICON_XS)][..], keys].concat();
+    s.part(crate::owned::button::Part::Root, &button, tw())
+        .merge(s.part(crate::owned::input::GroupPart::Button, &group, tw()))
+        .merge(s.part(part, keys, tw().sense_click().focusable_none()))
 }

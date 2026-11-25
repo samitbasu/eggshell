@@ -11,8 +11,12 @@ pub enum ComboboxPart {
     /// `ComboboxInput`, an input group, whose slot it says, so that the field
     /// in it is the group's control.
     Input,
+    /// TODO(prose): the button that opens the list.
+    Trigger,
     /// TODO(prose): the chevron that opens the list.
     TriggerIcon,
+    /// TODO(prose): the button that clears the value.
+    Clear,
     /// TODO(prose): the cross that clears the value.
     ClearIcon,
     /// TODO(prose): the box of the open list.
@@ -37,7 +41,9 @@ impl crate::sheet::Part for ComboboxPart {
     fn slot(self) -> &'static str {
         match self {
             Self::Input => "input-group",
+            Self::Trigger => "combobox-trigger",
             Self::TriggerIcon => "combobox-trigger-icon",
+            Self::Clear => "combobox-clear",
             Self::ClearIcon => "combobox-clear-icon",
             Self::Content => "combobox-content",
             Self::List => "combobox-list",

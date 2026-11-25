@@ -400,7 +400,6 @@ impl<A> Listing<A> {
 /// from the sheet's menu parts.
 #[derive(Clone, Copy)]
 struct Rows {
-    radius: f32,
     muted: Color32,
     separator: Color32,
     heading_weight: crate::Weight,
@@ -409,17 +408,11 @@ struct Rows {
 impl Rows {
     fn of(style: &crate::Style) -> Self {
         let k = &style.tokens;
-        let item = menu_part(
-            style,
-            menu::Part::Item,
-            &[SheetKey::Variant(crate::contract::Variant::DEFAULT)],
-        );
         let heading_role = style.role(&Some(style.menu.shortcut_text.clone())).clone();
         let heading = menu_part(style, menu::Part::Label, &[])
             .text_classes()
             .over(&crate::TextStyle::new(heading_role, Color32::PLACEHOLDER));
         Self {
-            radius: f32::from(item.paint_classes().radius.nw),
             muted: k.muted_foreground,
             separator: menu_part(style, menu::Part::Separator, &[])
                 .paint_classes()
@@ -433,24 +426,6 @@ impl Rows {
 /// The gap between a combobox's field and its list: shadcn's `sideOffset 6`.
 pub(crate) fn list_offset() -> crate::overlay::Distance {
     crate::overlay::Distance::new(6.0)
-}
-
-/// The classes of the button at the end of a combobox's box, shadcn's ghost
-/// `icon-xs`: the stepper's button.
-pub(crate) fn end_button_classes(style: &crate::Style) -> Tw {
-    let stepper = &style.stepper;
-    let metrics = stepper.sizes.get(crate::contract::Size::DEFAULT);
-    let states = stepper.button.paint.states;
-    tw().flex()
-        .items_center()
-        .justify_center()
-        .size_px(metrics.button_width)
-        .shrink_0()
-        .rounded_px(Rows::of(style).radius)
-        .bg(states.rest.fill)
-        .sense_click()
-        .focusable_none()
-        .hover(|p| p.bg(states.hover.fill))
 }
 
 /// The classes of a command dialog's box, as `popover` draws.

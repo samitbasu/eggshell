@@ -631,7 +631,7 @@ const COMBOBOX: [emit::Assumed; 1] = [emit::Assumed {
 
 /// The parts of shadcn's combobox that eggshell's does not name: one value,
 /// no chips or groups, and its own end buttons.
-const COMBOBOX_ABSENT: [(&str, &str); 12] = {
+const COMBOBOX_ABSENT: [(&str, &str); 10] = {
     const ONE: &str = "eggshell's combobox picks one value, shown in its field";
     const BUTTON: &str = "shadcn's is an input-group button, whose look the combobox's sheet does not carry; the widget draws its own";
     [
@@ -642,8 +642,6 @@ const COMBOBOX_ABSENT: [(&str, &str); 12] = {
         ("combobox-chip-input", ONE),
         ("combobox-chip-indicator-icon", ONE),
         ("input-group-button", BUTTON),
-        ("combobox-trigger", BUTTON),
-        ("combobox-clear", BUTTON),
         (
             "combobox-group",
             "eggshell's combobox lists its options in one run",

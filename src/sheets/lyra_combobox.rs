@@ -64,6 +64,11 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(COMBOBOX, 78, "w-auto")
             .w_auto()
     });
+    s.replace(Trigger, |t, _| {
+        t
+            .from(LYRA, 316, "[&_svg:not([class*='size-'])]:size-4")
+            .descendants(Match::glyph(), |t| t.size(4.0))
+    });
     s.replace(TriggerIcon, |t, k| {
         t
             .from(LYRA, 320, "text-muted-foreground")
@@ -305,6 +310,11 @@ pub(crate) fn dark(s: &mut Sheet) {
             .bg(k.input.gamma_multiply(0.3))
             .from(LYRA, 1369, "dark:has-disabled:bg-input/80")
             .has(Match::aria(Aria::Disabled), |b| b.bg(k.input.gamma_multiply(0.8)))
+    });
+    s.replace(Trigger, |t, _| {
+        t
+            .from(LYRA, 316, "[&_svg:not([class*='size-'])]:size-4")
+            .descendants(Match::glyph(), |t| t.size(4.0))
     });
     s.replace(TriggerIcon, |t, k| {
         t
