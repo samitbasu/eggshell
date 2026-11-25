@@ -183,15 +183,11 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             on_change,
             value: _,
         } = self;
-        let style = b.style().disclosure.clone();
-        // shadcn's `not-last:border-b` on each item, which the importer
-        // cannot say, is the column's `divide-y`: the accordion's own.
-        let column = tw().flex().flex_col();
-        let column = match style.separator {
-            Some(line) => column.divide_y(1.0, line),
-            None => column,
-        };
-        let column = b.part(super::Part::Root, &[], column.merge(classes));
+        let column = b.part(
+            super::Part::Root,
+            &[],
+            tw().flex().flex_col().merge(classes),
+        );
         b.div_id(key, column, |b| {
             items(&mut Items {
                 b,

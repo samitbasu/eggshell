@@ -1630,7 +1630,7 @@ impl Style {
         #[cfg(feature = "badge")]
         let badge = crate::theme::Shadcn::badge(t, &base);
         #[cfg(feature = "disclosure")]
-        let disclosure = crate::theme::Shadcn::disclosure(t);
+        let disclosure = crate::theme::Shadcn::disclosure();
         #[cfg(feature = "hover-card")]
         let hover_card = crate::theme::Shadcn::hover_card(t, &base);
         #[cfg(feature = "markdown")]
@@ -1795,7 +1795,7 @@ impl Style {
         {
             // The section's own look, not its preset's: what the generated
             // look's exceptions have always been written from.
-            let disclosure = crate::owned::disclosure::Style::from_tokens(&self.tokens);
+            let disclosure = crate::owned::disclosure::Style::shadcn();
             crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
             crate::owned::disclosure::write_collapsible_exceptions(
                 &mut self.sheet,

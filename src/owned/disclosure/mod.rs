@@ -52,7 +52,14 @@ type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the
 /// header keeps its gap between the title and the chevron, and the chevron
 /// its nudge down to the title's line.
+///
+/// shadcn rules its items off with `not-last:border-b` on each item. An
+/// accordion's items are built one at a time, so whether an item is the last
+/// is not known when its classes are; the accordion's column draws the same
+/// lines between its items with `divide-y`, which, unlike a border, takes no
+/// room, as the separator has always been drawn.
 pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &Style) {
+    sheet.rule(accordion::Part::Root, |t, k| t.divide_y(1.0, k.border));
     let (gap, nudge) = (style.header.gap, style.nudge);
     sheet.rule(accordion::Part::Trigger, move |t, _| t.gap_px(gap));
     sheet.rule(accordion::Part::TriggerIcon, move |t, _| {

@@ -318,11 +318,10 @@ impl Shadcn {
     /// assert_eq!(disclosure.header.gap, 16.0);
     /// ```
     #[cfg(feature = "disclosure")]
-    pub(crate) fn disclosure(t: &Tokens) -> crate::owned::disclosure::Style {
-        let mut disclosure = crate::owned::disclosure::Style::from_tokens(t);
+    pub(crate) fn disclosure() -> crate::owned::disclosure::Style {
+        let mut disclosure = crate::owned::disclosure::Style::shadcn();
         disclosure.nudge = 2.0;
         disclosure.header.gap = 16.0;
-        disclosure.separator = Some(t.border);
         disclosure
     }
 

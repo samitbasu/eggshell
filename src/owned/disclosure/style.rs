@@ -1,7 +1,6 @@
 //! How section headers and disclosure buttons look.
 
 use crate::{Angle, Icon, icons};
-use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
 /// and [`disclosure`](super::Ext::disclosure) buttons, one
@@ -29,8 +28,6 @@ pub struct Style {
     pub nudge: f32,
     /// A section's header.
     pub header: HeaderStyle,
-    /// The line between an accordion's items, if there is one.
-    pub separator: Option<Color32>,
 }
 
 /// TODO(prose): a chevron, which turns by `turn` times how far open it is.
@@ -62,13 +59,12 @@ impl Style {
     /// TODO(prose): headers in the style's text, medium, with a muted
     /// `chevron-down` that turns over trailing a section's title and a
     /// `chevron-right` that turns down in a disclosure button.
-    pub(crate) fn from_tokens(tokens: &crate::theme::Tokens) -> Self {
+    pub(crate) fn shadcn() -> Self {
         Self {
             section: Glyph::new(Icon::new(icons::CHEVRON_DOWN), Angle::degrees(180.0)),
             tree: Glyph::new(Icon::new(icons::CHEVRON_RIGHT), Angle::degrees(90.0)),
             nudge: 2.0,
             header: HeaderStyle { gap: 16.0 },
-            separator: Some(tokens.border),
         }
     }
 }
