@@ -55,9 +55,18 @@ fn driver() -> Driver<()> {
     driver_with(typeset)
 }
 
+/// A viewport at shadcn's 48rem and wider: the base size.
+const WIDE: f32 = 800.0;
+/// A viewport below it: the base size ×1.125.
+const NARROW: f32 = 700.0;
+
 fn driver_with(edit: fn(&mut Style)) -> Driver<()> {
+    driver_at(WIDE, edit)
+}
+
+fn driver_at(width: f32, edit: fn(&mut Style)) -> Driver<()> {
     let mut d = support::driver(
-        vec2(700.0, 600.0),
+        vec2(width, 600.0),
         TextStyle::new(PAGE_TEXT, Color32::BLACK),
         (),
         view,
@@ -95,6 +104,45 @@ fn a_paragraph_is_set_at_the_base_size_and_leading() {
         BASE * 1.75,
         "one line of body text",
     );
+}
+
+/// The line height of the first paragraph, as drawn in a `width`-wide
+/// viewport.
+fn body_line(width: f32, edit: fn(&mut Style)) -> f32 {
+    block(&driver_at(width, edit), "Block(0)").height()
+}
+
+#[test]
+fn below_48rem_the_body_and_everything_in_ems_is_1_125_times_larger() {
+    let narrow = 1.125 * BASE;
+    let d = driver_at(NARROW, typeset);
+    assert_near(
+        block(&d, "Block(0)").height(),
+        narrow * 1.75,
+        "one line of body text",
+    );
+    let (first, second) = (block(&d, "Block(0)"), block(&d, "Block(1)"));
+    assert_near(gap(first, second), 1.25 * narrow, "a flow");
+    let heading = block(&d, "Heading(\"section\")");
+    assert_near(heading.height(), 1.25 * narrow * 1.4, "an h2's line");
+}
+
+#[test]
+fn the_narrow_look_ends_at_48rem() {
+    assert_near(body_line(767.0, typeset), 1.125 * BASE * 1.75, "at 767");
+    assert_near(body_line(768.0, typeset), BASE * 1.75, "at 768");
+}
+
+#[test]
+fn a_typeset_without_a_narrow_look_keeps_its_size_on_a_narrow_screen() {
+    fn plain(style: &mut Style) {
+        let typeset = Typeset {
+            narrow: None,
+            ..Typeset::default()
+        };
+        typeset.apply(style);
+    }
+    assert_near(body_line(NARROW, plain), BASE * 1.75, "one line");
 }
 
 #[test]
@@ -171,7 +219,7 @@ fn rich_view<'f>(b: &mut Builder<'_, 'f, ()>, _: &'f ()) {
 
 fn rich_driver() -> Driver<()> {
     let mut d = support::driver(
-        vec2(700.0, 600.0),
+        vec2(WIDE, 600.0),
         TextStyle::new(PAGE_TEXT, Color32::BLACK),
         (),
         rich_view,

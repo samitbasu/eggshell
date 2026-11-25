@@ -11,12 +11,14 @@ use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
 use super::parse::{Block, Construct, Item, List, Table, Task};
+use super::typeset::Viewport;
 use super::{Directive, Directives, OnLink, Part, Style};
 use crate::owned::separator::{self, Orientation};
 use crate::sheet::Key as SheetKey;
 
 pub(super) struct Context<'s, 'f, A> {
     pub style: Arc<Style>,
+    pub viewport: Viewport,
     pub links: Rc<Links<A>>,
     pub directives: Option<(&'s Directives<A>, &'f A)>,
     pub ctx: egui::Context,
@@ -91,17 +93,12 @@ pub(super) fn document<'f, A: 'static, K: Key>(
     context: &Context<'_, 'f, A>,
 ) {
     let body = |b: &mut Builder<'_, 'f, A>| {
-        let root = b.part(Part::Root, &[], tw());
+        let root = b.part(Part::Root, context.viewport.keys(), tw());
         b.div_id(key, root, |s| {
             emit(s, blocks, context, Depth::default());
         });
     };
-    let style = &context.style;
-    if style.restyles() {
-        b.styled(|page| style.restyle(page), body);
-    } else {
-        body(b);
-    }
+    b.styled(|page| context.style.restyle(page), body);
 }
 
 /// How many lists the blocks are inside.
@@ -137,12 +134,13 @@ fn emit<'f, A: 'static>(
         let key = Node::Block(index);
         match block {
             Block::Paragraph(spans) => {
-                let at = s.part(Part::Paragraph, &[], at);
+                let at = s.part(Part::Paragraph, context.viewport.keys(), at);
                 paragraph(s, key, at, spans, context);
             }
             Block::Heading(heading) => {
                 let level = SheetKey::Attr("level", heading.level.attr());
-                let at = s.part(Part::Heading, &[level], at);
+                let keys = [&[level][..], context.viewport.keys()].concat();
+                let at = s.part(Part::Heading, &keys, at);
                 context.links.heading(&heading.anchor);
                 s.keyed_under(context.links.doc, |s| {
                     let key = Node::Heading(heading.anchor.clone());
@@ -151,7 +149,7 @@ fn emit<'f, A: 'static>(
             }
             Block::List(list_) => list(s, key, at, list_, context, depth),
             Block::Quote(inner) => {
-                let at = s.part(Part::Blockquote, &[], at);
+                let at = s.part(Part::Blockquote, context.viewport.keys(), at);
                 s.div_id(key, at, |s| emit(s, inner, context, depth));
             }
             Block::Code { info, text } => code(s, key, at, info, text, context),
@@ -166,7 +164,14 @@ fn emit<'f, A: 'static>(
                 let name = match construct {
                     Construct::Html => "HTML",
                 };
-                unsupported(s, key, at, &format!("Not shown: {name}"), source);
+                unsupported(
+                    s,
+                    key,
+                    at,
+                    &format!("Not shown: {name}"),
+                    source,
+                    context.viewport.keys(),
+                );
             }
         }
     }
@@ -230,6 +235,9 @@ fn table<'f, A: 'static>(
     s.div_id(key, at, |s| {
         s.table(Node::Table)
             .attr(super::typeset::TABLE.0, super::typeset::TABLE.1)
+            .when_some(context.viewport.attr(), |table, (name, value)| {
+                table.attr(name, value)
+            })
             .columns(columns)
             .header(|cells| row(cells, &table.header))
             .rows(
@@ -249,12 +257,12 @@ fn list<'f, A: 'static>(
     context: &Context<'_, 'f, A>,
     depth: Depth,
 ) {
-    let at = s.part(Part::List, &[], at);
+    let at = s.part(Part::List, context.viewport.keys(), at);
     s.div_id(key, at, |s| {
         for (index, item) in list.items.iter().enumerate() {
-            let row = s.part(Part::ListItem, &[], tw());
+            let row = s.part(Part::ListItem, context.viewport.keys(), tw());
             s.div_id(Node::Item(index), row, |s| {
-                let column = s.part(Part::ListMarker, &[], tw());
+                let column = s.part(Part::ListMarker, context.viewport.keys(), tw());
                 match marker(list, index, item, depth) {
                     Marker::Number(number) => {
                         s.span(Node::Marker, column, format!("{number}."));
@@ -361,8 +369,8 @@ fn code<'f, A: 'static>(
         s.div_id(key, at, |s| mount(s, app, &directive));
         return;
     }
-    let block = s.part(Part::CodeBlock, &[], at);
-    let code = s.part(Part::Code, &[], tw());
+    let block = s.part(Part::CodeBlock, context.viewport.keys(), at);
+    let code = s.part(Part::Code, context.viewport.keys(), tw());
     s.div_id(key, block, |s| {
         s.span(Node::Source, code, text.trim_end_matches('\n'));
     });
@@ -390,14 +398,21 @@ fn image<'f, A: 'static>(
             });
         }
         Ok(TexturePoll::Pending { .. }) => {
-            let pending = s.part(Part::UnsupportedLabel, &[], tw());
+            let pending = s.part(Part::UnsupportedLabel, context.viewport.keys(), tw());
             s.div_id(key, at, |s| {
                 s.span(Node::Source, pending, alt.to_owned());
             });
         }
         Err(error) => {
             let label = format!("Image not shown: {alt}");
-            unsupported(s, key, at, &label, &format!("{uri}: {error}"));
+            unsupported(
+                s,
+                key,
+                at,
+                &label,
+                &format!("{uri}: {error}"),
+                context.viewport.keys(),
+            );
         }
     }
 }
@@ -408,11 +423,12 @@ fn unsupported<'f, A: 'static>(
     at: Tw,
     label: &str,
     source: &str,
+    keys: &[SheetKey],
 ) {
-    let block = s.part(Part::Unsupported, &[], at);
+    let block = s.part(Part::Unsupported, keys, at);
     let (named, code) = (
-        s.part(Part::UnsupportedLabel, &[], tw()),
-        s.part(Part::Code, &[], tw()),
+        s.part(Part::UnsupportedLabel, keys, tw()),
+        s.part(Part::Code, keys, tw()),
     );
     s.div_id(key, block, |s| {
         s.text(named, label);

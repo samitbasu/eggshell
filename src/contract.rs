@@ -1290,9 +1290,12 @@ pub struct Style {
     /// TODO(prose): hover cards.
     #[cfg(feature = "hover-card")]
     pub hover_card: crate::owned::hover_card::Style,
-    /// TODO(prose): Markdown.
+    /// TODO(prose): the typeset Markdown documents are spaced by; its
+    /// parts' rules are in the sheet, which [`Typeset::apply`] writes with it.
+    ///
+    /// [`Typeset::apply`]: crate::owned::markdown::Typeset::apply
     #[cfg(feature = "markdown")]
-    pub markdown: crate::owned::markdown::Style,
+    pub markdown: crate::owned::markdown::Typeset,
     /// TODO(prose): notifications.
     #[cfg(feature = "notify")]
     pub notify: crate::owned::notify::Style,
@@ -1634,7 +1637,7 @@ impl Style {
         #[cfg(feature = "hover-card")]
         let hover_card = crate::theme::Shadcn::hover_card(t, &base);
         #[cfg(feature = "markdown")]
-        let markdown = crate::owned::markdown::Typeset::default().flow(t);
+        let markdown = crate::owned::markdown::Typeset::default();
         #[cfg(feature = "notify")]
         let notify = crate::theme::Shadcn::notify(t, &base);
         #[cfg(feature = "skeleton")]
