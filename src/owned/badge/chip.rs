@@ -265,17 +265,15 @@ fn remove_button<A: 'static>(
     stop: Stop,
     remove: Rc<dyn Fn(&mut A)>,
 ) {
-    let looks = style.remove;
     let classes = tw()
         .flex()
         .items_center()
         .justify_center()
         .shrink_0()
         .sense_click()
-        .opacity(looks.rest)
-        .hover(|p| p.opacity(looks.hover))
         .transition(style.transition)
         .attr("icon", "inline-end");
+    let classes = b.part(super::Part::Remove, &[], classes);
     let classes = match stop {
         Stop::Chip => classes.focusable_none(),
         Stop::Remove => classes,
@@ -283,7 +281,7 @@ fn remove_button<A: 'static>(
     let clicked = remove.clone();
     let node = b
         .div_id("remove", classes, |s| {
-            s.glyph(tw().size_px(looks.glyph), Icon::new(icons::CLOSE));
+            s.glyph(tw(), Icon::new(icons::CLOSE));
         })
         .role(Role::Button)
         .named(format!("Remove {name}"))

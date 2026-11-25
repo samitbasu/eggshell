@@ -320,7 +320,6 @@ impl Shadcn {
             ..t.text_role_at(Weight::Medium)
         };
         badge.transition = Duration::from_millis(150);
-        badge.remove.glyph = 12.0;
         badge
     }
 

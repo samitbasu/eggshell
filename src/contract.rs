@@ -1844,6 +1844,8 @@ impl Style {
         crate::owned::command::write_exceptions(self);
         #[cfg(feature = "notify")]
         crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
+        #[cfg(feature = "badge")]
+        crate::owned::badge::write_exceptions(&mut self.sheet);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

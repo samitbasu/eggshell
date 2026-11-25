@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use crate::contract::{Colors, Keyed, Look, States, Variant};
-use crate::{Opacity, TextSpec, Weight};
+use crate::{TextSpec, Weight};
 use egui::Color32;
 
 /// TODO(prose): the look of [`badge`](super::Ext::badge)s and
@@ -38,20 +38,6 @@ pub struct Style {
     pub text: TextSpec,
     /// How long a chip's state changes animate.
     pub transition: Duration,
-    /// A removable chip's ×.
-    pub remove: RemoveStyle,
-}
-
-/// TODO(prose): the × that removes a chip.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct RemoveStyle {
-    /// Side of the × glyph.
-    pub glyph: f32,
-    /// How much of the chip's text colour the × keeps at rest.
-    pub rest: Opacity,
-    /// How much it keeps while the pointer is over it.
-    pub hover: Opacity,
 }
 
 impl Style {
@@ -82,11 +68,6 @@ impl Style {
                 ..style.text.clone()
             },
             transition: style.toggle.transition,
-            remove: RemoveStyle {
-                glyph: 12.0,
-                rest: Opacity::new(1.0),
-                hover: Opacity::new(1.0),
-            },
         }
     }
 }

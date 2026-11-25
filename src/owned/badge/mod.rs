@@ -37,6 +37,8 @@ use crate::{Builder, Icon, Key, Tw, tw};
 pub enum Part {
     /// TODO(prose): the badge.
     Root,
+    /// TODO(prose): a removable chip's ×.
+    Remove,
 }
 
 /// Whether a badge's root takes clicks, as a chip that is a button does.
@@ -50,15 +52,27 @@ impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "badge.tsx";
 
     fn slot(self) -> &'static str {
-        "badge"
+        match self {
+            Self::Root => "badge",
+            Self::Remove => "badge-remove",
+        }
     }
+}
+
+/// Writes the badge's recorded exception: the × of a removable chip, which
+/// shadcn's badge has no slot for, draws its glyph at `size-3`, as the
+/// badge's own icon is.
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
+    sheet.rule(Part::Remove, |t, _| {
+        t.children(crate::Match::glyph(), |glyph| glyph.size(3.0))
+    });
 }
 
 /// The attribute of a chip that can be clicked: shadcn's badge as a link.
 const LINK: (&str, &str) = ("link", "true");
 
 pub use chip::{ChipChain, Handler, Unset};
-pub use style::{RemoveStyle, Style};
+pub use style::Style;
 
 /// TODO(prose): adds [`badge`](Self::badge) and [`chip`](Self::chip) to the
 /// builder.
