@@ -58,6 +58,11 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(COMBOBOX, 78, "w-auto")
             .w_auto()
     });
+    s.replace(Trigger, |t, _| {
+        t
+            .from(VEGA, 337, "[&_svg:not([class*='size-'])]:size-4")
+            .descendants(Match::glyph(), |t| t.size(4.0))
+    });
     s.replace(TriggerIcon, |t, k| {
         t
             .from(VEGA, 341, "text-muted-foreground")
@@ -296,6 +301,11 @@ pub(crate) fn dark(s: &mut Sheet) {
             .w_auto()
             .from(VEGA, 1398, "dark:bg-input/30")
             .bg(k.input.gamma_multiply(0.3))
+    });
+    s.replace(Trigger, |t, _| {
+        t
+            .from(VEGA, 337, "[&_svg:not([class*='size-'])]:size-4")
+            .descendants(Match::glyph(), |t| t.size(4.0))
     });
     s.replace(TriggerIcon, |t, k| {
         t

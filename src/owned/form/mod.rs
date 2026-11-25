@@ -26,14 +26,10 @@
 //! }
 //! ```
 
-mod style;
-
 use crate::owned::field;
-use crate::sheet::Part;
+use crate::sheet::{Key as SheetKey, Part};
 use crate::{Builder, Key, Match, tw};
-use egui::{Context, Id, Role};
-
-pub use style::Style;
+use egui::Role;
 
 /// TODO(prose): a form section's frame for the style's sheet: shadcn's
 /// `card`, whose surface the section takes. The section's rows and title are
@@ -49,6 +45,36 @@ impl Part for CardPart {
 
     fn slot(self) -> &'static str {
         "card"
+    }
+}
+
+/// TODO(prose): a form row's anatomy for the style's sheet: shadcn's
+/// `item`, its title leading and its actions trailing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ItemPart {
+    /// TODO(prose): the row.
+    Root,
+    /// TODO(prose): what holds the title.
+    Content,
+    /// TODO(prose): the row's label.
+    Title,
+    /// TODO(prose): a row's text value.
+    Description,
+    /// TODO(prose): what holds the row's value.
+    Actions,
+}
+
+impl Part for ItemPart {
+    const SOURCE: &'static str = "item.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "item",
+            Self::Content => "item-content",
+            Self::Title => "item-title",
+            Self::Description => "item-description",
+            Self::Actions => "item-actions",
+        }
     }
 }
 
@@ -79,26 +105,28 @@ pub struct SectionChain<'s, 'b, 'f, A, K> {
     rules: Rules,
 }
 
+/// The attribute of a section that draws a rule between its rows.
+const DIVIDED: (&str, &str) = ("divided", "true");
+
+/// Writes the form section's recorded exceptions over the card's generated
+/// look (#446): the box keeps its own padding, not the card's `py`/`gap`,
+/// which space a card's header, content and footer, and a divided section
+/// rules its rows off with `divide-y` in `border`.
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet) {
+    use crate::sheet::When;
+    sheet.rule(CardPart::Root, |t, _| t.py_px(8.0));
+    sheet.rule_when(
+        CardPart::Root,
+        When::always().attr(DIVIDED.0, DIVIDED.1),
+        |t, k| t.divide_y(1.0, k.border),
+    );
+}
+
 /// Whether a section draws a rule between its rows.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Rules {
     None,
     Between,
-}
-
-/// How many sections enclose what is being built now, so a row inside one
-/// takes its inset. Building is synchronous, so the count is exact.
-fn depth_id() -> Id {
-    Id::NULL.with("eggshell-ui-form-section-depth")
-}
-
-fn depth(ctx: &Context) -> u32 {
-    ctx.data(|data| data.get_temp::<u32>(depth_id()))
-        .unwrap_or(0)
-}
-
-fn set_depth(ctx: &Context, depth: u32) {
-    ctx.data_mut(|data| data.insert_temp(depth_id(), depth));
 }
 
 /// The ordinal of the next keyless row under the parent `b` builds into,
@@ -135,36 +163,26 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K> {
             title,
             rules,
         } = self;
-        let style = b.style().form.clone();
-        // Recorded exception (#446): the section keeps its own padding and
-        // row spacing, not the card's `py`/`gap`, which space a card's
-        // header, content and footer.
-        let mut own = tw()
+        let divided: &[SheetKey] = match rules {
+            Rules::Between => &[SheetKey::Attr(DIVIDED.0, DIVIDED.1)],
+            Rules::None => &[],
+        };
+        // A form's choice fields are shadcn's `Field`, `w-full`.
+        let own = tw()
             .flex()
             .flex_col()
-            .py_px(style.padding_y)
-            // A form's choice fields are shadcn's `Field`, `w-full`.
             .descendants(Match::slot(field::Part::Root.slot()), |t| t.w_full());
-        if rules == Rules::Between {
-            own = own.divide_y(style.rule_width, style.rule);
-        }
-        let frame = b.part(CardPart::Root, &[], own);
+        let frame = b.part(CardPart::Root, divided, own);
+        let legend = b.part(
+            field::Part::Legend,
+            &[SheetKey::Variant(crate::contract::Variant("label"))],
+            tw(),
+        );
         let section = b.div_id(key, tw().flex().flex_col().sense_hover(), |b| {
             if let Some(title) = &title {
-                b.text(
-                    tw().role(style.title.clone())
-                        .text(style.title_color)
-                        .mb_px(style.title_gap),
-                    title.clone(),
-                );
+                b.text(legend, title.clone());
             }
-            b.div_id("Box", frame, |b| {
-                let ctx = b.ctx().clone();
-                let outer = depth(&ctx);
-                set_depth(&ctx, outer + 1);
-                rows(b);
-                set_depth(&ctx, outer);
-            });
+            b.div_id("Box", frame, |b| rows(b));
         });
         let section = section.role(Role::Group);
         if let Some(title) = title {
@@ -189,10 +207,10 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
 
     fn labeled_text(&mut self, label: impl Into<String>, text: impl Into<String>) {
         let text = text.into();
-        let color = self.style().form.value_color;
         let shown = text.clone();
         row(self, label.into(), Some(text), |b| {
-            b.text(tw().text(color), shown)
+            let classes = b.part(ItemPart::Description, &[], tw());
+            b.text(classes, shown)
         });
     }
 }
@@ -206,30 +224,21 @@ fn row<'f, A: 'static>(
     description: Option<String>,
     value: impl FnOnce(&mut Builder<'_, 'f, A>),
 ) {
-    let style = b.style().form.clone();
-    // The least height holds a control, inside the row's padding, so a
-    // text row is as tall as a control row.
-    let (classes, padding_y) = match depth(b.ctx()) {
-        0 => (tw(), 0.0),
-        _ => (
-            tw().px_px(style.row_padding_x).py_px(style.row_padding_y),
-            style.row_padding_y,
-        ),
-    };
-    let classes = classes
-        .flex()
-        .items_center()
-        .gap_px(style.row_gap)
-        .min_h_px(style.row_min_height + 2.0 * padding_y)
-        .sense_hover();
+    let item = [
+        SheetKey::Variant(crate::contract::Variant("default")),
+        SheetKey::Size(crate::contract::Size::DEFAULT),
+    ];
+    let classes = b.part(ItemPart::Root, &item, tw().sense_hover());
+    let (content, title) = (
+        b.part(ItemPart::Content, &[], tw().min_w(0.0)),
+        b.part(ItemPart::Title, &[], tw()),
+    );
+    let actions = b.part(ItemPart::Actions, &[], tw().shrink_0());
     let key = ("eggshell-labeled", next_row(b));
     let node = b
         .div_id(key, classes, |b| {
-            b.text(
-                tw().flex_1().min_w(0.0).text(style.label_color),
-                label.clone(),
-            );
-            b.div_id("Value", tw().flex().items_center().shrink_0(), |b| value(b));
+            b.div(content, |b| b.text(title, label.clone()));
+            b.div_id("Value", actions, |b| value(b));
         })
         .role(Role::Group)
         .named(label);

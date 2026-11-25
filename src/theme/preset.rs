@@ -1,37 +1,18 @@
 use crate::contract;
+#[cfg(feature = "badge")]
+use crate::contract::{Colors, Focus, Keyed, Look as BoxLook, States};
+#[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
+use crate::{TextSpec, Weight};
+#[cfg(any(feature = "badge", feature = "notify"))]
+use egui::Color32;
 use egui::Theme;
-#[cfg(any(
-    feature = "badge",
-    feature = "command",
-    feature = "dialog",
-    feature = "disclosure",
-    feature = "form",
-    feature = "hover-card",
-    feature = "markdown",
-    feature = "notify",
-    feature = "skeleton"
-))]
-use {
-    crate::contract::{Colors, Focus, Keyed, Look as BoxLook, States},
-    crate::{Opacity, TextSpec, Weight},
-    egui::Color32,
-    std::time::Duration,
-};
+#[cfg(any(feature = "badge", feature = "hover-card"))]
+use std::time::Duration;
 
 use crate::theme::ShadcnStyle;
+#[cfg(feature = "badge")]
+use crate::theme::variant;
 use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
-#[cfg(any(
-    feature = "badge",
-    feature = "command",
-    feature = "dialog",
-    feature = "disclosure",
-    feature = "form",
-    feature = "hover-card",
-    feature = "markdown",
-    feature = "notify",
-    feature = "skeleton"
-))]
-use crate::theme::{size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -183,26 +164,6 @@ impl Shadcn {
             line_height: 19.5,
             ..t.text_role_at(Weight::Medium)
         };
-        let dark = t.theme == Theme::Dark;
-        let gray = Color32::from_gray;
-        notify.action.fill = t.popover_foreground;
-        notify.action.text = t.popover;
-        notify.action.radius = 4;
-        notify.action.height = 24.0;
-        notify.action.padding_x = 8.0;
-        notify.action.role = TextSpec {
-            size: 12.0,
-            line_height: 16.0,
-            ..t.text_role_at(Weight::Medium)
-        };
-        notify.close.size = 20.0;
-        notify.close.outset = 7.0;
-        notify.close.glyph = 12.0;
-        notify.close.fill = t.popover;
-        notify.close.border = if dark { t.border } else { gray(237) };
-        notify.close.text = if dark { t.popover_foreground } else { gray(23) };
-        notify.close.hover_fill = if dark { gray(31) } else { gray(248) };
-        notify.close.hover_border = if dark { gray(64) } else { gray(232) };
         notify
     }
 
@@ -320,19 +281,7 @@ impl Shadcn {
             ..t.text_role_at(Weight::Medium)
         };
         badge.transition = Duration::from_millis(150);
-        badge.remove.glyph = 12.0;
         badge
-    }
-
-    /// TODO(prose): the look of a command list's rows: shadcn's
-    /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
-    /// and its list `max-h-72`.
-    #[cfg(feature = "command")]
-    pub(crate) fn command(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::command::Style {
-        let mut command = crate::owned::command::Style::from_base(style);
-        command.selected_fill = t.muted;
-        command.selected_text = t.foreground;
-        command
     }
 
     /// The section header and disclosure button look, after shadcn/ui's
@@ -366,92 +315,14 @@ impl Shadcn {
     /// let disclosure = shadcn
     ///     .style()
     ///     .disclosure;
-    /// assert_eq!(disclosure.header.padding_y, 16.0);
+    /// assert_eq!(disclosure.header.gap, 16.0);
     /// ```
     #[cfg(feature = "disclosure")]
-    pub(crate) fn disclosure(
-        t: &Tokens,
-        style: &contract::Base<'_>,
-    ) -> crate::owned::disclosure::Style {
-        let lyra = t.style == ShadcnStyle::Lyra;
-        let mut disclosure = crate::owned::disclosure::Style::from_base(style);
-        disclosure.section.size = 16.0;
-        disclosure.tree.size = 16.0;
-        disclosure.tone = Some(t.muted_foreground);
-        disclosure.tone_opacity = Opacity::new(1.0);
+    pub(crate) fn disclosure() -> crate::owned::disclosure::Style {
+        let mut disclosure = crate::owned::disclosure::Style::shadcn();
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.tokens.focus();
-        disclosure.header.focus_border = Some(t.ring);
-        disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
-        disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };
         disclosure.header.gap = 16.0;
-        disclosure.header.text = t.text_role_at(Weight::Medium);
-        disclosure.header.disabled = Opacity::new(0.5);
-        disclosure.button = 24.0;
-        disclosure.button_hover = Some(t.accent);
-        disclosure.separator = Some(t.border);
         disclosure
-    }
-
-    /// TODO(prose): the form section and labelled row look. shadcn has no
-    /// grouped-form box, so the section is `FieldSet`'s semantics in `Card`'s
-    /// frame, with the looks the user chose on #370. From `ref/shadcn`
-    /// (f50887a), `registry/styles/style-{vega,lyra}.css`:
-    /// - the box is `cn-card`'s `bg-card`, `rounded-xl` in Vega and
-    ///   `rounded-none` in Lyra (vega 241, lyra 233). Its frame is a 1 pt
-    ///   `border`, not the card's `ring-1 ring-foreground/10`, and has no
-    ///   `shadow-xs`, as chosen;
-    /// - the title is `cn-field-legend`'s label variant: `font-medium`,
-    ///   `text-sm` and `mb-3` in Vega, `text-xs` and `mb-2.5` in Lyra
-    ///   (vega 624, lyra 599);
-    /// - a row is `cn-field`'s horizontal field: `gap-3` in Vega, `gap-2` in
-    ///   Lyra (vega 632, lyra 607), `items-center` (`bases/radix/ui/field.tsx`
-    ///   54);
-    /// - sections stack `cn-field-set`'s `gap-6` in Vega, `gap-4` in Lyra
-    ///   (vega 620, lyra 595);
-    /// - the rule is `divide-y` in `border`, edge to edge; the box is `py-2`
-    ///   and a row `px-4 py-2`, as chosen.
-    ///
-    /// ```
-    /// use eggshell_ui::theme::Shadcn;
-    ///
-    /// let shadcn = Shadcn::light();
-    /// let form = shadcn
-    ///     .style()
-    ///     .form;
-    /// assert_eq!(form.fill, shadcn.tokens.card);
-    /// assert_eq!(form.radius, 14);
-    /// ```
-    #[cfg(feature = "form")]
-    pub(crate) fn form(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::form::Style {
-        let vega = t.style == ShadcnStyle::Vega;
-        let mut form = crate::owned::form::Style::from_base(style);
-        form.fill = t.card;
-        form.border = t.border;
-        form.border_width = 1.0;
-        form.radius = if vega {
-            contract::corner(t.radius.xl())
-        } else {
-            0
-        };
-        form.padding_y = 8.0;
-        form.row_padding_x = 16.0;
-        form.row_padding_y = 8.0;
-        form.rule = t.border;
-        form.rule_width = 1.0;
-        form.title = TextSpec {
-            size: if vega { 14.0 } else { 12.0 },
-            line_height: if vega { 20.0 } else { 16.0 },
-            ..t.text_role_at(Weight::Medium)
-        };
-        form.title_color = t.foreground;
-        form.title_gap = if vega { 12.0 } else { 10.0 };
-        form.row_gap = if vega { 12.0 } else { 8.0 };
-        form.row_min_height = t.control_height();
-        form.label_color = t.foreground;
-        form.value_color = t.muted_foreground;
-        form.section_gap = if vega { 24.0 } else { 16.0 };
-        form
     }
 
     /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
@@ -466,44 +337,5 @@ impl Shadcn {
         card.radius = t.radius_lg();
         card.transition = Duration::from_millis(100);
         card
-    }
-
-    /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
-    /// defaults, in this preset's colours.
-    #[cfg(feature = "markdown")]
-    pub(crate) fn markdown(t: &Tokens) -> crate::owned::markdown::Style {
-        crate::owned::markdown::Typeset::default().markdown_style(&Self::typeset_ink(t))
-    }
-
-    /// TODO(prose): the look of the dialog surface, the sheet and the
-    /// popover: shadcn's `dialog::Content`, `SheetContent` and
-    /// `PopoverContent`. Placeholder values until the render round.
-    #[cfg(feature = "dialog")]
-    pub(crate) fn dialog(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::dialog::Style {
-        use crate::owned::dialog::{self, Surface, shadow_lg};
-        let mut dialog = dialog::Style::from_base(style);
-        dialog.surface = Surface::new(t.background, t.foreground, t.border)
-            .rounded(t.radius_lg())
-            .shadow(shadow_lg());
-        dialog.cancel = variant::OUTLINE;
-        dialog.default = variant::PRIMARY;
-        dialog.close = variant::GHOST;
-        dialog.close_size = size::ICON_SM;
-        dialog
-    }
-
-    /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
-    /// tokens, for a typeset of other parameters.
-    ///
-    /// [`Typeset`]: crate::owned::markdown::Typeset
-    #[cfg(feature = "markdown")]
-    pub(crate) fn typeset_ink(t: &Tokens) -> crate::owned::markdown::TypesetInk {
-        crate::owned::markdown::TypesetInk {
-            foreground: t.foreground,
-            muted: t.muted_foreground,
-            rule: t.border,
-            code_fill: t.muted,
-            radius: t.radius.lg(),
-        }
     }
 }

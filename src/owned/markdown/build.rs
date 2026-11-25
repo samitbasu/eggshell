@@ -11,7 +11,9 @@ use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
 use super::parse::{Block, Construct, Item, List, Table, Task};
-use super::{Directive, Directives, OnLink, Style};
+use super::{Directive, Directives, OnLink, Part, Style};
+use crate::owned::separator::{self, Orientation};
+use crate::sheet::Key as SheetKey;
 
 pub(super) struct Context<'s, 'f, A> {
     pub style: Arc<Style>,
@@ -89,7 +91,8 @@ pub(super) fn document<'f, A: 'static, K: Key>(
     context: &Context<'_, 'f, A>,
 ) {
     let body = |b: &mut Builder<'_, 'f, A>| {
-        b.div_id(key, tw().flex().flex_col(), |s| {
+        let root = b.part(Part::Root, &[], tw());
+        b.div_id(key, root, |s| {
             emit(s, blocks, context, Depth::default());
         });
     };
@@ -111,7 +114,7 @@ impl Depth {
     fn gap(self, style: &Style) -> f32 {
         match self.0 {
             0 => style.block_gap,
-            _ => style.list.item_gap,
+            _ => style.item_gap,
         }
     }
 }
@@ -133,24 +136,13 @@ fn emit<'f, A: 'static>(
         let at = tw().mt(top);
         let key = Node::Block(index);
         match block {
-            Block::Paragraph(spans) => paragraph(s, key, prose(at, style), spans, context),
+            Block::Paragraph(spans) => {
+                let at = s.part(Part::Paragraph, &[], at);
+                paragraph(s, key, at, spans, context);
+            }
             Block::Heading(heading) => {
-                let look = style.heading(heading.level);
-                let at = at.role(look.text.clone()).tracking(look.tracking);
-                let at = match look.color.or(style.color) {
-                    Some(color) => at.text(color),
-                    None => at,
-                };
-                let at = match look.case {
-                    super::Case::AsWritten => at,
-                    super::Case::Upper => at.uppercase(),
-                };
-                let at = match look.rule {
-                    super::HeadingRule::None => at,
-                    super::HeadingRule::Below { padding } => {
-                        at.pb(padding).border_b(1.0).border_color(style.rule)
-                    }
-                };
+                let level = SheetKey::Attr("level", heading.level.attr());
+                let at = s.part(Part::Heading, &[level], at);
                 context.links.heading(&heading.anchor);
                 s.keyed_under(context.links.doc, |s| {
                     let key = Node::Heading(heading.anchor.clone());
@@ -159,29 +151,22 @@ fn emit<'f, A: 'static>(
             }
             Block::List(list_) => list(s, key, at, list_, context, depth),
             Block::Quote(inner) => {
-                let quote = &style.quote;
-                let at = at
-                    .flex()
-                    .flex_col()
-                    .border_l(quote.border_width)
-                    .border_color(quote.border)
-                    .pl(quote.padding)
-                    .text(quote.text);
-                let at = match quote.font_style {
-                    crate::FontStyle::Italic => at.italic(),
-                    crate::FontStyle::Normal => at,
-                };
+                let at = s.part(Part::Blockquote, &[], at);
                 s.div_id(key, at, |s| emit(s, inner, context, depth));
             }
             Block::Code { info, text } => code(s, key, at, info, text, context),
             Block::Image { uri, alt } => image(s, key, at, uri, alt, context),
-            Block::Rule => s.div(at.h_px(1.0).bg(style.rule), |_| {}),
+            Block::Rule => {
+                let horizontal = Orientation::Horizontal.key();
+                let at = s.part(separator::Part::Root, &[horizontal], at);
+                s.div(at, |_| {});
+            }
             Block::Table(table_) => table(s, key, at, table_, context),
             Block::Unsupported { construct, source } => {
                 let name = match construct {
                     Construct::Html => "HTML",
                 };
-                unsupported(s, key, at, &format!("Not shown: {name}"), source, context);
+                unsupported(s, key, at, &format!("Not shown: {name}"), source);
             }
         }
     }
@@ -199,28 +184,6 @@ fn space_above(style: &Style, depth: Depth, previous: &Block, block: &Block) -> 
         _ if depth.0 > 0 => depth.gap(style),
         (Block::Heading(_), Block::Paragraph(_)) => style.after_heading,
         _ => style.block_gap,
-    }
-}
-
-/// A table cell's text: the document's tables', else its body text.
-fn cell_text(style: &Style) -> Tw {
-    let at = prose(tw().whitespace_normal(), style);
-    match &style.table {
-        Some(table) => at.role(table.text.clone()).tabular_nums(),
-        None => at,
-    }
-}
-
-/// `at` in the document's body text, which only prose takes: a directive's
-/// output keeps the page's.
-fn prose(at: Tw, style: &Style) -> Tw {
-    let at = match &style.body {
-        Some(body) => at.role(body.clone()),
-        None => at,
-    };
-    match style.color {
-        Some(color) => at.text(color),
-        None => at,
     }
 }
 
@@ -257,7 +220,8 @@ fn table<'f, A: 'static>(
             let spans = row.get(column);
             cells.cell(|b| {
                 if let Some(spans) = spans {
-                    paragraph(b, Node::Cell, cell_text(&context.style), spans, context);
+                    let at = tw().whitespace_normal();
+                    paragraph(b, Node::Cell, at, spans, context);
                 }
             });
         }
@@ -265,6 +229,7 @@ fn table<'f, A: 'static>(
     let rows: Vec<(usize, &Vec<Spans>)> = table.rows.iter().enumerate().collect();
     s.div_id(key, at, |s| {
         s.table(Node::Table)
+            .attr(super::typeset::TABLE.0, super::typeset::TABLE.1)
             .columns(columns)
             .header(|cells| row(cells, &table.header))
             .rows(
@@ -284,22 +249,12 @@ fn list<'f, A: 'static>(
     context: &Context<'_, 'f, A>,
     depth: Depth,
 ) {
-    let look = &context.style.list;
-    s.div_id(key, at.flex().flex_col(), |s| {
+    let at = s.part(Part::List, &[], at);
+    s.div_id(key, at, |s| {
         for (index, item) in list.items.iter().enumerate() {
-            let top = if index == 0 { 0.0 } else { look.item_gap };
-            let row = tw()
-                .flex()
-                .flex_row()
-                .items_start()
-                .gap(look.marker_gap)
-                .mt(top);
+            let row = s.part(Part::ListItem, &[], tw());
             s.div_id(Node::Item(index), row, |s| {
-                let column = prose(tw(), &context.style)
-                    .w(look.indent)
-                    .shrink_0()
-                    .text_right()
-                    .text(look.marker);
+                let column = s.part(Part::ListMarker, &[], tw());
                 match marker(list, index, item, depth) {
                     Marker::Number(number) => {
                         s.span(Node::Marker, column, format!("{number}."));
@@ -406,20 +361,10 @@ fn code<'f, A: 'static>(
         s.div_id(key, at, |s| mount(s, app, &directive));
         return;
     }
-    let look = &context.style.code;
-    let block = at
-        .bg(look.fill)
-        .border(look.border_width)
-        .border_color(look.border)
-        .rounded_px(look.radius)
-        .px(look.padding_x)
-        .py(look.padding_y);
+    let block = s.part(Part::CodeBlock, &[], at);
+    let code = s.part(Part::Code, &[], tw());
     s.div_id(key, block, |s| {
-        s.span(
-            Node::Source,
-            tw().role(look.text.clone()),
-            text.trim_end_matches('\n'),
-        );
+        s.span(Node::Source, code, text.trim_end_matches('\n'));
     });
 }
 
@@ -445,14 +390,14 @@ fn image<'f, A: 'static>(
             });
         }
         Ok(TexturePoll::Pending { .. }) => {
-            let pending = tw().text(context.style.unsupported.label);
+            let pending = s.part(Part::UnsupportedLabel, &[], tw());
             s.div_id(key, at, |s| {
                 s.span(Node::Source, pending, alt.to_owned());
             });
         }
         Err(error) => {
             let label = format!("Image not shown: {alt}");
-            unsupported(s, key, at, &label, &format!("{uri}: {error}"), context);
+            unsupported(s, key, at, &label, &format!("{uri}: {error}"));
         }
     }
 }
@@ -463,20 +408,14 @@ fn unsupported<'f, A: 'static>(
     at: Tw,
     label: &str,
     source: &str,
-    context: &Context<'_, 'f, A>,
 ) {
-    let look = &context.style.unsupported;
-    let block = at
-        .flex()
-        .flex_col()
-        .gap(1.0)
-        .p(3.0)
-        .bg(look.fill)
-        .border(1.0)
-        .border_color(look.border)
-        .rounded_px(context.style.code.radius);
+    let block = s.part(Part::Unsupported, &[], at);
+    let (named, code) = (
+        s.part(Part::UnsupportedLabel, &[], tw()),
+        s.part(Part::Code, &[], tw()),
+    );
     s.div_id(key, block, |s| {
-        s.text(tw().text(look.label), label);
-        s.span(Node::Source, tw().role(look.text.clone()), source);
+        s.text(named, label);
+        s.span(Node::Source, code, source);
     });
 }

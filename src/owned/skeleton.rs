@@ -38,7 +38,7 @@ impl Style {
     pub(crate) fn from_base(style: &crate::contract::Base<'_>) -> Self {
         Self {
             fill: Color32::from_gray(128).gamma_multiply(0.2),
-            radius: crate::owned::styles::Popover::of_tokens(style.tokens).radius,
+            radius: crate::owned::styles::radius(style.tokens),
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }

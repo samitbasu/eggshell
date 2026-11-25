@@ -391,40 +391,69 @@ fn the_preset_gives_sonners_notification_look() {
     );
     assert_eq!((notify.role.size, notify.role.line_height), (13.0, 19.5));
     assert_eq!(notify.role.weight, Weight::Medium, "data-title: 500");
+    let style = vega.style();
+    let action = support::part(&style, eggshell_ui::owned::notify::Part::ActionButton);
     assert_eq!(
-        notify.action.fill, vega.tokens.popover_foreground,
+        action.paint_classes().background,
+        Some(vega.tokens.popover_foreground),
         "--normal-text"
     );
-    assert_eq!(notify.action.text, vega.tokens.popover, "--normal-bg");
+    assert_eq!(
+        support::ink(&style, &action),
+        vega.tokens.popover,
+        "--normal-bg"
+    );
+    let laid = action.style_at(vega.tokens.spacing);
     assert_eq!(
         (
-            notify.action.height,
-            notify.action.padding_x,
-            notify.action.radius
+            laid.size.height,
+            laid.padding.left,
+            action.paint_classes().radius.nw
         ),
-        (24.0, 8.0, 4)
+        (
+            taffy::Dimension::length(24.0),
+            taffy::LengthPercentage::length(8.0),
+            4
+        )
     );
+    let role = action
+        .text_classes()
+        .over(&TextStyle::new(style.text.clone(), Color32::BLACK))
+        .spec;
+    assert_eq!((role.size, role.weight), (12.0, Weight::Medium));
+    let close = support::part(&style, eggshell_ui::owned::notify::Part::CloseButton);
+    let laid = close.style_at(vega.tokens.spacing);
     assert_eq!(
-        (notify.action.role.size, notify.action.role.weight),
-        (12.0, Weight::Medium)
-    );
-    assert_eq!(
-        (notify.close.size, notify.close.outset, notify.close.glyph),
-        (20.0, 7.0, 12.0),
+        (laid.size.width, laid.inset.left),
+        (
+            taffy::Dimension::length(20.0),
+            taffy::LengthPercentageAuto::length(-7.0)
+        ),
         "20 pt, moved out 35 %"
     );
-    assert_eq!(notify.close.border, Color32::from_gray(237), "gray4");
-    assert_eq!(notify.close.hover_fill, Color32::from_gray(248), "gray2");
-    let dark = Shadcn::dark();
-    let notify_dark = dark.style().notify;
     assert_eq!(
-        notify_dark.close.border, dark.tokens.border,
+        close.paint_classes().border_colors.left,
+        Some(Color32::from_gray(237)),
+        "gray4"
+    );
+    let shows = |classes: &eggshell_ui::Tw, colour: Color32| {
+        format!("{classes:?}").contains(&format!("{colour:?}"))
+    };
+    assert!(
+        shows(&close, Color32::from_gray(248)),
+        "gray2 under the pointer"
+    );
+    let dark = Shadcn::dark();
+    let dark_style = dark.style();
+    let dark_close = support::part(&dark_style, eggshell_ui::owned::notify::Part::CloseButton);
+    assert_eq!(
+        dark_close.paint_classes().border_colors.left,
+        Some(dark.tokens.border),
         "--normal-border"
     );
-    assert_eq!(
-        notify_dark.close.hover_fill,
-        Color32::from_gray(31),
-        "hsl(0 0% 12%)"
+    assert!(
+        shows(&dark_close, Color32::from_gray(31)),
+        "hsl(0 0% 12%) under the pointer"
     );
     let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
     assert_eq!(lyra.style().notify.radius, 0, "rounded-none");

@@ -36,10 +36,14 @@ impl Default for Settings {
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
-    let gap = b.style().form.section_gap;
+    // shadcn's `FieldGroup`: `gap-6`, `gap-4` in Lyra.
+    let gap = match b.style().tokens.style {
+        eggshell_ui::theme::ShadcnStyle::Vega => 6.0,
+        eggshell_ui::theme::ShadcnStyle::Lyra => 4.0,
+    };
     b.div_id(
         "Page",
-        tw().flex().flex_col().gap_px(gap).p(4.0).w_px(420.0),
+        tw().flex().flex_col().gap(gap).p(4.0).w_px(420.0),
         |b| {
             b.form_section("audio")
                 .title("Audio")
@@ -73,7 +77,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
                         .add();
                 });
                 b.labeled_text(
-                    "A label long enough that it wraps onto a second line",
+                    "A label too long for one line is cut short with an ellipsis",
                     "Value",
                 );
             });

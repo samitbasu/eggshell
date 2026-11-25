@@ -37,7 +37,7 @@ use crate::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
 use egui::{Color32, Role};
 
 pub use section::SectionChain;
-pub use style::{Glyph, HeaderStyle, Hover, Style};
+pub use style::{Glyph, HeaderStyle, Style};
 
 /// TODO(prose): a section's `on_change`, not yet given.
 pub struct Unset;
@@ -52,11 +52,84 @@ type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the
 /// header keeps its gap between the title and the chevron, and the chevron
 /// its nudge down to the title's line.
+///
+/// shadcn rules its items off with `not-last:border-b` on each item. An
+/// accordion's items are built one at a time, so whether an item is the last
+/// is not known when its classes are; the accordion's column draws the same
+/// lines between its items with `divide-y`, which, unlike a border, takes no
+/// room, as the separator has always been drawn.
 pub fn write_exceptions(sheet: &mut crate::sheet::Sheet, style: &Style) {
+    sheet.rule(accordion::Part::Root, |t, k| t.divide_y(1.0, k.border));
     let (gap, nudge) = (style.header.gap, style.nudge);
     sheet.rule(accordion::Part::Trigger, move |t, _| t.gap_px(gap));
     sheet.rule(accordion::Part::TriggerIcon, move |t, _| {
         t.mt_px(nudge).mb_px(-nudge)
+    });
+}
+
+/// TODO(prose): a disclosure button's anatomy for the style's sheet, as
+/// shadcn names a lone open/close trigger: `collapsible.tsx`'s.
+///
+/// TODO(prose): the keys its rules see: `aria-expanded` and `aria-disabled`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CollapsiblePart {
+    /// TODO(prose): the button.
+    Trigger,
+    /// TODO(prose): its chevron.
+    TriggerIcon,
+}
+
+impl crate::sheet::Part for CollapsiblePart {
+    const SOURCE: &'static str = "collapsible.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Trigger => "collapsible-trigger",
+            Self::TriggerIcon => "collapsible-trigger-icon",
+        }
+    }
+}
+
+/// Writes the disclosure button's recorded exceptions: shadcn's collapsible
+/// has no classes, so the look is the one the user chose for it: a 24 pt
+/// box, `rounded-md` (square in Lyra), its state changes over `transition`,
+/// the accent under the pointer, the focus ring with a `ring` border, faded
+/// to half while disabled; a 16 pt chevron in `muted-foreground`. A section
+/// header's face icon is `size-4`, as the accordion's chevron is.
+pub(crate) fn write_collapsible_exceptions(
+    sheet: &mut crate::sheet::Sheet,
+    transition: std::time::Duration,
+) {
+    use crate::sheet::When;
+    use crate::theme::ShadcnStyle;
+    sheet.rule(CollapsiblePart::Trigger, move |t, k| {
+        let radius = match k.style {
+            ShadcnStyle::Vega => f32::from(k.radius_md()),
+            ShadcnStyle::Lyra => 0.0,
+        };
+        let (ring, accent, focus_border) = (k.focus(), k.accent, k.ring);
+        t.size_px(24.0)
+            .rounded_px(radius)
+            .transition(transition)
+            .border(1.0)
+            .border_color(Color32::TRANSPARENT)
+            .hover(move |paint| paint.bg(accent))
+            .focus(move |paint| {
+                paint
+                    .ring(ring.width, ring.color)
+                    .border_color(focus_border)
+            })
+    });
+    sheet.rule_when(
+        CollapsiblePart::Trigger,
+        When::always().aria(crate::Aria::Disabled),
+        |t, _| t.opacity(crate::Opacity::new(0.5)),
+    );
+    sheet.rule(CollapsiblePart::TriggerIcon, |t, k| {
+        t.size_px(16.0).text(k.muted_foreground)
+    });
+    sheet.rule(accordion::Part::Trigger, |t, _| {
+        t.descendants(crate::Match::glyph(), |glyph| glyph.size(4.0))
     });
 }
 
@@ -79,18 +152,6 @@ pub fn chevron(glyph: &Glyph, open: Progress) -> Icon {
         .rotated(Angle::radians(f32::from(glyph.turn) * f32::from(open)))
 }
 
-/// The classes of a chevron drawn in `style`.
-fn chevron_classes(style: &Style, glyph: &Glyph) -> Tw {
-    let classes = tw()
-        .size_px(glyph.size)
-        .shrink_0()
-        .opacity(style.tone_opacity);
-    match style.tone {
-        Some(tone) => classes.text(tone),
-        None => classes,
-    }
-}
-
 fn toggled(shown: Shown) -> Shown {
     match shown {
         Shown::Open => Shown::Closed,
@@ -110,31 +171,6 @@ fn enablement_in<A>(b: &Builder<'_, '_, A>, own: Enablement) -> Enablement {
     match (b.enablement(), own) {
         (Enablement::Enabled, Enablement::Enabled) => Enablement::Enabled,
         _ => Enablement::Disabled,
-    }
-}
-
-/// The classes of a header or button box in `style`: a Tab stop with the
-/// focus ring, and inert and faded while disabled, as shadcn's
-/// `disabled:opacity-50`. The text keeps the colour it inherits.
-fn box_classes(style: &Style, enablement: Enablement) -> Tw {
-    let header = &style.header;
-    let classes = tw()
-        .sense_click()
-        .rounded_px(f32::from(header.radius))
-        .transition(header.transition);
-    let classes = match header.focus_border {
-        Some(_) => classes.border(1.0).border_color(Color32::TRANSPARENT),
-        None => classes,
-    };
-    match enablement {
-        Enablement::Enabled => classes.focus(|paint| {
-            let paint = paint.ring(header.ring.width, header.ring.color);
-            match header.focus_border {
-                Some(border) => paint.border_color(border),
-                None => paint,
-            }
-        }),
-        Enablement::Disabled => classes.inert().opacity(header.disabled),
     }
 }
 
@@ -251,20 +287,29 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
         let _ctx = b.ctx().clone();
         let style = b.style().disclosure.clone();
         let enablement = enablement_in(b, enablement);
-        let box_classes = box_classes(&style, enablement);
-        let box_classes = match (style.button_hover, enablement) {
-            (Some(fill), Enablement::Enabled) => box_classes.hover(|paint| paint.bg(fill)),
-            _ => box_classes,
+        let mut keys = vec![];
+        if current.is_open() {
+            keys.push(crate::sheet::Key::Aria(crate::Aria::Expanded));
+        }
+        let sense = match enablement {
+            Enablement::Enabled => tw().sense_click(),
+            Enablement::Disabled => {
+                keys.push(crate::sheet::Key::Aria(crate::Aria::Disabled));
+                tw().sense_click().inert()
+            }
         };
-        let box_classes = box_classes
-            .flex()
-            .items_center()
-            .justify_center()
-            .size_px(style.button)
-            .shrink_0()
-            .merge(classes);
+        let box_classes = b.part(
+            CollapsiblePart::Trigger,
+            &keys,
+            sense
+                .flex()
+                .items_center()
+                .justify_center()
+                .shrink_0()
+                .merge(classes),
+        );
         let glyph = chevron(&style.tree, progress_of(current));
-        let glyph_classes = chevron_classes(&style, &style.tree);
+        let glyph_classes = b.part(CollapsiblePart::TriggerIcon, &keys, tw().shrink_0());
         let button = b
             .div_id(key, box_classes, |b| b.glyph(glyph_classes, glyph))
             .role(Role::Button)

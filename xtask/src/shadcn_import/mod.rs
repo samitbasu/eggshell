@@ -23,7 +23,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 28] = [
+const COMPONENTS: [&str; 30] = [
     "accordion",
     "alert-dialog",
     "button",
@@ -38,9 +38,11 @@ const COMPONENTS: [&str; 28] = [
     "hover-card",
     "input",
     "input-group",
+    "item",
     "popover",
     "radio-group",
     "select",
+    "separator",
     "sheet",
     "slider",
     "sonner",
@@ -57,7 +59,7 @@ const COMPONENTS: [&str; 28] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 27] = [
+const WIDGETS: [emit::Widget; 29] = [
     emit::Widget {
         component: "button",
         home: Home::Core("button"),
@@ -208,6 +210,22 @@ const WIDGETS: [emit::Widget; 27] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &MENU_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "separator",
+        home: Home::Core("separator"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
         copies: &[],
     },
     emit::Widget {
@@ -480,6 +498,25 @@ const WIDGETS: [emit::Widget; 27] = [
         copies: &[],
     },
     emit::Widget {
+        component: "item",
+        home: Home::Feature {
+            module: "form",
+            feature: "form",
+        },
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &ITEM_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
         component: "slider",
         home: Home::Core("slider"),
         checked_in: true,
@@ -608,13 +645,25 @@ const WIDGETS: [emit::Widget; 27] = [
     },
 ];
 
+/// The parts of shadcn's item that a form's row does not draw: a row is an
+/// item's content and actions, alone in its section.
+const ITEM_ABSENT: [(&str, &str); 5] = {
+    const ROW: &str = "a form's row is a title and its value";
+    [
+        ("item-group", ROW),
+        ("item-separator", ROW),
+        ("item-media", ROW),
+        ("item-header", ROW),
+        ("item-footer", ROW),
+    ]
+};
+
 /// The parts of shadcn's field that eggshell does not draw: its choice
 /// controls stand alone or in a card, not in sets and groups.
-const FIELD_ABSENT: [(&str, &str); 6] = {
+const FIELD_ABSENT: [(&str, &str); 5] = {
     const UNGROUPED: &str = "eggshell's choice fields are not set in groups";
     [
         ("field-set", UNGROUPED),
-        ("field-legend", UNGROUPED),
         ("field-group", UNGROUPED),
         ("field-separator", UNGROUPED),
         ("field-separator-content", UNGROUPED),
@@ -631,7 +680,7 @@ const COMBOBOX: [emit::Assumed; 1] = [emit::Assumed {
 
 /// The parts of shadcn's combobox that eggshell's does not name: one value,
 /// no chips or groups, and its own end buttons.
-const COMBOBOX_ABSENT: [(&str, &str); 12] = {
+const COMBOBOX_ABSENT: [(&str, &str); 10] = {
     const ONE: &str = "eggshell's combobox picks one value, shown in its field";
     const BUTTON: &str = "shadcn's is an input-group button, whose look the combobox's sheet does not carry; the widget draws its own";
     [
@@ -642,8 +691,6 @@ const COMBOBOX_ABSENT: [(&str, &str); 12] = {
         ("combobox-chip-input", ONE),
         ("combobox-chip-indicator-icon", ONE),
         ("input-group-button", BUTTON),
-        ("combobox-trigger", BUTTON),
-        ("combobox-clear", BUTTON),
         (
             "combobox-group",
             "eggshell's combobox lists its options in one run",

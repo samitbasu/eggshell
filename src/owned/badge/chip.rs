@@ -7,7 +7,7 @@ use crate::owned::Enablement;
 use crate::{Builder, Icon, Key, NodeUi as _, Tw, icons, tw};
 use egui::{Modifiers, Role};
 
-use super::{End, Face, Options, Style};
+use super::{Face, Options, Style};
 
 /// TODO(prose): a chip handler not yet given.
 pub struct Unset;
@@ -212,10 +212,6 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             Some(_) => Stop::Chip,
             None => Stop::Remove,
         };
-        let _end = match remove {
-            Some(_) => End::Remove,
-            None => End::Label,
-        };
         // The ring while the × has the focus is the chip's own, not a look.
         let ring = match stop {
             Stop::Chip => tw(),
@@ -265,17 +261,15 @@ fn remove_button<A: 'static>(
     stop: Stop,
     remove: Rc<dyn Fn(&mut A)>,
 ) {
-    let looks = style.remove;
     let classes = tw()
         .flex()
         .items_center()
         .justify_center()
         .shrink_0()
         .sense_click()
-        .opacity(looks.rest)
-        .hover(|p| p.opacity(looks.hover))
         .transition(style.transition)
         .attr("icon", "inline-end");
+    let classes = b.part(super::Part::Remove, &[], classes);
     let classes = match stop {
         Stop::Chip => classes.focusable_none(),
         Stop::Remove => classes,
@@ -283,7 +277,7 @@ fn remove_button<A: 'static>(
     let clicked = remove.clone();
     let node = b
         .div_id("remove", classes, |s| {
-            s.glyph(tw().size_px(looks.glyph), Icon::new(icons::CLOSE));
+            s.glyph(tw(), Icon::new(icons::CLOSE));
         })
         .role(Role::Button)
         .named(format!("Remove {name}"))

@@ -59,7 +59,7 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
-    let mut all = vec![("label".to_string(), style.label.disabled)];
+    let mut all = Vec::new();
     let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
@@ -122,8 +122,8 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     for (which, style) in styles {
         let all = disabled_colours(&style);
         assert!(
-            all.len() >= 7,
-            "precondition: the walk reaches the label, toggles, stepper buttons and slider parts"
+            all.len() >= 6,
+            "precondition: the walk reaches the toggles, stepper buttons and slider parts"
         );
         for (name, colors) in all {
             for (part, color) in [

@@ -1,5 +1,6 @@
 //! What the widgets' styles share.
 
+#[cfg(any(feature = "badge", feature = "spinner"))]
 use egui::{Context, Id};
 
 #[cfg(any(feature = "badge", feature = "spinner"))]
@@ -22,14 +23,7 @@ pub(crate) fn entry<'k, K: Ord + Copy + std::fmt::Debug, T>(
     keyed.get(key)
 }
 
-#[cfg(any(
-    feature = "command",
-    feature = "dialog",
-    feature = "form",
-    feature = "hover-card",
-    feature = "notify",
-    feature = "skeleton"
-))]
+#[cfg(any(feature = "command", feature = "hover-card", feature = "notify"))]
 /// TODO(prose): the box a widget draws as `style`'s menus draw theirs: the popover's colours and shadow from the tokens, a 1 pt border, and the radius of the sheet's menu box.
 #[derive(Clone, Copy)]
 pub(crate) struct Popover {
@@ -39,14 +33,7 @@ pub(crate) struct Popover {
     pub shadow: egui::Shadow,
 }
 
-#[cfg(any(
-    feature = "command",
-    feature = "dialog",
-    feature = "form",
-    feature = "hover-card",
-    feature = "notify",
-    feature = "skeleton"
-))]
+#[cfg(any(feature = "command", feature = "hover-card", feature = "notify"))]
 impl Popover {
     #[cfg(feature = "command")]
     pub(crate) fn of(style: &crate::Style) -> Self {
@@ -66,8 +53,8 @@ impl Popover {
         }
     }
 
-    /// The box from the tokens alone: the generated menu's radius is
-    /// `rounded-md`, and `rounded-none` in Lyra.
+    /// The box from the tokens alone, with [`radius`]'s corners.
+    #[cfg(any(feature = "hover-card", feature = "notify"))]
     pub(crate) fn of_tokens(k: &crate::theme::Tokens) -> Self {
         Self {
             colors: crate::contract::Colors {
@@ -76,10 +63,7 @@ impl Popover {
                 text: k.popover_foreground,
             },
             border_width: 1.0,
-            radius: match k.style {
-                crate::theme::ShadcnStyle::Vega => k.radius_md(),
-                crate::theme::ShadcnStyle::Lyra => 0,
-            },
+            radius: radius(k),
             shadow: k.shadow_md,
         }
     }
@@ -105,4 +89,14 @@ pub(crate) fn menu_part(
     keys: &[crate::sheet::Key],
 ) -> crate::Tw {
     style.sheet.resolve(part, keys, &style.tokens)
+}
+
+/// The generated menu's radius, from the tokens alone: `rounded-md`, and
+/// `rounded-none` in Lyra.
+#[cfg(any(feature = "hover-card", feature = "notify", feature = "skeleton"))]
+pub(crate) fn radius(k: &crate::theme::Tokens) -> u8 {
+    match k.style {
+        crate::theme::ShadcnStyle::Vega => k.radius_md(),
+        crate::theme::ShadcnStyle::Lyra => 0,
+    }
 }

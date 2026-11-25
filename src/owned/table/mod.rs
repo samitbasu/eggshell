@@ -12,6 +12,7 @@ mod sheet;
 
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
+use crate::sheet::Key as SheetKey;
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
 pub use sheet::Part;
 use sheet::RowState;
@@ -232,6 +233,7 @@ pub struct Chain<'a, 'f, A, S = Unselectable> {
     header: Option<Build<'a, 'f, A>>,
     footer: Option<Build<'a, 'f, A>>,
     stripes: Stripes,
+    attrs: Vec<SheetKey>,
     selection: S,
 }
 
@@ -245,6 +247,14 @@ impl<'a, 'f, A, S> Chain<'a, 'f, A, S> {
     pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
         crate::owned::options::when_some(self, value, then)
     }
+
+    /// TODO(prose): every part of the table says the attribute `name` is
+    /// `value`, for rules that style one kind of table:
+    /// `When::always().attr(name, value)`.
+    pub fn attr(mut self, name: &'static str, value: &'static str) -> Self {
+        self.attrs.push(SheetKey::Attr(name, value));
+        self
+    }
 }
 
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
@@ -257,6 +267,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             header: None,
             footer: None,
             stripes: Stripes::None,
+            attrs: Vec::new(),
             selection: Unselectable,
         }
     }
@@ -500,6 +511,7 @@ impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
             header,
             footer,
             stripes,
+            attrs,
             selection: was,
         } = self;
         let selection = selection(was);
@@ -511,6 +523,7 @@ impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
             header,
             footer,
             stripes,
+            attrs,
             selection,
         }
     }
@@ -621,15 +634,17 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             header,
             footer,
             stripes,
+            attrs,
             selection,
         } = self;
+        let attrs: Rc<[SheetKey]> = attrs.into();
         let table = b.style().table.clone();
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();
         let classes = b.part(
             Part::Root,
-            &[],
+            &attrs,
             tw().grid().grid_cols_tracks(&tracks).sense_hover(),
         );
         let table_id = slot.id;
@@ -640,6 +655,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
                 table,
                 columns,
                 stripes,
+                attrs,
                 selection,
                 table_id,
                 parent: table_id,
@@ -716,6 +732,7 @@ pub struct Rows<'r, 'f, A, K> {
     table: TableStyle,
     columns: Rc<[Column]>,
     stripes: Stripes,
+    attrs: Rc<[SheetKey]>,
     selection: Option<Selectable<A, K>>,
     table_id: Id,
     /// The table, or the row group the next rows are in.
@@ -833,6 +850,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
         let mut row = Cells {
             b: self.b.reborrow(),
             columns: self.columns.clone(),
+            attrs: self.attrs.clone(),
             style: self.table.clone(),
             band: slot.id,
             label,
@@ -902,6 +920,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
                 },
             ),
         };
+        let keys = [&keys[..], &self.attrs[..]].concat();
         let classes = self
             .b
             .part(band, &keys, behavior.col_span_full().row_start(line));
@@ -933,6 +952,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
 pub struct Cells<'r, 'f, A> {
     b: Builder<'r, 'f, A>,
     columns: Rc<[Column]>,
+    attrs: Rc<[SheetKey]>,
     style: TableStyle,
     band: Id,
     label: String,
@@ -1041,11 +1061,8 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
             Node::Group => (Part::GroupCell, Role::RowHeader),
             Node::Footer => (Part::FooterCell, Role::Cell),
         };
-        let classes = self.b.part(
-            part,
-            &Part::cell_keys(column == 0),
-            classes.row_start(self.line),
-        );
+        let keys = [&Part::cell_keys(column == 0)[..], &self.attrs[..]].concat();
+        let classes = self.b.part(part, &keys, classes.row_start(self.line));
         let key = CellKey {
             band: &self.label,
             column,
