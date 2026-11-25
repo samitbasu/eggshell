@@ -183,26 +183,6 @@ impl Shadcn {
             line_height: 19.5,
             ..t.text_role_at(Weight::Medium)
         };
-        let dark = t.theme == Theme::Dark;
-        let gray = Color32::from_gray;
-        notify.action.fill = t.popover_foreground;
-        notify.action.text = t.popover;
-        notify.action.radius = 4;
-        notify.action.height = 24.0;
-        notify.action.padding_x = 8.0;
-        notify.action.role = TextSpec {
-            size: 12.0,
-            line_height: 16.0,
-            ..t.text_role_at(Weight::Medium)
-        };
-        notify.close.size = 20.0;
-        notify.close.outset = 7.0;
-        notify.close.glyph = 12.0;
-        notify.close.fill = t.popover;
-        notify.close.border = if dark { t.border } else { gray(237) };
-        notify.close.text = if dark { t.popover_foreground } else { gray(23) };
-        notify.close.hover_fill = if dark { gray(31) } else { gray(248) };
-        notify.close.hover_border = if dark { gray(64) } else { gray(232) };
         notify
     }
 

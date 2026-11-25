@@ -44,42 +44,18 @@ impl Look {
         }
     }
 
-    /// An action's button: filled, in the card's colours swapped.
+    /// An action's button; its look is `Part::ActionButton`'s.
     pub(super) fn action(&self) -> Tw {
-        let action = &self.style.action;
-        tw().flex()
-            .items_center()
-            .shrink_0()
-            .h_px(action.height)
-            .px_px(action.padding_x)
-            .rounded_px(f32::from(action.radius))
-            .bg(action.fill)
-            .text(action.text)
-            .role(action.role.clone())
-            .sense_click()
+        tw().flex().items_center().shrink_0().sense_click()
     }
 
-    /// The × circle, half out over the card's top-left corner.
+    /// The ×; its look is `Part::CloseButton`'s.
     pub(super) fn close(&self) -> Tw {
-        let close = &self.style.close;
         tw().absolute()
-            .top_px(-close.outset)
-            .left_px(-close.outset)
             .flex()
             .items_center()
             .justify_center()
-            .size_px(close.size)
-            .rounded_full()
-            .border(1.0)
-            .border_color(close.border)
-            .bg(close.fill)
-            .text(close.text)
             .sense_click()
-            .hover(|paint| paint.bg(close.hover_fill).border_color(close.hover_border))
-    }
-
-    pub(super) fn close_glyph(&self) -> Tw {
-        tw().size_px(self.style.close.glyph).shrink_0()
     }
 
     pub(super) fn sentence(&self) -> Tw {

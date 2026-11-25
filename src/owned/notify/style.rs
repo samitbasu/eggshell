@@ -1,6 +1,6 @@
 //! How notifications look: the card, the stack and the buttons in it.
 
-use crate::{Distance, TextSpec, Weight};
+use crate::{Distance, TextSpec};
 use egui::Color32;
 use egui::epaint::Shadow;
 
@@ -35,52 +35,6 @@ pub struct Style {
     pub visible: usize,
     /// TODO(prose): how far a stack sits from the window's edges unless set.
     pub inset: Distance,
-    /// TODO(prose): an action's button.
-    pub action: ActionStyle,
-    /// TODO(prose): the × on a card's corner.
-    pub close: CloseStyle,
-}
-
-/// TODO(prose): an action's button, a filled box in the card's colours
-/// swapped.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct ActionStyle {
-    /// TODO(prose): the button's fill.
-    pub fill: Color32,
-    /// TODO(prose): the button's text.
-    pub text: Color32,
-    /// TODO(prose): the button's corner radius.
-    pub radius: u8,
-    /// TODO(prose): the button's height.
-    pub height: f32,
-    /// TODO(prose): the button's padding at its sides.
-    pub padding_x: f32,
-    /// TODO(prose): the button's text role.
-    pub role: TextSpec,
-}
-
-/// TODO(prose): the × button, a small circle half out over a corner of its
-/// card.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct CloseStyle {
-    /// TODO(prose): the circle's diameter.
-    pub size: f32,
-    /// TODO(prose): how far the circle sits out past the card's corner.
-    pub outset: f32,
-    /// TODO(prose): the side of the ×.
-    pub glyph: f32,
-    /// TODO(prose): the circle's fill.
-    pub fill: Color32,
-    /// TODO(prose): the circle's border.
-    pub border: Color32,
-    /// TODO(prose): the ×'s colour.
-    pub text: Color32,
-    /// TODO(prose): the fill under the pointer.
-    pub hover_fill: Color32,
-    /// TODO(prose): the border under the pointer.
-    pub hover_border: Color32,
 }
 
 impl Style {
@@ -108,29 +62,6 @@ impl Style {
             stack_gap: 14.0,
             visible: 3,
             inset: Distance::new(24.0),
-            action: ActionStyle {
-                fill: colors.text,
-                text: colors.fill,
-                radius: 4,
-                height: 24.0,
-                padding_x: 8.0,
-                role: TextSpec {
-                    size: 12.0,
-                    line_height: 16.0,
-                    weight: Weight::Medium,
-                    ..style.text.clone()
-                },
-            },
-            close: CloseStyle {
-                size: 20.0,
-                outset: 7.0,
-                glyph: 12.0,
-                fill: colors.fill,
-                border: colors.border,
-                text: colors.text,
-                hover_fill: colors.fill,
-                hover_border: colors.border,
-            },
         }
     }
 }

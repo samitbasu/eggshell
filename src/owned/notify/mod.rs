@@ -59,13 +59,21 @@ pub use style::Style;
 pub enum Part {
     /// TODO(prose): a notice's card.
     Toast,
+    /// TODO(prose): an action's button.
+    ActionButton,
+    /// TODO(prose): the × that dismisses a notice.
+    CloseButton,
 }
 
 impl crate::sheet::Part for Part {
     const SOURCE: &'static str = "sonner.tsx";
 
     fn slot(self) -> &'static str {
-        "toast"
+        match self {
+            Self::Toast => "toast",
+            Self::ActionButton => "toast-action-button",
+            Self::CloseButton => "toast-close-button",
+        }
     }
 }
 
@@ -446,7 +454,8 @@ fn card<A: 'static, Act: Clone + 'static>(
         for (at, action) in notice.actions.iter().enumerate() {
             let (act, on_action) = (action.act.clone(), handlers.on_action.clone());
             let label = action.label.clone();
-            s.div_id(("action", at), look.action(), |s| {
+            let classes = s.part(Part::ActionButton, &[], look.action());
+            s.div_id(("action", at), classes, |s| {
                 s.text(tw(), label.clone());
             })
             .role(Role::Button)
@@ -460,8 +469,9 @@ fn card<A: 'static, Act: Clone + 'static>(
         if close == CloseButton::Shown {
             let on_dismiss = handlers.on_dismiss.clone();
             let name = format!("Dismiss: {}", notice.text);
-            s.div_id("close", look.close(), |s| {
-                s.glyph(look.close_glyph(), Icon::new(icons::CLOSE));
+            let classes = s.part(Part::CloseButton, &[], look.close());
+            s.div_id("close", classes, |s| {
+                s.glyph(tw().shrink_0(), Icon::new(icons::CLOSE));
             })
             .role(Role::Button)
             .named(name)
@@ -505,11 +515,45 @@ fn focus_was_inside(ui: &egui::Ui) -> bool {
     now || before
 }
 
-/// Writes the notice's recorded exception: its card, sonner's toast, which
-/// the generated look does not carry, from `notify`.
+/// Writes the notice's recorded exceptions, from sonner's own stylesheet,
+/// which the generated look does not carry: its card, from `notify`; an
+/// action's `[data-button]`, filled in the card's colours swapped
+/// (styles.css 181-202); and the `[data-close-button]` ×, a circle half out
+/// over the card's corner, in sonner's light grey scale or its dark rules
+/// (styles.css 1-25, 219-246, 520-536).
 pub(crate) fn write_exceptions(notify: &Style, sheet: &mut crate::sheet::Sheet) {
+    use crate::{TextSpec, Weight};
     let notify = std::sync::Arc::new(notify.clone());
     sheet.rule_under(Part::Toast, move |_, _| {
         look::Look::new(notify.clone()).card()
+    });
+    sheet.rule(Part::ActionButton, |t, k| {
+        t.h_px(24.0)
+            .px_px(8.0)
+            .rounded_px(4.0)
+            .bg(k.popover_foreground)
+            .text(k.popover)
+            .role(TextSpec {
+                size: 12.0,
+                line_height: 16.0,
+                ..k.text_role_at(Weight::Medium)
+            })
+    });
+    sheet.rule(Part::CloseButton, |t, k| {
+        let gray = egui::Color32::from_gray;
+        let (border, text, hover_fill, hover_border) = match k.theme {
+            egui::Theme::Dark => (k.border, k.popover_foreground, gray(31), gray(64)),
+            egui::Theme::Light => (gray(237), gray(23), gray(248), gray(232)),
+        };
+        t.top_px(-7.0)
+            .left_px(-7.0)
+            .size_px(20.0)
+            .rounded_full()
+            .border(1.0)
+            .border_color(border)
+            .bg(k.popover)
+            .text(text)
+            .hover(|paint| paint.bg(hover_fill).border_color(hover_border))
+            .children(crate::Match::glyph(), |glyph| glyph.size(3.0))
     });
 }
