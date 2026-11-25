@@ -696,14 +696,15 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             .focus(Focus::Stay)
             .on_dismiss(move |_| Suggesting::Dismissed.store(&dismiss, field_id))
             .children(|s| {
-                s.div_id(Node::Box, list::popover_classes(&style), |s| {
+                let content = s.part(ComboboxPart::Content, &[], tw().flex().flex_col().min_h_0());
+                s.div_id(Node::Box, content, |s| {
                     list::show(
                         s,
                         key,
                         items,
                         options,
                         list::ListOptions {
-                            looks: list::Looks::Own,
+                            looks: list::Looks::Combobox,
                             first: First::Left,
                             after: Some(after),
                             field: list::Field::Theirs { id: field_id, text },
