@@ -1,35 +1,16 @@
 use crate::contract;
+#[cfg(feature = "badge")]
+use crate::contract::{Colors, Focus, Keyed, Look as BoxLook, States};
+#[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
+use crate::{TextSpec, Weight};
+#[cfg(any(feature = "badge", feature = "notify"))]
+use egui::Color32;
 use egui::Theme;
-#[cfg(any(
-    feature = "badge",
-    feature = "command",
-    feature = "dialog",
-    feature = "disclosure",
-    feature = "form",
-    feature = "hover-card",
-    feature = "markdown",
-    feature = "notify",
-    feature = "skeleton"
-))]
-use {
-    crate::contract::{Colors, Focus, Keyed, Look as BoxLook, States},
-    crate::{Opacity, TextSpec, Weight},
-    egui::Color32,
-    std::time::Duration,
-};
+#[cfg(any(feature = "badge", feature = "hover-card"))]
+use std::time::Duration;
 
 use crate::theme::ShadcnStyle;
-#[cfg(any(
-    feature = "badge",
-    feature = "command",
-    feature = "dialog",
-    feature = "disclosure",
-    feature = "form",
-    feature = "hover-card",
-    feature = "markdown",
-    feature = "notify",
-    feature = "skeleton"
-))]
+#[cfg(feature = "badge")]
 use crate::theme::variant;
 use crate::theme::{ContrastPair, FontSet, Palette, Tokens};
 
@@ -334,29 +315,13 @@ impl Shadcn {
     /// let disclosure = shadcn
     ///     .style()
     ///     .disclosure;
-    /// assert_eq!(disclosure.header.padding_y, 16.0);
+    /// assert_eq!(disclosure.header.gap, 16.0);
     /// ```
     #[cfg(feature = "disclosure")]
-    pub(crate) fn disclosure(
-        t: &Tokens,
-        style: &contract::Base<'_>,
-    ) -> crate::owned::disclosure::Style {
-        let lyra = t.style == ShadcnStyle::Lyra;
-        let mut disclosure = crate::owned::disclosure::Style::from_base(style);
-        disclosure.section.size = 16.0;
-        disclosure.tree.size = 16.0;
-        disclosure.tone = Some(t.muted_foreground);
-        disclosure.tone_opacity = Opacity::new(1.0);
+    pub(crate) fn disclosure(t: &Tokens) -> crate::owned::disclosure::Style {
+        let mut disclosure = crate::owned::disclosure::Style::from_tokens(t);
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.tokens.focus();
-        disclosure.header.focus_border = Some(t.ring);
-        disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
-        disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };
         disclosure.header.gap = 16.0;
-        disclosure.header.text = t.text_role_at(Weight::Medium);
-        disclosure.header.disabled = Opacity::new(0.5);
-        disclosure.button = 24.0;
-        disclosure.button_hover = Some(t.accent);
         disclosure.separator = Some(t.border);
         disclosure
     }

@@ -1200,26 +1200,30 @@ impl<T> Themed<T> {
 /// sections it follows.
 #[cfg(any(
     feature = "badge",
-    feature = "command",
-    feature = "dialog",
-    feature = "disclosure",
     feature = "form",
     feature = "hover-card",
-    feature = "markdown",
     feature = "notify",
     feature = "skeleton",
     feature = "spinner"
 ))]
 pub(crate) struct Base<'a> {
+    #[cfg(any(
+        feature = "badge",
+        feature = "form",
+        feature = "hover-card",
+        feature = "notify",
+        feature = "skeleton"
+    ))]
     pub tokens: &'a Tokens,
+    #[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
     pub text: &'a TextSpec,
+    #[cfg(any(feature = "badge", feature = "form", feature = "spinner"))]
     pub toggle: &'a ToggleStyle,
-    #[cfg(any(feature = "form", feature = "markdown"))]
+    #[cfg(feature = "form")]
     pub label: &'a States,
     #[cfg(feature = "form")]
     pub slider: &'a SliderStyle,
-    pub select: &'a SelectStyle,
-    #[cfg(feature = "hover-card")]
+    #[cfg(any(feature = "hover-card", feature = "notify"))]
     pub menu: &'a MenuStyle,
     #[cfg(feature = "hover-card")]
     pub motion: &'a MotionStyle,
@@ -1610,26 +1614,30 @@ impl Style {
         };
         #[cfg(any(
             feature = "badge",
-            feature = "command",
-            feature = "dialog",
-            feature = "disclosure",
             feature = "form",
             feature = "hover-card",
-            feature = "markdown",
             feature = "notify",
             feature = "skeleton",
             feature = "spinner"
         ))]
         let base = Base {
+            #[cfg(any(
+                feature = "badge",
+                feature = "form",
+                feature = "hover-card",
+                feature = "notify",
+                feature = "skeleton"
+            ))]
             tokens: t,
+            #[cfg(any(feature = "badge", feature = "form", feature = "notify"))]
             text: &text,
+            #[cfg(any(feature = "badge", feature = "form", feature = "spinner"))]
             toggle: &toggle,
-            #[cfg(any(feature = "form", feature = "markdown"))]
+            #[cfg(feature = "form")]
             label: &label,
             #[cfg(feature = "form")]
             slider: &slider,
-            select: &select,
-            #[cfg(feature = "hover-card")]
+            #[cfg(any(feature = "hover-card", feature = "notify"))]
             menu: &menu,
             #[cfg(feature = "hover-card")]
             motion: &motion,
@@ -1642,7 +1650,7 @@ impl Style {
         #[cfg(feature = "badge")]
         let badge = crate::theme::Shadcn::badge(t, &base);
         #[cfg(feature = "disclosure")]
-        let disclosure = crate::theme::Shadcn::disclosure(t, &base);
+        let disclosure = crate::theme::Shadcn::disclosure(t);
         #[cfg(feature = "form")]
         let form = crate::theme::Shadcn::form(t, &base);
         #[cfg(feature = "hover-card")]
@@ -1797,24 +1805,6 @@ impl Style {
     }
 
     /// What an opt-in widget's style is built from, from this style.
-    #[cfg(feature = "disclosure")]
-    fn base(&self) -> Base<'_> {
-        Base {
-            tokens: &self.tokens,
-            text: &self.text,
-            toggle: &self.toggle,
-            #[cfg(any(feature = "form", feature = "markdown"))]
-            label: &self.label,
-            #[cfg(feature = "form")]
-            slider: &self.slider,
-            select: &self.select,
-            #[cfg(feature = "hover-card")]
-            menu: &self.menu,
-            #[cfg(feature = "hover-card")]
-            motion: &self.motion,
-        }
-    }
-
     /// Writes the widgets' look: the generated sheets of the tokens' style
     /// and theme, eggshell's own rules around them, and the recorded
     /// exceptions over them.
@@ -1830,8 +1820,12 @@ impl Style {
         {
             // The section's own look, not its preset's: what the generated
             // look's exceptions have always been written from.
-            let disclosure = crate::owned::disclosure::Style::from_base(&self.base());
+            let disclosure = crate::owned::disclosure::Style::from_tokens(&self.tokens);
             crate::owned::disclosure::write_exceptions(&mut self.sheet, &disclosure);
+            crate::owned::disclosure::write_collapsible_exceptions(
+                &mut self.sheet,
+                self.toggle.transition,
+            );
         }
         #[cfg(feature = "command")]
         crate::owned::command::write_exceptions(self);

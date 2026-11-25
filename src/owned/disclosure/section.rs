@@ -256,9 +256,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
                     |b| {
                         match face {
                             Face::Label(text) => b.text(tw(), text),
-                            Face::Icon(icon, _) => {
-                                b.glyph(tw().size_px(style.section.size).shrink_0(), icon)
-                            }
+                            Face::Icon(icon, _) => b.glyph(tw().shrink_0(), icon),
                             Face::Empty(_) => {}
                         }
                         if let Some(children) = header_children {

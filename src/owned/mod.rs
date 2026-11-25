@@ -107,8 +107,8 @@ pub mod stepper;
 #[cfg(any(
     feature = "badge",
     feature = "command",
-    feature = "disclosure",
     feature = "form",
+    feature = "hover-card",
     feature = "markdown",
     feature = "notify",
     feature = "skeleton",
