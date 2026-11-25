@@ -1307,10 +1307,18 @@ impl<A> Walk<'_, A> {
             .min_scrolled_height(0.0)
             .content_margin(egui::Margin::ZERO)
             .scroll_bar_visibility(plan.bars.visibility.egui());
-        let area = if plan.moved {
+        let ctx = self.ui.ctx().clone();
+        let rewound = scroll::take_rewind(&ctx, id).is_some();
+        let area = if plan.moved || rewound {
             area.scroll_offset(plan.offset)
         } else {
             area
+        };
+        let before = if plan.moved || rewound {
+            Some(plan.offset)
+        } else {
+            egui::scroll_area::State::load(&ctx, scroll::state_id(id))
+                .map(|state| state.unclamped_offset())
         };
         let Self {
             app,
@@ -1372,6 +1380,7 @@ impl<A> Walk<'_, A> {
                     .visit(index.saturating_add(1), content);
                 });
                 scroll::note_bar_hold(shell, id, shown.id);
+                scroll::take_first_touch_move(ui.ctx(), id, shown.id, before);
                 // A selected mount's scroll container keeps what the wheel
                 // gave it past its end: none of it reaches the page.
                 if wheel == Some(true) && ui.rect_contains_pointer(shown.inner_rect) {
