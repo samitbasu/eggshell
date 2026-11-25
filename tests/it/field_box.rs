@@ -434,7 +434,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
                 b.span("line", tw(), "1.234");
                 b.text_field_with(
                     "bare",
-                    eggshell_ui::prim::text_field::Field::singleline("1.234").bare(),
+                    eggshell_ui::owned::text_field::Field::singleline("1.234").bare(),
                 )
                 .on_change(|_, _| {});
             });

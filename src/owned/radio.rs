@@ -87,7 +87,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
     }
 
     /// TODO(prose): marks the radio group invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its circles' borders and rings turn destructive, and so do their fields' labels.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);

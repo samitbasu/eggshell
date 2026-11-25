@@ -4,8 +4,8 @@
 
 use eggshell_ui::Problem;
 use eggshell_ui::overlay::Anchor;
+use eggshell_ui::owned::text_field::Select;
 use eggshell_ui::owned::{splitter::PaneSize, toggle_group::ToggleGroup};
-use eggshell_ui::prim::text_field::Select;
 use eggshell_ui::testing::{assert_no_reports, assert_reported};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};

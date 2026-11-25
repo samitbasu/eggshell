@@ -16,8 +16,8 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Themed, Variant};
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::owned::{menu::MenuPart, segmented::Cell};
-use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::sheet::Key as SheetKey;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};

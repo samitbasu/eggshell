@@ -13,6 +13,7 @@ use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
+use crate::owned::text_field::{self, Field, Opening};
 use crate::owned::{
     Enablement, Tip, described,
     field_box::FieldBoxChain,
@@ -20,7 +21,6 @@ use crate::owned::{
     options::{Gate, IntoTip},
     painted, tip_describes, tipped_whole,
 };
-use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]

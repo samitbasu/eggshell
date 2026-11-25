@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use eggshell_ui::owned::segmented::Cell;
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, PixelsPerPoint, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};

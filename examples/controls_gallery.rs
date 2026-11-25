@@ -25,7 +25,7 @@ use eggshell_ui::owned;
 use eggshell_ui::owned::badge::BadgeExt;
 use eggshell_ui::owned::skeleton::SkeletonExt;
 use eggshell_ui::owned::spinner::SpinnerExt;
-use eggshell_ui::prim::text_field::{self, Field};
+use eggshell_ui::owned::text_field::{self, Field};
 use eggshell_ui::theme::{BaseColor, Palette, ThemeColor, size, variant};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};

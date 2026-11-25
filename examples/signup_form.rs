@@ -13,7 +13,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Scope, Tw, tw};
 use egui::Role;

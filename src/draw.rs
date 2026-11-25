@@ -30,6 +30,7 @@ use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::owned::splitter::Side;
+use crate::owned::tooltip;
 use crate::pipeline::{
     ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedFrame, PlacedNode, ScrollRef,
 };
@@ -45,7 +46,6 @@ use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside
 use crate::spans;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
-use crate::tooltip;
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,

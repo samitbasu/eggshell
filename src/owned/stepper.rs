@@ -17,7 +17,7 @@ use crate::builder::Slot;
 use crate::contract::{Size, StepperStyle};
 use crate::focus::{Autofocus, Select};
 use crate::overlay_input::Blur;
-use crate::prim::text_field::{self, Field};
+use crate::owned::text_field::{self, Field};
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, Tw, tw};
 
@@ -214,7 +214,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     }
 
     /// TODO(prose): marks the stepper invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its group's border and ring turn destructive, because its field
     /// is invalid.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {

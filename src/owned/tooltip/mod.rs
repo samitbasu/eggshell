@@ -1,11 +1,15 @@
 //! Tooltips: hover intent, and the overlay that shows one.
 //!
-//! A trigger is a draw closure that says so ([`register`]); nothing is
+//! A trigger is a draw closure that says so (`register`); nothing is
 //! declared for it at build. At the end of the draw the frame's triggers are
 //! resolved against the pointer, the keyboard focus and the style's timing
-//! ([`Intent::tick`], pure), and the next build declares one overlay per
-//! tooltip that is open or still leaving ([`declare`]). The state is
+//! (`Intent::tick`, pure), and the next build declares one overlay per
+//! tooltip that is open or still leaving (`declare`). The state is
 //! `Kept::tooltips`, so it is per `LayoutState`.
+
+mod sheet;
+
+pub use sheet::TooltipPart;
 
 use core::time::Duration;
 use std::hash::Hash;
@@ -22,7 +26,6 @@ use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
-use crate::owned::tooltip::TooltipPart;
 use crate::presence::Shown;
 use crate::tw::tw;
 

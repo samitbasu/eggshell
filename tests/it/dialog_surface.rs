@@ -4,7 +4,7 @@
 
 use eggshell_ui::overlay::{Anchor, Modal, Shown, Side};
 use eggshell_ui::owned::dialog::{Dialog, DialogContent, DialogExt, PopoverExt};
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::{Builder, tw};
 use egui::{Key, Pos2, Role, vec2};
 use egui_kittest::Harness;

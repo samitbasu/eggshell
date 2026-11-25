@@ -195,7 +195,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     }
 
     /// TODO(prose): marks the select invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its trigger's border and ring turn destructive.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);

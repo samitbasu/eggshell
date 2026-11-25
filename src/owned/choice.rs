@@ -8,7 +8,7 @@ use egui::WidgetText;
 use super::options::Refused;
 use super::{Enablement, options::IntoTip};
 use crate::Icon;
-use crate::tooltip::Tooltip;
+use crate::owned::tooltip::Tooltip;
 
 /// One option of a radio group, a segmented control or a select: the `value`
 /// it chooses and how it is shown.

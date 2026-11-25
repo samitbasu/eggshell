@@ -591,7 +591,7 @@ mod composer_growth {
 
     fn estimate(d: &Driver<App>) -> Vec2 {
         let app = &d.app();
-        let field = eggshell_ui::prim::text_field::Field::multiline(&app.draft, MIN_ROWS)
+        let field = eggshell_ui::owned::text_field::Field::multiline(&app.draft, MIN_ROWS)
             .max_rows(MAX_ROWS)
             .hint("Reply…")
             .bare();

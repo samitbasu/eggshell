@@ -253,7 +253,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     ///
     /// ```
     /// use eggshell_ui::Builder;
-    /// use eggshell_ui::prim::text_field::Enter;
+    /// use eggshell_ui::owned::text_field::Enter;
     ///
     /// struct App { name: String }
     ///
@@ -292,7 +292,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     ///
     /// ```
     /// use eggshell_ui::Builder;
-    /// use eggshell_ui::prim::text_field::Select;
+    /// use eggshell_ui::owned::text_field::Select;
     ///
     /// struct App { name: String, focus_name: u32 }
     ///

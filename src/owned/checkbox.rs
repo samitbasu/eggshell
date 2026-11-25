@@ -114,7 +114,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
 
 impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the checkbox invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its box's border and ring turn destructive, and so does its field's label.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);

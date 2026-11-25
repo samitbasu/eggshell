@@ -410,7 +410,6 @@ compile_error!(
 );
 mod text;
 mod tiling;
-mod tooltip;
 mod transition;
 mod tw;
 pub mod vlist;

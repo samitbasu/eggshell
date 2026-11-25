@@ -1,7 +1,7 @@
 //! What Enter does in a one-line field, and focus that the application asks
 //! for with a token (#150).
 
-use eggshell_ui::prim::text_field::Enter;
+use eggshell_ui::owned::text_field::Enter;
 use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, vec2};
 

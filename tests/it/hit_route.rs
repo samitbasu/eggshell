@@ -2,7 +2,7 @@
 //! target, and a press it wins goes to the nearest eggshell ancestor with a
 //! handler; egui-native content gets presses only where no box covers it.
 
-use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Sense, vec2};

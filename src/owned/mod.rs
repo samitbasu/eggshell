@@ -95,6 +95,7 @@ mod styles;
 pub mod switch;
 pub mod table;
 pub mod tabs;
+pub mod text_field;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
@@ -125,7 +126,7 @@ pub(crate) fn write_track_exceptions(sheet: &mut crate::sheet::Sheet) {
 }
 
 use crate::contract::{Colors, Focus, Look, Paint, Size, States, Style};
-use crate::tooltip::{Content, Tooltip};
+use crate::owned::tooltip::{Content, Tooltip};
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
 use button::{ButtonChain, Face};
 use checkbox::CheckboxChain;
@@ -396,7 +397,7 @@ pub(crate) fn tip<A: 'static>(b: &mut Builder<'_, '_, A>, trigger: Id, content: 
 /// `response` with `tip` shown on hover, also when the control is disabled.
 pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     if let Some(tip) = tip {
-        crate::tooltip::register(ui, &response, tip);
+        crate::owned::tooltip::register(ui, &response, tip);
     }
     response
 }
@@ -406,7 +407,7 @@ pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
 /// whatever part of it is hovered or focused.
 pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
     if let Some(tip) = tip {
-        crate::tooltip::register_whole(ui, tip);
+        crate::owned::tooltip::register_whole(ui, tip);
     }
 }
 
@@ -414,7 +415,7 @@ pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
 /// control's `tip`, which it does not trigger.
 pub(crate) fn tip_describes(ui: &Ui, response: &Response, tip: &Tip) {
     if let Some(tip) = tip {
-        crate::tooltip::describes(ui, response, tip);
+        crate::owned::tooltip::describes(ui, response, tip);
     }
 }
 

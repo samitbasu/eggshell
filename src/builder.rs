@@ -21,6 +21,7 @@ use crate::mount::{Lensed, Mount, MountChain};
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
+use crate::owned::tooltip::{Content, Tooltip};
 use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Identified, Identity, Interaction,
     MeasureFn, Node, NodeKind, Pass, ScrollNode, Sink, solve,
@@ -33,7 +34,6 @@ use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
-use crate::tooltip::{Content, Tooltip};
 use crate::tw::{Grouping, Observed, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
@@ -1805,11 +1805,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ));
     }
 
-    pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
+    pub(crate) fn build_built(&self) -> Option<crate::owned::tooltip::BuildBuilt<A>> {
         self.frame.build_built()
     }
 
-    pub(crate) fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
+    pub(crate) fn set_build_built(&mut self, build: crate::owned::tooltip::BuildBuilt<A>) {
         self.frame.set_build_built(build);
     }
 

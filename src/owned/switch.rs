@@ -106,7 +106,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
 
 impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// TODO(prose): marks the switch invalid while `error` is `Some`, as
-    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// [`TextFieldChain::invalid`](crate::owned::text_field::TextFieldChain::invalid)
     /// does: its track's border and ring turn destructive, and so does its field's label.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);
