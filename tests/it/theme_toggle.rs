@@ -90,10 +90,6 @@ fn every_example_shows_the_toggle_and_none_pins_a_theme() {
         examples.len()
     );
     for (file, text) in examples {
-        // It prints the preset's facts for the importer and draws nothing.
-        if file.ends_with("preset_dump.rs") {
-            continue;
-        }
         let shared_runner = text.contains("common::run(")
             || text.contains("common::run_app(")
             || text.contains("common::run_app_styled(")

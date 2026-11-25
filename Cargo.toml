@@ -140,7 +140,3 @@ debug = "line-tables-only"
 inherits = "dev"
 debug-assertions = false
 overflow-checks = false
-
-[[example]]
-name = "preset_dump"
-required-features = ["badge", "command", "dialog", "disclosure", "form", "hover-card", "markdown", "notify", "skeleton"]
