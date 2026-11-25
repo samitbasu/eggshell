@@ -40,10 +40,10 @@ fn harness(fonts: impl Fn(Shadcn) -> Shadcn) -> Driver<()> {
         (),
         view,
     )
-    .style(Themed {
+    .style(&eggshell_ui::SharedStyle::new(Themed {
         light: half(Shadcn::light()),
         dark: half(Shadcn::dark()),
-    })
+    }))
     .build();
     d.frames(3);
     d
@@ -88,11 +88,10 @@ fn a_shadcn_button_is_medium() {
 
 #[test]
 fn without_a_font_every_weight_draws_the_regular_family() {
-    let mut d = harness(|preset| preset.with_fonts(None));
+    let d = harness(|preset| preset.with_fonts(None));
     for text in ["Save", "medium", "bold"] {
         assert_eq!(family_of(&d, text), FontFamily::Proportional, "{text}");
     }
-    d.expect_reported(Problem::MissingFace);
 }
 
 #[test]

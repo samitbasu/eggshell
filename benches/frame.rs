@@ -161,7 +161,12 @@ fn trees(c: &mut Criterion) {
     let ctx = context();
     for tree in [Tree::Grid, Tree::Text] {
         for nodes in TREE_SIZES {
-            let mut state = LayoutState::new();
+            let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(
+                eggshell_ui::theme::Shadcn::themed(
+                    eggshell_ui::theme::ShadcnStyle::default(),
+                    eggshell_ui::theme::Palette::new(),
+                ),
+            ));
             let view = |b: &mut Builder<'_, '_, ()>, _: &()| tree.build(b, nodes);
             frame(&ctx, &mut state, &mut (), Phase::Draw, view);
             let before = ALLOCATIONS.load(Ordering::Relaxed);
@@ -175,7 +180,12 @@ fn trees(c: &mut Criterion) {
         group.sample_size(30);
         for phase in Phase::ALL {
             for nodes in TREE_SIZES {
-                let mut state = LayoutState::new();
+                let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(
+                    eggshell_ui::theme::Shadcn::themed(
+                        eggshell_ui::theme::ShadcnStyle::default(),
+                        eggshell_ui::theme::Palette::new(),
+                    ),
+                ));
                 let view = |b: &mut Builder<'_, '_, ()>, _: &()| tree.build(b, nodes);
                 frame(&ctx, &mut state, &mut (), phase, view);
                 group.bench_function(BenchmarkId::new(phase.name(), nodes), |bench| {
@@ -235,7 +245,12 @@ fn rules(c: &mut Criterion) {
     group.sample_size(30);
     for styling in [Styling::Own, Styling::Rule] {
         for buttons in [100, 1_000] {
-            let mut state = LayoutState::new();
+            let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(
+                eggshell_ui::theme::Shadcn::themed(
+                    eggshell_ui::theme::ShadcnStyle::default(),
+                    eggshell_ui::theme::Palette::new(),
+                ),
+            ));
             let view = |b: &mut Builder<'_, '_, ()>, _: &()| styling.build(b, buttons);
             frame(&ctx, &mut state, &mut (), Phase::Layout, view);
             group.bench_function(BenchmarkId::new(styling.name(), buttons), |bench| {
@@ -309,7 +324,7 @@ fn sheets(c: &mut Criterion) {
     group.sample_size(30);
     for keeping in [Keeping::Own, Keeping::Sheet] {
         for buttons in [100, 1_000] {
-            let mut state = LayoutState::new().with_style(keeping.style());
+            let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(keeping.style()));
             let view = |b: &mut Builder<'_, '_, ()>, _: &()| keeping.build(b, buttons);
             frame(&ctx, &mut state, &mut (), Phase::Layout, view);
             group.bench_function(BenchmarkId::new(keeping.name(), buttons), |bench| {
@@ -387,7 +402,12 @@ impl Fixture {
     fn new(count: u32, sizing: Rows) -> Self {
         let mut fixture = Self {
             ctx: context(),
-            state: LayoutState::new(),
+            state: LayoutState::new(&eggshell_ui::SharedStyle::new(
+                eggshell_ui::theme::Shadcn::themed(
+                    eggshell_ui::theme::ShadcnStyle::default(),
+                    eggshell_ui::theme::Palette::new(),
+                ),
+            )),
             table: Table::new(count, sizing),
         };
         fixture.frame();
@@ -446,7 +466,12 @@ fn operations(c: &mut Criterion) {
                 || {
                     (
                         context(),
-                        LayoutState::new(),
+                        LayoutState::new(&eggshell_ui::SharedStyle::new(
+                            eggshell_ui::theme::Shadcn::themed(
+                                eggshell_ui::theme::ShadcnStyle::default(),
+                                eggshell_ui::theme::Palette::new(),
+                            ),
+                        )),
                         Table::new(count, Rows::Measured),
                     )
                 },

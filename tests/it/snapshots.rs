@@ -243,7 +243,8 @@ fn snapshot_ink(
     layout: impl for<'f> Fn(&mut Builder<'_, 'f, ()>, ImageSource<'static>),
 ) {
     report_renderer();
-    let mut state = LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, ink));
+    let mut state = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+        .with_base_text(TextStyle::new(layouts::BODY, ink));
     let mut logo: Option<TextureHandle> = None;
     let mut harness = Harness::builder()
         .with_size(SIZE)
@@ -1497,7 +1498,7 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
                 ui,
                 app,
                 layout,
-                &mut LayoutState::new().with_style(support::shadcn()),
+                &mut LayoutState::new(&eggshell_ui::SharedStyle::new(support::shadcn())),
             );
         },
     );
@@ -2269,7 +2270,6 @@ mod tooltip_candidates {
         );
         harness
             .state_mut()
-            .layout
             .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         harness.state_mut().page = support::Page::Themed;
         harness.state_mut().companion = support::Companion::Alone;
@@ -2416,7 +2416,6 @@ mod kbd_candidates {
         );
         harness
             .state_mut()
-            .layout
             .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         rich_tooltip_open(&mut harness, theme);
         let label = if theme == egui::Theme::Light {
@@ -2462,13 +2461,8 @@ fn slider_thumb_halo(style: ShadcnStyle, name: &str) {
     };
     report_renderer();
     let text = TextStyle::new(layouts::BODY, Color32::BLACK);
-    let mut harness = support::harness_prepared(
-        Vec2::new(220.0, 48.0),
-        text,
-        Volume(40.0),
-        view,
-        |ctx, _| common::use_preset(ctx),
-    );
+    let mut harness =
+        support::harness_prepared(Vec2::new(220.0, 48.0), text, Volume(40.0), view, |_, _| {});
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2514,7 +2508,7 @@ fn swatch_picker_in(name: &str, theme: egui::Theme, picker: Picker) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         swatch_picker::State::with(swatch_picker::Choice::Colour(8)),
         swatch_picker::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2565,7 +2559,7 @@ fn clipboard_example_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         clipboard_example::State::default(),
         clipboard_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness
         .state()
@@ -2598,7 +2592,7 @@ fn control_sizes_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         (),
         control_sizes_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2625,7 +2619,7 @@ fn icons_in(name: &str, theme: egui::Theme, open_menu: bool) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         (),
         icons_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2666,7 +2660,7 @@ fn field_icons_in(name: &str, theme: egui::Theme, focused: bool) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         field_icons_example::State::default(),
         field_icons_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2707,7 +2701,7 @@ fn slider_header_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         slider_header_example::Levels::default(),
         slider_header_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2724,7 +2718,7 @@ fn form_sections_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         form_sections_example::Settings::default(),
         form_sections_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2752,7 +2746,7 @@ fn table_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         table_example::Invoices::default(),
         table_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;
@@ -2789,7 +2783,7 @@ fn list_nav_in(name: &str, theme: egui::Theme) {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         list_nav_example::State::default(),
         list_nav_example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
     harness.state_mut().companion = support::Companion::Alone;

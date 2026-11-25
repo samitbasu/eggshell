@@ -341,7 +341,9 @@ fn an_unnamed_disclosure_button_is_reported() {
                     .draw(fold, ui);
             },
             Rig {
-                layout: eggshell_ui::LayoutState::new(),
+                layout: eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(
+                    crate::support::shadcn(),
+                )),
                 fold: Shown::Closed,
             },
         );
@@ -351,7 +353,6 @@ fn an_unnamed_disclosure_button_is_reported() {
 
 #[test]
 fn the_disclosure_button_is_a_square_with_an_accent_tint_under_the_pointer() {
-    use eggshell_ui::theme::Shadcn;
     use egui::epaint::Shape;
     let mut harness = harness();
     let rect = rect_of(&harness, r#"/"fold""#);
@@ -360,7 +361,7 @@ fn the_disclosure_button_is_a_square_with_an_accent_tint_under_the_pointer() {
         (24.0, 24.0),
         "a 24 pt square"
     );
-    let accent = Shadcn::of(&harness.ctx).tokens.accent;
+    let accent = support::shell(&harness).style().tokens.accent;
     let tinted = |harness: &Harness<'_, Rig<App>>| {
         support::shapes(harness)
             .into_iter()
@@ -382,7 +383,7 @@ fn driver_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing::
         App::default(),
         view,
     )
-    .style(support::shadcn_with(edit))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .build();
     d.frames(4);
     d

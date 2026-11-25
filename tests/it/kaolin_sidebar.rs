@@ -15,22 +15,15 @@ mod common;
 #[path = "../../examples/kaolin/main.rs"]
 mod kaolin;
 
-#[derive(Clone, Copy, Debug)]
-enum Styling {
-    Preset,
-    EguiDefaults,
-}
-
 /// The rects of the sidebar's rows, and of the buttons drawn in them.
-fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
+fn sidebar(theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
     let step = Duration::from_millis(250);
+    let style = common::shared_style();
+    let adopted = style.clone();
     let mut d = Driver::whole_frame(
         kaolin::Gallery { selected: 1 },
         move |ui, gallery: &mut kaolin::Gallery, layout| {
-            if matches!(styling, Styling::Preset) {
-                common::use_preset(ui.ctx());
-                layout.set_style(common::style(ui.ctx()));
-            }
+            common::adopt(ui.ctx(), &adopted);
             let area = ui.max_rect();
             let selected = gallery.selected;
             layout
@@ -42,6 +35,7 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
         },
     )
     .size(vec2(900.0, 700.0))
+    .style(&style)
     .theme(theme)
     .base_text(common::base_text(theme))
     .step(step)
@@ -66,10 +60,10 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
 
 #[test]
 fn sidebar_rows_do_not_overlap_and_hold_their_buttons() {
-    for styling in [Styling::Preset, Styling::EguiDefaults] {
+    {
         for theme in [Theme::Light, Theme::Dark] {
-            let (rows, buttons) = sidebar(styling, theme);
-            let case = format!("{styling:?}, {theme:?}");
+            let (rows, buttons) = sidebar(theme);
+            let case = format!("{theme:?}");
             assert_eq!(
                 rows.len(),
                 kaolin::ENTRIES.len(),

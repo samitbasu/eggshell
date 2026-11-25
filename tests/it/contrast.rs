@@ -4,11 +4,14 @@
 //! reported, not checked. Then the warning `Shadcn::apply` gives in a debug
 //! build for other colours.
 
-use eggshell_ui::Problem;
+use std::sync::Arc;
+
+use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{assert_no_reports, assert_reported, reports};
 use eggshell_ui::theme::{
     BaseColor, ContrastPair, ContrastRatio, Palette, REGISTRY_MISSES, Shadcn, ThemeColor, Tokens,
 };
+use eggshell_ui::{Builder, LayoutState, Problem};
 use egui::{Color32, Context, Theme};
 
 fn tokens(theme: Theme, base: BaseColor, colour: ThemeColor) -> Tokens {
@@ -110,10 +113,20 @@ fn borders_and_inputs_against_the_page_are_reported() {
     println!("input on background, lowest: {input:.2}:1 ({at_input}); 3:1 is not checked");
 }
 
+/// A context whose layout is given `preset`'s style, then given it again as
+/// a new style.
 fn applied(preset: &Shadcn) -> Context {
     let ctx = Context::default();
-    preset.apply(&ctx);
-    preset.apply(&ctx);
+    let given = || Themed::both(Arc::new(preset.style()));
+    let shared = eggshell_ui::SharedStyle::new(given());
+    let mut layout = LayoutState::new(&shared);
+    for _ in 0..2 {
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            let _ = layout.build(ui.ctx(), |_: &mut Builder<'_, '_, ()>| {});
+        })
+        .drop_without_applying_deltas();
+        shared.set(given());
+    }
     ctx
 }
 
@@ -145,7 +158,7 @@ fn a_low_contrast_token_set_is_reported_once_in_a_debug_build() {
         let report = assert_reported(&ctx, Problem::LowContrast);
         assert_eq!(
             report.count, 2,
-            "one report, counted again on the second apply"
+            "one report, counted again when the style is given again"
         );
         assert_eq!(reports(&ctx).len(), 1);
         assert_eq!(

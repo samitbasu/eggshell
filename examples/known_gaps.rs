@@ -290,13 +290,13 @@ pub fn window<A>(b: &mut B<'_, '_, A>) {
 }
 
 fn main() -> eframe::Result {
-    let mut layout = LayoutState::new();
-    let mut theme_bar = common::ThemeBar::new();
+    let shared = common::shared_style();
+    let mut layout = LayoutState::new(&shared);
+    let mut theme_bar = common::ThemeBar::new(&shared);
     common::launch("known_gaps", Some(egui::vec2(1100.0, 860.0)), move |ui| {
         let ctx = ui.ctx().clone();
-        common::use_preset(&ctx);
         theme_bar.show(ui);
-        layout.set_style(common::style(&ctx));
+        common::adopt(&ctx, &shared);
         layout.set_base_text(Some(base_text(ctx.theme())));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

@@ -7,33 +7,33 @@
 //! [`Shadcn`] is a preset: a [`ShadcnStyle`] (which of shadcn's styles, such as
 //! [`Vega`](ShadcnStyle::Vega) or [`Lyra`](ShadcnStyle::Lyra)), a
 //! [`Palette`] (shadcn's base and theme colours) and an egui theme (light or dark),
-//! chosen independently. Nothing here runs unless the application calls
-//! [`Shadcn::apply`]: the library never changes egui's style on its own.
+//! chosen independently. TODO(prose): a layout given a preset's style gives
+//! egui its look; nothing here changes egui's style on its own.
 //!
 //! The crate only fills the contract. `eggshell` defines what its widgets
 //! need and has no shadcn names or values; a style is data, so changing
 //! [`ShadcnStyle`] at run time changes sizes, radii, text size and ring width
 //! with no code change in the application.
 //!
-//! Applying a preset does three things. It fills the [`Style`](crate::Style)
+//! TODO(prose): applying a preset is now giving a layout its style. It fills the [`Style`](crate::Style)
 //! contract with the tokens ([`Shadcn::style`]) and installs it for the
 //! preset's theme, which the owned widgets and the text edit of `eggshell`
 //! draw from. It maps the [`Tokens`] onto the egui [`Style`](egui::Style) of
 //! the preset's theme (widget fills, strokes, radii, selection, spacing) for
-//! the egui widgets an application draws outside eggshell. It also remembers
-//! the tokens in the context, for [`tokens`] and [`Shadcn::of`].
+//! the egui widgets an application draws outside eggshell.
 //!
 //! ```
 //! use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor};
+//! use eggshell_ui::{LayoutState, SharedStyle};
 //!
-//! let ctx = egui::Context::default();
-//! // Once at startup: shadcn's default preset, light and dark.
-//! Shadcn::apply_both(&ctx);
-//! // Or every frame, to switch style or colour at run time; a no-op while
-//! // nothing changes.
-//! Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, Palette::new().theme(ThemeColor::Blue));
-//! // The tokens, for the application's own colours.
-//! let background = Shadcn::of(&ctx).tokens.background;
+//! let style = SharedStyle::new(Shadcn::themed(ShadcnStyle::Vega, Palette::new()));
+//! let _page = LayoutState::new(&style);
+//! let _bar = LayoutState::named("bar", &style);
+//! style.set(Shadcn::themed(
+//!     ShadcnStyle::Lyra,
+//!     Palette::new().theme(ThemeColor::Blue),
+//! ));
+//! let background = Shadcn::light().tokens.background;
 //! # let _ = background;
 //! ```
 //!
@@ -45,7 +45,7 @@
 //!
 //! With the default `fonts` feature the preset bundles Geist, shadcn's
 //! `--font-sans`, as one variable font (165 KiB, SIL Open Font License 1.1,
-//! `fonts/OFL.txt`) and [`Shadcn::apply`] registers it at every [`Weight`]:
+//! `fonts/OFL.txt`) and TODO(prose): a [`LayoutState`](crate::LayoutState) given the preset's style registers it at every [`Weight`]:
 //! Normal as the first font of [`FontFamily::Proportional`], the others as
 //! named families its [`Faces`] declare. [`Shadcn::with_fonts`] swaps in
 //! another [`FontSet`], or `None` for egui's fonts as the application set
@@ -96,7 +96,7 @@ pub(crate) use contrast::warn_low_contrast;
 pub use contrast::{ContrastPair, ContrastRatio, REGISTRY_MISSES, RegistryMiss};
 pub use fonts::FontSet;
 pub use palette::{BaseColor, Palette};
-pub use preset::{Shadcn, tokens};
+pub use preset::Shadcn;
 pub use styles::{Elevation, HoverSurface, ShadcnStyle};
 pub use theme_color::ThemeColor;
 pub use tokens::Tokens;

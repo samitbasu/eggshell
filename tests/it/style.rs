@@ -1,7 +1,7 @@
-//! The shadcn preset: what `apply` sets in egui, the text edit under it, and
+//! TODO(prose): the shadcn preset: what a layout of it gives egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
-use eggshell_ui::theme::{BaseColor, Palette, Shadcn, ThemeColor, Tokens, tokens};
+use eggshell_ui::theme::{BaseColor, Palette, Shadcn, ThemeColor, Tokens};
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};
 use egui::epaint::Shape;
@@ -31,6 +31,19 @@ fn context(theme: Theme) -> Context {
     ctx
 }
 
+/// A layout given `preset`'s style, built once on `ctx`: what it gives egui.
+fn given(ctx: &Context, preset: &Shadcn) -> LayoutState {
+    let half = std::sync::Arc::new(preset.style());
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(
+        eggshell_ui::contract::Themed::both(half),
+    ));
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let _ = layout.build(ui.ctx(), |_: &mut Builder<'_, '_, ()>| {});
+    })
+    .drop_without_applying_deltas();
+    layout
+}
+
 fn rgb(r: u8, g: u8, b: u8) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
@@ -38,8 +51,7 @@ fn rgb(r: u8, g: u8, b: u8) -> Color32 {
 #[test]
 fn applying_the_light_preset_maps_tokens_onto_egui() {
     let ctx = context(Theme::Light);
-    let untouched = ctx.style_of(Theme::Dark);
-    Shadcn::light().apply(&ctx);
+    given(&ctx, &Shadcn::light());
     let style = ctx.style_of(Theme::Light);
     let v = &style.visuals;
     let s = &style.spacing;
@@ -101,18 +113,12 @@ fn applying_the_light_preset_maps_tokens_onto_egui() {
         14.0,
         "text-sm"
     );
-
-    assert_eq!(
-        *ctx.style_of(Theme::Dark),
-        *untouched,
-        "applying one theme leaves the other alone"
-    );
 }
 
 #[test]
 fn applying_the_dark_preset_maps_the_dark_tokens() {
     let ctx = context(Theme::Dark);
-    Shadcn::dark().apply(&ctx);
+    given(&ctx, &Shadcn::dark());
     let v = &ctx.style_of(Theme::Dark).visuals;
     assert!(v.dark_mode);
     assert_eq!(v.panel_fill, rgb(0x0a, 0x0a, 0x0a));
@@ -139,7 +145,7 @@ fn every_token_can_be_overridden() {
     preset.tokens.primary = rgb(0x12, 0x34, 0x56);
     preset.tokens.radius = eggshell_ui::contract::Radius::new(6.0);
     preset.tokens.control_units = 10.0;
-    preset.apply(&ctx);
+    let layout = given(&ctx, &preset);
     let style = ctx.style_of(Theme::Light);
     assert_eq!(
         style.visuals.selection.bg_fill,
@@ -151,40 +157,16 @@ fn every_token_can_be_overridden() {
     );
     assert_eq!(style.spacing.interact_size.y, 40.0);
     assert_eq!(
-        tokens(&ctx).expect("remembered").primary,
+        layout.shell(&ctx).style().tokens.primary,
         rgb(0x12, 0x34, 0x56)
     );
 }
 
 #[test]
-fn the_preset_is_picked_by_theme_and_nothing_applies_unasked() {
+fn the_preset_is_picked_by_theme() {
     assert_eq!(Shadcn::for_theme(Theme::Light), Shadcn::light());
     assert_eq!(Shadcn::for_theme(Theme::Dark), Shadcn::dark());
     assert_ne!(Tokens::light(), Tokens::dark());
-
-    let ctx = context(Theme::Light);
-    let before = ctx.global_style();
-    let mut layout = LayoutState::new();
-    layout
-        .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
-            b.text(tw(), "x");
-        })
-        .layout(Rect::from_min_size(egui::Pos2::ZERO, vec2(100.0, 100.0)));
-    assert_eq!(*ctx.global_style(), *before, "building changes no style");
-    assert!(tokens(&ctx).is_none(), "and remembers no preset");
-
-    Shadcn::apply_both(&ctx);
-    assert_eq!(
-        tokens(&ctx).expect("light").background,
-        Color32::WHITE,
-        "light theme"
-    );
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(
-        tokens(&ctx).expect("dark").background,
-        rgb(0x0a, 0x0a, 0x0a),
-        "the tokens follow the context's theme"
-    );
 }
 
 #[test]
@@ -192,7 +174,7 @@ fn inputs_take_the_input_proportions() {
     for theme in [Theme::Light, Theme::Dark] {
         let ctx = context(theme);
         let preset = Shadcn::for_theme(theme);
-        preset.apply(&ctx);
+        given(&ctx, &preset);
         let text = base_text();
         let field = TextEdit::singleline("").size(
             &ctx,
@@ -226,7 +208,6 @@ const UNITS: [(Unit, &str); 3] = [
 
 fn prepare_light(ctx: &Context, _: &App) {
     ctx.set_theme(Theme::Light);
-    Shadcn::light().apply(ctx);
 }
 
 fn harness_of(view: support::View<App>) -> Driver<App> {
@@ -535,7 +516,7 @@ fn hyperlinks_are_primary() {
             for accent in ThemeColor::ALL {
                 let ctx = context(theme);
                 let preset = Shadcn::for_theme(theme).with_palette(palette(base, accent));
-                preset.apply(&ctx);
+                given(&ctx, &preset);
                 assert_eq!(
                     ctx.style_of(theme).visuals.hyperlink_color,
                     preset.tokens.primary,
@@ -549,30 +530,18 @@ fn hyperlinks_are_primary() {
 #[test]
 fn an_accent_reaches_egui_when_applied() {
     let ctx = context(Theme::Light);
-    Shadcn::light()
-        .with_palette(Palette::new().theme(ThemeColor::Violet))
-        .apply(&ctx);
+    let layout = given(
+        &ctx,
+        &Shadcn::light().with_palette(Palette::new().theme(ThemeColor::Violet)),
+    );
     assert_eq!(
         ctx.style_of(Theme::Light).visuals.hyperlink_color,
         rgb(0x70, 0x08, 0xe7)
     );
-    assert_eq!(Shadcn::of(&ctx).tokens.primary, rgb(0x70, 0x08, 0xe7));
-}
-
-#[test]
-fn of_is_the_applied_preset_for_the_contexts_theme() {
-    let ctx = context(Theme::Light);
     assert_eq!(
-        Shadcn::of(&ctx),
-        Shadcn::light(),
-        "none applied: the default"
+        layout.shell(&ctx).style().tokens.primary,
+        rgb(0x70, 0x08, 0xe7)
     );
-    let green = Shadcn::light().with_palette(Palette::new().theme(ThemeColor::Green));
-    green.apply(&ctx);
-    Shadcn::dark().apply(&ctx);
-    assert_eq!(Shadcn::of(&ctx), green);
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(Shadcn::of(&ctx), Shadcn::dark());
 }
 
 #[test]

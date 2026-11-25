@@ -22,7 +22,7 @@ fn harness() -> Driver<example::State> {
         common::base_text(egui::Theme::Light),
         example::State::default(),
         example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     )
     .build();
     d.frames(4);

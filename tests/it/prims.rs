@@ -8,7 +8,7 @@ use eggshell_ui::owned::segmented::Cell;
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::testing::{Driver, PixelsPerPoint, Target};
-use eggshell_ui::theme::{Shadcn, Tokens};
+use eggshell_ui::theme::Tokens;
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, Width, tw};
 use egui::epaint::Shape;
@@ -514,8 +514,7 @@ fn a_bare_field_is_as_tall_as_the_text_it_replaces() {
     let tokens = Tokens::for_theme(Theme::Light);
     let placed = Headless::new(vec2(400.0, 300.0))
         .theme(Theme::Light)
-        .prepare(Shadcn::apply_both)
-        .style(crate::support::shadcn())
+        .style(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
         .base_text(TextStyle::new(tokens.text_role(), tokens.foreground))
         .layout(&(), |b, _| {
             b.div(tw().flex().flex_col().w_px(120.0), |b| {
@@ -553,7 +552,7 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
         TextStyle::new(tokens.text_role(), tokens.foreground),
         "x".to_owned(),
         bare_field_in_a_box,
-        |ctx, _| Shadcn::apply_both(ctx),
+        |_, _| {},
     )
     .build();
     let leaf = d.rect(Target::suffix("/\"box\"/\"bare\""));

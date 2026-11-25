@@ -36,12 +36,14 @@ fn a_rule_on_the_item_part_restyles_the_items_of_that_kind_only() {
         Color32::BLACK,
     );
     let mut d = support::driver(vec2(400.0, 300.0), text, App, view)
-        .style(support::shadcn_with(|style| {
-            style
-                .sheet
-                .as_app()
-                .rule(menu::Part::Item, |t, _| t.bg(RED));
-        }))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            |style| {
+                style
+                    .sheet
+                    .as_app()
+                    .rule(menu::Part::Item, |t, _| t.bg(RED));
+            },
+        )))
         .build();
     d.frames(4);
     d.click(Target::suffix(r#"/"file""#)).frames(5);

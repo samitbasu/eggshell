@@ -459,7 +459,8 @@ struct World<A> {
 fn world<A>(app: A, view: fn(&mut Builder<'_, '_, A>, &A)) -> Harness<'static, World<A>> {
     let world = World {
         app,
-        layout: LayoutState::new().with_base_text(body()),
+        layout: LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
+            .with_base_text(body()),
         view,
         seen: Vec::new(),
     };

@@ -129,7 +129,9 @@ impl Theme {
     /// The palette of the preset applied to `ctx` for its current theme, or
     /// the preset's own if none was.
     pub fn of(ctx: &Context) -> Self {
-        Self::from_preset(&Shadcn::of(ctx))
+        Self::from_preset(&Shadcn {
+            tokens: super::common::tokens(ctx),
+        })
     }
 
     /// The palette of the preset for `theme`.

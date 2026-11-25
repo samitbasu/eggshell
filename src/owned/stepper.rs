@@ -21,7 +21,7 @@ use crate::sheet::Key as SheetKey;
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Box,
     Field,
     Buttons,
@@ -351,12 +351,12 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let measured = field.clone();
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let editing = b.id_of(Part::Field).with("editing");
-            b.div_id(Part::Box, group, |b| {
+            let editing = b.id_of(Node::Field).with("editing");
+            b.div_id(Node::Box, group, |b| {
                 b.div(field_box, |b| {
                     let spec = spec.clone();
                     let set = set.clone();
-                    b.leaf(Part::Field, control, move |m| {
+                    b.leaf(Node::Field, control, move |m| {
                         text_field::measure(m, &measured)
                     })
                     .open_focus(autofocus.open_focus())
@@ -375,10 +375,10 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                         .shrink_0()
                         .attr("align", "inline-end"),
                 );
-                b.div_id(Part::Buttons, buttons, |b| {
+                b.div_id(Node::Buttons, buttons, |b| {
                     for (part, classes, chevron, steps, label) in [
-                        (Part::Up, up, Chevron::Up, 1, "Increase"),
-                        (Part::Down, down, Chevron::Down, -1, "Decrease"),
+                        (Node::Up, up, Chevron::Up, 1, "Increase"),
+                        (Node::Down, down, Chevron::Down, -1, "Decrease"),
                     ] {
                         let spec = spec.clone();
                         let set = set.clone();

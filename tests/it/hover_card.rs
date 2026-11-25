@@ -77,7 +77,9 @@ fn shown(d: &Driver<App>, card: &str) -> Option<egui::Rect> {
 fn the_shadcn_preset_gives_shadcns_hover_card() {
     let d = harness();
     let given = d.shell().style().hover_card.clone();
-    let preset = Shadcn::of(d.ctx());
+    let preset = Shadcn {
+        tokens: d.shell().style().tokens.clone(),
+    };
     assert_eq!(given, preset.style().hover_card);
     assert_eq!(given.width, 256.0, "w-64");
     assert_eq!(given.padding, 16.0, "p-4");
@@ -180,12 +182,14 @@ fn the_cards_box_is_shadcns_from_the_sheet_and_an_app_rule_restyles_it() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style
-            .sheet
-            .as_app()
-            .rule(hover_card::Part::Content, |t, _| t.bg(egui::Color32::RED));
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(hover_card::Part::Content, |t, _| t.bg(egui::Color32::RED));
+        },
+    )))
     .build();
     still(d.ctx(), d.app());
     d.frames(4);

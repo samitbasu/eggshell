@@ -6,7 +6,7 @@
 mod common;
 
 fn main() -> eframe::Result {
-    let mut theme_bar = common::ThemeBar::new();
+    let mut theme_bar = common::ThemeBar::new(&common::shared_style());
     common::launch("hello", None, move |ui| {
         theme_bar.show(ui);
         egui::CentralPanel::default().show(ui, |ui| {

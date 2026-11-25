@@ -110,7 +110,7 @@ fn a_dense_menu_cut_short_still_fits_its_room() {
         style.tokens.spacing = eggshell_ui::contract::Spacing::new(3.5);
     });
     let mut d = support::driver(vec2(300.0, 300.0), base_text(), (), view)
-        .style(dense)
+        .style(&eggshell_ui::SharedStyle::new(dense))
         .build();
     d.frames(4);
     d.click(Target::suffix(r#"/"file""#)).frames(6);

@@ -23,7 +23,7 @@ fn harness() -> (Driver<example::State>, FakeClipboard) {
         common::base_text(egui::Theme::Light),
         example::State::default(),
         example::layout,
-        |ctx, _| common::use_preset(ctx),
+        |_, _| {},
     )
     .build();
     d.layout().set_clipboard(Some(Arc::new(fake.clone())));

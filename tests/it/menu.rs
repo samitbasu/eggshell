@@ -862,12 +862,10 @@ mod open_query {
     fn observable<A: 'static>(app: A, view: support::View<A>) -> (Driver<A>, Observer<A>) {
         let observer: Observer<A> = Rc::default();
         let observe = Rc::clone(&observer);
-        let mut bar = support::Bar::new(base_text());
+        let style = eggshell_ui::SharedStyle::new(support::shadcn());
+        let mut bar = support::Bar::new(base_text(), &style);
         let mut d = Driver::whole_frame(app, move |ui, app, layout| {
             let area = ui.max_rect();
-            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-            }
             bar.show(ui);
             let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
             if let Some(observe) = observe.borrow_mut().as_mut() {
@@ -877,7 +875,7 @@ mod open_query {
         })
         .size(SCREEN)
         .base_text(base_text())
-        .style(support::shadcn())
+        .style(&style)
         .step(support::STEP)
         .after(After::Frames(0))
         .settle_within(support::STEP * 4)

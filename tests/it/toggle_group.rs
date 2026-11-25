@@ -92,7 +92,7 @@ fn harness_styled(view: support::View<App>, style: Themed<Arc<Style>>) -> Driver
         App::default(),
         view,
     )
-    .style(style)
+    .style(&eggshell_ui::SharedStyle::new(style))
     .build();
     d.ctx().set_theme(Theme::Light);
     d.frames(6);

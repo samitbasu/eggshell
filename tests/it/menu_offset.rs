@@ -55,7 +55,7 @@ fn offset_12(style: &mut Style) {
 
 fn harness(app: App, edit: fn(&mut Style)) -> Driver<App> {
     let mut d = support::driver(vec2(400.0, 300.0), base_text(), app, view)
-        .style(support::shadcn_with(edit))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
         .build();
     d.frames(4);
     d

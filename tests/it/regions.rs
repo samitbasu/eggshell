@@ -488,8 +488,16 @@ fn two_layout_states_keep_their_regions_apart() {
         seen: Vec<(Vec2, Vec2)>,
     }
     let pair = Pair {
-        left: LayoutState::named("left").with_base_text(base()),
-        right: LayoutState::named("right").with_base_text(base()),
+        left: LayoutState::named(
+            "left",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        )
+        .with_base_text(base()),
+        right: LayoutState::named(
+            "right",
+            &eggshell_ui::SharedStyle::new(crate::support::shadcn()),
+        )
+        .with_base_text(base()),
         seen: Vec::new(),
     };
     let mut harness = Harness::builder()

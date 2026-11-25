@@ -24,7 +24,7 @@ use crate::window::Hooks;
 
 /// The parts of a mount the library adds around its view.
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part {
+enum Node {
     Caption,
     Frame,
 }
@@ -136,9 +136,9 @@ where
         let node = b
             .div_id_with(&slot, outer, |s| {
                 if let Some(caption) = caption {
-                    s.span(Part::Caption, caption_classes, caption);
+                    s.span(Node::Caption, caption_classes, caption);
                 }
-                s.div_id(Part::Frame, frame, |s| s.within(&mount, |b| view(b, data)));
+                s.div_id(Node::Frame, frame, |s| s.within(&mount, |b| view(b, data)));
             })
             .draw(move |_, ui| {
                 let response = ui.node_response();

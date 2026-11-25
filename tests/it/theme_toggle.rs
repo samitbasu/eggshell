@@ -20,7 +20,7 @@ fn bar() -> Harness<'static, common::ThemeBar> {
         .with_size(egui::vec2(600.0, 200.0))
         .build_ui_state(
             |ui, bar: &mut common::ThemeBar| bar.show(ui),
-            common::ThemeBar::new(),
+            common::ThemeBar::new(&common::shared_style()),
         )
 }
 
@@ -94,7 +94,7 @@ fn every_example_shows_the_toggle_and_none_pins_a_theme() {
             || text.contains("common::run_app(")
             || text.contains("common::run_app_styled(")
             || text.contains("common::run_app_sized(");
-        let own_bar = text.contains("ThemeBar::new()") || text.contains("common::theme_toggle(");
+        let own_bar = text.contains("ThemeBar::new(") || text.contains("common::theme_toggle(");
         assert!(
             shared_runner || own_bar,
             "{} has no theme toggle",

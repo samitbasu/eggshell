@@ -103,7 +103,6 @@ fn harness(ambient: Ambient, rows: segmented::Rows) -> Harness<'static, Rig<App>
     );
     harness
         .state_mut()
-        .layout
         .set_style(support::shadcn_with(|style| edit(style, ambient)));
     harness.ctx.set_theme(Theme::Light);
     harness.run_steps(12);

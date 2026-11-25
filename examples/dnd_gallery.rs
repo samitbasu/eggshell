@@ -449,15 +449,14 @@ pub fn window(
 
 fn main() -> eframe::Result {
     let mut state = State::default();
-    let mut layout_state = LayoutState::new();
-    let mut toolbar_state = LayoutState::new();
-    let mut theme_bar = common::ThemeBar::new();
+    let shared = common::shared_style();
+    let mut layout_state = LayoutState::new(&shared);
+    let mut toolbar_state = LayoutState::new(&shared);
+    let mut theme_bar = common::ThemeBar::new(&shared);
     common::launch("dnd_gallery", None, move |ui| {
         let ctx = ui.ctx().clone();
-        common::use_preset(&ctx);
         theme_bar.show(ui);
-        layout_state.set_style(common::style(&ctx));
-        toolbar_state.set_style(common::style(&ctx));
+        common::adopt(&ctx, &shared);
         layout_state.set_base_text(Some(common::base_text_in(&ctx)));
         window(ui, &mut state, &mut layout_state, &mut toolbar_state);
     })

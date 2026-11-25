@@ -1154,7 +1154,7 @@ mod bars {
     }
 
     fn thumb(d: &H) -> Color32 {
-        eggshell_ui::theme::Shadcn::of(d.ctx()).tokens.border
+        d.shell().style().tokens.border
     }
 
     #[test]
@@ -1347,7 +1347,7 @@ mod bars {
         for theme in [egui::Theme::Light, egui::Theme::Dark] {
             let d = harness(10);
             d.ctx().set_theme(theme);
-            let style = eggshell_ui::theme::Shadcn::of(d.ctx()).style().scroll;
+            let style = d.shell().style().scroll;
             let tokens = eggshell_ui::theme::Tokens::for_theme(theme);
             assert_eq!(style.thumb, tokens.border, "{theme:?}");
             assert_eq!(style.width, 10.0);

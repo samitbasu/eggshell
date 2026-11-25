@@ -532,7 +532,7 @@ fn palette_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing:
         State::default(),
         example::layout,
     )
-    .style(support::shadcn_with(edit))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .theme(egui::Theme::Light)
     .build();
     d.frames(4);

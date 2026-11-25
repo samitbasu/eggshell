@@ -506,7 +506,14 @@ fn gallery_hand() -> (Hand<'static>, Session) {
         crate::sweep::common::base_text(egui::Theme::Light),
         state,
         |ui, app, layout| {
-            gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new());
+            gallery::window(
+                ui,
+                app,
+                layout,
+                &mut eggshell_ui::LayoutState::new(&eggshell_ui::SharedStyle::new(
+                    crate::support::shadcn(),
+                )),
+            );
         },
     );
     harness.run_steps(4);

@@ -334,7 +334,9 @@ mod stripe {
             },
             view,
         )
-        .style(support::shadcn_with(striped))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            striped,
+        )))
         .build();
         d.frames(3);
         ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"]
@@ -420,13 +422,15 @@ mod selection {
             App::new(Selection::On),
             view,
         )
-        .style(support::shadcn_with(|style| {
-            style.sheet.as_app().rule_when(
-                eggshell_ui::owned::table::Part::Row,
-                eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Selected),
-                |b, _| b.bg(Color32::RED),
-            );
-        }))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            |style| {
+                style.sheet.as_app().rule_when(
+                    eggshell_ui::owned::table::Part::Row,
+                    eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Selected),
+                    |b, _| b.bg(Color32::RED),
+                );
+            },
+        )))
         .build();
         d.frames(3);
         assert_ne!(fill_of(&d, "Row(31)"), Some(Color32::RED), "precondition");
@@ -955,7 +959,9 @@ mod groups {
             app,
             grouped,
         )
-        .style(support::shadcn_with(group_filled))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            group_filled,
+        )))
         .build();
         d.frames(3);
         d
@@ -1184,7 +1190,7 @@ mod groups {
                 app,
                 view,
             )
-            .style(support::shadcn_with(gapped))
+            .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(gapped)))
             .build();
             d.frames(3);
             d

@@ -117,7 +117,9 @@ fn harness_with(app: App) -> Driver<App> {
         app,
         view,
     )
-    .style(support::shadcn_with(quick_tooltips))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        quick_tooltips,
+    )))
     .build();
     d.frames(8);
     d

@@ -933,14 +933,16 @@ fn an_app_rule_restyles_a_sliders_range() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style
-            .sheet
-            .as_app()
-            .rule(eggshell_ui::owned::slider::Part::Range, |t, _| {
-                t.bg(egui::Color32::RED)
-            });
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui::owned::slider::Part::Range, |t, _| {
+                    t.bg(egui::Color32::RED)
+                });
+        },
+    )))
     .build();
     d.frames(12);
     let range = range(&d, "volume");
@@ -959,13 +961,15 @@ fn an_app_rule_restyles_a_disabled_sliders_thumb() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style.sheet.as_app().rule_when(
-            eggshell_ui::owned::slider::Part::Thumb,
-            eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
-            |t, _| t.bg(egui::Color32::RED),
-        );
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style.sheet.as_app().rule_when(
+                eggshell_ui::owned::slider::Part::Thumb,
+                eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
+                |t, _| t.bg(egui::Color32::RED),
+            );
+        },
+    )))
     .build();
     d.frames(12);
     let thumb = d.rect(Target::suffix("/\"locked\"/Track/Thumb"));
@@ -983,13 +987,15 @@ fn an_app_rule_restyles_a_steppers_group() {
         App::default(),
         view,
     )
-    .style(support::shadcn_with(|style| {
-        style.sheet.as_app().rule_when(
-            eggshell_ui::owned::input::GroupPart::Root,
-            eggshell_ui::sheet::When::always().attr("stepper", "true"),
-            |t, _| t.bg(egui::Color32::RED),
-        );
-    }))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        |style| {
+            style.sheet.as_app().rule_when(
+                eggshell_ui::owned::input::GroupPart::Root,
+                eggshell_ui::sheet::When::always().attr("stepper", "true"),
+                |t, _| t.bg(egui::Color32::RED),
+            );
+        },
+    )))
     .theme(Theme::Light)
     .build();
     d.frames(12);

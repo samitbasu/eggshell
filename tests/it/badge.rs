@@ -288,14 +288,16 @@ fn a_badge_is_no_tab_stop() {
 #[test]
 fn an_app_rule_restyles_a_badge() {
     let d = builder(badges, App::default())
-        .style(support::shadcn_with(|style| {
-            style
-                .sheet
-                .as_app()
-                .rule(eggshell_ui::owned::badge::Part::Root, |t, _| {
-                    t.bg(egui::Color32::RED)
-                });
-        }))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            |style| {
+                style
+                    .sheet
+                    .as_app()
+                    .rule(eggshell_ui::owned::badge::Part::Root, |t, _| {
+                        t.bg(egui::Color32::RED)
+                    });
+            },
+        )))
         .build();
     let mut d = d;
     d.frames(4);
@@ -334,14 +336,16 @@ fn a_chip_rings_while_its_x_has_the_focus() {
 #[test]
 fn an_app_rule_restyles_a_spinner() {
     let mut d = builder(spinners, App::default())
-        .style(support::shadcn_with(|style| {
-            style
-                .sheet
-                .as_app()
-                .rule(eggshell_ui::owned::spinner::Part::Root, |t, _| {
-                    t.bg(egui::Color32::RED).size(10.0)
-                });
-        }))
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+            |style| {
+                style
+                    .sheet
+                    .as_app()
+                    .rule(eggshell_ui::owned::spinner::Part::Root, |t, _| {
+                        t.bg(egui::Color32::RED).size(10.0)
+                    });
+            },
+        )))
         .build();
     d.frames(4);
     let spinner = d.rect(Target::suffix("/\"spinner\""));

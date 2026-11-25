@@ -1807,7 +1807,10 @@ impl<A> Placed<A> {
     ///         let placed = state.layout.build(ui.ctx(), view).layout(ui.max_rect());
     ///         state.drawn = Some(placed.draw(&mut (), ui));
     ///     },
-    ///     State { layout: LayoutState::new(), drawn: None },
+    ///     State {
+    ///         layout: LayoutState::new(&eggshell_ui::SharedStyle::new(eggshell_ui::theme::Shadcn::themed(eggshell_ui::theme::ShadcnStyle::Vega, eggshell_ui::theme::Palette::new()))),
+    ///         drawn: None,
+    ///     },
     /// );
     /// harness.step();
     /// let card = harness.state().drawn.as_ref().expect("the frame was drawn").at("card");
@@ -2443,7 +2446,7 @@ impl NodeUi for Ui {
     fn node_style(&self) -> Arc<Style> {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<StyleTag>(scope))
-            .map_or_else(Style::fallback, |tag| tag.0)
+            .map_or_else(Style::shared_default, |tag| tag.0)
     }
 
     #[track_caller]

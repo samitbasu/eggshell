@@ -549,8 +549,7 @@ mod example {
     fn a_modal_reports_how_it_presents() {
         use eggshell_ui::testing::Headless;
         let placed = Headless::new(SCREEN)
-            .prepare(eggshell_ui::theme::Shadcn::apply_both)
-            .style(crate::support::shadcn())
+            .style(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
             .layout(&State::default(), |b, _| {
                 let open = State {
                     dialog: Shown::Open,
@@ -893,7 +892,7 @@ mod two_frames {
             SCREEN,
             common::base_text(egui::Theme::Light),
             Shell {
-                header: LayoutState::new().with_style(support::shadcn()),
+                header: LayoutState::new(&eggshell_ui::SharedStyle::new(support::shadcn())),
                 state: State::default(),
             },
             frame,

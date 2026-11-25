@@ -219,13 +219,13 @@ fn add_bar(ui: &mut egui::Ui, state: &mut State) {
 
 fn main() -> eframe::Result {
     let mut state = State::default();
-    let mut layout_state = eggshell_ui::LayoutState::new();
-    let mut theme_bar = common::ThemeBar::new();
+    let shared = common::shared_style();
+    let mut layout_state = eggshell_ui::LayoutState::new(&shared);
+    let mut theme_bar = common::ThemeBar::new(&shared);
     common::launch("todo", None, move |ui| {
         let ctx = ui.ctx().clone();
-        common::use_preset(&ctx);
         theme_bar.show(ui);
-        layout_state.set_style(common::style(&ctx));
+        common::adopt(&ctx, &shared);
         layout_state.set_base_text(Some(common::base_text_in(&ctx)));
         egui::Panel::top("add").show(ui, |ui| add_bar(ui, &mut state));
         egui::CentralPanel::default()

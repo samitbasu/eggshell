@@ -74,7 +74,7 @@ fn driver(style: ShadcnStyle, edit: fn(&mut Tokens)) -> Driver<()> {
         (),
         controls,
     )
-    .style(styled(style, edit))
+    .style(&eggshell_ui::SharedStyle::new(styled(style, edit)))
     .build();
     d.frames(4);
     d

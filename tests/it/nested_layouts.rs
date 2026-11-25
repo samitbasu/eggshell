@@ -14,12 +14,14 @@ fn nested(after: impl Fn(&egui::Ui) + 'static) {
     let after: Rc<dyn Fn(&egui::Ui)> = Rc::new(after);
     let ctx = egui::Context::default();
     ctx.run_ui(Default::default(), |ui| {
-        let mut outer = LayoutState::new();
+        let mut outer = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
         let placed = outer
             .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
                 b.div_id("host", tw().w_px(100.0).h_px(40.0), |_| {})
                     .draw(|app, ui| {
-                        let mut inner = LayoutState::new();
+                        let mut inner = LayoutState::new(&eggshell_ui::SharedStyle::new(
+                            crate::support::shadcn(),
+                        ));
                         let ctx = ui.ctx().clone();
                         let placed = inner
                             .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
@@ -71,7 +73,8 @@ fn walks_of_nested_layouts_draw_scroll_and_focus_within_without_reports() {
     let ctx = egui::Context::default();
     for _ in 0..2 {
         ctx.run_ui(Default::default(), |ui| {
-            let mut outer = LayoutState::new();
+            let mut outer =
+                LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
             let placed = outer
                 .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
                     b.div_id(
@@ -80,7 +83,9 @@ fn walks_of_nested_layouts_draw_scroll_and_focus_within_without_reports() {
                         |_| {},
                     )
                     .draw(|app, ui| {
-                        let mut inner = LayoutState::new();
+                        let mut inner = LayoutState::new(&eggshell_ui::SharedStyle::new(
+                            crate::support::shadcn(),
+                        ));
                         let ctx = ui.ctx().clone();
                         let placed = inner
                             .build(&ctx, |b: &mut Builder<'_, '_, ()>| {

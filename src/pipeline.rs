@@ -350,7 +350,7 @@ impl BuildState {
             name: self.name,
             alive: self.alive.clone(),
             built_at: self.built_at,
-            kept: Handle::default(),
+            kept: Handle::new(self.kept.with(|kept| kept.style.clone())),
             tree: self.tree.scratch(),
             seen: Seen::default(),
             observed: std::collections::HashMap::new(),
@@ -598,6 +598,32 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
     }
 }
 
+/// TODO(prose): a style, light and dark, that every [`LayoutState`] made from
+/// it builds and draws with; [`set`](Self::set) switches them all from their
+/// next build. A cheap handle: clones share the style.
+#[derive(Clone)]
+pub struct SharedStyle(
+    std::sync::Arc<std::sync::Mutex<crate::contract::Themed<std::sync::Arc<crate::Style>>>>,
+);
+
+impl SharedStyle {
+    /// TODO(prose): a handle holding `style`.
+    pub fn new(style: crate::contract::Themed<std::sync::Arc<crate::Style>>) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(style)))
+    }
+
+    /// TODO(prose): switches the style of every layout made from this handle,
+    /// from their next build.
+    pub fn set(&self, style: crate::contract::Themed<std::sync::Arc<crate::Style>>) {
+        *crate::sync::lock(&self.0) = style;
+    }
+
+    /// TODO(prose): the style, light and dark.
+    pub fn get(&self) -> crate::contract::Themed<std::sync::Arc<crate::Style>> {
+        crate::sync::lock(&self.0).clone()
+    }
+}
+
 /// Owns the state a frame is built in; reuse one across frames.
 ///
 /// The root's text style defaults to the layout's own [`Style`](crate::Style)'s
@@ -617,12 +643,6 @@ pub struct LayoutState {
     base_text: Option<TextStyle>,
 }
 
-impl Default for LayoutState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// A fresh name for a [`LayoutState`].
 fn fresh_scope() -> Id {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -637,9 +657,7 @@ fn fresh_scope() -> Id {
 /// their visuals and fonts from the context.
 fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
     use std::sync::Arc;
-    let Some(style) = kept.with(|kept| kept.style.clone()) else {
-        return;
-    };
+    let style = kept.with(|kept| kept.style.get());
     let given = kept.with(|kept| {
         kept.egui_applied.as_ref().is_some_and(|applied| {
             Arc::ptr_eq(&applied.light, &style.light) && Arc::ptr_eq(&applied.dark, &style.dark)
@@ -647,6 +665,10 @@ fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
     });
     if given {
         return;
+    }
+    crate::theme::warn_low_contrast(ctx, &style.light.tokens);
+    if !Arc::ptr_eq(&style.light, &style.dark) {
+        crate::theme::warn_low_contrast(ctx, &style.dark.tokens);
     }
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
         let half = style.get(theme).clone();
@@ -676,13 +698,15 @@ impl LayoutState {
         crate::Shell::new(ctx, &self.st.kept)
     }
 
-    /// An empty state.
+    /// TODO(prose): an empty state that builds, draws and gives egui its
+    /// look in `style`'s style, the half for the context's theme; it follows
+    /// [`SharedStyle::set`].
     ///
     /// Node ids derive from a root shared by every unnamed state, so two
     /// unnamed states in one egui context must not use the same top-level
     /// key; [`named`](Self::named) keeps their ids apart.
-    pub fn new() -> Self {
-        Self::with_name(None)
+    pub fn new(style: &SharedStyle) -> Self {
+        Self::with_name(None, style)
     }
 
     /// An empty state whose node ids are salted by `name`.
@@ -696,11 +720,11 @@ impl LayoutState {
     /// In debug builds, another state of the context built with the same
     /// name in the same pass is reported as
     /// [`Problem::LayoutNameClash`](crate::Problem::LayoutNameClash).
-    pub fn named(name: &'static str) -> Self {
-        Self::with_name(Some(name))
+    pub fn named(name: &'static str, style: &SharedStyle) -> Self {
+        Self::with_name(Some(name), style)
     }
 
-    fn with_name(name: Option<&'static str>) -> Self {
+    fn with_name(name: Option<&'static str>, style: &SharedStyle) -> Self {
         Self {
             st: BuildState {
                 scope: fresh_scope(),
@@ -708,7 +732,7 @@ impl LayoutState {
                 name,
                 alive: std::sync::Arc::default(),
                 built_at: std::panic::Location::caller(),
-                kept: Handle::default(),
+                kept: Handle::new(style.clone()),
                 tree: LayoutTree::new(),
                 seen: Seen::default(),
                 observed: std::collections::HashMap::new(),
@@ -726,21 +750,6 @@ impl LayoutState {
     pub fn with_base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
         self
-    }
-
-    /// TODO(prose): builds with `style`, the half for the context's theme, in
-    /// place of the one derived from egui's.
-    pub fn with_style(
-        mut self,
-        style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
-    ) -> Self {
-        self.set_style(style);
-        self
-    }
-
-    /// TODO(prose): swaps this layout's style; the builds that follow use it.
-    pub fn set_style(&mut self, style: crate::contract::Themed<std::sync::Arc<crate::Style>>) {
-        self.st.kept.with(|kept| kept.style = Some(style));
     }
 
     /// Uses `source` for the clipboard reads and writes of this layout, in
@@ -778,23 +787,17 @@ impl LayoutState {
         let _timer = Timer::start(ctx, Phase::Build);
         #[cfg(debug_assertions)]
         crate::tw::trace(crate::inspect::wants_trace(ctx));
-        let own = self.st.kept.with(|kept| kept.style.is_some());
         give_egui_its_look(ctx, &self.st.kept);
         let style = crate::Shell::new(ctx, &self.st.kept).style();
         crate::text::apply_faces(ctx, &style.faces);
         crate::symbols::install(ctx, &style.faces);
         crate::icons::install(ctx);
-        let base = self.base_text.clone().unwrap_or_else(|| {
-            if own {
-                TextStyle::of_style(ctx, &style)
-            } else {
-                TextStyle::from_egui(ctx)
-            }
-        });
+        let base = self
+            .base_text
+            .clone()
+            .unwrap_or_else(|| TextStyle::of_style(ctx, &style));
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
-        #[cfg(debug_assertions)]
-        report_unstyled(ctx, st);
         #[cfg(debug_assertions)]
         if st.name.is_some() {
             crate::key::claims::name(ctx, st.root, &st.claimant(), st.built_at);
@@ -826,32 +829,6 @@ impl LayoutState {
             root,
         }
     }
-}
-
-/// Reports a layout built with no style of its own on a context where
-/// another layout has one: a forgotten `with_style`. A layout built before
-/// the first styled one is reported from its next build.
-#[cfg(debug_assertions)]
-fn report_unstyled(ctx: &egui::Context, st: &BuildState) {
-    let styled = root_id().with("a-layout-has-a-style");
-    if st.kept.with(|kept| kept.style.is_some()) {
-        ctx.data_mut(|data| data.insert_temp(styled, ()));
-        return;
-    }
-    if ctx.data(|data| data.get_temp::<()>(styled)).is_none() {
-        return;
-    }
-    crate::report::report_at(
-        ctx,
-        crate::Problem::UnstyledLayout,
-        Some(st.scope),
-        st.built_at,
-        || {
-            "a layout has no style of its own while another layout on this context has \
-             one, so it draws egui's look; give it one with `LayoutState::with_style`"
-                .to_owned()
-        },
-    );
 }
 
 /// A built frame, ready to be laid out.

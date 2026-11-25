@@ -346,7 +346,7 @@ fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
 
 #[test]
 fn animating_an_anonymous_node_is_ignored_and_reported() {
-    let mut layout = LayoutState::new();
+    let mut layout = LayoutState::new(&eggshell_ui::SharedStyle::new(crate::support::shadcn()));
     let ctx = egui::Context::default();
     ctx.run_ui(egui::RawInput::default(), |_| {})
         .drop_without_applying_deltas();

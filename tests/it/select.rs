@@ -481,13 +481,9 @@ mod beside_another_frame {
     const STEP: Duration = Duration::from_millis(250);
 
     fn harness() -> Driver<App> {
-        let mut bar = LayoutState::new()
-            .with_base_text(base_text())
-            .with_style(support::shadcn());
+        let mut bar = LayoutState::new(&eggshell_ui::SharedStyle::new(support::shadcn()))
+            .with_base_text(base_text());
         let mut d = Driver::whole_frame(App::default(), move |ui, app, page| {
-            if eggshell_ui::theme::tokens(ui.ctx()).is_none() {
-                eggshell_ui::theme::Shadcn::apply_both(ui.ctx());
-            }
             let area = ui.max_rect();
             bar.build(ui.ctx(), |b| b.div(tw().h_px(10.0), |_| {}))
                 .layout(egui::Rect::from_min_size(
@@ -501,7 +497,7 @@ mod beside_another_frame {
         })
         .size(SCREEN)
         .base_text(base_text())
-        .style(support::shadcn())
+        .style(&eggshell_ui::SharedStyle::new(support::shadcn()))
         .step(STEP)
         .after(After::Frames(0))
         .settle_within(STEP * 4)

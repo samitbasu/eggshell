@@ -2,10 +2,10 @@
 
 use crate::{Faces, Weight};
 use egui::epaint::text::{FontInsert, FontPriority, FontTweak, InsertFontFamily, VariationCoords};
-use egui::{Context, FontData, FontFamily};
+use egui::{FontData, FontFamily};
 
-/// A font with a face for each of the weights it has, which
-/// `Shadcn::apply` registers with egui: the
+/// TODO(prose): a font with a face for each of the weights it has, which
+/// a [`LayoutState`](crate::LayoutState) given the preset's style registers with egui: the
 /// [`Normal`](Weight::Normal) face as the first font of
 /// [`FontFamily::Proportional`], every other as a named family that the
 /// preset's [`Faces`] give its weight.
@@ -86,15 +86,6 @@ impl FontSet {
         self.weighted().fold(Faces::default(), |faces, weight| {
             faces.with(FontFamily::Proportional, weight, self.family(weight))
         })
-    }
-
-    /// Adds the faces to `ctx`'s fonts. The Normal face also backs every
-    /// named family, for the glyphs a weighted face lacks. Adding a face egui
-    /// has under its name already does nothing.
-    pub(crate) fn install(&self, ctx: &Context) {
-        for font in self.inserts() {
-            ctx.add_font(font);
-        }
     }
 
     /// The faces as egui font insertions: each weight's face first in its

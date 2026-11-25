@@ -44,14 +44,12 @@ fn context(theme: Theme, style: ShadcnStyle) -> Context {
     ctx.run_ui(Default::default(), |_| {})
         .drop_without_applying_deltas();
     common::set_style(&ctx, style);
-    common::use_preset(&ctx);
     ctx
 }
 
 fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
-    LayoutState::new()
+    LayoutState::new(&eggshell_ui::SharedStyle::new(common::style(ctx)))
         .with_base_text(common::base_text_in(ctx))
-        .with_style(common::style(ctx))
         .build(ctx, build)
         .layout(AREA)
 }
@@ -62,9 +60,8 @@ fn place_borrowing<A>(
     app: &A,
     build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
 ) -> Placed<A> {
-    LayoutState::new()
+    LayoutState::new(&eggshell_ui::SharedStyle::new(common::style(ctx)))
         .with_base_text(common::base_text_in(ctx))
-        .with_style(common::style(ctx))
         .build(ctx, |b| build(b, app))
         .layout(AREA)
 }
@@ -107,7 +104,6 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         let vega_tokens = Tokens::for_theme(theme).in_style(ShadcnStyle::Vega);
 
         common::set_style(&ctx, ShadcnStyle::Lyra);
-        common::use_preset(&ctx);
         let lyra = place(&ctx, controls);
         let lyra_style = common::style(&ctx).get(theme).clone();
         let lyra_tokens = Tokens::for_theme(theme).in_style(ShadcnStyle::Lyra);
@@ -147,7 +143,6 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         assert_eq!(field(&lyra_style).radius, 0);
 
         common::set_style(&ctx, ShadcnStyle::Vega);
-        common::use_preset(&ctx);
         let again = place(&ctx, controls);
         for path in ["/\"button\"", "/\"select\"", "/\"field\""] {
             assert_eq!(

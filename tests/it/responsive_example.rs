@@ -4,7 +4,6 @@
 use std::collections::BTreeSet;
 
 use eggshell_ui::testing::Headless;
-use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{NodeKind, Placed, TextSpec, TextStyle, Weight};
 use egui::{Color32, FontFamily, vec2};
 
@@ -18,8 +17,7 @@ const PANES: usize = 8;
 
 fn place(width: f32) -> Placed<()> {
     Headless::new(vec2(width, 800.0))
-        .prepare(Shadcn::apply_both)
-        .style(crate::support::shadcn())
+        .style(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
         .base_text(TextStyle::new(
             TextSpec {
                 size: 14.0,

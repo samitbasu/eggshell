@@ -681,7 +681,7 @@ mod caption {
 
     fn harness() -> Driver<Page> {
         let mut d = support::driver(vec2(480.0, 400.0), base_text(), Page::default(), view)
-            .style(support::shadcn_with(framed))
+            .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(framed)))
             .build();
         d.frames(4);
         d

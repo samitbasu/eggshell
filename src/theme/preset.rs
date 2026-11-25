@@ -1,5 +1,5 @@
 use crate::contract;
-use egui::{Context, Id, Theme};
+use egui::Theme;
 #[cfg(any(
     feature = "badge",
     feature = "command",
@@ -42,7 +42,7 @@ pub struct Shadcn {
 }
 
 impl Shadcn {
-    /// TODO(prose): the egui theme whose style [`apply`](Self::apply) sets: the tokens'.
+    /// TODO(prose): the egui theme whose style a [`LayoutState`](crate::LayoutState) of this preset gives egui: the tokens'.
     pub fn theme(&self) -> Theme {
         self.tokens.theme
     }
@@ -79,45 +79,13 @@ impl Shadcn {
     }
 
     /// TODO(prose): this preset accepting `pair` under AA contrast, so that
-    /// [`apply`](Self::apply) does not warn about it.
+    /// a [`LayoutState`](crate::LayoutState) given it does not warn about it.
     #[must_use]
     pub fn accept_contrast(mut self, pair: ContrastPair) -> Self {
         if !self.tokens.accepted_contrast.contains(&pair) {
             self.tokens.accepted_contrast.push(pair);
         }
         self
-    }
-
-    /// The preset applied to `ctx` for its current theme, if one was.
-    pub fn applied(ctx: &Context) -> Option<Self> {
-        Some(Self {
-            tokens: tokens(ctx)?,
-        })
-    }
-
-    /// The preset applied to `ctx` for its current theme, or the default
-    /// preset for that theme if none was applied.
-    pub fn of(ctx: &Context) -> Self {
-        Self::applied(ctx).unwrap_or_else(|| Self::for_theme(ctx.theme()))
-    }
-
-    /// Applies the light preset to egui's light theme and the dark one to its
-    /// dark theme, so that egui's own theme switching picks the right one.
-    pub fn apply_both(ctx: &Context) {
-        Self::light().apply(ctx);
-        Self::dark().apply(ctx);
-    }
-
-    /// Applies both themes in `style` with `palette`, unless the
-    /// context's current theme already has exactly that preset, so that an
-    /// application can call it every frame and switch either at run time.
-    pub fn apply_both_with(ctx: &Context, style: ShadcnStyle, palette: Palette) {
-        let of = |preset: Self| preset.with_style(style).with_palette(palette);
-        let current = of(Self::for_theme(ctx.theme()));
-        if Self::applied(ctx).as_ref() != Some(&current) {
-            of(Self::light()).apply(ctx);
-            of(Self::dark()).apply(ctx);
-        }
     }
 
     /// TODO(prose): this preset in `style` with `palette`, light and dark, as a layout's style.
@@ -127,7 +95,7 @@ impl Shadcn {
     /// use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle};
     ///
     /// let style = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
-    /// let _layout = LayoutState::new().with_style(style);
+    /// let _layout = LayoutState::new(&eggshell_ui::SharedStyle::new(style));
     /// ```
     pub fn themed(
         style: ShadcnStyle,
@@ -166,30 +134,6 @@ impl Shadcn {
     pub fn with_fonts(mut self, font: Option<FontSet>) -> Self {
         self.tokens.font = font;
         self
-    }
-
-    /// Sets the egui style of this preset's theme from the tokens and
-    /// remembers them for [`tokens`]. Safe to call every frame
-    /// but only needed again when the tokens change.
-    ///
-    /// It also adds the tokens' [`font`](Tokens::font) to the context's
-    /// fonts, in front of the fonts egui has, once: egui keeps the faces it
-    /// already has by name. egui draws with added fonts from the next pass,
-    /// or from this one if no text has been laid out in it yet; until then
-    /// a weight is drawn in the nearest lighter registered face.
-    ///
-    /// TODO(prose): in a debug build it reports each [`ContrastPair`] under
-    /// AA contrast as [`Problem::LowContrast`](crate::Problem::LowContrast),
-    /// unless the tokens accept it or it is shadcn's own colour; it never
-    /// changes a colour.
-    pub fn apply(&self, ctx: &Context) {
-        crate::theme::warn_low_contrast(ctx, &self.tokens);
-        if let Some(font) = &self.tokens.font {
-            font.install(ctx);
-        }
-        let style = self.style();
-        ctx.style_mut_of(self.theme(), |egui| style.egui_style(self.theme(), egui));
-        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme()), self.tokens.clone()));
     }
 
     /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
@@ -562,15 +506,4 @@ impl Shadcn {
             radius: t.radius.lg(),
         }
     }
-}
-
-fn tokens_id(theme: Theme) -> Id {
-    Id::NULL.with(("eggshell-ui-theme-tokens", theme))
-}
-
-/// The tokens a preset was applied with for the context's current theme, if
-/// one was.
-pub fn tokens(ctx: &Context) -> Option<Tokens> {
-    let id = tokens_id(ctx.theme());
-    ctx.data(|data| data.get_temp::<Tokens>(id))
 }

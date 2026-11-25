@@ -72,7 +72,7 @@ fn driver_with(edit: fn(&mut Style)) -> Driver<()> {
         (),
         view,
     )
-    .style(support::shadcn_with(edit))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .build();
     d.frames(4);
     d
@@ -186,7 +186,9 @@ fn rich_driver() -> Driver<()> {
         (),
         rich_view,
     )
-    .style(support::shadcn_with(typeset))
+    .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(
+        typeset,
+    )))
     .build();
     d.frames(4);
     d
