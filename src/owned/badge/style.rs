@@ -30,14 +30,10 @@ pub struct BadgeStyle {
     pub height: f32,
     /// Left and right padding.
     pub padding_x: f32,
-    /// Left padding beside a leading icon, in place of `padding_x`.
-    pub icon_padding: f32,
     /// Gap between the icon, the label and a chip's ×.
     pub gap: f32,
     /// Corner radius; `u8::MAX` makes a pill.
     pub radius: u8,
-    /// Side of the leading icon.
-    pub glyph: f32,
     /// The label's text role.
     pub text: TextSpec,
     /// How long a chip's state changes animate.
@@ -52,8 +48,6 @@ pub struct BadgeStyle {
 pub struct RemoveStyle {
     /// Side of the × glyph.
     pub glyph: f32,
-    /// Right padding of a removable chip, in place of `padding_x`.
-    pub padding_end: f32,
     /// How much of the chip's text colour the × keeps at rest.
     pub rest: Opacity,
     /// How much it keeps while the pointer is over it.
@@ -79,10 +73,8 @@ impl BadgeStyle {
             variants: Keyed::new(Variant::DEFAULT, look),
             height: 20.0,
             padding_x: 8.0,
-            icon_padding: 6.0,
             gap: 4.0,
             radius: u8::MAX,
-            glyph: 12.0,
             text: TextSpec {
                 size: 12.0,
                 line_height: 16.0,
@@ -92,7 +84,6 @@ impl BadgeStyle {
             transition: style.toggle.transition,
             remove: RemoveStyle {
                 glyph: 12.0,
-                padding_end: 6.0,
                 rest: Opacity::new(1.0),
                 hover: Opacity::new(1.0),
             },

@@ -182,14 +182,9 @@ impl Face {
     }
 
     /// Builds the icon and the label.
-    fn content<A>(self, b: &mut Builder<'_, '_, A>, style: &BadgeStyle) {
+    fn content<A>(self, b: &mut Builder<'_, '_, A>) {
         if let Some(icon) = self.options.icon {
-            b.glyph(
-                tw().size_px(style.glyph)
-                    .shrink_0()
-                    .attr("icon", "inline-start"),
-                icon,
-            );
+            b.glyph(tw().shrink_0().attr("icon", "inline-start"), icon);
         }
         b.text(tw(), self.label);
     }
@@ -237,6 +232,6 @@ impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
         let style = b.style().badge.clone();
         face.check_variant(b.ctx(), &style);
         let classes = face.part(b, &style, Root::Static, tw());
-        b.div_id(key, classes, |s| face.content(s, &style));
+        b.div_id(key, classes, |s| face.content(s));
     }
 }

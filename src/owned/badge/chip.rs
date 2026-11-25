@@ -228,7 +228,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
         let classes = face.part(b, &style, root, ring);
         let removes = remove.map(|Handler(remove)| remove);
         let node = b.div_id(key, classes, |s| {
-            face.content(s, &style);
+            face.content(s);
             if let Some(remove) = &removes {
                 remove_button(s, &style, &name, stop, remove.clone());
             }

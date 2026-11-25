@@ -18,8 +18,6 @@ pub struct DialogStyle {
     pub title: TextSpec,
     /// The description's text role.
     pub description: TextSpec,
-    /// The description's colour.
-    pub description_color: Color32,
     /// The variant of the footer's cancel button.
     pub cancel: Variant,
     /// The variant of the footer's default button.
@@ -28,9 +26,6 @@ pub struct DialogStyle {
     pub close: Variant,
     /// The size of the close button (×).
     pub close_size: Size,
-    /// How far the close button sits from the box's top and right edges, in
-    /// Tailwind spacing units.
-    pub close_inset: f32,
 }
 
 /// A box's paint.
@@ -117,12 +112,10 @@ impl DialogStyle {
             },
             title: text(18.0, 18.0, Weight::SemiBold),
             description: text(14.0, 20.0, Weight::Normal),
-            description_color: k.muted_foreground,
             cancel: Variant::DEFAULT,
             default: Variant::DEFAULT,
             close: Variant::DEFAULT,
             close_size: Size::DEFAULT,
-            close_inset: 4.0,
         }
     }
 }

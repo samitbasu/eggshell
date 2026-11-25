@@ -36,8 +36,6 @@ pub struct DisclosureStyle {
     pub nudge: f32,
     /// A section's header.
     pub header: HeaderStyle,
-    /// Bottom padding of a section's content.
-    pub content_padding_bottom: f32,
     /// Side of a disclosure button.
     pub button: f32,
     /// A disclosure button's fill under the pointer, if it has one.
@@ -128,7 +126,6 @@ impl DisclosureStyle {
                 disabled: Opacity::new(0.5),
                 transition: style.toggle.transition,
             },
-            content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
             separator: Some(style.tokens.border),

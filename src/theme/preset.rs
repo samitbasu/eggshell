@@ -391,13 +391,11 @@ impl Shadcn {
         );
         badge.height = 20.0;
         badge.padding_x = 8.0;
-        badge.icon_padding = t.points(1.5);
         badge.gap = 4.0;
         badge.radius = match t.style {
             ShadcnStyle::Vega => u8::MAX,
             ShadcnStyle::Lyra => 0,
         };
-        badge.glyph = 12.0;
         badge.text = TextSpec {
             size: 12.0,
             line_height: 16.0,
@@ -405,7 +403,6 @@ impl Shadcn {
         };
         badge.transition = Duration::from_millis(150);
         badge.remove.glyph = 12.0;
-        badge.remove.padding_end = 6.0;
         badge
     }
 
@@ -475,7 +472,6 @@ impl Shadcn {
         disclosure.header.gap = 16.0;
         disclosure.header.text = t.text_role_at(Weight::Medium);
         disclosure.header.disabled = Opacity::new(0.5);
-        disclosure.content_padding_bottom = if lyra { 10.0 } else { 16.0 };
         disclosure.button = 24.0;
         disclosure.button_hover = Some(t.accent);
         disclosure.separator = Some(t.border);
@@ -577,12 +573,10 @@ impl Shadcn {
         dialog.surface = Surface::new(t.background, t.foreground, t.border)
             .rounded(t.radius_lg())
             .shadow(shadow_lg());
-        dialog.description_color = t.muted_foreground;
         dialog.cancel = variant::OUTLINE;
         dialog.default = variant::PRIMARY;
         dialog.close = variant::GHOST;
         dialog.close_size = size::ICON_SM;
-        dialog.close_inset = 2.0;
         dialog
     }
 
