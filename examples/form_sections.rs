@@ -77,7 +77,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
                         .add();
                 });
                 b.labeled_text(
-                    "A label long enough that it wraps onto a second line",
+                    "A label too long for one line is cut short with an ellipsis",
                     "Value",
                 );
             });
