@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use egui::{Key, Role, WidgetInfo};
 
+use super::number::field::Session;
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
-use super::number_field::Session;
 use super::{
     ButtonPart, Chevron, Enablement, FieldHooks, Gate, InputGroupPart, IntoTip, Tip, Validity,
     centered, described, options, text_sized, tip_describes, tipped_whole,

@@ -6,7 +6,7 @@ use egui::{Context, Id, Ui};
 
 use crate::overlay_input::Blur;
 
-use super::number::{Edit, Edits};
+use super::{Edit, Edits};
 
 /// How a session ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,14 +18,14 @@ enum Ending {
 /// The session of the field `editing` names: the text typed so far, while
 /// one is open.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Session {
+pub(in crate::owned) struct Session {
     typed: Id,
     /// The text the field showed as the session opened.
     opened: Id,
 }
 
 impl Session {
-    pub(super) fn of(editing: Id) -> Self {
+    pub(in crate::owned) fn of(editing: Id) -> Self {
         Self {
             typed: editing,
             opened: editing.with("opened"),
@@ -33,17 +33,23 @@ impl Session {
     }
 
     /// The text typed in the open session, if one is open.
-    pub(super) fn typed(self, ctx: &Context) -> Option<String> {
+    pub(in crate::owned) fn typed(self, ctx: &Context) -> Option<String> {
         ctx.data(|data| data.get_temp::<String>(self.typed))
     }
 
-    pub(super) fn is_open(self, ctx: &Context) -> bool {
+    pub(in crate::owned) fn is_open(self, ctx: &Context) -> bool {
         ctx.data(|data| data.get_temp::<String>(self.opened))
             .is_some()
     }
 
     /// Opens a session on a field that showed `opened`: the edit begins.
-    pub(super) fn open<A>(self, app: &mut A, ctx: &Context, opened: &str, edits: &Edits<A>) {
+    pub(in crate::owned) fn open<A>(
+        self,
+        app: &mut A,
+        ctx: &Context,
+        opened: &str,
+        edits: &Edits<A>,
+    ) {
         if self.is_open(ctx) {
             return;
         }
@@ -55,13 +61,13 @@ impl Session {
     }
 
     /// Keeps `text` as what is typed.
-    pub(super) fn keep(self, ctx: &Context, text: &str) {
+    pub(in crate::owned) fn keep(self, ctx: &Context, text: &str) {
         ctx.data_mut(|data| data.insert_temp(self.typed, text.to_owned()));
     }
 
     /// Forgets what is typed, keeping the session open: the field shows the
     /// value again.
-    pub(super) fn forget_typed(self, ctx: &Context) {
+    pub(in crate::owned) fn forget_typed(self, ctx: &Context) {
         ctx.data_mut(|data| data.remove::<String>(self.typed));
     }
 
@@ -69,7 +75,7 @@ impl Session {
     /// else commits `text` through `accept` with `set`, when it was edited
     /// and gives a value other than `current`. The edit ends after the value
     /// is set.
-    pub(super) fn close<A>(
+    pub(in crate::owned) fn close<A>(
         self,
         app: &mut A,
         ui: &Ui,

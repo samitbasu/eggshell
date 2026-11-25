@@ -75,7 +75,6 @@ pub mod spinner;
     feature = "tabs"
 ))]
 mod styles;
-#[cfg(feature = "tabs")]
 pub mod tabs;
 
 mod drag_chip;
@@ -84,18 +83,15 @@ pub use drag_chip::{DragChip, drag_chip};
 mod button;
 mod checkbox;
 mod choice;
-mod choices_sheet;
 mod custom;
+mod field;
 mod field_box;
-mod input_sheet;
+mod input;
 mod menu;
-mod menu_sheet;
 mod number;
-mod number_field;
 pub(crate) mod options;
 mod progress;
 mod radio;
-mod readout;
 mod segmented;
 mod select;
 mod slider;
@@ -103,11 +99,9 @@ mod splitter;
 mod stepper;
 mod switch;
 mod table;
-mod table_sheet;
-mod tabs_sheet;
 mod toggle;
 mod toggle_group;
-mod tooltip_sheet;
+mod tooltip;
 
 use crate::overlay_input::Blur;
 use crate::widget::Enter;
@@ -121,27 +115,25 @@ use egui::{Id, Response, Role, Ui, WidgetInfo};
 pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
-pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
-pub(crate) use choices_sheet::{
-    write_dark_card_label, write_exceptions as write_choice_exceptions,
-};
 pub use custom::CustomChain;
+pub use field::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+pub(crate) use field::{write_dark_card_label, write_exceptions as write_choice_exceptions};
 pub use field_box::FieldBoxChain;
-pub(crate) use input_sheet::{
+pub(crate) use input::{
     Frame, keys as input_keys, write_exceptions as write_input_exceptions, write_field_sizes,
 };
-pub(crate) use input_sheet::{INLINE_END, INLINE_START};
-pub use input_sheet::{InputGroupPart, InputPart};
+pub(crate) use input::{INLINE_END, INLINE_START};
+pub use input::{InputGroupPart, InputPart};
+pub use menu::MenuPart;
+pub(crate) use menu::write_menu_exceptions;
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
-pub use menu_sheet::MenuPart;
-pub(crate) use menu_sheet::write_exceptions as write_menu_exceptions;
+pub use number::NumberChain;
 pub use number::{Edit, Step, ValueRange};
 pub use options::IntoTip;
 pub(crate) use options::{Gate, Validity};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
-pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub(crate) use select::write_select_exceptions;
 pub use select::{SelectChain, SelectPart};
@@ -169,16 +161,16 @@ pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
+pub use table::TablePart;
 pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
-pub use table_sheet::TablePart;
-pub(crate) use table_sheet::{write_exceptions as write_table_exceptions, write_group_band};
-pub use tabs_sheet::TabsPart;
-pub(crate) use tabs_sheet::write_exceptions as write_tabs_exceptions;
+pub(crate) use table::{write_group_band, write_table_exceptions};
+pub use tabs::TabsPart;
+pub(crate) use tabs::write_exceptions as write_tabs_exceptions;
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
-pub use tooltip_sheet::TooltipPart;
+pub use tooltip::TooltipPart;
 
 use crate::contract::{Colors, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
@@ -785,10 +777,7 @@ impl Form {
     /// `keys` with the card's, for a control in a card.
     fn keys(self, mut keys: Vec<crate::sheet::Key>) -> Vec<crate::sheet::Key> {
         if self == Self::Card {
-            keys.push(crate::sheet::Key::Attr(
-                choices_sheet::CARD.0,
-                choices_sheet::CARD.1,
-            ));
+            keys.push(crate::sheet::Key::Attr(field::CARD.0, field::CARD.1));
         }
         keys
     }

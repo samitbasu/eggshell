@@ -8,10 +8,14 @@ use std::rc::Rc;
 
 use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
-use super::table_sheet::{RowState, TablePart};
+mod sheet;
+
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
+use sheet::RowState;
+pub use sheet::TablePart;
+pub(crate) use sheet::{write_exceptions as write_table_exceptions, write_group_band};
 
 /// TODO(prose): where a column's cells place their content.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

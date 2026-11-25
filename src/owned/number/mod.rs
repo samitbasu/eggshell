@@ -1,6 +1,11 @@
 //! What sliders and steppers share: the step between their values, and the
 //! keys that move them.
 
+pub(crate) mod field;
+pub(crate) mod readout;
+
+pub use readout::NumberChain;
+
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 

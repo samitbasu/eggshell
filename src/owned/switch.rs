@@ -258,7 +258,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let size = b.size_of(size);
         let metrics = *switch.sizes.lookup(b.ctx(), size);
         let size = switch.sizes.key_for(size);
-        let default_track = super::choices_sheet::switch_track(&style.tokens, size);
+        let default_track = super::field::switch_track(&style.tokens, size);
         let thumb_scale = track.map_or(1.0, |track| track.y / default_track.y);
         let thumb = |b: &mut Builder<'_, '_, A>, mark| {
             let classes = b.resolved_part(
