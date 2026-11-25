@@ -4,7 +4,6 @@ mod filter;
 mod list;
 pub(crate) use list::write_exceptions;
 mod parts;
-mod style;
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -18,7 +17,6 @@ use egui::{Id, Role};
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
 pub use parts::{ComboboxPart, Part};
-pub use style::Style;
 
 use list::{First, ListOptions, Query};
 

@@ -480,7 +480,6 @@ pub(crate) fn show<'f, A: 'static>(
 ) {
     let style = Arc::clone(b.style());
     let ctx = b.ctx().clone();
-    let command = Arc::new(b.style().command.clone());
     let (field, query) = match &shape.field {
         Field::Own => (None, Query::get(&ctx, key)),
         Field::Theirs { id, text } => (Some(*id), text.clone()),
@@ -512,9 +511,9 @@ pub(crate) fn show<'f, A: 'static>(
         if rows.is_empty() {
             match filtering {
                 Filtering::App(Pending::Loading) => {
-                    s.div_id(Node::Loading, note_classes(&style), |s| {
-                        s.text(tw(), "Loading…")
-                    });
+                    let busy = [SheetKey::Aria(crate::Aria::Busy)];
+                    let classes = looks.part(s, (ListPart::Empty, &busy), tw());
+                    s.div_id(Node::Loading, classes, |s| s.text(tw(), "Loading…"));
                 }
                 Filtering::App(Pending::Settled) | Filtering::Ours => {
                     let classes = looks.part(s, (ListPart::Empty, &[]), tw());
@@ -533,8 +532,8 @@ pub(crate) fn show<'f, A: 'static>(
             (ListPart::List, &[]),
             match looks {
                 // `scroll-py-1`, which the importer does not map.
-                Looks::Command => tw().max_h_px(command.list_height).scroll_py(1.0),
-                Looks::Combobox => tw().max_h_px(command.list_height),
+                Looks::Command => tw().scroll_py(1.0),
+                Looks::Combobox => tw(),
             },
         );
         let mut list = s
@@ -573,8 +572,6 @@ pub(crate) fn show<'f, A: 'static>(
         let marks = Rc::clone(&listing);
         let after = shape.after.clone();
         let rows_of = Rc::clone(&listing);
-        let _style_of = Arc::clone(&style);
-        let _command_of = Arc::clone(&command);
         let kinds = Rc::clone(&listing);
         list.row_kind(move |row| kinds.kind(row))
             .row_name(move |row| {
@@ -690,12 +687,6 @@ fn search_field<A: 'static>(
         });
     });
     field
-}
-
-fn note_classes(style: &crate::Style) -> Tw {
-    tw().py(6.0)
-        .text_center()
-        .text(style.tokens.muted_foreground)
 }
 
 /// A heading's classes, inset by `padding_x`, in `role`, as `rows` draw.

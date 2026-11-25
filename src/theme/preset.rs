@@ -303,17 +303,6 @@ impl Shadcn {
         badge
     }
 
-    /// TODO(prose): the look of a command list's rows: shadcn's
-    /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
-    /// and its list `max-h-72`.
-    #[cfg(feature = "command")]
-    pub(crate) fn command(t: &Tokens, style: &contract::Base<'_>) -> crate::owned::command::Style {
-        let mut command = crate::owned::command::Style::from_base(style);
-        command.selected_fill = t.muted;
-        command.selected_text = t.foreground;
-        command
-    }
-
     /// The section header and disclosure button look, after shadcn/ui's
     /// Accordion in the preset's style, from `ref/shadcn` (f50887a):
     /// `style-vega.css` 3-17 (`cn-accordion-*`; Lyra's are

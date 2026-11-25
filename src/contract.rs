@@ -1290,9 +1290,6 @@ pub struct Style {
     /// TODO(prose): badges and chips.
     #[cfg(feature = "badge")]
     pub badge: crate::owned::badge::Style,
-    /// TODO(prose): the command palette, the combobox and the autosuggest.
-    #[cfg(feature = "command")]
-    pub command: crate::owned::command::Style,
     /// TODO(prose): disclosures and accordions.
     #[cfg(feature = "disclosure")]
     pub disclosure: crate::owned::disclosure::Style,
@@ -1644,8 +1641,6 @@ impl Style {
             .unwrap_or_default();
         #[cfg(feature = "badge")]
         let badge = crate::theme::Shadcn::badge(t, &base);
-        #[cfg(feature = "command")]
-        let command = crate::theme::Shadcn::command(t, &base);
         #[cfg(feature = "disclosure")]
         let disclosure = crate::theme::Shadcn::disclosure(t, &base);
         #[cfg(feature = "form")]
@@ -1782,8 +1777,6 @@ impl Style {
             fonts,
             #[cfg(feature = "badge")]
             badge,
-            #[cfg(feature = "command")]
-            command,
             #[cfg(feature = "disclosure")]
             disclosure,
             #[cfg(feature = "form")]
