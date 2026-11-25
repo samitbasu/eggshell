@@ -233,8 +233,11 @@ fn clicking_an_internal_link_scrolls_to_its_heading() {
     press_and_release(&mut d, link.center());
     d.frames(4);
     let top = d.rect(Target::suffix(&heading())).min.y;
+    // The page scrolls by whole pixels, so a heading at a fractional
+    // height lands within half a pixel of the top.
+    let half_pixel = 0.5 / d.ctx().pixels_per_point();
     assert!(
-        (page.min.y..page.min.y + 1.0).contains(&top),
+        (top - page.min.y).abs() <= half_pixel,
         "the heading is scrolled to the page's top, at {top}"
     );
     assert!(
