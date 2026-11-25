@@ -438,3 +438,26 @@ impl SwitchPart {
         super::field::choice_keys(size, mark, enablement)
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A switch labelled `label` that shows `current`: a `bool`, or with
+    /// [`values`](SwitchChain::values) any two-valued type. Assistive
+    /// technology sees a `Role::Switch`.
+    pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        label: impl Into<String>,
+        current: T,
+    ) -> SwitchChain<'_, 'f, A, T> {
+        SwitchChain::new(self.reborrow(), key, Some(label.into()), current)
+    }
+
+    /// A switch without a label.
+    pub fn switch_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        current: T,
+    ) -> SwitchChain<'_, 'f, A, T> {
+        SwitchChain::new(self.reborrow(), key, None, current)
+    }
+}

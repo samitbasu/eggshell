@@ -1076,6 +1076,20 @@ pub(crate) fn open_on_secondary_click(ui: &egui::Ui, shared_kept: &Handle, owner
     }
 }
 
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A button that opens a menu under it, which the chain's `items` fills.
+    /// Assistive technology sees the trigger as a `Role::Button`, the menu as a
+    /// `Role::Menu` and its items as `Role::MenuItem`, `MenuItemCheckBox` or
+    /// `MenuItemRadio`.
+    pub fn dropdown_menu<K: crate::Key + Clone>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+    ) -> DropdownChain<'_, 'f, A, K> {
+        DropdownChain::new(self.reborrow(), key, face.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

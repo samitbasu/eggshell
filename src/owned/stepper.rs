@@ -526,3 +526,17 @@ impl<A> Spec<A> {
         self.hooks.run(app, ui, &response, field.enter());
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A stepper at `value` within `range`. Assistive technology sees its
+    /// field as a `Role::SpinButton`, and its buttons as `Role::Button`s named
+    /// `"Increase <name>"` and `"Decrease <name>"`.
+    pub fn stepper<K: crate::Key>(
+        &mut self,
+        key: K,
+        value: f64,
+        range: impl Into<ValueRange>,
+    ) -> StepperChain<'_, 'f, A> {
+        StepperChain::new(self.reborrow(), key, value, range.into())
+    }
+}

@@ -197,6 +197,18 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
     }
 }
 
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A progress bar filled to `progress`, drawn like a slider's track.
+    /// Assistive technology sees a `Role::ProgressIndicator`.
+    pub fn progress<K: crate::Key>(
+        &mut self,
+        key: K,
+        progress: crate::Progress,
+    ) -> ProgressChain<'_, 'f, A> {
+        ProgressChain::new(self.reborrow(), key, progress)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

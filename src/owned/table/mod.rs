@@ -1096,3 +1096,12 @@ fn describe_cell(
         }
     });
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// TODO(prose): a table, one grid whose columns line up across its rows.
+    /// Assistive technology sees a `Role::Table` of `Role::Row`s, each of
+    /// `Role::ColumnHeader`s or `Role::Cell`s.
+    pub fn table<K: crate::Key>(&mut self, key: K) -> TableChain<'_, 'f, A> {
+        TableChain::new(self.reborrow(), key)
+    }
+}

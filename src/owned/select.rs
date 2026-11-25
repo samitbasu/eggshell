@@ -494,3 +494,18 @@ impl<T: Copy + 'static> List<T> {
         }
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A select over `options` (anything [`IntoChoice`]), of which `current`
+    /// is chosen; the trigger shows the label of the chosen one. Assistive
+    /// technology sees the trigger as a `Role::ComboBox`, the open list as a
+    /// `Role::ListBox` and each option as a `Role::ListBoxOption`.
+    pub fn select<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
+        &mut self,
+        key: K,
+        current: T,
+        options: impl IntoIterator<Item = O>,
+    ) -> SelectChain<'_, 'f, A, T> {
+        SelectChain::new(self.reborrow(), key, current, options)
+    }
+}

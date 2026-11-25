@@ -167,3 +167,11 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
         });
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A node that hosts custom egui content, sized by classes or by
+    /// [`measure`](CustomChain::measure).
+    pub fn custom<K: crate::Key>(&mut self, key: K, classes: Tw) -> CustomChain<'_, 'f, A> {
+        CustomChain::new(self.reborrow(), key, classes)
+    }
+}

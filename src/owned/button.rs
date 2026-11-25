@@ -749,3 +749,15 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         });
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
+    /// Assistive technology sees a `Role::Button`.
+    pub fn button<K: crate::Key>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+    ) -> ButtonChain<'_, 'f, A> {
+        ButtonChain::new(self.reborrow(), key, face.into())
+    }
+}

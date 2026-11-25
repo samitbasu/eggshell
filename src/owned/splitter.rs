@@ -553,3 +553,11 @@ impl Handle {
         }
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// TODO(prose): a splitter between two panes of the flex container it is
+    /// built in.
+    pub fn splitter<K: crate::Key>(&mut self, key: K) -> SplitterStart<'_, 'f, A> {
+        SplitterStart::new(self.reborrow(), key)
+    }
+}

@@ -355,3 +355,17 @@ impl RadioGroupPart {
         super::field::choice_keys(size, mark, enablement)
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// Radio buttons for `options` (anything [`IntoChoice`]), of which
+    /// `current` is chosen. Values must be distinct. Assistive technology
+    /// sees each option as a `Role::RadioButton`.
+    pub fn radio_group<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
+        &mut self,
+        key: K,
+        current: T,
+        options: impl IntoIterator<Item = O>,
+    ) -> RadioGroupChain<'_, 'f, A, T> {
+        RadioGroupChain::new(self.reborrow(), key, current, options)
+    }
+}

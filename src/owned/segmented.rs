@@ -423,3 +423,17 @@ struct Group<T> {
     name: Option<String>,
     autofocus: Autofocus,
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A segmented control over `options` (anything [`IntoChoice`]), of which
+    /// `current` is selected. Values must be distinct. Assistive technology
+    /// sees each cell as a `Role::RadioButton`.
+    pub fn segmented<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
+        &mut self,
+        key: K,
+        current: T,
+        options: impl IntoIterator<Item = O>,
+    ) -> SegmentedChain<'_, 'f, A, T> {
+        SegmentedChain::new(self.reborrow(), key, current, options)
+    }
+}

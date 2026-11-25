@@ -633,3 +633,16 @@ fn typed_within(
     }
     typed.union(range)
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A slider at `value` within `range`. Assistive technology sees a
+    /// `Role::Slider`.
+    pub fn slider<K: crate::Key>(
+        &mut self,
+        key: K,
+        value: f64,
+        range: impl Into<ValueRange>,
+    ) -> SliderChain<'_, 'f, A> {
+        SliderChain::new(self.reborrow(), key, value, range.into())
+    }
+}

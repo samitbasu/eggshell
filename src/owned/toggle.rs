@@ -228,3 +228,30 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleItemChain<'a, 'f, 
         });
     }
 }
+
+impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
+    /// A toggle button showing `face` and `current`: a `bool`, or with
+    /// [`values`](ToggleChain::values) any two-valued type. Assistive
+    /// technology sees a `Role::Button`, toggled on or off.
+    pub fn toggle<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+        current: T,
+    ) -> ToggleChain<'_, 'f, A, T> {
+        ToggleChain::new(self.reborrow(), key, face.into(), current)
+    }
+
+    /// A member of `group` that is on when the group's current value is
+    /// `value`, showing `face`. Members may sit anywhere below the builder
+    /// that places them, with other nodes between them. Assistive technology
+    /// sees each member as a `Role::RadioButton`.
+    pub fn toggle_item<T: Copy + PartialEq + std::hash::Hash + std::fmt::Debug + 'static>(
+        &mut self,
+        group: &super::toggle_group::ToggleGroup<A, T>,
+        value: T,
+        face: impl Into<Face>,
+    ) -> ToggleItemChain<'_, 'f, A, T> {
+        group.item(self.reborrow(), value, face.into())
+    }
+}
