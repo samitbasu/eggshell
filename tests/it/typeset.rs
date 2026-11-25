@@ -169,7 +169,9 @@ fn rich_view<'f>(b: &mut Builder<'_, 'f, ()>, _: &'f ()) {
     b.div(tw().flex().flex_col().w_px(600.0), |b| {
         b.markdown("doc", RICH).add();
         b.table("outside")
-            .columns([eggshell_ui::owned::Column::new(eggshell_ui::Track::auto())])
+            .columns([eggshell_ui::owned::table::Column::new(
+                eggshell_ui::Track::auto(),
+            )])
             .header(|h| h.cell_text("Head"))
             .rows(&[1], |row| *row, |cells, _| cells.cell_text("Body"))
             .add();
@@ -221,7 +223,7 @@ fn a_tables_cells_are_padded_in_ems_and_its_first_column_is_flush() {
 fn a_table_outside_the_document_keeps_the_pages_style() {
     let d = rich_driver();
     let page = d.shell().style();
-    let page_padding = crate::support::part(&page, eggshell_ui::owned::TablePart::Cell)
+    let page_padding = crate::support::part(&page, eggshell_ui::owned::table::TablePart::Cell)
         .style_at(page.tokens.spacing)
         .padding
         .left

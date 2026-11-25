@@ -5,8 +5,8 @@ use crate::Aria;
 use crate::contract::Variant;
 use crate::sheet::{Key, Part, Sheet, When};
 
-use super::Enablement;
-use super::menu::Tone;
+use super::Tone;
+use crate::owned::Enablement;
 
 /// TODO(prose): the anatomy of a menu: shadcn's `dropdown-menu`, which a
 /// context menu and the list a select opens share.

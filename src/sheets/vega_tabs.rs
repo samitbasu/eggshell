@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use egui::Color32;
 use crate::contract::{Variant};
-use crate::owned::TabsPart;
+use crate::owned::tabs::TabsPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

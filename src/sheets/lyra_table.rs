@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::owned::TablePart;
+use crate::owned::table::TablePart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match};
 

@@ -7,16 +7,19 @@ use std::rc::Rc;
 
 use egui::{Role, Ui};
 
-use super::number::{Edit, Edits, Step, ValueRange};
-use super::number_field::Session;
-use super::{
-    Enablement, FieldBoxChain, Gate, IntoTip, Tip, described, options, painted, tip_describes,
-    tipped_whole,
-};
+use super::field::Session;
+use super::{Edit, Edits, Step, ValueRange};
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
+use crate::owned::{
+    Enablement, Tip, described,
+    field_box::FieldBoxChain,
+    options,
+    options::{Gate, IntoTip},
+    painted, tip_describes, tipped_whole,
+};
 use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, Tw, tw};
 
@@ -26,34 +29,34 @@ enum Part {
     Field,
 }
 
-pub(super) type Format = Rc<dyn Fn(f64) -> String>;
-pub(super) type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
-pub(super) type Set<A> = Rc<dyn Fn(&mut A, f64)>;
+pub(in crate::owned) type Format = Rc<dyn Fn(f64) -> String>;
+pub(in crate::owned) type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
+pub(in crate::owned) type Set<A> = Rc<dyn Fn(&mut A, f64)>;
 
 /// The narrowest the readout's field opens, so a short value can be typed
 /// over.
 const MIN_FIELD: f32 = 48.0;
 
 /// A readout as its owner configured it.
-pub(super) struct Readout {
-    pub(super) value: f64,
-    pub(super) format: Option<Format>,
+pub(in crate::owned) struct Readout {
+    pub(in crate::owned) value: f64,
+    pub(in crate::owned) format: Option<Format>,
     /// Editable when it has one.
-    pub(super) parse: Option<Parse>,
-    pub(super) step: Step,
+    pub(in crate::owned) parse: Option<Parse>,
+    pub(in crate::owned) step: Step,
     /// Where the step's lattice starts: a slider's track start.
-    pub(super) origin: f64,
+    pub(in crate::owned) origin: f64,
     /// The range a typed value reaches.
-    pub(super) reach: ValueRange,
-    pub(super) name: String,
-    pub(super) enablement: Enablement,
+    pub(in crate::owned) reach: ValueRange,
+    pub(in crate::owned) name: String,
+    pub(in crate::owned) enablement: Enablement,
     /// Its text classes: size and, for a slider's, colour.
-    pub(super) text: Tw,
-    pub(super) paint: Option<Colors>,
-    pub(super) size: Size,
+    pub(in crate::owned) text: Tw,
+    pub(in crate::owned) paint: Option<Colors>,
+    pub(in crate::owned) size: Size,
     /// The tooltip that describes its button, where the readout is the
     /// whole control.
-    pub(super) describes: Tip,
+    pub(in crate::owned) describes: Tip,
 }
 
 impl Readout {
@@ -66,7 +69,12 @@ impl Readout {
 
     /// Builds the readout under `Part::Readout`: its text, a button that
     /// opens it while it is editable, or the field it opens into.
-    pub(super) fn show<A: 'static>(self, b: &mut Builder<'_, '_, A>, set: Set<A>, edits: Edits<A>) {
+    pub(in crate::owned) fn show<A: 'static>(
+        self,
+        b: &mut Builder<'_, '_, A>,
+        set: Set<A>,
+        edits: Edits<A>,
+    ) {
         let shown = self.shown();
         let Self {
             value,
@@ -133,7 +141,7 @@ impl Readout {
                 });
             return;
         }
-        let frame = super::input_frame(&style, size);
+        let frame = crate::owned::input_frame(&style, size);
         let field = Field::singleline("").sized(size).inset();
         let measured = field.clone();
         let slot = b.slot(&Part::Readout);
@@ -154,9 +162,9 @@ impl Readout {
                     .tabular_nums(),
             )
             .children(|s| {
-                let keys = super::input_keys(style.input.sizes.key_for(size), false);
+                let keys = crate::owned::input::keys(style.input.sizes.key_for(size), false);
                 let leaf = s.part(
-                    super::InputGroupPart::Input,
+                    crate::owned::input::InputGroupPart::Input,
                     &keys,
                     // The field is inset by egui's margin already, so its
                     // text stays where the readout drew it.

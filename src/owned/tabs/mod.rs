@@ -1,273 +1,211 @@
-//! TODO(prose): tabs after shadcn/ui's Tabs: a tab list that the arrow keys
-//! move through, and the panel of the selected tab.
-//!
-//! ```
-//! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::tabs::TabsExt;
-//!
-//! #[derive(Clone, Copy, PartialEq)]
-//! enum Lang { Rust, Html }
-//!
-//! struct App { lang: Lang }
-//!
-//! fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
-//!     b.tabs("lang", app.lang, [(Lang::Rust, "Rust"), (Lang::Html, "HTML")])
-//!         .named("Language")
-//!         .on_change(|app: &mut App, lang| app.lang = lang)
-//!         .panel(|b, lang| match lang {
-//!             Lang::Rust => b.text(eggshell_ui::tw(), "fn main() {}"),
-//!             Lang::Html => b.text(eggshell_ui::tw(), "<main></main>"),
-//!         });
-//! }
-//! ```
+//! TODO(prose): the tabs' parts, which the segmented control draws too, and
+//! their recorded exceptions over the generated `cn-tabs*` look.
 
-use std::rc::Rc;
+#[cfg(feature = "tabs")]
+mod widget;
 
-use crate::contract::Size;
-use crate::overlay::{Nav, Wrap};
-use crate::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows, TabsPart};
-use crate::{Builder, Key, Tw, tw};
-use egui::Role;
+#[cfg(feature = "tabs")]
+pub use widget::{Changes, TabsChain, TabsExt, Unset};
 
-/// TODO(prose): adds [`tabs`](Self::tabs) to the builder.
-pub trait TabsExt<'b, 'f, A> {
-    /// TODO(prose): tabs over `options`, of which `current` is selected. Give
-    /// it an [`on_change`](TabsChain::on_change), then add it with
-    /// [`panel`](TabsChain::panel).
-    fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
-        &'s mut self,
-        key: K,
-        current: T,
-        options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset>;
-}
+use crate::contract::{Keyed, Size, Variant};
+use crate::sheet::{Key, Part, Sheet, When};
+use crate::theme::{Tokens, size};
+use crate::{Aria, Builder, Match};
 
-impl<'b, 'f, A: 'static> TabsExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn tabs<'s, K: Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
-        &'s mut self,
-        key: K,
-        current: T,
-        options: impl IntoIterator<Item = O>,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Unset> {
-        TabsChain {
-            b: self,
-            key,
-            current,
-            options: options.into_iter().map(IntoChoice::into_choice).collect(),
-            name: None,
-            size: None,
-            enablement: Enablement::Enabled,
-            activation: Activation::OnFocus,
-            list: tw(),
-            panel: tw(),
-            handler: Unset,
-        }
-    }
-}
+use super::{Enablement, segmented::Cell, segmented::SegmentedRows};
 
-/// TODO(prose): tabs that have no [`on_change`](TabsChain::on_change) yet.
-pub struct Unset;
-
-/// TODO(prose): what [`on_change`](TabsChain::on_change) gave the tabs.
-pub struct Changes<A, T>(OnChange<A, T>);
-
-type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
-
-/// When the keyboard selects the tab it reaches.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Activation {
-    /// As an arrow key focuses it.
-    OnFocus,
-    /// When Enter or Space is pressed on it.
-    OnEnter,
-}
-
-/// The nodes of a tabs control, under its key.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-enum Part {
+/// TODO(prose): the anatomy of tabs: shadcn's `tabs`. A segmented control is
+/// a list of triggers alone.
+///
+/// TODO(prose): the keys its rules see: the size, `aria-disabled`, a list's
+/// variant (shadcn's `default`, the only one eggshell draws), a trigger's
+/// `aria-selected` (shadcn's `data-active`), and `data-[rows=wrapping]` on a
+/// list and its triggers when they wrap, a key of eggshell's own: shadcn's
+/// lists do not wrap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TabsPart {
+    /// TODO(prose): the tabs, holding the list and the panel.
+    Root,
+    /// TODO(prose): the track of triggers.
     List,
-    Tab(usize),
-    Panel(usize),
+    /// TODO(prose): one trigger: a tab, or a segment.
+    Trigger,
+    /// TODO(prose): the panel of the selected tab.
+    Content,
 }
 
-/// TODO(prose): tabs being declared; [`panel`](Self::panel) adds them.
-#[must_use = "tabs are not added until you call `.on_change(..)` and `.panel(..)`"]
-pub struct TabsChain<'s, 'b, 'f, A, K, T, H> {
-    b: &'s mut Builder<'b, 'f, A>,
-    key: K,
-    current: T,
-    options: Vec<Choice<T>>,
-    name: Option<String>,
-    size: Option<Size>,
-    enablement: Enablement,
-    activation: Activation,
-    list: Tw,
-    panel: Tw,
-    handler: H,
-}
+impl Part for TabsPart {
+    const SOURCE: &'static str = "tabs.tsx";
 
-impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
-    TabsChain<'s, 'b, 'f, A, K, T, H>
-{
-    /// TODO(prose): the tab list's accessible name, as `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = Some(size);
-        self
-    }
-
-    /// TODO(prose): whether the tabs take input, on top of the subtree's.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
-        self
-    }
-
-    /// TODO(prose): selects a tab the arrow keys reach only when Enter or
-    /// Space is pressed on it, for panels that are slow to build. By default
-    /// the arrows select as they move.
-    pub fn activate_on_enter(mut self) -> Self {
-        self.activation = Activation::OnEnter;
-        self
-    }
-
-    /// TODO(prose): classes merged over the styled tab list's.
-    pub fn list_classes(mut self, classes: Tw) -> Self {
-        self.list = self.list.merge(classes);
-        self
-    }
-
-    /// TODO(prose): classes merged over the panel's.
-    pub fn panel_classes(mut self, classes: Tw) -> Self {
-        self.panel = self.panel.merge(classes);
-        self
-    }
-}
-
-impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Unset>
-{
-    /// TODO(prose): runs `on_change` with the value of the tab that was
-    /// selected, by a click or the keyboard.
-    pub fn on_change(
-        self,
-        on_change: impl Fn(&mut A, T) + 'static,
-    ) -> TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
-        TabsChain {
-            b: self.b,
-            key: self.key,
-            current: self.current,
-            options: self.options,
-            name: self.name,
-            size: self.size,
-            enablement: self.enablement,
-            activation: self.activation,
-            list: self.list,
-            panel: self.panel,
-            handler: Changes(Rc::new(on_change)),
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "tabs",
+            Self::List => "tabs-list",
+            Self::Trigger => "tabs-trigger",
+            Self::Content => "tabs-content",
         }
     }
 }
 
-impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
-    TabsChain<'s, 'b, 'f, A, K, T, Changes<A, T>>
-{
-    /// TODO(prose): adds the tab list, and below it the panel of the selected
-    /// tab, which `build` builds; the panels of the other tabs are not built.
+/// The attribute of a list whose triggers wrap onto more rows.
+const WRAPPING: (&str, &str) = ("rows", "wrapping");
+
+/// The keys a list and its triggers share.
+fn shared_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
+    let mut keys = vec![Key::Size(size)];
+    if rows == SegmentedRows::Wrapping {
+        keys.push(Key::Attr(WRAPPING.0, WRAPPING.1));
+    }
+    if enablement == Enablement::Disabled {
+        keys.push(Key::Aria(Aria::Disabled));
+    }
+    keys
+}
+
+impl TabsPart {
+    /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
-    pub fn panel(self, build: impl FnOnce(&mut Builder<'_, 'f, A>, T)) {
-        let Self {
-            b,
-            key,
-            current,
-            options,
-            name,
-            size,
-            enablement,
-            activation,
-            list,
-            panel,
-            handler: Changes(on_change),
-        } = self;
-        let size = TabsPart::size_key(b, size.unwrap_or(b.control_size()));
-        let enablement = enablement.and(b.enablement());
-        let selected = options.iter().position(|option| option.value == current);
-        let rows = SegmentedRows::One;
-        let root = b.part(TabsPart::Root, &[], tw());
-        b.div_id(key, root, |b| {
-            let panel_id = selected.map(|index| b.id_of(Part::Panel(index)));
-            let track = b.part(
-                TabsPart::List,
-                &TabsPart::list_keys(size, rows, enablement),
-                tw().sense_hover().merge(list),
-            );
-            let tabs = b
-                .div_id(Part::List, track, |b| {
-                    for (index, option) in options.iter().enumerate() {
-                        let own = enablement.and(option.enablement).and(match option.refusal {
-                            Some(_) => Enablement::Disabled,
-                            None => Enablement::Enabled,
-                        });
-                        let cell = if Some(index) == selected {
-                            Cell::Pressed
-                        } else {
-                            Cell::Released
-                        };
-                        let classes = b.part(
-                            TabsPart::Trigger,
-                            &TabsPart::trigger_keys(size, rows, cell, own),
-                            match own {
-                                Enablement::Enabled => tw().sense_click().text_center(),
-                                Enablement::Disabled => tw().sense_click().text_center().inert(),
-                            },
-                        );
-                        let tab = match &option.icon {
-                            None => b.span(Part::Tab(index), classes, option.label.clone()),
-                            Some(glyph) => b.div_id(Part::Tab(index), classes, |b| {
-                                b.glyph(tw(), glyph.clone());
-                                b.text(tw(), option.label.clone());
-                            }),
-                        };
-                        let tab = tab
-                            .role(Role::Tab)
-                            .named(option.label.clone())
-                            .selected(Mark::from(cell == Cell::Pressed));
-                        let tab = match (Some(index) == selected, panel_id) {
-                            (true, Some(panel)) => tab.controls(panel),
-                            _ => tab,
-                        };
-                        let tab = match option.refusal.clone().or_else(|| option.tooltip.clone()) {
-                            Some(tip) => tab.tooltip(tip),
-                            None => tab,
-                        };
-                        let value = option.value;
-                        let on_change = Rc::clone(&on_change);
-                        tab.on_click(move |app: &mut A| on_change(app, value));
-                    }
-                })
-                .role(Role::TabList)
-                .nav(Nav::Row(Wrap::Around));
-            let tabs = match &name {
-                Some(name) => tabs.named(name.clone()),
-                None => tabs,
-            };
-            if activation == Activation::OnFocus {
-                tabs.selection_follows_focus();
-            }
-            if let Some(index) = selected {
-                let label = options
-                    .get(index)
-                    .map(|option| option.label.clone())
-                    .unwrap_or_default();
-                let content = b.part(TabsPart::Content, &[], tw().sense_hover().merge(panel));
-                b.div_id(Part::Panel(index), content, |b| build(b, current))
-                    .role(Role::TabPanel)
-                    .named(label);
+    pub fn size_key<A>(b: &Builder<'_, '_, A>, size: Size) -> Size {
+        let sizes = sizes();
+        sizes.lookup(b.ctx(), size);
+        sizes.key_for(size)
+    }
+
+    /// TODO(prose): the keys of a list of `size` laid out in `rows`, for [`Builder::part`](crate::Builder::part).
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::owned::{Enablement, segmented::SegmentedRows, tabs::TabsPart};
+    ///
+    /// let keys = TabsPart::list_keys(Size::DEFAULT, SegmentedRows::One, Enablement::Enabled);
+    /// assert_eq!(keys.len(), 2);
+    /// ```
+    pub fn list_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
+        let mut keys = shared_keys(size, rows, enablement);
+        keys.push(Key::Variant(Variant::DEFAULT));
+        keys
+    }
+
+    /// TODO(prose): the keys of a trigger in such a list, the selected one if `cell` is pressed.
+    ///
+    /// ```
+    /// use eggshell_ui::Aria;
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::owned::{segmented::{Cell, SegmentedRows}, Enablement, tabs::TabsPart};
+    /// use eggshell_ui::sheet::Key;
+    ///
+    /// let keys = TabsPart::trigger_keys(
+    ///     Size::DEFAULT,
+    ///     SegmentedRows::One,
+    ///     Cell::Pressed,
+    ///     Enablement::Enabled,
+    /// );
+    /// assert!(keys.contains(&Key::Aria(Aria::Selected)));
+    /// ```
+    pub fn trigger_keys(
+        size: Size,
+        rows: SegmentedRows,
+        cell: Cell,
+        enablement: Enablement,
+    ) -> Vec<Key> {
+        let mut keys = shared_keys(size, rows, enablement);
+        if cell == Cell::Pressed {
+            keys.push(Key::Aria(Aria::Selected));
+        }
+        keys
+    }
+}
+
+/// The sizes the tabs and the segmented control are drawn at: shadcn's one
+/// and eggshell's own smaller two.
+fn sizes() -> Keyed<Size, ()> {
+    Keyed::new(Size::DEFAULT, ())
+        .with(size::SM, ())
+        .with(size::XS, ())
+}
+
+/// A tab list's and its triggers' metrics at a size.
+struct Metrics {
+    height: f32,
+    track_padding: f32,
+    cell_padding: egui::Vec2,
+    row_gap: f32,
+    icon_size: f32,
+    text: Option<crate::contract::TextSize>,
+}
+
+/// tabs.tsx, trigger: `h-[calc(100%-1px)]`.
+const CELL_TRIM: f32 = 1.0;
+
+fn metrics(k: &Tokens, size: Size) -> Metrics {
+    let u = |units: f32| k.points(units);
+    let at = |height: f32, padding_x: f32, icon_size: f32, text| Metrics {
+        height,
+        track_padding: k.list_padding,
+        // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than the list's
+        // inside, which overflows its `text-sm` by 1 px; the trimmed point
+        // comes out of the padding instead.
+        cell_padding: egui::vec2(padding_x, k.points(k.cell_padding.y) - CELL_TRIM / 2.0),
+        row_gap: 2.0,
+        icon_size,
+        text,
+    };
+    let (padding_x, icon) = (k.points(k.cell_padding.x), k.points(k.icon_size));
+    match size {
+        s if s == size::XS => at(
+            k.control_height() - u(3.0),
+            (padding_x - u(1.0)).max(0.0),
+            u(3.0),
+            Some(k.text.xs),
+        ),
+        s if s == size::SM => at(k.control_height() - u(1.0), padding_x, icon, None),
+        _ => at(k.control_height(), padding_x, icon, None),
+    }
+}
+
+/// Writes the tabs' recorded exceptions over the rules at the sheet's current
+/// layer: the list's track keeps the `input` fill, which shadcn's `bg-muted`
+/// would lose on a muted panel (#346, revisit with #443); a trigger's
+/// `h-[calc(100%-1px)]` is the list's full height inside a list padded half a
+/// point more, with the point its `text-sm` would overflow taken out of its
+/// own padding; the sizes other than the default keep their metrics; and
+/// wrapping lists, eggshell's own, keep their rows, with each trigger growing
+/// from its content's width where `flex-1` would share a row equally.
+pub(crate) fn write_exceptions(sheet: &mut Sheet) {
+    sheet.rule(TabsPart::List, |t, k| t.bg(k.input));
+    let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
+    let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
+    let sizes = sizes();
+    let default = sizes.default_key();
+    for size in sizes.keys() {
+        let when = When::always().size(size);
+        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+            t.py_px(metrics(k, size).cell_padding.y)
+        });
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+            t.py_px(metrics(k, size).track_padding + CELL_TRIM / 2.0)
+        });
+        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, k| {
+            t.flex_wrap().h_auto().gap_px(metrics(k, size).row_gap)
+        });
+        if size == default {
+            sheet.rule_when(TabsPart::List, when, |t, _| t);
+            continue;
+        }
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, k| {
+            t.h_px(metrics(k, size).height)
+        });
+        sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
+            let m = metrics(k, size);
+            let t = t
+                .px_px(m.cell_padding.x)
+                .descendants(Match::glyph(), |g| g.size_px(m.icon_size));
+            match m.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
             }
         });
     }
+    sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
+    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto().basis_auto());
 }

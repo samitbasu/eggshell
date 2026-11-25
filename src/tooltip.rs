@@ -22,7 +22,7 @@ use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
-use crate::owned::TooltipPart;
+use crate::owned::tooltip::TooltipPart;
 use crate::presence::Shown;
 use crate::tw::tw;
 

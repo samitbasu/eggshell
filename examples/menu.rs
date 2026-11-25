@@ -22,7 +22,7 @@
 mod common;
 
 use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement, Wrap};
-use eggshell_ui::owned::{Face, Mark};
+use eggshell_ui::owned::{Mark, button::Face};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Chord, Command, Commands, tw};
 use egui::{Color32, Key, Modifiers, Role};

@@ -12,9 +12,11 @@ use egui::accesskit::HasPopup;
 use egui::{Context, EventFilter, Id, Key as EguiKey, Pos2, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
-use super::menu_sheet::{INSET, MenuPart};
+mod sheet;
+
 use super::{
-    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, tipped,
+    Chevron, Enablement, Mark, OnResponse, check, describe, options, options::Gate,
+    options::IntoTip, tipped,
 };
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
@@ -26,6 +28,9 @@ use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
 use crate::sheet::Key;
 use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
+use sheet::INSET;
+pub use sheet::MenuPart;
+pub(crate) use sheet::write_exceptions;
 
 /// The parts of a menu.
 #[derive(Hash, Debug, Clone, Copy)]

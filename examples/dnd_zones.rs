@@ -12,7 +12,7 @@ mod common;
 
 use std::any::Any;
 
-use eggshell_ui::owned::DragChip as _;
+use eggshell_ui::owned::drag_chip::DragChip as _;
 use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, tw};
 use egui::{Ui, Vec2};

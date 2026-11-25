@@ -282,8 +282,8 @@
 //! ```
 //!
 //! A radio group, a segmented control or a select takes its options as any
-//! iterator of things that convert to a [`Choice`](owned::Choice) (see
-//! [`IntoChoice`](owned::IntoChoice)), so the options need not be collected
+//! iterator of things that convert to a [`Choice`](owned::choice::Choice) (see
+//! [`IntoChoice`](owned::choice::IntoChoice)), so the options need not be collected
 //! into a `Vec` each frame. A value that is `Display`, a reference to one, a
 //! pair, a triple with an icon and a `Choice` (for a tooltip or a disabled
 //! option) all do:
@@ -291,7 +291,7 @@
 //! ```
 //! use std::fmt;
 //! use eggshell_ui::Builder;
-//! use eggshell_ui::owned::{Choice, Enablement};
+//! use eggshell_ui::owned::{choice::Choice, Enablement};
 //!
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Unit { Metric, Imperial }

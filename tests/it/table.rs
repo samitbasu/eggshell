@@ -2,7 +2,7 @@
 //! columns line up across rows, a band per row for its rule, hover and
 //! selection, and the accessibility tree.
 
-use eggshell_ui::owned::{Align, Column, Stripes, TablePart};
+use eggshell_ui::owned::table::{Align, Column, Stripes, TablePart};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
@@ -84,7 +84,7 @@ fn columns() -> [Column; 3] {
     ]
 }
 
-fn row(row: &mut eggshell_ui::owned::Cells<'_, '_, App>, invoice: &Invoice) {
+fn row(row: &mut eggshell_ui::owned::table::Cells<'_, '_, App>, invoice: &Invoice) {
     let id = invoice.id;
     row.cell_text(format!("INV-{id}"));
     row.cell(move |b| {
@@ -422,7 +422,7 @@ mod selection {
         )
         .style(support::shadcn_with(|style| {
             style.sheet.as_app().rule_when(
-                eggshell_ui::owned::TablePart::Row,
+                eggshell_ui::owned::table::TablePart::Row,
                 eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Selected),
                 |b, _| b.bg(Color32::RED),
             );
@@ -912,7 +912,7 @@ mod groups {
                 .named("Grouped")
                 .columns(columns())
                 .stripes(app.stripes);
-            let body = |rows: &mut eggshell_ui::owned::Rows<'_, '_, App, u32>| {
+            let body = |rows: &mut eggshell_ui::owned::table::Rows<'_, '_, App, u32>| {
                 for (title, ids) in sections {
                     rows.group(title);
                     for id in ids {
@@ -1146,7 +1146,7 @@ mod groups {
             });
         }
 
-        fn body(rows: &mut eggshell_ui::owned::Rows<'_, '_, App, u32>, app: &App, id: u32) {
+        fn body(rows: &mut eggshell_ui::owned::table::Rows<'_, '_, App, u32>, app: &App, id: u32) {
             if let Some(invoice) = app.invoices.iter().find(|invoice| invoice.id == id) {
                 rows.row(invoice.id, |cells| row(cells, invoice));
             }
@@ -1155,7 +1155,7 @@ mod groups {
         fn table(
             b: &mut Builder<'_, '_, App>,
             app: &App,
-            rows: impl FnOnce(&mut eggshell_ui::owned::Rows<'_, '_, App, u32>, &App),
+            rows: impl FnOnce(&mut eggshell_ui::owned::table::Rows<'_, '_, App, u32>, &App),
         ) {
             b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
                 b.table("Grouped")

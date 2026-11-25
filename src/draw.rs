@@ -29,7 +29,7 @@ use crate::nodes::Nodes;
 use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
-use crate::owned::Side;
+use crate::owned::splitter::Side;
 use crate::pipeline::{
     ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedFrame, PlacedNode, ScrollRef,
 };

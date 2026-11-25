@@ -4,7 +4,10 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};
-use eggshell_ui::owned::{ButtonPart, Enablement, Face};
+use eggshell_ui::owned::{
+    Enablement,
+    button::{ButtonPart, Face},
+};
 use eggshell_ui::sheet::{Key, When};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};

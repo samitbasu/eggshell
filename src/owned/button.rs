@@ -5,7 +5,9 @@ use std::fmt::Debug;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options};
+use super::{
+    Enablement, OnResponse, centered, described, options, options::Gate, options::IntoTip,
+};
 use crate::Aria;
 use crate::actions::Action;
 use crate::builder::Slot;
@@ -49,7 +51,7 @@ enum Press {
 /// [`named`](ButtonChain::named) overrides any of these.
 ///
 /// ```
-/// use eggshell_ui::owned::Face;
+/// use eggshell_ui::owned::button::Face;
 /// use eggshell_ui::{Builder, Icon};
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
@@ -166,7 +168,7 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 /// the second one has set wins, and classes merge as [`Tw::merge`] does.
 ///
 /// ```
-/// use eggshell_ui::owned::ButtonOptions;
+/// use eggshell_ui::owned::button::ButtonOptions;
 /// use eggshell_ui::Builder;
 /// use eggshell_ui::contract::Size;
 ///
@@ -573,7 +575,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Adds the button as the command `id` names in the
     /// [`Commands`](crate::Commands) declared on the builder: it is disabled
     /// while the command is, and clicking it runs the command, as a menu item
-    /// for it does (see [`Menu::command`](crate::owned::Menu::command)). The
+    /// for it does (see [`Menu::command`](crate::owned::menu::Menu::command)). The
     /// label is the button's own.
     ///
     /// If no live table declares `id`, the button is added disabled and is

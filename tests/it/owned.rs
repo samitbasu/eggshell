@@ -6,8 +6,8 @@ use eggshell_ui::Style;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};
-use eggshell_ui::owned::ButtonPart;
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::owned::button::ButtonPart;
 use eggshell_ui::sheet::{Key as Keyed, When};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens, variant};

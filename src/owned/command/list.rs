@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::contract::Colors;
-use crate::owned::{Enablement, InputGroupPart, Mark, MenuPart};
+use crate::owned::{Enablement, Mark, input::InputGroupPart, menu::MenuPart};
 use crate::sheet::Key as SheetKey;
 use crate::vlist::{ListNav, RowKind};
 use crate::{

@@ -26,7 +26,7 @@ use crate::layout_tree::LayoutTree;
 use crate::measure::{Content, Measure, measure_content};
 use crate::nodes::Nodes;
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
-use crate::owned::Side;
+use crate::owned::splitter::Side;
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
 use crate::roots::{

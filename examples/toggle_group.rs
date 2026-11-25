@@ -7,7 +7,10 @@ mod common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
+use eggshell_ui::owned::{
+    button::{ButtonOptions, Face},
+    toggle_group::ToggleGroup,
+};
 use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Scope, tw};
 

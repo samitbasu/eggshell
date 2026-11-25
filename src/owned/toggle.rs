@@ -3,11 +3,13 @@
 use egui::Role;
 
 use super::toggle_group::Member;
-use super::{ButtonChain, ButtonOptions, Enablement, Face, Mark, Unset, flip};
+use super::{
+    Enablement, Mark, Unset, button::ButtonChain, button::ButtonOptions, button::Face, flip,
+};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Scope, Tw};
 
-/// A member of a [`ToggleGroup`](super::ToggleGroup): a toggle with the
+/// A member of a [`ToggleGroup`](super::toggle_group::ToggleGroup): a toggle with the
 /// group's options, finished with [`add`](ToggleChain::add). Start one with
 /// [`Builder::toggle_item`].
 pub type ToggleItemChain<'a, 'f, A, T> = ToggleChain<'a, 'f, A, T, Member<A, T>>;
@@ -126,7 +128,7 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     }
 
     /// Shown while the pointer hovers the control, also when it is disabled.
-    pub fn tooltip(mut self, text: impl super::IntoTip) -> Self {
+    pub fn tooltip(mut self, text: impl super::options::IntoTip) -> Self {
         self.button = self.button.tooltip(text);
         self
     }
@@ -158,7 +160,7 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     /// TODO(prose): disabled while `reason` is `Some`, with the reason as
     /// the tooltip and the accessible description. `None` clears it; the last
     /// call wins.
-    pub fn refused(mut self, reason: impl super::IntoTip) -> Self {
+    pub fn refused(mut self, reason: impl super::options::IntoTip) -> Self {
         self.button = self.button.refused(reason);
         self
     }

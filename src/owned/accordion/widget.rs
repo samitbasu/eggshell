@@ -1,32 +1,8 @@
-//! TODO(prose): an accordion: sections in a column, opened one at a time or
-//! any number at once, as the mode's type says.
-//!
-//! ```
-//! use eggshell_ui::{Builder, tw};
-//! use eggshell_ui::owned::accordion::{AccordionExt, Single};
-//!
-//! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//! enum Faq { Access, Motion }
-//!
-//! struct App { faq: Option<Faq> }
-//!
-//! fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
-//!     b.accordion("faq", Single::collapsible(app.faq))
-//!         .on_change(|app: &mut App, open| app.faq = open)
-//!         .items(|acc| {
-//!             acc.item(Faq::Access, "Is it accessible?")
-//!                 .children(|b| b.text(tw(), "Yes."));
-//!             acc.item(Faq::Motion, "Is it animated?")
-//!                 .children(|b| b.text(tw(), "Yes."));
-//!         });
-//! }
-//! ```
-
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::overlay::{Nav, Shown, Wrap};
-use crate::owned::{Enablement, Face};
+use crate::owned::{Enablement, button::Face};
 use crate::{Builder, Key, Scope, Tw, tw};
 
 use crate::owned::disclosure::SectionExt;
@@ -223,11 +199,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             Some(line) => column.divide_y(1.0, line),
             None => column,
         };
-        let column = b.part(
-            crate::owned::disclosure::AccordionPart::Root,
-            &[],
-            column.merge(classes),
-        );
+        let column = b.part(super::AccordionPart::Root, &[], column.merge(classes));
         b.div_id(key, column, |b| {
             items(&mut Items {
                 b,

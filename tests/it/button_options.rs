@@ -2,7 +2,7 @@
 //! that returns a chain for the caller to finish.
 
 use eggshell_ui::contract::Size;
-use eggshell_ui::owned::{ButtonChain, ButtonOptions};
+use eggshell_ui::owned::button::{ButtonChain, ButtonOptions};
 use eggshell_ui::theme::{Shadcn, size, variant};
 use eggshell_ui::{Builder, LayoutState, Scope, tw};
 use egui::epaint::ClippedShape;

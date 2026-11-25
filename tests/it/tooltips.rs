@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::{Choice, Enablement, Face, TooltipPart};
+use eggshell_ui::owned::{Enablement, button::Face, choice::Choice, tooltip::TooltipPart};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -897,7 +897,7 @@ fn red_tooltips(style: &mut Style) {
     style
         .sheet
         .as_app()
-        .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
+        .rule(eggshell_ui::owned::tooltip::TooltipPart::Content, |t, _| {
             t.bg(egui::Color32::RED)
         });
 }

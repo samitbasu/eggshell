@@ -1,18 +1,16 @@
 //! The section: a header that opens and closes a collapsible region.
 
+use crate::owned::accordion::AccordionPart;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
-use crate::owned::{Enablement, Face};
+use crate::owned::{Enablement, button::Face};
 use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 
 use crate::sheet::Key as SheetKey;
 
-use super::{
-    AccordionPart, ChangeFn, DisclosureStyle, OnChange, Unset, chevron, enablement_in, name_of,
-    toggled,
-};
+use super::{ChangeFn, DisclosureStyle, OnChange, Unset, chevron, enablement_in, name_of, toggled};
 
 /// The parts of a section, under its key.
 #[derive(Clone, Copy, Debug, Hash)]

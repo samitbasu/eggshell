@@ -793,28 +793,29 @@ pub struct Widget {
 /// module under it, whose rules are written only with its feature.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Home {
-    Core,
-    /// An opt-in widget's module under `owned`, behind the feature of its
-    /// name.
-    Feature(&'static str),
+    /// Core's widget `module` under `owned`.
+    Core(&'static str),
+    /// An opt-in widget's `module` under `owned`, built with `feature`.
+    Feature {
+        module: &'static str,
+        feature: &'static str,
+    },
 }
 
 impl Home {
     /// The module that names the part enum.
     fn module(self) -> String {
         match self {
-            Self::Core => "crate::owned".to_owned(),
-            Self::Feature(module) => format!("crate::owned::{module}"),
+            Self::Core(module) => format!("crate::owned::{module}"),
+            Self::Feature { module, .. } => format!("crate::owned::{module}"),
         }
     }
 
     /// The attribute a sheet of this home takes in the index.
     pub fn cfg(self) -> String {
         match self {
-            Self::Core => String::new(),
-            Self::Feature(module) => {
-                format!("#[cfg(feature = \"{}\")] ", module.replace('_', "-"))
-            }
+            Self::Core(_) => String::new(),
+            Self::Feature { feature, .. } => format!("#[cfg(feature = \"{feature}\")] "),
         }
     }
 }
@@ -1792,7 +1793,7 @@ mod tests {
 
     const HORIZONTAL: Widget = Widget {
         component: "tabs",
-        home: Home::Core,
+        home: Home::Core("tabs"),
         checked_in: false,
         variants: &[],
         sizes: &[],

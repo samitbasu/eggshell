@@ -3,7 +3,10 @@
 
 use eggshell_ui::Tw;
 use eggshell_ui::contract::{Size, Style, TextScale, TextSize, TextStep, Variant};
-use eggshell_ui::owned::{ButtonPart, Enablement, InputPart, SegmentedRows, SliderPart, TabsPart};
+use eggshell_ui::owned::{
+    Enablement, button::ButtonPart, input::InputPart, segmented::SegmentedRows, slider::SliderPart,
+    tabs::TabsPart,
+};
 use eggshell_ui::sheet::Key;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Theme, vec2};

@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::Color32;
-use crate::owned::InputPart;
+use crate::owned::input::InputPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Opacity};
 

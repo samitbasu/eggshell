@@ -8,10 +8,14 @@ use std::rc::Rc;
 
 use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
-use super::table_sheet::{RowState, TablePart};
+mod sheet;
+
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
+use sheet::RowState;
+pub use sheet::TablePart;
+pub(crate) use sheet::{write_exceptions, write_group_band};
 
 /// TODO(prose): where a column's cells place their content.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -178,7 +182,7 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 ///
 /// ```compile_fail
 /// # use eggshell_ui::{Builder, Track};
-/// # use eggshell_ui::owned::Column;
+/// # use eggshell_ui::owned::table::Column;
 /// fn view(b: &mut Builder<'_, '_, Option<u32>>, selected: &Option<u32>) {
 ///     b.table("t")
 ///         .columns([Column::new(Track::auto())])
@@ -192,7 +196,7 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 /// ```compile_fail
 /// #![deny(unused_must_use)]
 /// # use eggshell_ui::{Builder, Track};
-/// # use eggshell_ui::owned::Column;
+/// # use eggshell_ui::owned::table::Column;
 /// fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
 ///     b.table("t").columns([Column::new(Track::auto())]);
 /// }
@@ -200,7 +204,7 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 ///
 /// ```
 /// # use eggshell_ui::{Builder, Track};
-/// # use eggshell_ui::owned::{Align, Column};
+/// # use eggshell_ui::owned::{table::{Align, Column}};
 /// struct Invoice { id: u32, amount: String }
 /// struct App { invoices: Vec<Invoice>, selected: Option<u32> }
 ///
@@ -284,7 +288,7 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
     ///
     /// ```
     /// # use eggshell_ui::{Builder, Track};
-    /// # use eggshell_ui::owned::{Align, Column};
+    /// # use eggshell_ui::owned::{table::{Align, Column}};
     /// struct Entry { key: u32, label: String, value: f64 }
     /// struct Section { title: String, entries: Vec<Entry> }
     ///
@@ -350,7 +354,7 @@ impl<'a, 'f, 'i, A, S, T: 'i, Kf, B> RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
     ///
     /// ```
     /// # use eggshell_ui::{Builder, Track};
-    /// # use eggshell_ui::owned::Column;
+    /// # use eggshell_ui::owned::table::Column;
     /// struct Entry { id: u32, section: Option<&'static str>, name: &'static str }
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>, entries: &[Entry]) {
@@ -771,7 +775,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
     }
 
     /// TODO(prose): ends the group the last rows are in, so the rows that
-    /// follow are in none: the style's [`GroupEnd`](crate::contract::GroupEnd)
+    /// follow are in none: the style's [`GroupEnd`]
     /// shows where it ends, and the stripes start afresh. Outside a group,
     /// it does nothing.
     pub fn end_group(&mut self) {

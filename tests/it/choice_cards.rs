@@ -1,7 +1,7 @@
 //! Choice cards (#446): a label that holds the field, the control after its
 //! title and description, chosen or toggled by a click anywhere on it.
 
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};

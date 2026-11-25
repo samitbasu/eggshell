@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::Role;
 
+use super::Mark;
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, check, choice_card,
-    choice_label, choice_row, described, flip, options,
+    Card, Enablement, Form, OnResponse, Unset, check, choice_card, choice_label, choice_row,
+    described, flip, options, options::Gate, options::IntoTip, options::Validity,
 };
-use super::{CheckboxPart, Mark};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -330,5 +330,49 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
                 }
             }
         });
+    }
+}
+
+/// TODO(prose): the anatomy of a checkbox: shadcn's `checkbox`.
+///
+/// TODO(prose): the keys its rules see: the size, `aria-checked` (shadcn's
+/// `data-checked`) and `aria-disabled`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CheckboxPart {
+    /// TODO(prose): the box.
+    Root,
+    /// TODO(prose): the check glyph in a ticked box.
+    Indicator,
+}
+
+impl crate::sheet::Part for CheckboxPart {
+    const SOURCE: &'static str = "checkbox.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "checkbox",
+            Self::Indicator => "checkbox-indicator",
+        }
+    }
+}
+
+impl CheckboxPart {
+    /// TODO(prose): the keys of a checkbox of `size`, ticked if `mark` is on, for [`Builder::part`](crate::Builder::part).
+    ///
+    /// ```
+    /// use eggshell_ui::Aria;
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::owned::{checkbox::CheckboxPart, Enablement, Mark};
+    /// use eggshell_ui::sheet::Key;
+    ///
+    /// let keys = CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
+    /// assert!(keys.contains(&Key::Aria(Aria::Checked)));
+    /// ```
+    pub fn keys(
+        size: crate::contract::Size,
+        mark: super::Mark,
+        enablement: super::Enablement,
+    ) -> Vec<crate::sheet::Key> {
+        super::field::choice_keys(size, mark, enablement)
     }
 }

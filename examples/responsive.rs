@@ -11,7 +11,7 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
-use eggshell_ui::owned::Face;
+use eggshell_ui::owned::button::Face;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Width, tw};

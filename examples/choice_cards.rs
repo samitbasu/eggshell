@@ -5,7 +5,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::{Builder, tw};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

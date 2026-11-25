@@ -1,4 +1,4 @@
-//! The parts of the choice controls (a checkbox, a radio group, a switch) and
+//! TODO(prose): the parts of the choice controls (a checkbox, a radio group, a switch) and
 //! of the field row that holds one beside its label, and the sheet rules that
 //! give them today's [`CheckboxStyle`], [`RadioStyle`] and [`SwitchStyle`]
 //! look.
@@ -13,6 +13,9 @@ use crate::sheet::{Key, Part, Sheet, When};
 use crate::theme::{Tokens, size};
 use crate::{Aria, Match};
 
+use super::checkbox::CheckboxPart;
+use super::radio::RadioGroupPart;
+use super::switch::SwitchPart;
 use super::{Enablement, Mark, centered};
 
 /// TODO(prose): the anatomy of a field: shadcn's `field`. A choice control
@@ -70,7 +73,7 @@ impl FieldPart {
     /// TODO(prose): the keys of a horizontal field and its label, for [`Builder::part`](crate::Builder::part).
     ///
     /// ```
-    /// use eggshell_ui::owned::{Enablement, FieldPart};
+    /// use eggshell_ui::owned::{Enablement, field::FieldPart};
     ///
     /// assert_eq!(FieldPart::keys(Enablement::Disabled).len(), 2);
     /// ```
@@ -93,134 +96,7 @@ impl FieldPart {
     }
 }
 
-/// TODO(prose): the anatomy of a checkbox: shadcn's `checkbox`.
-///
-/// TODO(prose): the keys its rules see: the size, `aria-checked` (shadcn's
-/// `data-checked`) and `aria-disabled`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CheckboxPart {
-    /// TODO(prose): the box.
-    Root,
-    /// TODO(prose): the check glyph in a ticked box.
-    Indicator,
-}
-
-impl Part for CheckboxPart {
-    const SOURCE: &'static str = "checkbox.tsx";
-
-    fn slot(self) -> &'static str {
-        match self {
-            Self::Root => "checkbox",
-            Self::Indicator => "checkbox-indicator",
-        }
-    }
-}
-
-impl CheckboxPart {
-    /// TODO(prose): the keys of a checkbox of `size`, ticked if `mark` is on, for [`Builder::part`](crate::Builder::part).
-    ///
-    /// ```
-    /// use eggshell_ui::Aria;
-    /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{CheckboxPart, Enablement, Mark};
-    /// use eggshell_ui::sheet::Key;
-    ///
-    /// let keys = CheckboxPart::keys(Size::DEFAULT, Mark::On, Enablement::Enabled);
-    /// assert!(keys.contains(&Key::Aria(Aria::Checked)));
-    /// ```
-    pub fn keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
-        choice_keys(size, mark, enablement)
-    }
-}
-
-/// TODO(prose): the anatomy of a radio group: shadcn's `radio-group`.
-///
-/// TODO(prose): the keys its rules see: an item's size, `aria-checked`
-/// (shadcn's `data-checked`) and `aria-disabled`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RadioGroupPart {
-    /// TODO(prose): the group, holding a field per option.
-    Root,
-    /// TODO(prose): one option's circle.
-    Item,
-    /// TODO(prose): what the chosen circle holds: the room its dot is
-    /// centred in.
-    Indicator,
-    /// TODO(prose): the dot in the chosen circle.
-    IndicatorIcon,
-}
-
-impl Part for RadioGroupPart {
-    const SOURCE: &'static str = "radio-group.tsx";
-
-    fn slot(self) -> &'static str {
-        match self {
-            Self::Root => "radio-group",
-            Self::Item => "radio-group-item",
-            Self::Indicator => "radio-group-indicator",
-            Self::IndicatorIcon => "radio-group-indicator-icon",
-        }
-    }
-}
-
-impl RadioGroupPart {
-    /// TODO(prose): the keys of an item of `size` and its dot, chosen if `mark` is on, for [`Builder::part`](crate::Builder::part).
-    ///
-    /// ```
-    /// use eggshell_ui::Aria;
-    /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, RadioGroupPart};
-    /// use eggshell_ui::sheet::Key;
-    ///
-    /// let keys = RadioGroupPart::item_keys(Size::DEFAULT, Mark::Off, Enablement::Disabled);
-    /// assert!(keys.contains(&Key::Aria(Aria::Disabled)));
-    /// ```
-    pub fn item_keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
-        choice_keys(size, mark, enablement)
-    }
-}
-
-/// TODO(prose): the anatomy of a switch: shadcn's `switch`.
-///
-/// TODO(prose): the keys its rules see: the size (shadcn's `data-size`),
-/// `aria-checked` (shadcn's `data-checked`) and `aria-disabled`. The thumb is
-/// painted, sliding between its two places: its rules give the size and fill
-/// it is painted at.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SwitchPart {
-    /// TODO(prose): the track.
-    Root,
-    /// TODO(prose): the thumb.
-    Thumb,
-}
-
-impl Part for SwitchPart {
-    const SOURCE: &'static str = "switch.tsx";
-
-    fn slot(self) -> &'static str {
-        match self {
-            Self::Root => "switch",
-            Self::Thumb => "switch-thumb",
-        }
-    }
-}
-
-impl SwitchPart {
-    /// TODO(prose): the keys of a switch of `size` and its thumb, on if `mark` is, for [`Builder::part`](crate::Builder::part).
-    ///
-    /// ```
-    /// use eggshell_ui::contract::Size;
-    /// use eggshell_ui::owned::{Enablement, Mark, SwitchPart};
-    ///
-    /// let keys = SwitchPart::keys(Size::DEFAULT, Mark::Off, Enablement::Enabled);
-    /// assert_eq!(keys.len(), 1);
-    /// ```
-    pub fn keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
-        choice_keys(size, mark, enablement)
-    }
-}
-
-fn choice_keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
+pub(crate) fn choice_keys(size: Size, mark: Mark, enablement: Enablement) -> Vec<Key> {
     let mut keys = vec![Key::Size(size)];
     if mark == Mark::On {
         keys.push(Key::Aria(Aria::Checked));

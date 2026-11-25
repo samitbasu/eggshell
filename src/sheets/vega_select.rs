@@ -3,7 +3,7 @@
 
 use egui::Color32;
 use crate::contract::{Size};
-use crate::owned::SelectPart;
+use crate::owned::select::SelectPart;
 use crate::sheet::{Sheet, When};
 use crate::{Aria, Match, Opacity};
 

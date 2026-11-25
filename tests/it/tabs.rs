@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 
 use eggshell_ui::owned::tabs::TabsExt;
-use eggshell_ui::owned::{Choice, Enablement, TabsPart};
+use eggshell_ui::owned::{Enablement, choice::Choice, tabs::TabsPart};
 use eggshell_ui::sheet::When;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Aria, Builder, TextStyle, tw};

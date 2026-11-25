@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::{Key, Rect, Ui, WidgetInfo};
 
+use super::number::readout::{Format, Parse, Readout, Set};
 use super::number::{self, Edit, Edits, Step, ValueRange};
-use super::readout::{Format, Parse, Readout, Set};
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, options, painted, text_sized, tip_describes,
-    tipped_whole,
+    Enablement, OnResponse, options, options::Gate, options::IntoTip, painted, text_sized,
+    tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};

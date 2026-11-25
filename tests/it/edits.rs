@@ -1,7 +1,7 @@
 //! `on_edit` of the slider and the stepper: one Began and one Ended around
 //! the values a gesture sets, through kittest's real pointer and key events.
 
-use eggshell_ui::owned::Edit;
+use eggshell_ui::owned::number::Edit;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};

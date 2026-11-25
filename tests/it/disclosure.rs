@@ -406,7 +406,7 @@ fn a_sections_header_is_shadcns_accordion_trigger() {
 fn an_app_rule_restyles_a_sections_header() {
     let d = driver_with(|style| {
         style.sheet.as_app().rule(
-            eggshell_ui::owned::disclosure::AccordionPart::Trigger,
+            eggshell_ui::owned::accordion::AccordionPart::Trigger,
             |t, _| t.bg(egui::Color32::RED),
         );
     });

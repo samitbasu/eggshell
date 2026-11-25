@@ -1,7 +1,10 @@
 //! `b.number` (#328): the slider's editable readout without the track,
 //! through the same implementation.
 
-use eggshell_ui::owned::{Edit, Enablement, Step};
+use eggshell_ui::owned::{
+    Enablement,
+    number::{Edit, Step},
+};
 use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Color32, Event, Key, Role, Shape, vec2};
 use egui_kittest::Harness;

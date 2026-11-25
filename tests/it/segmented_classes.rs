@@ -4,7 +4,10 @@
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
 use eggshell_ui::contract::{Size, Style};
-use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
+use eggshell_ui::owned::{
+    segmented::{Cell, SegmentedRows},
+    tabs::TabsPart,
+};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Icon, TextStyle, tw};
 use egui::{Theme, vec2};

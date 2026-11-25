@@ -93,7 +93,7 @@ fn an_app_rule_restyles_the_track() {
         style
             .sheet
             .as_app()
-            .rule(eggshell_ui::owned::ProgressPart::Root, |t, _| {
+            .rule(eggshell_ui::owned::progress::ProgressPart::Root, |t, _| {
                 t.bg(egui::Color32::RED)
             });
     }))

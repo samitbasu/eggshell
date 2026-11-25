@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::owned::PaneSize;
+use eggshell_ui::owned::splitter::PaneSize;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, TextStyle, tw};

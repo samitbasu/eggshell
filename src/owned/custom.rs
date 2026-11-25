@@ -3,7 +3,7 @@
 use egui::{Role, Ui, WidgetInfo};
 use taffy::Size;
 
-use super::{Enablement, Gate, IntoTip, OnResponse, options, tipped};
+use super::{Enablement, OnResponse, options, options::Gate, options::IntoTip, tipped};
 use crate::builder::Slot;
 use crate::{Builder, Measure, NodeUi as _, Tw, fill};
 

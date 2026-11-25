@@ -15,7 +15,7 @@
 //! page commands do not fire under a dialog.
 //!
 //! [`Builder::commands`]: crate::Builder::commands
-//! [`Menu::command`]: crate::owned::Menu::command
+//! [`Menu::command`]: crate::owned::menu::Menu::command
 
 use egui::{Context, Event, Id, Key as EguiKey, KeyboardShortcut, Modifiers};
 

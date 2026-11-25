@@ -11,8 +11,8 @@ use super::choice::{self, Choice, IntoChoice};
 use super::number::{hold_arrows, pressed};
 use super::options::Refused;
 use super::{
-    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, Validity, check, describe, options,
-    tipped,
+    Chevron, Enablement, Mark, OnResponse, check, describe, options, options::Gate,
+    options::IntoTip, options::Validity, tipped,
 };
 use crate::Aria;
 use crate::builder::Slot;
@@ -34,7 +34,7 @@ enum Part {
     Option(usize),
 }
 
-/// TODO(prose): a select's anatomy for the [`Sheet`](crate::sheet::Sheet),
+/// TODO(prose): a select's anatomy for the [`Sheet`],
 /// as shadcn's `select.tsx` names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SelectPart {

@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-use crate::owned::Align;
+use crate::owned::table::Align;
 use crate::{FontStyle, Span, Spans, Weight};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 

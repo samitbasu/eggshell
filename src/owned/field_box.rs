@@ -5,7 +5,10 @@ use crate::builder::{Scope, Slot};
 use crate::contract::Size;
 use crate::{Builder, Tw, tw};
 
-use super::{Enablement, Gate, InputGroupPart, IntoTip, options, text_sized, tipped_whole};
+use super::{
+    Enablement, input::InputGroupPart, options, options::Gate, options::IntoTip, text_sized,
+    tipped_whole,
+};
 
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
 /// finish it with [`children`](Self::children).
@@ -91,7 +94,7 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let metrics = *style.input.sizes.lookup(b.ctx(), size);
-        let keys = super::input_keys(
+        let keys = super::input::keys(
             style.input.sizes.key_for(size),
             enablement == Enablement::Disabled,
         );
