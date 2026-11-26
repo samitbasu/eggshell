@@ -7,11 +7,11 @@ use std::rc::Rc;
 use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, StrokeKind, Ui, Vec2, pos2};
 use taffy::FlexDirection;
 
-use super::number;
+use super::options::{Configure, Interactive, Options, Resolved, Respond};
+use super::{Enablement, OnResponse, number, tipped};
 use crate::builder::Slot;
 use crate::contract::{Focus, SplitterStyle};
 use crate::draw::pane_rect;
-use crate::focus::{Autofocus, Select};
 use crate::plane::Axis;
 use crate::{Builder, Easing, NodeUi as _, Progress, transition, tw};
 
@@ -230,6 +230,7 @@ impl<'a, 'f, A: 'static> Start<'a, 'f, A> {
 /// [`on_resize`](Self::on_resize).
 ///
 /// ```
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::owned::splitter::PaneSize;
 /// use eggshell_ui::{Builder, tw};
 ///
@@ -250,6 +251,11 @@ impl<'a, 'f, A: 'static> Start<'a, 'f, A> {
 ///     });
 /// }
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude).
 #[must_use = "a splitter is not added until you call `.on_resize(..)`"]
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
@@ -258,33 +264,8 @@ pub struct Chain<'a, 'f, A> {
     size: PaneSize,
     limits: Limits,
     reset: Option<PaneSize>,
-    name: Option<String>,
-    autofocus: Autofocus,
-}
-
-impl<'a, 'f, A> Chain<'a, 'f, A> {
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        crate::owned::options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        crate::owned::options::when_some(self, value, then)
-    }
+    opts: Options,
+    on_response: OnResponse<A>,
 }
 
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
@@ -296,8 +277,8 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             size,
             limits: Limits::ANY,
             reset: None,
-            name: None,
-            autofocus: Autofocus::Never,
+            opts: Options::new(),
+            on_response: OnResponse::default(),
         }
     }
 
@@ -329,15 +310,16 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
     /// TODO(prose): adds the splitter; `set` runs with the pane's new size.
     #[track_caller]
     pub fn on_resize(self, set: impl Fn(&mut A, PaneSize) + 'static) {
+        self.on_resize_with(move |app, _, size| set(app, size));
+    }
+
+    /// Like [`on_resize`](Self::on_resize), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_resize_with(self, set: impl Fn(&mut A, &egui::Context, PaneSize) + 'static) {
         let Self {
             mut b,
             slot,
@@ -345,9 +327,17 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             size,
             limits,
             reset,
-            name,
-            autofocus,
+            opts,
+            on_response,
         } = self;
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let direction = b.flex();
         if direction.is_none() {
             crate::report::report(
@@ -374,6 +364,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         }
         .shrink_0()
         .sense_click_drag();
+        let classes = match enablement {
+            Enablement::Enabled => classes,
+            Enablement::Disabled => classes.inert(),
+        }
+        .merge(caller);
         let set = Rc::new(set);
         let handle = Handle {
             travel,
@@ -396,9 +391,27 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             None => node,
         };
         node.draw(move |app, ui| {
-            autofocus.apply(ui.ctx(), &ui.node_response());
-            handle.draw(ui, |size| set(app, size));
+            let response = tipped(ui, ui.node_response(), &tooltip);
+            autofocus.apply(ui.ctx(), &response);
+            handle.draw(ui, |size| set(app, ui.ctx(), size));
+            on_response.run(app, &response);
         });
+    }
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

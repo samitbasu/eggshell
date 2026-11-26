@@ -3,6 +3,7 @@
 //! accessibility check the support harness switches on.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed};
@@ -646,7 +647,7 @@ mod tiling {
     fn gapped(b: &mut Builder<'_, '_, App>, app: &App) {
         b.div(tw().p(4.0), |b| {
             b.segmented("seg", app.segment, SEGMENTS)
-                .track(tw().gap_x(2.0))
+                .classes(tw().gap_x(2.0))
                 .on_change(|app: &mut App, unit| app.segment = unit);
         });
     }

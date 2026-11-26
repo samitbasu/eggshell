@@ -5,18 +5,16 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Key, Rect, Ui, WidgetInfo};
+use egui::{Context, Key, Rect, Ui, WidgetInfo};
 
 use super::number::readout::{Format, Parse, Readout, Set};
 use super::number::{self, Edit, Edits, Step, ValueRange};
-use super::{
-    Enablement, OnResponse, options, options::Gate, options::IntoTip, painted, text_sized,
-    tip_describes, tipped_whole,
-};
+use super::options::{Configure, Interactive, Options, Resolved, Respond};
+use super::{Enablement, OnResponse, painted, text_sized, tip_describes, tipped_whole};
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::finite::clamp;
-use crate::focus::{Autofocus, Select};
+use crate::focus::Autofocus;
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, NodeUi as _, Tw, tw};
 
@@ -45,6 +43,12 @@ enum Node {
 ///     focus-visible:ring-[3px] focus-visible:ring-ring/50"></span>
 /// </span>
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its classes are the whole
+/// slider's, and its response is the thumb's.
 #[must_use = "a slider is not added until you call `.on_change(..)`"]
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
@@ -53,15 +57,11 @@ pub struct Chain<'a, 'f, A> {
     range: ValueRange,
     typed: Option<ValueRange>,
     step: Step,
-    name: Option<String>,
-    gate: Gate,
-    classes: Tw,
-    enablement: Enablement,
+    opts: Options,
     size: Option<Size>,
     header: Header,
     on_response: OnResponse<A>,
     edits: Edits<A>,
-    autofocus: Autofocus,
 }
 
 /// What a slider says above its track.
@@ -196,63 +196,17 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             range,
             typed: None,
             step: Step::ONE,
-            name: None,
-            gate: Gate::default(),
-            classes: tw(),
-            enablement: Enablement::Enabled,
+            opts: Options::new(),
             size: None,
             header: Header::default(),
             on_response: OnResponse::default(),
             edits: Edits::default(),
-            autofocus: Autofocus::Never,
         }
     }
 
     /// The distance between the values the slider takes.
     pub fn step(mut self, step: Step) -> Self {
         self.step = step;
-        self
-    }
-
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// Classes merged over the styled ones of the whole slider (its hit area, which is as wide as the space it is given), such as its
-    /// width or placement; the later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// Runs `then` with the thumb's response each frame: the escape hatch for what the
-    /// builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
         self
     }
 
@@ -299,49 +253,18 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// Whether the slider takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
     /// Adds the slider, as wide as the space it is given. `set` runs with the
     /// new value when the pointer or the keyboard changes it.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
-        let set = Rc::new(set);
+        self.on_change_with(move |app, _, value| set(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, set: impl Fn(&mut A, &Context, f64) + 'static) {
+        let set: Set<A> = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -349,19 +272,22 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             range,
             typed,
             step,
-            name,
-            gate,
-            classes: caller,
-            enablement,
+            opts,
             size,
             header,
             on_response,
             edits,
-            autofocus,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
         let typed = typed_within(b.ctx(), slot.id, range, typed);
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let style = b.style().clone();
         let slider = &style.slider;
         let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));
@@ -484,11 +410,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                                     if let Some(value) =
                                         changed(keys.is_none().then_some(pointer).flatten())
                                     {
-                                        on_thumb(app, value);
+                                        on_thumb(app, ui.ctx(), value);
                                     }
                                 });
                                 if let Some(value) = changed(keys) {
-                                    thumb_edits.once(app, |app| on_thumb(app, value));
+                                    thumb_edits.once(app, |app| on_thumb(app, ui.ctx(), value));
                                 }
                                 on_response.run(app, &response);
                                 response.widget_info(|| {
@@ -513,7 +439,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                         if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
                             let value = on_track.at(at.x, response.rect);
                             if value != on_track.value {
-                                set(app, value);
+                                set(app, ui.ctx(), value);
                             }
                         }
                     });
@@ -597,8 +523,9 @@ impl Row {
                 paint: Some(readout),
                 size,
                 describes: None,
+                autofocus: Autofocus::Never,
             }
-            .show(b, set, edits);
+            .show(b, set, edits, OnResponse::default());
         });
     }
 }
@@ -628,6 +555,22 @@ fn typed_within(
         });
     }
     typed.union(range)
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
 }
 
 impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {

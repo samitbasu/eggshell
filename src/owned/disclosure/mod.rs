@@ -276,6 +276,13 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
     /// click, Enter or Space asks for.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, Shown) + 'static) {
+        self.on_change_with(move |app, _, shown| on_change(app, shown));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets the egui
+    /// context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, Shown) + 'static) {
         let Self {
             b,
             key,
@@ -329,7 +336,7 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
             }),
         };
         if enablement == Enablement::Enabled {
-            button.on_click(move |app: &mut A| on_change(app, toggled(current)));
+            button.on_click_with(move |app: &mut A, ctx| on_change(app, ctx, toggled(current)));
         }
     }
 }

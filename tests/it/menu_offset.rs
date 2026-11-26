@@ -3,6 +3,7 @@
 
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::owned::Mark;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};

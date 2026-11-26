@@ -1,6 +1,7 @@
 //! `Builder::progress`: the style's progress track and range, announced as a
 //! progress indicator.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Progress, Style, TextStyle, tw};

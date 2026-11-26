@@ -249,6 +249,7 @@
 //! stepper.
 //!
 //! ```
+//! use eggshell_ui::prelude::*;
 //! use eggshell_ui::Builder;
 //!
 //! #[derive(Hash, Debug)]

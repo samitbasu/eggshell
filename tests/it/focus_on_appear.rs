@@ -1,6 +1,7 @@
 //! `focus_on_appear`: a field that is built after not being built takes focus
 //! once, and not again while it stays.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::Driver;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};

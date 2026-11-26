@@ -1,6 +1,7 @@
 //! TODO(prose): the shadcn preset: what a layout of it gives egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{BaseColor, Palette, Shadcn, ThemeColor, Tokens};
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};

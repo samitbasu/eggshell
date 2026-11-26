@@ -1,6 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};
 
 use super::centre::{centre, centre_style};

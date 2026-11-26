@@ -1,6 +1,7 @@
 //! A text field draws with its node's text classes: color, font and
 //! alignment (#130).
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, vec2};

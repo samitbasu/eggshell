@@ -2,6 +2,7 @@
 //! shrinks below egui's text-edit width to stay inside a narrow container.
 
 use eggshell_ui::owned::text_field::Field;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};

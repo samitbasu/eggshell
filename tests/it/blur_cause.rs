@@ -1,5 +1,6 @@
 //! `when_blurred` is told why the field lost focus, the frame it reports it.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};

@@ -3,7 +3,8 @@
 use egui::{Role, Ui, WidgetInfo};
 use taffy::Size;
 
-use super::{Enablement, OnResponse, options, options::Gate, options::IntoTip, tipped};
+use super::options::{Configure, Interactive, Options, Resolved, Respond};
+use super::{Enablement, OnResponse, tipped};
 use crate::builder::Slot;
 use crate::{Builder, Measure, NodeUi as _, Tw, fill};
 
@@ -15,8 +16,13 @@ type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 /// Its size comes from its classes unless [`measure`](Self::measure) gives
 /// the size of its content.
 ///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`]. A disabled node's `Ui` is disabled: its draw closure sees
+/// `ui.is_enabled()` false, and egui's widgets in it take no input. Focus
+/// goes to the node, which must sense to take it.
+///
 /// ```
-/// # use eggshell_ui::{Builder, tw};
+/// # use eggshell_ui::prelude::*;
 /// struct App { angle: f32 }
 ///
 /// fn view(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -31,12 +37,9 @@ type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
-    classes: Tw,
+    opts: Options,
     measure: Option<MeasureFn<'f>>,
-    name: Option<String>,
     role: Role,
-    gate: Gate,
-    enablement: Enablement,
     on_response: OnResponse<A>,
 }
 
@@ -45,12 +48,9 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         Self {
             slot: b.slot(&key),
             b,
-            classes,
             measure: None,
-            name: None,
+            opts: Options::with_classes(classes),
             role: Role::Unknown,
-            gate: Gate::default(),
-            enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
         }
     }
@@ -59,12 +59,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// data for the frame.
     pub fn measure(mut self, measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f) -> Self {
         self.measure = Some(Box::new(measure));
-        self
-    }
-
-    /// The accessible name of the node.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
         self
     }
 
@@ -78,57 +72,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// Shown while the pointer hovers the node, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)).
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// TODO(prose): whether the node takes input. A disabled node's `Ui` is
-    /// disabled: its draw closure sees `ui.is_enabled()` false, and egui's
-    /// widgets in it take no input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Runs `then` with the node's response each frame.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
-        self
-    }
-
     /// Adds the node. `draw` runs at draw time in the node's own `Ui`, with
     /// the application's state.
     #[track_caller]
@@ -136,21 +79,27 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let Self {
             mut b,
             slot,
-            classes,
+            opts,
             measure,
-            name,
             role,
-            gate,
-            enablement,
             on_response,
         } = self;
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let classes = match enablement {
             Enablement::Enabled => classes,
             Enablement::Disabled => classes.inert(),
         };
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
-        let mut node = b.leaf_with(&slot, classes, measure);
+        let mut node = b
+            .leaf_with(&slot, classes, measure)
+            .open_focus(autofocus.open_focus());
         if role != Role::Unknown {
             node = node.role(role);
             if let Some(name) = &name {
@@ -159,12 +108,29 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         }
         node.draw(move |app, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
+            autofocus.apply(ui.ctx(), &response);
             if let Some(name) = &name {
                 response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
             }
             on_response.run(app, &response);
             draw(app, ui);
         });
+    }
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

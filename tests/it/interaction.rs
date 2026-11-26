@@ -3,6 +3,7 @@
 //! `ui.interact` per sensing node, variant painting and draw closures.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::testing::{After, Driver};
 use eggshell_ui::{Builder, Easing, Opacity, Problem, Progress, TextSpec, TextStyle, Weight, tw};

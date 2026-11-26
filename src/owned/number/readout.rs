@@ -13,11 +13,10 @@ use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
 use crate::owned::text_field::{self, Field, Opening};
 use crate::owned::{
-    Enablement, Tip, described, field_box, options,
-    options::{Gate, IntoTip},
-    painted, tip_describes, tipped_whole,
+    Enablement, OnResponse, Tip, described, field_box, painted, tip_describes, tipped_whole,
 };
 use crate::{Builder, Tw, tw};
 
@@ -29,7 +28,7 @@ enum Node {
 
 pub(in crate::owned) type Format = Rc<dyn Fn(f64) -> String>;
 pub(in crate::owned) type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
-pub(in crate::owned) type Set<A> = Rc<dyn Fn(&mut A, f64)>;
+pub(in crate::owned) type Set<A> = Rc<dyn Fn(&mut A, &egui::Context, f64)>;
 
 /// The narrowest the readout's field opens, so a short value can be typed
 /// over.
@@ -55,6 +54,8 @@ pub(in crate::owned) struct Readout {
     /// The tooltip that describes its button, where the readout is the
     /// whole control.
     pub(in crate::owned) describes: Tip,
+    /// When its button takes focus.
+    pub(in crate::owned) autofocus: Autofocus,
 }
 
 impl Readout {
@@ -72,6 +73,7 @@ impl Readout {
         b: &mut Builder<'_, '_, A>,
         set: Set<A>,
         edits: Edits<A>,
+        responses: OnResponse<A>,
     ) {
         let shown = self.shown();
         let Self {
@@ -86,6 +88,7 @@ impl Readout {
             paint,
             size,
             describes,
+            autofocus,
             ..
         } = self;
         let style = b.style().clone();
@@ -110,9 +113,12 @@ impl Readout {
             let current = shown.clone();
             b.div_id(Node::Readout, classes, |b| b.text(tw(), shown))
                 .announces(Role::Button)
+                .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Button, None, label.trim(), &None);
                     tip_describes(ui, &response, &describes);
+                    autofocus.apply(ui.ctx(), &response);
+                    responses.run(app, &response);
                     let opened = response.clicked().then(|| {
                         let width = response.rect.width();
                         let opening = opening_of(ui, &response, &current);
@@ -191,11 +197,18 @@ impl Readout {
                             decision,
                         );
                     }
+                    responses.run(app, &response);
                     if response.changed() {
                         session.keep(ui.ctx(), &text);
                     }
                     if response.lost_focus() {
-                        session.close(app, ui, (&text, value), &accept, (&edits, &*set));
+                        session.close(
+                            app,
+                            ui,
+                            (&text, value),
+                            &accept,
+                            (&edits, |app: &mut A, value| set(app, ui.ctx(), value)),
+                        );
                     }
                 });
             });
@@ -226,6 +239,7 @@ fn opening_of(ui: &Ui, response: &egui::Response, shown: &str) -> Opening {
 /// It takes the colour of the text around it.
 ///
 /// ```
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::Builder;
 ///
 /// struct App { gain: f64 }
@@ -238,6 +252,12 @@ fn opening_of(ui: &Ui, response: &egui::Response, shown: &str) -> Opening {
 ///         .on_change(|app, v| app.gain = v);
 /// }
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its focus and response are those
+/// of the button that opens it, or of the field while it is open.
 #[must_use = "a number is not added until you call `.on_change(..)` or `.add()`"]
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
@@ -247,12 +267,10 @@ pub struct Chain<'a, 'f, A> {
     step: Step,
     format: Option<Format>,
     parse: Option<Parse>,
-    name: Option<String>,
-    gate: Gate,
-    classes: Tw,
-    enablement: Enablement,
+    opts: Options,
     size: Option<Size>,
     edits: Edits<A>,
+    on_response: OnResponse<A>,
 }
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
@@ -271,12 +289,10 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             step: Step::ONE,
             format: None,
             parse: None,
-            name: None,
-            gate: Gate::default(),
-            classes: tw(),
-            enablement: Enablement::Enabled,
+            opts: Options::new(),
             size: None,
             edits: Edits::default(),
+            on_response: OnResponse::default(),
         }
     }
 }
@@ -302,58 +318,6 @@ impl<A: 'static> Chain<'_, '_, A> {
         self
     }
 
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// Classes merged over its own, such as its width or alignment; the
-    /// later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers it, also when it is disabled.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// TODO(prose): a tooltip that `build` builds, as for a slider.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Whether it takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
-        self
-    }
-
     /// TODO(prose): the size of the field it opens into, over the one the subtree inherits.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
@@ -370,6 +334,13 @@ impl<A: 'static> Chain<'_, '_, A> {
     /// Adds it. `set` runs with the value typed in it.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        self.on_change_with(move |app, _, value| set(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, set: impl Fn(&mut A, &egui::Context, f64) + 'static) {
         self.finish(Rc::new(set));
     }
 
@@ -377,7 +348,7 @@ impl<A: 'static> Chain<'_, '_, A> {
     #[track_caller]
     pub fn add(mut self) {
         self.parse = None;
-        self.finish(Rc::new(|_: &mut A, _| {}));
+        self.finish(Rc::new(|_: &mut A, _: &egui::Context, _| {}));
     }
 
     #[track_caller]
@@ -390,15 +361,20 @@ impl<A: 'static> Chain<'_, '_, A> {
             step,
             format,
             parse,
-            name,
-            gate,
-            classes,
-            enablement,
+            opts,
             size,
             edits,
+            on_response,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let readout = Readout {
             value,
             format,
@@ -412,13 +388,30 @@ impl<A: 'static> Chain<'_, '_, A> {
             paint: None,
             size: b.size_of(size),
             describes: tooltip.clone(),
+            autofocus,
         };
         let wrapper = tw().flex().items_center().merge(classes);
         let wrapper = match tooltip {
             Some(_) => wrapper.sense_hover(),
             None => wrapper,
         };
-        b.div_id_with(&slot, wrapper, |b| readout.show(b, set, edits))
+        b.div_id_with(&slot, wrapper, |b| readout.show(b, set, edits, on_response))
             .draw(move |_, ui| tipped_whole(ui, &tooltip));
+    }
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }

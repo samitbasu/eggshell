@@ -11,7 +11,7 @@ use super::{button, button::Face};
 use crate::key::child_id;
 use crate::{Builder, Key};
 
-type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
+type OnChange<A, T> = Rc<dyn Fn(&mut A, &egui::Context, T)>;
 
 /// A set of toggles of which exactly one is on, as Radix's Group of
 /// `type="single"`: radio semantics with toggle looks, with icons, labels or
@@ -40,6 +40,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::owned::{button, toggle_group::Group};
 /// use eggshell_ui::{Builder, tw};
 ///
@@ -92,7 +93,17 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> Group<A, T> {
     /// Runs `on_change` with a member's value when it is pressed and was not
     /// on.
     #[track_caller]
-    pub fn on_change(mut self, on_change: impl Fn(&mut A, T) + 'static) -> Self {
+    pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) -> Self {
+        self.on_change_with(move |app, _, value| on_change(app, value))
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(
+        mut self,
+        on_change: impl Fn(&mut A, &egui::Context, T) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(on_change));
         self
     }

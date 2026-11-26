@@ -2,6 +2,7 @@
 //! names along the path a user's input takes, and each query answers from
 //! the frame the driver last drew.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 

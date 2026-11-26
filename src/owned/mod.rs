@@ -49,6 +49,7 @@
 //! ```
 //!
 //! ```
+//! use eggshell_ui::prelude::*;
 //! use eggshell_ui::{Builder, tw};
 //! use egui::Color32;
 //!
@@ -134,7 +135,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::time::Duration;
 
-use egui::{Id, Response, Role, Ui, WidgetInfo};
+use egui::{Context, Id, Response, Role, Ui, WidgetInfo};
 
 /// What `style` draws a text field of `size` with.
 pub(crate) fn input_frame(style: &Style, size: Size) -> Frame {
@@ -268,9 +269,9 @@ fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
 }
 
-/// What a control's [`on_response`](button::Chain::on_response) runs with its
-/// response each frame, if it has one.
-pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
+/// What a control's [`on_response`](options::Respond::on_response) runs with
+/// its response each frame, if it has one.
+pub struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
 
 type ResponseFn<A> = dyn Fn(&mut A, &Response);
 type Hook<A> = Option<Rc<dyn Fn(&mut A)>>;
@@ -729,7 +730,7 @@ fn choice_label<A: 'static, K: crate::Key>(
     control: Id,
     text: String,
     enablement: Enablement,
-    on_click: impl FnOnce(&mut A) + 'static,
+    on_click: impl FnOnce(&mut A, &Context) + 'static,
 ) {
     let classes = b.part(
         field::Part::Label,
@@ -739,7 +740,7 @@ fn choice_label<A: 'static, K: crate::Key>(
     let name = text.clone();
     b.span(key, classes, text).draw(move |app, ui| {
         if ui.label_for(control, &name) {
-            on_click(app);
+            on_click(app, ui.ctx());
         }
     });
 }
@@ -784,7 +785,7 @@ fn choice_card<A: 'static, K: crate::Key>(
     key: K,
     card: Card,
     row: Tw,
-    on_click: impl FnOnce(&mut A) + 'static,
+    on_click: impl FnOnce(&mut A, &Context) + 'static,
     build_control: impl FnOnce(&mut Builder<'_, '_, A>),
 ) {
     let Card {
@@ -819,7 +820,7 @@ fn choice_card<A: 'static, K: crate::Key>(
     })
     .draw(move |app, ui| {
         if ui.label_for(control, &name) {
-            on_click(app);
+            on_click(app, ui.ctx());
         }
     });
 }

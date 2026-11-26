@@ -11,6 +11,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Align;

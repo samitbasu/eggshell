@@ -3,6 +3,7 @@
 //! tooltips and Tab).
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::overlay::{Distance, HoverIntent, Placement};
 use eggshell_ui::testing::{Animation, Driver, Target};
