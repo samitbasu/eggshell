@@ -212,21 +212,32 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// frame in which it was not: an inline edit or a sheet's name field that
     /// appears on a click. A field that stays built keeps whatever focus it
     /// has.
-    pub fn focus_on_appear(self) -> Self {
-        self.focus_on_appear_selecting(Select::None)
-    }
-
-    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
-    /// `select` says when it takes focus.
-    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
-        self.opts.set_autofocus(Autofocus::OnAppear(select));
+    pub fn focus_on_appear(mut self) -> Self {
+        self.opts.set_autofocus(Autofocus::OnAppear(Select::None));
         self
     }
 
-    /// TODO(prose): [`focus_now`](Interactive::focus_now), selecting as
-    /// `select` says when it takes focus.
-    pub fn focus_now_selecting(mut self, select: Select) -> Self {
-        self.opts.set_autofocus(Autofocus::Now(select));
+    /// TODO(prose): what the field selects when it takes focus, by any of
+    /// [`focus_now`](Interactive::focus_now), [`focus_on_open`](Interactive::focus_on_open),
+    /// [`focus_on_change`](Self::focus_on_change) and [`focus_on_appear`](Self::focus_on_appear): with [`Select::All`], typing
+    /// replaces the text, as a browser's `input.select()` arranges.
+    /// [`Select::None`] until it is set.
+    ///
+    /// ```
+    /// use eggshell_ui::prelude::*;
+    /// use eggshell_ui::owned::text_field::Select;
+    ///
+    /// struct App { name: String, focus_name: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("name", &app.name)
+    ///         .focus_on_change(app.focus_name)
+    ///         .select_on_focus(Select::All)
+    ///         .on_change(|app, name| app.name = name);
+    /// }
+    /// ```
+    pub fn select_on_focus(mut self, select: Select) -> Self {
+        self.opts.set_select(select);
         self
     }
 
@@ -269,33 +280,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     ///         .on_change(|app, name| app.name = name);
     /// }
     /// ```
-    pub fn focus_on_change(self, token: impl std::hash::Hash) -> Self {
-        self.focus_on_change_selecting(token, Select::None)
-    }
-
-    /// TODO(prose): [`focus_on_change`](Self::focus_on_change), selecting as
-    /// `select` says when it takes focus: with [`Select::All`], typing
-    /// replaces the text, as a browser's `input.select()` arranges.
-    ///
-    /// ```
-    /// use eggshell_ui::Builder;
-    /// use eggshell_ui::owned::text_field::Select;
-    ///
-    /// struct App { name: String, focus_name: u32 }
-    ///
-    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-    ///     b.text_field("name", &app.name)
-    ///         .focus_on_change_selecting(app.focus_name, Select::All)
-    ///         .on_change(|app, name| app.name = name);
-    /// }
-    /// ```
-    pub fn focus_on_change_selecting(
-        mut self,
-        token: impl std::hash::Hash,
-        select: Select,
-    ) -> Self {
+    pub fn focus_on_change(mut self, token: impl std::hash::Hash) -> Self {
         self.opts
-            .set_autofocus(Autofocus::OnChange(Token::of(&token), select));
+            .set_autofocus(Autofocus::OnChange(Token::of(&token), Select::None));
         self
     }
 

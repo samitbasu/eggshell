@@ -68,7 +68,8 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             s.text_field(Part::Name, state.name.clone())
                 .named("Name")
                 .hint("Name")
-                .focus_on_change_selecting(state.focus_name, Select::All)
+                .focus_on_change(state.focus_name)
+                .select_on_focus(Select::All)
                 .classes(tw().w_px(160.0))
                 .on_change(|state, text| state.name = text);
             s.button(Part::Rename, "Rename")

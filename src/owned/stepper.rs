@@ -121,21 +121,18 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
 
     /// Takes keyboard focus in its field in the first frame the stepper is
     /// built after a frame in which it was not.
-    pub fn focus_on_appear(self) -> Self {
-        self.focus_on_appear_selecting(Select::None)
-    }
-
-    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
-    /// `select` says when it takes focus.
-    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
-        self.opts.set_autofocus(Autofocus::OnAppear(select));
+    pub fn focus_on_appear(mut self) -> Self {
+        self.opts.set_autofocus(Autofocus::OnAppear(Select::None));
         self
     }
 
-    /// TODO(prose): [`focus_now`](Interactive::focus_now), selecting as
-    /// `select` says when it takes focus.
-    pub fn focus_now_selecting(mut self, select: Select) -> Self {
-        self.opts.set_autofocus(Autofocus::Now(select));
+    /// TODO(prose): what the stepper selects when it takes focus, by any of
+    /// [`focus_now`](Interactive::focus_now), [`focus_on_open`](Interactive::focus_on_open),
+    /// [`focus_on_appear`](Self::focus_on_appear): with [`Select::All`], typing
+    /// replaces the number, as a browser's `input.select()` arranges.
+    /// [`Select::None`] until it is set.
+    pub fn select_on_focus(mut self, select: Select) -> Self {
+        self.opts.set_select(select);
         self
     }
 

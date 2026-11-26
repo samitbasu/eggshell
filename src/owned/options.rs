@@ -96,6 +96,7 @@ pub struct Options {
     gate: Gate,
     enablement: Option<Enablement>,
     autofocus: Autofocus,
+    select: Option<Select>,
 }
 
 impl Default for Options {
@@ -129,6 +130,7 @@ impl Options {
             gate: Gate::default(),
             enablement: None,
             autofocus: Autofocus::Never,
+            select: None,
         }
     }
 
@@ -144,6 +146,7 @@ impl Options {
                 Autofocus::Never => self.autofocus,
                 asked => asked,
             },
+            select: other.select.or(self.select),
         }
     }
 
@@ -172,6 +175,11 @@ impl Options {
         self.autofocus = autofocus;
     }
 
+    /// What a field selects when it takes focus, by whichever request.
+    pub(crate) fn set_select(&mut self, select: Select) {
+        self.select = Some(select);
+    }
+
     /// The options of the control `trigger` that `b` builds, as
     /// [`Gate::resolve`] resolves them.
     pub(crate) fn resolve<A: 'static>(self, b: &mut Builder<'_, '_, A>, trigger: Id) -> Resolved {
@@ -181,6 +189,7 @@ impl Options {
             classes,
             gate,
             autofocus,
+            select,
             ..
         } = self;
         let refused = gate.refused();
@@ -191,7 +200,7 @@ impl Options {
             enablement,
             tooltip,
             refused,
-            autofocus,
+            autofocus: autofocus.selecting(select.unwrap_or_default()),
         }
     }
 }
@@ -304,7 +313,7 @@ pub trait Interactive: Configure {
     /// TODO(prose): takes focus as the overlay it is in opens, as
     /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
     fn focus_on_open(mut self) -> Self {
-        self.options().autofocus = Autofocus::OnOverlayOpen;
+        self.options().autofocus = Autofocus::OnOverlayOpen(Select::None);
         self
     }
 

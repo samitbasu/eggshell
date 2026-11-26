@@ -116,7 +116,7 @@ fn control(b: &mut Builder<'_, '_, App>, app: &App) {
             match app.ask {
                 Ask::Nothing => chain,
                 Ask::OnOpen => chain.focus_on_open(),
-                Ask::Now(select) => chain.focus_now_selecting(select),
+                Ask::Now(select) => chain.focus_now().select_on_focus(select),
             }
         }};
     }
@@ -360,13 +360,13 @@ fn typed_over(control: Control, select: Select, text: &str) -> Harness<'static, 
 }
 
 #[test]
-fn focus_now_selecting_all_lets_typing_replace_a_field_s_text() {
+fn focus_now_with_select_on_focus_all_lets_typing_replace_a_field_s_text() {
     let harness = typed_over(Control::TextField, Select::All, "Pump");
     assert_eq!(harness.state().app.text, "Pump");
 }
 
 #[test]
-fn focus_now_selecting_nothing_types_beside_the_text() {
+fn focus_now_with_select_on_focus_none_types_beside_the_text() {
     let harness = typed_over(Control::TextField, Select::None, "x");
     let text = &harness.state().app.text;
     assert_ne!(text, "x", "the text was kept");
@@ -374,7 +374,7 @@ fn focus_now_selecting_nothing_types_beside_the_text() {
 }
 
 #[test]
-fn focus_now_selecting_all_lets_typing_replace_a_stepper_s_number() {
+fn focus_now_with_select_on_focus_all_lets_typing_replace_a_stepper_s_number() {
     let mut harness = typed_over(Control::Stepper, Select::All, "7");
     harness.key_press(egui::Key::Enter);
     harness.run_steps(4);
