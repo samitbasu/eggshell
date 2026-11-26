@@ -188,7 +188,7 @@ enum Trail {
 
 /// What an item does when it is activated.
 enum Reaction<A> {
-    Run(Box<dyn FnOnce(&mut A)>),
+    Run(Act<A>),
     OpenSubmenu,
 }
 
@@ -499,7 +499,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 match reaction {
                     Reaction::Run(act) => {
                         if activated {
-                            act(app);
+                            act(app, ui.ctx());
                             shared.close();
                         }
                     }
@@ -579,6 +579,9 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     kind: Kind,
 }
 
+/// What activating an item runs.
+type Act<A> = Box<dyn FnOnce(&mut A, &Context)>;
+
 /// The kind of an item that runs a handler.
 pub struct Action;
 /// The kind of an item with a check mark, on or off as it was built.
@@ -642,7 +645,7 @@ impl<A: 'static> ItemChain<'_, '_, A, CommandItem<A>> {
     /// TODO(prose): adds the item; activating it runs the command, and then the menu closes.
     #[track_caller]
     pub fn add(self) {
-        self.finish_with(|CommandItem(run)| run);
+        self.finish_with(|CommandItem(run)| move |app: &mut A, _: &Context| run(app));
     }
 }
 
@@ -671,12 +674,12 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
     }
 
     #[track_caller]
-    fn finish(self, handler: impl FnOnce(&mut A) + 'static) {
+    fn finish(self, handler: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish_with(|_| handler);
     }
 
     #[track_caller]
-    fn finish_with<H: FnOnce(&mut A) + 'static>(self, handler: impl FnOnce(Kind) -> H) {
+    fn finish_with<H: FnOnce(&mut A, &Context) + 'static>(self, handler: impl FnOnce(Kind) -> H) {
         let Self {
             b,
             shared,
@@ -714,6 +717,14 @@ impl<A: 'static> ItemChain<'_, '_, A, Action> {
     /// or Space, and then the menu closes.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) {
+        self.finish(move |app, _| act(app));
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs, such as copying
+    /// text.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish(act);
     }
 }
@@ -723,6 +734,14 @@ impl<A: 'static> ItemChain<'_, '_, A, Radio> {
     /// closes.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) {
+        self.finish(move |app, _| act(app));
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs, such as copying
+    /// text.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish(act);
     }
 }
@@ -732,11 +751,18 @@ impl<A: 'static> ItemChain<'_, '_, A, Checkbox> {
     /// is activated, and then the menu closes.
     #[track_caller]
     pub fn on_change(self, change: impl FnOnce(&mut A, Mark) + 'static) {
+        self.on_change_with(move |app, _, mark| change(app, mark));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, change: impl FnOnce(&mut A, &Context, Mark) + 'static) {
         let moves_to = match self.kind.0 {
             Mark::On => Mark::Off,
             Mark::Off => Mark::On,
         };
-        self.finish(move |app| change(app, moves_to));
+        self.finish(move |app, ctx| change(app, ctx, moves_to));
     }
 }
 

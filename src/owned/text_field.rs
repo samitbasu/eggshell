@@ -371,6 +371,13 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// user edits it, and not otherwise.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
+        self.on_change_with(move |app, _, text| on_change(app, text));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, String) + 'static) {
         let Self {
             mut b,
             slot,
@@ -466,7 +473,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                     Opening::from(select).open(ui, &response, &edited);
                                 }
                                 if response.changed() {
-                                    on_change(app, edited);
+                                    on_change(app, ui.ctx(), edited);
                                 }
                                 hooks.run(app, ui, &response, field.enter());
                             });
@@ -506,7 +513,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                     Opening::from(select).open(ui, &response, &edited);
                 }
                 if response.changed() {
-                    on_change(app, edited);
+                    on_change(app, ui.ctx(), edited);
                 }
                 hooks.run(app, ui, &response, field.enter());
             });

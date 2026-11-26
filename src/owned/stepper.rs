@@ -157,6 +157,13 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// Adds the stepper. `set` runs with the new value.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        self.on_change_with(move |app, _, value| set(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, set: impl Fn(&mut A, &egui::Context, f64) + 'static) {
         let set = Rc::new(set);
         let Self {
             mut b,
@@ -318,7 +325,8 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                             tip_describes(ui, &response, &spec.tooltip);
                             if response.clicked() {
                                 spec.edits.once(app, |app| {
-                                    set(app, spec.step.moved(spec.value, steps, spec.range));
+                                    let value = spec.step.moved(spec.value, steps, spec.range);
+                                    set(app, ui.ctx(), value);
                                 });
                             }
                         });
@@ -408,8 +416,10 @@ impl<A> Spec<A> {
         ui: &mut egui::Ui,
         field: &Field,
         editing: egui::Id,
-        set: impl Fn(&mut A, f64),
+        set: impl Fn(&mut A, &egui::Context, f64),
     ) {
+        let ctx = ui.ctx().clone();
+        let set = |app: &mut A, value| set(app, &ctx, value);
         let parse = |text: &str| text.trim().parse::<f64>().ok();
         let (low, high) = (self.range.start(), self.range.end());
         let mut value = self.value;

@@ -313,6 +313,13 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// TODO(prose): adds the splitter; `set` runs with the pane's new size.
     #[track_caller]
     pub fn on_resize(self, set: impl Fn(&mut A, PaneSize) + 'static) {
+        self.on_resize_with(move |app, _, size| set(app, size));
+    }
+
+    /// Like [`on_resize`](Self::on_resize), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_resize_with(self, set: impl Fn(&mut A, &egui::Context, PaneSize) + 'static) {
         let Self {
             mut b,
             slot,
@@ -386,7 +393,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         node.draw(move |app, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
             autofocus.apply(ui.ctx(), &response);
-            handle.draw(ui, |size| set(app, size));
+            handle.draw(ui, |size| set(app, ui.ctx(), size));
             on_response.run(app, &response);
         });
     }

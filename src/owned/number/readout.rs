@@ -28,7 +28,7 @@ enum Node {
 
 pub(in crate::owned) type Format = Rc<dyn Fn(f64) -> String>;
 pub(in crate::owned) type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
-pub(in crate::owned) type Set<A> = Rc<dyn Fn(&mut A, f64)>;
+pub(in crate::owned) type Set<A> = Rc<dyn Fn(&mut A, &egui::Context, f64)>;
 
 /// The narrowest the readout's field opens, so a short value can be typed
 /// over.
@@ -202,7 +202,13 @@ impl Readout {
                         session.keep(ui.ctx(), &text);
                     }
                     if response.lost_focus() {
-                        session.close(app, ui, (&text, value), &accept, (&edits, &*set));
+                        session.close(
+                            app,
+                            ui,
+                            (&text, value),
+                            &accept,
+                            (&edits, |app: &mut A, value| set(app, ui.ctx(), value)),
+                        );
                     }
                 });
             });
@@ -328,6 +334,13 @@ impl<A: 'static> Chain<'_, '_, A> {
     /// Adds it. `set` runs with the value typed in it.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        self.on_change_with(move |app, _, value| set(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, set: impl Fn(&mut A, &egui::Context, f64) + 'static) {
         self.finish(Rc::new(set));
     }
 
@@ -335,7 +348,7 @@ impl<A: 'static> Chain<'_, '_, A> {
     #[track_caller]
     pub fn add(mut self) {
         self.parse = None;
-        self.finish(Rc::new(|_: &mut A, _| {}));
+        self.finish(Rc::new(|_: &mut A, _: &egui::Context, _| {}));
     }
 
     #[track_caller]

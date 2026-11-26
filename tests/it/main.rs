@@ -142,6 +142,7 @@ mod select;
 mod selection;
 mod separator;
 mod shadow_pixels;
+mod shared_options;
 mod sheet;
 mod sizing;
 mod skeleton;

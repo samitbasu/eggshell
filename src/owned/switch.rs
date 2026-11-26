@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Role, Vec2};
+use egui::{Context, Role, Vec2};
 
 use super::Mark;
 use super::options::{Configure, Interactive, Options, Resolved, Respond, Validity};
@@ -138,6 +138,13 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
         self.values(false, true).on_change(on_change);
     }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &Context, bool) + 'static) {
+        self.values(false, true).on_change_with(on_change);
+    }
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
@@ -145,6 +152,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {
+        self.on_change_with(move |app, _, value| on_change(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &Context, T) + 'static) {
         let Self {
             mut b,
             slot,
@@ -168,7 +182,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
             ..
         } = opts.resolve(&mut b, slot.id);
         let (mark, toggled) = flip([off, on_value], current);
-        let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
+        let on_toggle = Rc::new(move |app: &mut A, ctx: &Context| on_change(app, ctx, toggled));
         let style = b.style().clone();
         let switch = &style.switch;
         let size = b.size_of(size);
@@ -273,7 +287,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                     validity.describe(ui.ctx(), response.id);
                     autofocus.apply(ui.ctx(), &response);
                     if response.clicked() {
-                        on_press(app);
+                        on_press(app, ui.ctx());
                     }
                     on_response.run(app, &response);
                 });
@@ -282,9 +296,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                 Form::Row => b.div(row.merge(caller), |b| {
                     build_track(b);
                     if let Some(label) = label {
-                        choice_label(b, Node::Label, control, label, enablement, move |app| {
-                            on_toggle(app)
-                        });
+                        choice_label(
+                            b,
+                            Node::Label,
+                            control,
+                            label,
+                            enablement,
+                            move |app, ctx| on_toggle(app, ctx),
+                        );
                     }
                 }),
                 Form::Card => {
@@ -300,7 +319,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
                         Node::Label,
                         card,
                         row,
-                        move |app| on_toggle(app),
+                        move |app, ctx| on_toggle(app, ctx),
                         build_track,
                     );
                 }

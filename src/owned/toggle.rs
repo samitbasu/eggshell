@@ -137,6 +137,13 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
         self.values(false, true).on_change(on_change);
     }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, bool) + 'static) {
+        self.values(false, true).on_change_with(on_change);
+    }
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
@@ -144,10 +151,17 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
     /// clicked or activated with Space or Enter.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {
+        self.on_change_with(move |app, _, value| on_change(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, T) + 'static) {
         let (mark, toggled) = flip(self.values, self.current);
         self.button
             .marked(mark)
-            .on_click(move |app| on_change(app, toggled));
+            .on_click_with(move |app, ctx| on_change(app, ctx, toggled));
     }
 }
 
@@ -159,11 +173,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ItemChain<'a, 'f, A, T> 
     pub fn add(self) {
         let Member { value, on_change } = self.values;
         let mark = Mark::from(self.current == value);
-        self.button.marked(mark).on_click(move |app| {
+        self.button.marked(mark).on_click_with(move |app, ctx| {
             if mark == Mark::Off
                 && let Some(on_change) = on_change
             {
-                on_change(app, value);
+                on_change(app, ctx, value);
             }
         });
     }

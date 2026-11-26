@@ -15,7 +15,7 @@ use crate::owned::options::{Configure as _, Interactive as _, Respond as _};
 use crate::pipeline::DismissFn;
 use crate::sheet::Key as SheetKey;
 use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
-use egui::{Id, Role};
+use egui::{Context, Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
@@ -45,7 +45,7 @@ pub enum Pending {
 type Filter = Rc<dyn Fn(&str, Candidate<'_>) -> Option<Score>>;
 type Heard<A> = Rc<dyn Fn(&mut A, &str)>;
 type Empty<'f, A> = Box<dyn FnOnce(&mut Scope<'_, 'f, A>) + 'f>;
-type Typed<A> = Rc<dyn Fn(&mut A, String)>;
+type Typed<A> = Rc<dyn Fn(&mut A, &Context, String)>;
 type Cleared<A> = Rc<dyn Fn(&mut A)>;
 
 /// TODO(prose): the builder methods of this module.
@@ -434,6 +434,12 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
 
     /// TODO(prose): adds the combobox; `on_change` runs with the option picked.
     pub fn on_change(self, on_change: impl Fn(&mut A, V) + 'static) {
+        self.on_change_with(move |app, _, value| on_change(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &Context, V) + 'static) {
         let Self {
             b,
             key,
@@ -566,7 +572,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             items
                 .item(choice, label)
                 .state(CommandState::Checked(mark))
-                .on_pick(move |app| on_change(app, choice));
+                .on_pick_with(move |app, ctx| on_change(app, ctx, choice));
         }
         let (close, dismiss) = (ctx.clone(), ctx.clone());
         let after: Rc<dyn Fn(&mut A)> = Rc::new(move |_| Typing::CLOSED.store(&close, key));
@@ -669,6 +675,12 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
 
     /// TODO(prose): adds the field; `on_change` runs with the text as typed, or with a suggestion picked.
     pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
+        self.on_change_with(move |app, _, text| on_change(app, text));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &Context, String) + 'static) {
         let Self {
             b,
             key,
@@ -700,9 +712,9 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             }
         });
         let (typed, reset) = (Rc::clone(&on_change), ctx.clone());
-        field.on_change(move |app, text| {
+        field.on_change_with(move |app, ctx, text| {
             Suggesting::Yes.store(&reset, field_id);
-            typed(app, text);
+            typed(app, ctx, text);
         });
         let suggesting = Suggesting::load(&ctx, field_id);
         let focused = b.has_focus_within((key, Node::Field));
@@ -715,7 +727,7 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             let label = suggestion.clone();
             items
                 .item(suggestion.clone(), suggestion)
-                .on_pick(move |app| picked(app, label.clone()));
+                .on_pick_with(move |app, ctx| picked(app, ctx, label.clone()));
         }
         if !items.any_match(&text, options.filter.as_ref(), options.filtering)
             && options.filtering == Filtering::Ours

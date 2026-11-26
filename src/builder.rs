@@ -2188,7 +2188,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
 
     /// Runs `then` with the node's response each frame it is drawn: the escape
     /// hatch for what the builder does not offer, such as hover.
-    pub fn on_response(self, then: impl FnOnce(&mut A, &egui::Response) + 'static) -> Self {
+    pub fn on_response(self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
         self.draw(move |app, ui| then(app, &ui.node_response()))
     }
 
@@ -2545,13 +2545,20 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Runs `act` when the node is clicked. The node must sense clicks.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
+        self.on_click_with(move |app, _| act(app))
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &egui::Context) + 'static) -> Self {
         self.draw(move |app, ui| {
             if ui.node_response().clicked()
                 || ui
                     .node_id()
                     .is_some_and(|id| crate::nav::take_activation(ui, id))
             {
-                act(app);
+                act(app, ui.ctx());
             }
         })
     }

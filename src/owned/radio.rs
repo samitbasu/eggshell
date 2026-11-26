@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use egui::Role;
+use egui::{Context, Role};
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
@@ -95,6 +95,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     /// chosen with the pointer or the keyboard.
     #[track_caller]
     pub fn on_change(self, select: impl Fn(&mut A, T) + 'static) {
+        self.on_change_with(move |app, _, value| select(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + 'static) {
         let select = Rc::new(select);
         let Self {
             mut b,
@@ -184,7 +191,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
                             tip_describes(ui, &response, &group_tip);
                         }
                         if response.clicked() || crate::nav::take_activation(ui, response.id) {
-                            on_circle(app, value);
+                            on_circle(app, ui.ctx(), value);
                         }
                         on_response.run(app, &response);
                     })
@@ -199,8 +206,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
                             control,
                             label,
                             enablement,
-                            move |app| {
-                                on_label(app, value);
+                            move |app, ctx| {
+                                on_label(app, ctx, value);
                             },
                         );
                     }),
@@ -212,7 +219,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
                             enablement,
                             classes: tw(),
                         };
-                        let on_card = move |app: &mut A| on_label(app, value);
+                        let on_card = move |app: &mut A, ctx: &Context| on_label(app, ctx, value);
                         choice_card(b, Node::Label(index), card, row, on_card, build_circle);
                     }
                 }

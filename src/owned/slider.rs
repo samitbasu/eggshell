@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Key, Rect, Ui, WidgetInfo};
+use egui::{Context, Key, Rect, Ui, WidgetInfo};
 
 use super::number::readout::{Format, Parse, Readout, Set};
 use super::number::{self, Edit, Edits, Step, ValueRange};
@@ -257,7 +257,14 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// new value when the pointer or the keyboard changes it.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
-        let set = Rc::new(set);
+        self.on_change_with(move |app, _, value| set(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, set: impl Fn(&mut A, &Context, f64) + 'static) {
+        let set: Set<A> = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -403,11 +410,11 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                                     if let Some(value) =
                                         changed(keys.is_none().then_some(pointer).flatten())
                                     {
-                                        on_thumb(app, value);
+                                        on_thumb(app, ui.ctx(), value);
                                     }
                                 });
                                 if let Some(value) = changed(keys) {
-                                    thumb_edits.once(app, |app| on_thumb(app, value));
+                                    thumb_edits.once(app, |app| on_thumb(app, ui.ctx(), value));
                                 }
                                 on_response.run(app, &response);
                                 response.widget_info(|| {
@@ -432,7 +439,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                         if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
                             let value = on_track.at(at.x, response.rect);
                             if value != on_track.value {
-                                set(app, value);
+                                set(app, ui.ctx(), value);
                             }
                         }
                     });
