@@ -110,8 +110,6 @@ eggshell-ui = { path = ".", features = [
 # select, and the fuzzers only run natively.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 proptest = "1.12.0"
-# The look candidates' review sheets (tests/it/snapshots.rs) tile renders.
-image = { version = "0.25.10", default-features = false, features = ["png"] }
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
 
 [[bench]]

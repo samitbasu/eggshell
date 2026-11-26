@@ -524,3 +524,47 @@ fn the_current_link_is_announced_as_the_current_page() {
         "the description is the link's"
     );
 }
+
+#[test]
+fn shift_tab_from_the_item_after_an_open_trigger_goes_to_its_panels_last_link() {
+    let mut d = harness();
+    open_by_pointer(&mut d, "more");
+    d.focus(Target::suffix(DOCS)).frames(2);
+    assert!(is_open(&d, "more"), "precondition: still open");
+    shift_tab(&mut d);
+    assert!(
+        focused(&d).ends_with("/\"more\"/Panel/Content/\"Blog\""),
+        "{}",
+        focused(&d)
+    );
+    assert!(is_open(&d, "more"));
+}
+
+/// Where `key` from `from` puts the focus, with the "start" panel opened
+/// by the pointer or not.
+fn tab_from(from: &str, key: KeyboardShortcut, opened: bool) -> String {
+    let mut d = harness();
+    if opened {
+        open_by_pointer(&mut d, "start");
+    }
+    d.focus(Target::suffix(from)).frames(2);
+    assert_eq!(is_open(&d, "start"), opened, "precondition");
+    d.press(key).frames(5);
+    assert_eq!(is_open(&d, "start"), opened, "the pointer holds it");
+    focused(&d)
+}
+
+#[test]
+fn tab_round_the_page_passes_a_hover_opened_panel_by() {
+    let tab = KeyboardShortcut::new(Modifiers::NONE, Key::Tab);
+    let back = KeyboardShortcut::new(Modifiers::SHIFT, Key::Tab);
+    for (from, key) in [("/\"after\"", tab), ("/\"before\"", back)] {
+        let with = tab_from(from, key, true);
+        assert!(!with.contains("/Panel/"), "{from}: {with}");
+        assert_eq!(
+            with,
+            tab_from(from, key, false),
+            "{from}: where it goes with no panel open"
+        );
+    }
+}

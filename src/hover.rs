@@ -75,13 +75,35 @@ impl Cards {
 struct Row {
     intent: Intent<Timing>,
     triggers: Vec<Id>,
-    /// The open trigger and its card's focusable widgets, as last drawn.
-    open: Option<(Id, Box<[Id]>)>,
+    open: Option<OpenCard>,
     /// The widget that had focus as the last frame ended.
     focused: Option<Id>,
     /// The trigger Down was pressed on: it opens, and focus goes to its
     /// card's first widget once it is drawn.
     entering: Option<Id>,
+    /// A widget of the open card that a Tab from outside the row reached,
+    /// and the way the next frame moves the focus on from it: past the
+    /// card, which is in the Tab order only through its trigger.
+    stray: Option<(Id, FocusDirection)>,
+}
+
+/// The open trigger of a row, as last drawn.
+#[derive(Clone, Debug, PartialEq)]
+struct OpenCard {
+    trigger: Id,
+    /// Its card's focusable widgets, in Tab order.
+    widgets: Box<[Id]>,
+    /// The item of the row after the trigger, from which Shift+Tab goes into
+    /// the card.
+    after: Option<Id>,
+}
+
+impl OpenCard {
+    /// Whether the focus on `widget` is the row's own business around the
+    /// card: on the trigger, in the card, or on the item after it.
+    fn around(&self, widget: Id) -> bool {
+        widget == self.trigger || self.widgets.contains(&widget) || self.after == Some(widget)
+    }
 }
 
 /// What a key does to the focus of a row, before the frame's widgets.
@@ -114,26 +136,21 @@ impl RowKey {
 impl Row {
     /// Where `key` takes the focus from `focused`, if the row has a say.
     fn route(&self, focused: Id, key: RowKey) -> Option<Route> {
-        let open = self.open.as_ref();
-        let first = open.and_then(|(_, widgets)| widgets.first());
-        let last = open.and_then(|(_, widgets)| widgets.last());
-        match key {
-            RowKey::Down => self
+        if key == RowKey::Down {
+            return self
                 .triggers
                 .contains(&focused)
-                .then_some(Route::Enter(focused)),
-            RowKey::Tab => {
-                let (trigger, _) = open?;
-                if focused == *trigger {
-                    first.map(|&first| Route::To(first))
-                } else {
-                    (last == Some(&focused)).then_some(Route::Past(*trigger))
-                }
-            }
-            RowKey::ShiftTab => {
-                let (trigger, _) = open?;
-                (first == Some(&focused)).then_some(Route::To(*trigger))
-            }
+                .then_some(Route::Enter(focused));
+        }
+        let open = self.open.as_ref()?;
+        let first = open.widgets.first().copied();
+        let last = open.widgets.last().copied();
+        match key {
+            RowKey::Tab if focused == open.trigger => first.map(Route::To),
+            RowKey::Tab => (last == Some(focused)).then_some(Route::Past(open.trigger)),
+            RowKey::ShiftTab if first == Some(focused) => Some(Route::To(open.trigger)),
+            RowKey::ShiftTab => last.filter(|_| open.after == Some(focused)).map(Route::To),
+            RowKey::Down => None,
         }
     }
 }
@@ -142,6 +159,19 @@ impl Row {
 /// its open card. Run before the frame's widgets: a Tab left to egui moves on
 /// from where this puts the focus.
 pub(crate) fn route_keys(ctx: &Context, kept: &Handle) {
+    let strays: Vec<(Id, FocusDirection)> = kept.viewport(ctx.viewport_id(), |here| {
+        here.hover_cards
+            .rows
+            .values_mut()
+            .filter_map(|row| row.stray.take())
+            .collect()
+    });
+    for (widget, onward) in strays {
+        ctx.memory_mut(|memory| {
+            memory.request_focus(widget);
+            memory.move_focus(onward);
+        });
+    }
     let Some(focused) = ctx.memory(|memory| memory.focused()) else {
         return;
     };
@@ -176,8 +206,8 @@ pub(crate) fn route_keys(ctx: &Context, kept: &Handle) {
                 let first = state
                     .open
                     .as_ref()
-                    .filter(|(open, _)| *open == trigger)
-                    .and_then(|(_, widgets)| widgets.first().copied());
+                    .filter(|open| open.trigger == trigger)
+                    .and_then(|open| open.widgets.first().copied());
                 if first.is_none() {
                     state.entering = Some(trigger);
                 }
@@ -610,16 +640,17 @@ impl RowFrame<'_> {
                 last == trigger
                     || last_open
                         .as_ref()
-                        .is_some_and(|(open, widgets)| *open == trigger && widgets.contains(&last))
+                        .is_some_and(|open| open.trigger == trigger && open.widgets.contains(&last))
             });
             if was_in {
                 ctx.memory_mut(|memory| memory.request_focus(trigger));
             }
         }
-        let open = self
-            .after
-            .first()
-            .map(|&trigger| (trigger, self.widgets(subtrees, trigger)));
+        let open = self.after.first().map(|&trigger| OpenCard {
+            trigger,
+            widgets: self.widgets(subtrees, trigger),
+            after: item_after(sight.frame.nodes, sight.frame.by_id, trigger),
+        });
         let entered = kept.viewport(ctx.viewport_id(), |here| {
             here.hover_cards
                 .rows
@@ -627,22 +658,54 @@ impl RowFrame<'_> {
                 .and_then(|row| row.entering)
         });
         let mut entering = entered.filter(|trigger| self.after.contains(trigger));
-        if let Some((trigger, widgets)) = &open
-            && entering == Some(*trigger)
-            && let Some(&first) = widgets.first()
+        if let Some(card) = &open
+            && entering == Some(card.trigger)
+            && let Some(&first) = card.widgets.first()
         {
             ctx.memory_mut(|memory| memory.request_focus(first));
             entering = None;
         }
         let focused = ctx.memory(|memory| memory.focused());
+        let stray = open
+            .as_ref()
+            .filter(|_| sight.tabbed)
+            .filter(|card| focused.is_some_and(|focused| card.widgets.contains(&focused)))
+            .filter(|card| !self.last_focused.is_some_and(|last| card.around(last)))
+            .and_then(|card| {
+                if ctx.input(|input| input.modifiers.shift) {
+                    card.widgets
+                        .first()
+                        .map(|&first| (first, FocusDirection::Previous))
+                } else {
+                    card.widgets
+                        .last()
+                        .map(|&last| (last, FocusDirection::Next))
+                }
+            });
+        if stray.is_some() {
+            ctx.request_repaint();
+        }
         kept.viewport(ctx.viewport_id(), |here| {
             let row = here.hover_cards.rows.entry(group).or_default();
+            row.stray = stray;
             row.open = open;
             row.triggers = triggers;
             row.focused = focused;
             row.entering = entering;
         });
     }
+}
+
+/// The item after `trigger` in the [`nav`](crate::NodeHandle::nav) group it
+/// is an item of.
+fn item_after(nodes: &Nodes, by_id: &HashMap<Id, usize>, trigger: Id) -> Option<Id> {
+    let index = *by_id.get(&trigger)?;
+    let group = nodes
+        .ancestors(index)
+        .find(|&at| nodes.get(at).is_some_and(|node| node.group().is_some()))?;
+    let items = crate::roving::items_under(nodes, group);
+    let at = items.iter().position(|&item| item == index)?;
+    nodes.get(*items.get(at + 1)?)?.id()
 }
 
 /// Describes the widgets inside `trigger` by `description`, after what
@@ -716,7 +779,11 @@ mod tests {
     fn row() -> Row {
         Row {
             triggers: vec![id("a"), id("b")],
-            open: Some((id("a"), Box::new([id("one"), id("two")]))),
+            open: Some(OpenCard {
+                trigger: id("a"),
+                widgets: Box::new([id("one"), id("two")]),
+                after: Some(id("b")),
+            }),
             ..Row::default()
         }
     }
@@ -749,6 +816,16 @@ mod tests {
             Some(Route::To(id("a")))
         );
         assert_eq!(row.route(id("two"), RowKey::ShiftTab), None);
+    }
+
+    #[test]
+    fn shift_tab_from_the_item_after_the_trigger_goes_to_the_cards_last_widget() {
+        let row = row();
+        assert_eq!(
+            row.route(id("b"), RowKey::ShiftTab),
+            Some(Route::To(id("two")))
+        );
+        assert_eq!(row.route(id("elsewhere"), RowKey::ShiftTab), None);
     }
 
     #[test]

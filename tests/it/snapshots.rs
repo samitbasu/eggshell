@@ -3342,38 +3342,22 @@ mod alert {
     }
 }
 
-/// The navigation menu's look candidates, for review (the look is the
-/// user's choice): `cargo test --features snapshots --test it
-/// navigation_menu_candidates -- --ignored` with `EGGSHELL_NAVMENU_DIR`
-/// naming where the PNGs go, and `VK_ICD_FILENAMES` the software renderer.
-/// Each PNG is one question: a row per candidate, a column per state.
-mod navigation_menu_candidates {
+/// The navigation menu (#380): the closed row with a current link, a panel
+/// opened by a click holding the link grid, the icon links, and the
+/// indicator, in each shadcn style and theme.
+mod navigation_menu {
     use super::*;
-    use eggshell_ui::owned::navigation_menu::{Chevron, Part};
-    use eggshell_ui::sheet::When;
-    use eggshell_ui::theme::{Palette, Shadcn};
-    use eggshell_ui::{Aria, Icon, icons};
-    use std::sync::Arc;
+    use eggshell_ui::{Icon, icons};
 
-    fn out() -> std::path::PathBuf {
-        let dir = std::env::var("EGGSHELL_NAVMENU_DIR")
-            .expect("EGGSHELL_NAVMENU_DIR names the output directory");
-        std::fs::create_dir_all(&dir).expect("the directory can be made");
-        dir.into()
-    }
-
-    /// What a scene shows besides the menu's look.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Links {
         /// Title over a muted description, in two columns: shadcn's demo.
         Described,
-        /// An icon and the title inline: shadcn's "With Icon" list, Vega's
-        /// `items-center gap-1.5`.
+        /// An icon and the title inline: shadcn's "With Icon" list.
         Icons,
     }
 
     struct Scene {
-        caption: String,
         indicator: bool,
         links: Links,
     }
@@ -3397,216 +3381,60 @@ mod navigation_menu_candidates {
     fn view(b: &mut Builder<'_, '_, Scene>, scene: &Scene) {
         let muted = b.style().tokens.muted_foreground;
         let links = scene.links;
-        b.div(tw().flex().flex_col().gap(3.0).p(4.0).w_full(), |b| {
-            b.text(
-                tw().text_size(12.0, 16.0).text(muted),
-                scene.caption.clone(),
-            );
-            let menu = b
-                .navigation_menu("site")
-                .named("Main")
-                .panel("started", "Getting started", move |p| match links {
-                    Links::Described => {
-                        p.div(tw().grid().grid_cols(2).gap(2.0).w_px(480.0), |g| {
-                            for (title, description) in STARTED {
-                                g.nav_link(title, title)
-                                    .description(description)
-                                    .current(title == "Installation")
-                                    .on_click(|_: &mut Scene| {});
-                            }
-                        });
-                    }
-                    Links::Icons => {
-                        p.div(tw().flex().flex_col().w_px(200.0), |g| {
-                            for (title, icon) in [
-                                ("Backlog", icons::CIRCLE_ALERT),
-                                ("To Do", icons::INFO),
-                                ("Done", icons::CIRCLE_CHECK),
-                            ] {
-                                g.nav_link(title, title)
-                                    .icon(Icon::new(icon))
-                                    .on_click(|_: &mut Scene| {});
-                            }
-                        });
-                    }
-                })
-                .panel("components", "Components", |p| {
-                    p.div(tw().grid().grid_cols(2).gap(2.0).w_px(400.0), |g| {
-                        for (title, description) in &STARTED[..2] {
-                            g.nav_link(*title, *title)
-                                .description(*description)
-                                .on_click(|_: &mut Scene| {});
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(3.0).p(4.0).w_full(),
+            |b| {
+                let menu = b
+                    .navigation_menu("site")
+                    .named("Main")
+                    .panel("started", "Getting started", move |p| match links {
+                        Links::Described => {
+                            p.div(tw().grid().grid_cols(2).gap(2.0).w_px(480.0), |g| {
+                                for (title, description) in STARTED {
+                                    g.nav_link(title, title)
+                                        .description(description)
+                                        .current(title == "Installation")
+                                        .on_click(|_: &mut Scene| {});
+                                }
+                            });
                         }
+                        Links::Icons => {
+                            p.div(tw().flex().flex_col().w_px(200.0), |g| {
+                                for (title, icon) in [
+                                    ("Backlog", icons::CIRCLE_ALERT),
+                                    ("To Do", icons::INFO),
+                                    ("Done", icons::CIRCLE_CHECK),
+                                ] {
+                                    g.nav_link(title, title)
+                                        .icon(Icon::new(icon))
+                                        .on_click(|_: &mut Scene| {});
+                                }
+                            });
+                        }
+                    })
+                    .panel("components", "Components", |p| {
+                        p.nav_link("Alert", "Alert").on_click(|_: &mut Scene| {});
+                    })
+                    .link("docs", "Docs", |link| {
+                        link.current(true).on_click(|_: &mut Scene| {});
                     });
-                })
-                .link("docs", "Docs", |link| {
-                    link.current(true).on_click(|_: &mut Scene| {});
-                });
-            if scene.indicator {
-                menu.indicator().add();
-            } else {
-                menu.add();
-            }
-            b.text(tw().font_semibold(), "Installation");
-            b.text(
-                tw().text(muted),
-                "The page under the menu. Docs is the current page in the row, \
-                 Installation the current link in its panel.",
-            );
-        });
-    }
-
-    /// A state of the menu to render.
-    #[derive(Clone, Copy)]
-    enum State {
-        /// Nothing touched: the current link marked.
-        Closed,
-        /// The pointer on "Components", three frames: before its panel
-        /// opens.
-        Hovered,
-        /// "Getting started" clicked open, the pointer away on the page.
-        Open,
-        /// "Components" opened by resting on it, the pointer still there.
-        OpenHovered,
-        /// "Getting started" focused by Tab.
-        Focused,
-    }
-
-    impl State {
-        fn label(self) -> &'static str {
-            match self {
-                Self::Closed => "closed",
-                Self::Hovered => "hovered",
-                Self::Open => "open (clicked, pointer away)",
-                Self::OpenHovered => "open (hovered)",
-                Self::Focused => "keyboard focus",
-            }
-        }
-    }
-
-    type Edit = fn(&mut eggshell_ui::Style);
-
-    /// A candidate: its caption, how it changes the generated style, and
-    /// whether it shows the indicator.
-    struct Candidate {
-        caption: String,
-        edit: Edit,
-        indicator: bool,
-        links: Links,
-    }
-
-    fn generated(_: &mut eggshell_ui::Style) {}
-
-    fn find(h: &Harness<'_, support::Rig<Scene>>, suffix: &str) -> egui::Rect {
-        support::nodes(h)
-            .into_iter()
-            .find(|(path, _)| path.ends_with(suffix))
-            .unwrap_or_else(|| panic!("no node ends in {suffix}"))
-            .1
-    }
-
-    fn rest(h: &mut Harness<'_, support::Rig<Scene>>, at: egui::Pos2, secs: f64) {
-        h.hover_at(at);
-        let start = h.ctx.input(|input| input.time);
-        while h.ctx.input(|input| input.time) - start < secs {
-            h.run_steps(1);
-        }
-        h.run_steps(6);
-    }
-
-    fn render(
-        candidate: &Candidate,
-        state: State,
-        shadcn: ShadcnStyle,
-        theme: egui::Theme,
-    ) -> image::RgbaImage {
-        let tokens = Tokens::for_theme(theme);
-        let scene = Scene {
-            caption: format!("{} — {}", candidate.caption, state.label()),
-            indicator: candidate.indicator,
-            links: candidate.links,
-        };
-        let mut h = support::harness_at(
-            Vec2::new(620.0, 330.0),
-            1.0,
-            TextStyle::new(layouts::BODY, tokens.foreground),
-            scene,
-            view,
-        );
-        let mut style = Shadcn::themed(shadcn, Palette::new());
-        (candidate.edit)(Arc::make_mut(&mut style.light));
-        (candidate.edit)(Arc::make_mut(&mut style.dark));
-        h.state_mut().set_style(style);
-        h.state_mut().page = support::Page::Themed;
-        h.state_mut().companion = support::Companion::Alone;
-        h.ctx.set_theme(theme);
-        h.run_steps(8);
-        let away = egui::pos2(600.0, 320.0);
-        match state {
-            State::Closed => {}
-            State::Hovered => {
-                let at = find(&h, "/\"components\"/Trigger").center();
-                h.hover_at(at);
-                h.run_steps(3);
-            }
-            State::Open => {
-                let at = find(&h, "/\"started\"/Trigger").center();
-                h.hover_at(at);
-                h.run_steps(2);
-                support::press_and_release(&mut h, at);
-                rest(&mut h, away, 0.4);
-            }
-            State::OpenHovered => {
-                let at = find(&h, "/\"components\"/Trigger").center();
-                rest(&mut h, at, 0.6);
-            }
-            State::Focused => {
-                h.key_press(egui::Key::Tab);
-                h.run_steps(6);
-            }
-        }
-        h.render().expect("renders")
-    }
-
-    /// The candidates of one question in a grid, a row each, a column per
-    /// state, a pixel of the theme's border apart.
-    fn sheet(
-        question: &str,
-        candidates: &[Candidate],
-        states: &[State],
-        shadcn: ShadcnStyle,
-        theme: egui::Theme,
-    ) {
-        let tiles: Vec<Vec<image::RgbaImage>> = candidates
-            .iter()
-            .map(|candidate| {
-                states
-                    .iter()
-                    .map(|&state| render(candidate, state, shadcn, theme))
-                    .collect()
-            })
-            .collect();
-        let (w, h) = tiles
-            .first()
-            .and_then(|row| row.first())
-            .map(|tile| (tile.width(), tile.height()))
-            .expect("a tile");
-        let columns = u32::try_from(states.len()).expect("few states");
-        let rows = u32::try_from(candidates.len()).expect("few candidates");
-        let line = Tokens::for_theme(theme).border.to_array();
-        let mut grid =
-            image::RgbaImage::from_pixel(columns * (w + 1), rows * (h + 1), image::Rgba(line));
-        for (row, tiles) in (0..).zip(&tiles) {
-            for (column, tile) in (0..).zip(tiles) {
-                image::imageops::replace(
-                    &mut grid,
-                    tile,
-                    i64::from(column * (w + 1)),
-                    i64::from(row * (h + 1)),
+                if scene.indicator {
+                    menu.indicator().add();
+                } else {
+                    menu.add();
+                }
+                b.text(tw().font_semibold(), "Installation");
+                b.text(
+                    tw().text(muted),
+                    "The page under the menu: Docs is the current page in the row.",
                 );
-            }
-        }
-        let style = match shadcn {
+            },
+        );
+    }
+
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
             ShadcnStyle::Vega => "vega",
             ShadcnStyle::Lyra => "lyra",
         };
@@ -3614,159 +3442,97 @@ mod navigation_menu_candidates {
             egui::Theme::Light => "light",
             egui::Theme::Dark => "dark",
         };
-        grid.save(out().join(format!("navmenu_{question}_{style}_{theme}.png")))
-            .expect("saves");
+        format!("navigation_menu_{what}_{style}_{theme}")
     }
 
-    fn plain(caption: impl Into<String>, edit: Edit) -> Candidate {
-        Candidate {
-            caption: caption.into(),
-            edit,
+    /// Renders `scene`, its "Getting started" panel clicked open with the
+    /// pointer left on the page, unless `open` says not.
+    fn golden(what: &str, scene: Scene, open: bool, style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = themed_harness(
+            style,
+            Vec2::new(620.0, 300.0),
+            (scene, view, common::base_text_styled(theme, style)),
+            (theme, |_, _| {}),
+        );
+        h.run_steps(8);
+        if open {
+            let trigger = support::nodes(&h)
+                .into_iter()
+                .find(|(path, _)| path.ends_with("/\"started\"/Trigger"))
+                .expect("the trigger is laid out")
+                .1;
+            h.hover_at(trigger.center());
+            h.run_steps(2);
+            support::press_and_release(&mut h, trigger.center());
+            h.hover_at(egui::pos2(600.0, 290.0));
+            h.run_steps(40);
+            assert!(
+                support::nodes(&h)
+                    .iter()
+                    .any(|(path, _)| path.ends_with("/Panel/Content")),
+                "precondition: the panel is open"
+            );
+        }
+        h.snapshot(name(what, style, theme));
+    }
+
+    fn closed(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
             indicator: false,
             links: Links::Described,
-        }
-    }
-
-    fn accent_trigger(style: &mut eggshell_ui::Style) {
-        let sheet = style.sheet.as_app();
-        sheet.rule(Part::Trigger, |t, k| t.hover(|p| p.bg(k.accent)));
-        sheet.rule_when(
-            Part::Trigger,
-            When::always().aria(Aria::Expanded),
-            |t, k| t.bg(k.accent.gamma_multiply(0.5)).hover(|p| p.bg(k.accent)),
-        );
-    }
-
-    fn still_chevron(style: &mut eggshell_ui::Style) {
-        style.navigation_menu.chevron = Chevron::Still;
-    }
-
-    fn bordered_box(style: &mut eggshell_ui::Style) {
-        style.sheet.as_app().rule(Part::Content, |t, k| {
-            t.ring(0.0, Color32::TRANSPARENT)
-                .border(1.0)
-                .border_color(k.border)
-        });
-    }
-
-    fn lifted_box(style: &mut eggshell_ui::Style) {
-        style
-            .sheet
-            .as_app()
-            .rule(Part::Content, |t, k| t.shadow(k.shadow_md));
-    }
-
-    fn centred(style: &mut eggshell_ui::Style) {
-        style.navigation_menu.align = eggshell_ui::overlay::Align::Center;
-    }
-
-    fn close_under(style: &mut eggshell_ui::Style) {
-        style.navigation_menu.offset = eggshell_ui::Distance::new(4.0);
-    }
-
-    #[test]
-    #[ignore = "writes review images, see the module comment"]
-    fn navigation_menu_candidates() {
-        report_renderer();
-        let accent_note = if Tokens::for_theme(egui::Theme::Light).accent
-            == Tokens::for_theme(egui::Theme::Light).muted
-        {
-            " (accent = muted in this palette)"
-        } else {
-            ""
         };
-        for shadcn in [ShadcnStyle::Vega, ShadcnStyle::Lyra] {
-            for theme in [egui::Theme::Light, egui::Theme::Dark] {
-                sheet(
-                    "trigger",
-                    &[
-                        plain(
-                            "A: the generated sheet, hover bg-muted, open bg-muted/50",
-                            generated,
-                        ),
-                        plain(
-                            format!("B: new-york, hover bg-accent, open bg-accent/50{accent_note}"),
-                            accent_trigger,
-                        ),
-                    ],
-                    &[State::Closed, State::Hovered, State::Open, State::Focused],
-                    shadcn,
-                    theme,
-                );
-                sheet(
-                    "chevron",
-                    &[
-                        plain(
-                            "A: turns (points up while open), shadcn's rotate-180",
-                            generated,
-                        ),
-                        plain("B: still", still_chevron),
-                    ],
-                    &[State::Closed, State::Open],
-                    shadcn,
-                    theme,
-                );
-                sheet(
-                    "panel_box",
-                    &[
-                        plain(
-                            "A: the generated sheet, ring-1 ring-foreground/10, shadow (sm)",
-                            generated,
-                        ),
-                        plain("B: new-york, border, shadow (sm)", bordered_box),
-                        plain("C: ring-1, shadow-md", lifted_box),
-                    ],
-                    &[State::Open],
-                    shadcn,
-                    theme,
-                );
-                sheet(
-                    "placement",
-                    &[
-                        plain(
-                            "A: at the trigger's start, 6 pt under it (shadcn's left-0 mt-1.5)",
-                            generated,
-                        ),
-                        plain("B: centred on the trigger, 6 pt under it", centred),
-                        plain(
-                            "C: at the trigger's start, 4 pt under it (the menus' offset)",
-                            close_under,
-                        ),
-                    ],
-                    &[State::Open, State::OpenHovered],
-                    shadcn,
-                    theme,
-                );
-                sheet(
-                    "indicator",
-                    &[
-                        plain("A: no indicator (shadcn's demo)", generated),
-                        Candidate {
-                            indicator: true,
-                            ..plain("B: the indicator under the open trigger", generated)
-                        },
-                    ],
-                    &[State::Open, State::OpenHovered],
-                    shadcn,
-                    theme,
-                );
-                sheet(
-                    "link",
-                    &[
-                        plain(
-                            "A: title over a muted description (shadcn's demo)",
-                            generated,
-                        ),
-                        Candidate {
-                            links: Links::Icons,
-                            ..plain("B: icon and title inline (shadcn's With Icon)", generated)
-                        },
-                    ],
-                    &[State::Open],
-                    shadcn,
-                    theme,
-                );
+        golden("closed", scene, false, style, theme);
+    }
+
+    fn open(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: false,
+            links: Links::Described,
+        };
+        golden("open", scene, true, style, theme);
+    }
+
+    fn icons(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: false,
+            links: Links::Icons,
+        };
+        golden("icons", scene, true, style, theme);
+    }
+
+    fn indicator(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: true,
+            links: Links::Described,
+        };
+        golden("indicator", scene, true, style, theme);
+    }
+
+    macro_rules! navigation_menu_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
             }
-        }
+        )*};
+    }
+
+    navigation_menu_goldens! {
+        navigation_menu_closed_vega_light: closed, Vega, Light;
+        navigation_menu_closed_vega_dark: closed, Vega, Dark;
+        navigation_menu_closed_lyra_light: closed, Lyra, Light;
+        navigation_menu_closed_lyra_dark: closed, Lyra, Dark;
+        navigation_menu_open_vega_light: open, Vega, Light;
+        navigation_menu_open_vega_dark: open, Vega, Dark;
+        navigation_menu_open_lyra_light: open, Lyra, Light;
+        navigation_menu_open_lyra_dark: open, Lyra, Dark;
+        navigation_menu_icons_vega_light: icons, Vega, Light;
+        navigation_menu_icons_vega_dark: icons, Vega, Dark;
+        navigation_menu_icons_lyra_light: icons, Lyra, Light;
+        navigation_menu_icons_lyra_dark: icons, Lyra, Dark;
+        navigation_menu_indicator_vega_light: indicator, Vega, Light;
+        navigation_menu_indicator_vega_dark: indicator, Vega, Dark;
+        navigation_menu_indicator_lyra_light: indicator, Lyra, Light;
+        navigation_menu_indicator_lyra_dark: indicator, Lyra, Dark;
     }
 }

@@ -95,8 +95,13 @@ impl crate::sheet::Part for Part {
     }
 }
 
-/// The key of a link marked current: shadcn's `data-active`.
-const ACTIVE: SheetKey = SheetKey::Attr("active", "true");
+/// The keys of a link marked current: shadcn's `data-active`, which Vega
+/// writes `data-[active=true]` and Lyra `data-active`, the importer's
+/// `aria-selected`. The link is not announced as selected for it.
+const ACTIVE: [SheetKey; 2] = [
+    SheetKey::Attr("active", "true"),
+    SheetKey::Aria(crate::Aria::Selected),
+];
 
 /// Writes the navigation menu's recorded exceptions over its generated look.
 ///
@@ -623,7 +628,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> Link<'s, 'b, 'f, A, K> {
             autofocus,
             ..
         } = opts.resolve(b, slot.id);
-        let mut keys: Vec<SheetKey> = current.map(|_| ACTIVE).into_iter().collect();
+        let mut keys: Vec<SheetKey> = current.map_or_else(Vec::new, |_| ACTIVE.to_vec());
         let own = match enablement {
             Enablement::Enabled => tw().sense_click(),
             Enablement::Disabled => {
