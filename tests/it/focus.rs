@@ -99,6 +99,27 @@ fn rings(d: &Driver<App>) -> Vec<Rect> {
         .collect()
 }
 
+/// The ring of the focused `ringed` is painted after the fill of `later`,
+/// which comes later in paint order.
+fn assert_ring_after(d: &Driver<App>, ringed: &str, later: &str) {
+    let shapes: &[ClippedShape] = &d.harness().output().shapes;
+    let at = |path: &str, stroked: bool| {
+        let rect = d.rect(Target::suffix(&format!("/\"{path}\"")));
+        shapes
+            .iter()
+            .position(|clipped| match &clipped.shape {
+                Shape::Rect(r) if stroked => r.stroke.color == RING && r.rect == rect,
+                Shape::Rect(r) => r.fill == PLAIN && r.rect == rect,
+                _ => false,
+            })
+            .unwrap_or_else(|| panic!("nothing painted for {path}"))
+    };
+    assert!(
+        at(later, false) < at(ringed, true),
+        "the ring of {ringed} is painted over {later}"
+    );
+}
+
 #[test]
 fn tab_visits_nodes_in_paint_order_and_skips_the_opted_out() {
     let mut d = harness(row);
@@ -114,6 +135,9 @@ fn tab_visits_nodes_in_paint_order_and_skips_the_opted_out() {
     for _ in 0..3 {
         tab(&mut d, egui::Modifiers::NONE);
         order.push(focused(&d));
+        if focused(&d) == Some("second") {
+            assert_ring_after(&d, "second", "first");
+        }
     }
     assert_eq!(
         order,

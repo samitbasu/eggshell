@@ -132,6 +132,7 @@ mod registry;
 mod release;
 mod reserve;
 mod responsive_example;
+mod ring_order;
 mod roving;
 mod rules;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
