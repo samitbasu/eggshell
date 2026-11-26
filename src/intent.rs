@@ -64,9 +64,9 @@ pub(crate) enum Press {
     /// Opens it, and keeps it open until the next interruption: a tooltip
     /// that shows on a press.
     Pins,
-    /// Opens it as [`Pins`](Self::Pins) does when it is closed, and closes
-    /// it when it is open, keeping it closed until the trigger is left: a
-    /// navigation menu's trigger.
+    /// Pins it as [`Pins`](Self::Pins) does, unless a press pinned it
+    /// already: then it closes, and stays closed until the trigger is left.
+    /// A navigation menu's trigger.
     Toggles,
 }
 
@@ -297,7 +297,7 @@ impl<P: Clone> Intent<P> {
     ) -> Option<Duration> {
         if let Some(trigger) = wanted.filter(|trigger| trigger.cause == Cause::Pressed) {
             self.waiting = None;
-            if timing.press == Press::Toggles && self.is_open_for(trigger.id) {
+            if timing.press == Press::Toggles && self.pinned() == Some(trigger.id) {
                 self.pinned = None;
                 self.latched = Some(trigger.id);
                 self.close_all(now);
@@ -701,6 +701,24 @@ mod tests {
         menu.tick(ms(9200), MENU, Some(&pointer), None);
         menu.tick(ms(9400), MENU, Some(&pointer), None);
         assert_eq!(open_ids(&menu), [pointer.id], "left and back, it opens");
+    }
+
+    #[test]
+    fn a_toggling_press_pins_what_the_pointer_opened_and_a_second_press_closes_it() {
+        let mut menu = Intent::default();
+        let pressed = trigger("a", Cause::Pressed);
+        let pointer = trigger("a", Cause::Pointer);
+        menu.tick(ms(0), MENU, Some(&pointer), None);
+        menu.tick(ms(200), MENU, Some(&pointer), None);
+        assert_eq!(open_ids(&menu), [pointer.id], "precondition: hovered open");
+        assert_eq!(menu.pinned(), None);
+        menu.tick(ms(300), MENU, Some(&pressed), None);
+        assert_eq!(open_ids(&menu), [pressed.id], "the press keeps it open");
+        assert_eq!(menu.pinned(), Some(pressed.id), "and pins it");
+        menu.tick(ms(2000), MENU, None, None);
+        assert_eq!(open_ids(&menu), [pressed.id], "left, it stays");
+        menu.tick(ms(2100), MENU, Some(&pressed), None);
+        assert!(open_ids(&menu).is_empty(), "the next press closes it");
     }
 
     #[test]

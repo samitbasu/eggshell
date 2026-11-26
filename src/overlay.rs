@@ -505,8 +505,9 @@ pub struct HoverIntent {
 ///   another trigger opens it at once; while one is open, the arrow keys
 ///   reaching another trigger open it too.
 /// - Focus on a trigger does not open it. A press (Enter, Space, a click or
-///   a tap) toggles it, and keeps it open until it is pressed again or
-///   dismissed; Down opens it and moves focus into it.
+///   a tap) opens it, or keeps it open if the pointer opened it, and pins
+///   it: it stays until it is pressed again or dismissed. Down opens it and
+///   moves focus into it.
 /// - Its widgets are in the Tab order: Tab from an open trigger goes into
 ///   it, Shift+Tab from its first widget goes back to the trigger, and Tab
 ///   from its last goes on to what follows the trigger.

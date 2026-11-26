@@ -263,11 +263,18 @@ fn a_click_opens_and_keeps_it_open_and_a_second_click_closes_it() {
 }
 
 #[test]
-fn a_click_on_a_hover_opened_trigger_closes_it() {
+fn a_click_on_a_hover_opened_trigger_pins_it_and_a_second_click_closes_it() {
     let mut d = harness();
     open_by_pointer(&mut d, "start");
     d.click(trigger("start")).frames(3);
-    assert!(!is_open(&d, "start"), "as Radix: the click toggles");
+    assert!(
+        is_open(&d, "start"),
+        "the click keeps it open, as the menubar's"
+    );
+    d.hover(Target::suffix("/\"before\"")).advance(CLOSE * 4);
+    assert!(is_open(&d, "start"), "pinned: it stays when left");
+    d.click(trigger("start")).frames(3);
+    assert!(!is_open(&d, "start"), "a click on a pinned one closes it");
 }
 
 #[test]
