@@ -51,7 +51,7 @@ use crate::overlay::{Align, Distance, HoverIntent, Nav, Placement, TabStops, Tri
 use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
 use crate::owned::{Enablement, OnResponse, tipped, tipped_whole};
 use crate::sheet::{Key as SheetKey, Sheet};
-use crate::{Builder, Current, Icon, Key, NodeUi as _, icons, tw};
+use crate::{Angle, Builder, Current, Icon, Key, NodeUi as _, TurningIcon, icons, tw};
 
 /// TODO(prose): a navigation menu's anatomy for the style's sheet: shadcn's
 /// `navigation-menu`.
@@ -131,20 +131,9 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet) {
     });
 }
 
-/// TODO(prose): what the chevron after a trigger's label does while its
-/// panel is open.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Chevron {
-    /// TODO(prose): it points up, as shadcn's turns 180°.
-    #[default]
-    Turns,
-    /// TODO(prose): it keeps pointing down.
-    Still,
-}
-
 /// TODO(prose): when navigation menus' panels open and close, and how they
 /// enter: a [`Style`](crate::Style)'s extension.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Style {
     /// TODO(prose): how long the pointer rests on a trigger before its panel
@@ -164,8 +153,10 @@ pub struct Style {
     pub align: Align,
     /// TODO(prose): how long a panel takes to enter and to leave.
     pub transition: Duration,
-    /// TODO(prose): the trigger's chevron while its panel is open.
-    pub chevron: Chevron,
+    /// TODO(prose): the chevron after a trigger's label, which turns as its
+    /// panel opens and back as it closes: `chevron-down` turning up, as
+    /// shadcn's `rotate-180`. [`TurningIcon::still`] keeps it pointing down.
+    pub chevron: TurningIcon,
 }
 
 impl Default for Style {
@@ -179,7 +170,7 @@ impl Default for Style {
             offset: Distance::new(6.0),
             align: Align::Start,
             transition: Duration::from_millis(150),
-            chevron: Chevron::Turns,
+            chevron: TurningIcon::new(Icon::new(icons::CHEVRON_DOWN), Angle::degrees(180.0)),
         }
     }
 }
@@ -447,15 +438,33 @@ fn panel_item<'f, A: 'static, K: Key>(
                 tw().sense_click().inert()
             }
         };
+        let intent = HoverIntent::new(menu.open_delay, menu.close_delay).group(menu.group);
+        let placement = Placement::below()
+            .align(menu.style.align)
+            .gap(menu.style.offset);
+        let panel = b.id_of(Node::Panel);
+        b.overlay(Node::Panel)
+            .nav(Nav::Grid)
+            .hover_anchored(trigger, intent)
+            .transition(menu.style.transition)
+            .exit_transition(menu.style.transition)
+            .placement(placement)
+            .children(|c| {
+                let classes = c.part(Part::Content, &[], tw().sense_hover());
+                // No role, as Radix's; a container still, so that the
+                // trigger's `controls` can name it.
+                c.div_id(Node::Content, classes, |c| body(c))
+                    .role(Role::GenericContainer);
+            });
         let classes = b.part(Part::Trigger, &keys, own.merge(caller));
-        let chevron = match (open, menu.style.chevron) {
-            (true, Chevron::Turns) => icons::CHEVRON_UP,
-            _ => icons::CHEVRON_DOWN,
-        };
+        let chevron = menu
+            .style
+            .chevron
+            .at(crate::presence::progress(b.kept(), panel));
         b.div_id_with(&slot, classes, |b| {
             b.text(tw(), label.clone());
             let icon = b.part(Part::TriggerIcon, &[], tw());
-            b.glyph(icon, Icon::new(chevron));
+            b.glyph(icon, chevron);
         })
         .role(Role::Button)
         .named(name.unwrap_or(label))
@@ -478,23 +487,6 @@ fn panel_item<'f, A: 'static, K: Key>(
                 paint_indicator(painter, rect, fill)
             });
         }
-        let intent = HoverIntent::new(menu.open_delay, menu.close_delay).group(menu.group);
-        let placement = Placement::below()
-            .align(menu.style.align)
-            .gap(menu.style.offset);
-        b.overlay(Node::Panel)
-            .nav(Nav::Grid)
-            .hover_anchored(trigger, intent)
-            .transition(menu.style.transition)
-            .exit_transition(menu.style.transition)
-            .placement(placement)
-            .children(|c| {
-                let classes = c.part(Part::Content, &[], tw().sense_hover());
-                // No role, as Radix's; a container still, so that the
-                // trigger's `controls` can name it.
-                c.div_id(Node::Content, classes, |c| body(c))
-                    .role(Role::GenericContainer);
-            });
     })
     .role(Role::ListItem);
 }

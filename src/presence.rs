@@ -270,11 +270,23 @@ pub(crate) struct Presences {
     /// The [`First::Settled`] ids that have rested closed, so that opening
     /// one is a motion and not a first sight.
     rests: HashSet<Id>,
+    /// How far open each id stepped this frame is.
+    stepped: HashMap<Id, Progress>,
 }
 
 impl Presences {
     /// Moves the presence of `id` to this frame.
     pub(crate) fn step(&mut self, ctx: &Context, id: Id, motion: &Motion, first: First) -> Step {
+        let step = self.step_unrecorded(ctx, id, motion, first);
+        let progress = match &step {
+            Step::Closed { .. } => Progress::START,
+            Step::Present(staged) => staged.progress,
+        };
+        self.stepped.insert(id, progress);
+        step
+    }
+
+    fn step_unrecorded(&mut self, ctx: &Context, id: Id, motion: &Motion, first: First) -> Step {
         let now = ctx.input(|input| input.time);
         self.seen.insert(id);
         let (target, full) = match motion.shown {
@@ -318,6 +330,13 @@ impl Presences {
         })
     }
 
+    /// How far open `id` is, as this frame stepped it: closed if it was not
+    /// stepped.
+    #[cfg(feature = "navigation-menu")]
+    pub(crate) fn progress(&self, id: Id) -> Progress {
+        self.stepped.get(&id).copied().unwrap_or(Progress::START)
+    }
+
     pub(crate) fn contains(&self, id: Id) -> bool {
         self.entries.contains_key(&id)
     }
@@ -325,10 +344,18 @@ impl Presences {
     /// Forgets the overlays a frame did not declare, and starts the next
     /// frame's accounting.
     pub(crate) fn sweep(&mut self) {
+        self.stepped.clear();
         let seen = std::mem::take(&mut self.seen);
         self.entries.retain(|id, _| seen.contains(id));
         self.rests.retain(|id| seen.contains(id));
     }
+}
+
+/// How far open the overlay `id` is this frame, once it is declared: what
+/// a part drawn with it follows, such as its trigger's chevron.
+#[cfg(feature = "navigation-menu")]
+pub(crate) fn progress(kept: &Handle, id: Id) -> Progress {
+    kept.with(|kept| kept.presences.progress(id))
 }
 
 /// Steps the presence of `id` in the layout's kept state.

@@ -1,6 +1,6 @@
 //! How section headers and disclosure buttons look.
 
-use crate::{Angle, Icon, icons};
+use crate::{Angle, Icon, TurningIcon, icons};
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
 /// and [`disclosure`](super::Ext::disclosure) buttons, one
@@ -20,31 +20,14 @@ use crate::{Angle, Icon, icons};
 #[non_exhaustive]
 pub struct Style {
     /// A section header's chevron.
-    pub section: Glyph,
+    pub section: TurningIcon,
     /// A disclosure button's chevron.
-    pub tree: Glyph,
+    pub tree: TurningIcon,
     /// How far a section's chevron sits below the top of its header's
     /// first line.
     pub nudge: f32,
     /// A section's header.
     pub header: HeaderStyle,
-}
-
-/// TODO(prose): a chevron, which turns by `turn` times how far open it is.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct Glyph {
-    /// The icon while closed.
-    pub icon: Icon,
-    /// How far it turns once open.
-    pub turn: Angle,
-}
-
-impl Glyph {
-    /// TODO(prose): a chevron drawing `icon`, turned by `turn` once open.
-    pub fn new(icon: Icon, turn: Angle) -> Self {
-        Self { icon, turn }
-    }
 }
 
 /// TODO(prose): a section header.
@@ -61,8 +44,8 @@ impl Style {
     /// `chevron-right` that turns down in a disclosure button.
     pub(crate) fn shadcn() -> Self {
         Self {
-            section: Glyph::new(Icon::new(icons::CHEVRON_DOWN), Angle::degrees(180.0)),
-            tree: Glyph::new(Icon::new(icons::CHEVRON_RIGHT), Angle::degrees(90.0)),
+            section: TurningIcon::new(Icon::new(icons::CHEVRON_DOWN), Angle::degrees(180.0)),
+            tree: TurningIcon::new(Icon::new(icons::CHEVRON_RIGHT), Angle::degrees(90.0)),
             nudge: 2.0,
             header: HeaderStyle { gap: 16.0 },
         }

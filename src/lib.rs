@@ -440,7 +440,7 @@ pub use mount::MountChain;
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode, SharedStyle};
-pub use prim::Icon;
+pub use prim::{Icon, TurningIcon};
 pub(crate) use report::report;
 pub use report::{Problem, Report};
 pub use roots::OverlayRef;

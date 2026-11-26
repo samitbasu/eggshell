@@ -575,3 +575,81 @@ fn tab_round_the_page_passes_a_hover_opened_panel_by() {
         );
     }
 }
+
+/// A harness whose motion runs, as in an application.
+fn moving() -> Driver<App> {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(700.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .step(Duration::from_millis(10))
+    .settle_within(Duration::from_millis(30))
+    .build();
+    d.frames(4);
+    d
+}
+
+/// The turn of the chevron painted in `item`'s trigger, in degrees from
+/// pointing down, read off the icon's quad.
+fn chevron_degrees(d: &Driver<App>, item: &str) -> f32 {
+    let at = d.rect(trigger(item));
+    let icons: Vec<_> = support::textured(d)
+        .into_iter()
+        .filter(|mesh| at.contains(mesh.calc_bounds().center()))
+        .collect();
+    assert_eq!(icons.len(), 1, "the trigger draws one chevron");
+    support::turn(icons[0]).round() % 360.0
+}
+
+/// The chevron's turns, a frame apart, until it rests.
+fn turning(d: &mut Driver<App>) -> Vec<f32> {
+    let mut turns = vec![chevron_degrees(d, "start")];
+    for _ in 0..40 {
+        d.frames(1);
+        turns.push(chevron_degrees(d, "start"));
+    }
+    turns
+}
+
+#[test]
+fn the_chevron_turns_with_the_panel_as_it_opens_and_back_as_it_closes() {
+    let mut d = moving();
+    assert_eq!(chevron_degrees(&d, "start"), 0.0, "closed, it points down");
+    d.click(trigger("start"));
+    let opening = turning(&mut d);
+    assert!(
+        opening.windows(2).all(|pair| pair[0] <= pair[1]),
+        "it only turns up: {opening:?}"
+    );
+    assert!(
+        opening.iter().any(|&turn| 10.0 < turn && turn < 170.0),
+        "it passes through the middle: {opening:?}"
+    );
+    assert_eq!(opening.last(), Some(&180.0), "open, it points up");
+    assert!(is_open(&d, "start"));
+    d.click(trigger("start"));
+    let closing = turning(&mut d);
+    assert!(
+        closing.windows(2).all(|pair| pair[0] >= pair[1]),
+        "it only turns back: {closing:?}"
+    );
+    assert!(
+        closing.iter().any(|&turn| 10.0 < turn && turn < 170.0),
+        "it passes through the middle: {closing:?}"
+    );
+    assert_eq!(closing.last(), Some(&0.0), "closed, it points down again");
+}
+
+#[test]
+fn under_reduced_motion_the_chevron_snaps() {
+    let mut d = moving();
+    d.set_motion(eggshell_ui::testing::Animation::Reduced);
+    d.ctx().global_style_mut(|style| style.animation_time = 0.0);
+    d.click(trigger("start")).frames(2);
+    assert_eq!(chevron_degrees(&d, "start"), 180.0);
+    d.click(trigger("start")).frames(2);
+    assert_eq!(chevron_degrees(&d, "start"), 0.0);
+}
