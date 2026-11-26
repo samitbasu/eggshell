@@ -163,6 +163,7 @@ pub(crate) type PartOf<'a, 'f, A> =
     Box<dyn FnOnce(&mut Builder<'_, 'f, A>, &[Key], crate::Tw) -> crate::Tw + 'a>;
 
 /// [`PartOf`] for `part`.
+#[cfg(feature = "menubar")]
 pub(crate) fn part_of<'a, 'f, A: 'static, P: crate::sheet::Part>(part: P) -> PartOf<'a, 'f, A> {
     Box::new(move |b, keys, own| b.part(part, keys, own))
 }

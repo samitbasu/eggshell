@@ -77,7 +77,7 @@ enum OpenedBy {
 /// another trigger opens that one too. A linked menu takes the focus however
 /// it is opened, and gives it back to its own trigger when it closes. A
 /// linked trigger is a `Role::MenuItem`, an item of a
-/// [`Nav::Row`](crate::overlay::Nav::Row) group around the triggers.
+/// [`Nav::Row`] group around the triggers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MenuLink {
     id: Id,
@@ -1034,6 +1034,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
     /// Draws the trigger's box as `part` of the sheet, in place of a button,
     /// and puts it inside the node `owner` for assistive technology: a menu
     /// bar's trigger.
+    #[cfg(feature = "menubar")]
     pub(crate) fn trigger_of<P: crate::sheet::Part>(mut self, part: P, owner: Id) -> Self {
         self.bar_trigger = Some(BarTrigger {
             part: button::part_of(part),

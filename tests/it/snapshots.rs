@@ -3388,6 +3388,14 @@ mod menubar_candidates {
         Nothing,
     }
 
+    /// L7: a trigger of the closed bar with the keyboard on it.
+    #[derive(Clone, Copy, PartialEq)]
+    enum FocusLook {
+        Nothing,
+        HoverLook,
+        Ring,
+    }
+
     /// L4: where the menu opens, and how wide it is at least.
     #[derive(Clone, Copy, PartialEq)]
     enum Place {
@@ -3415,6 +3423,7 @@ mod menubar_candidates {
         bar: BarBox,
         trigger: Trigger,
         hover: Hover,
+        focus: FocusLook,
         place: Place,
         switching: Switching,
         items: Items,
@@ -3426,6 +3435,7 @@ mod menubar_candidates {
         bar: BarBox::Shadcn,
         trigger: Trigger::Shadcn,
         hover: Hover::Muted,
+        focus: FocusLook::Nothing,
         place: Place::Shadcn,
         switching: Switching::BothMove,
         items: Items::Dropdown,
@@ -3604,6 +3614,19 @@ mod menubar_candidates {
             style.sheet.rule(menubar::Part::Trigger, |t, _| {
                 t.hover(|p| p.bg(Color32::TRANSPARENT))
             });
+        }
+        match cell.focus {
+            FocusLook::Nothing => {}
+            FocusLook::HoverLook => {
+                style
+                    .sheet
+                    .rule(menubar::Part::Trigger, |t, k| t.focus(|p| p.bg(k.muted)));
+            }
+            FocusLook::Ring => {
+                style.sheet.rule(menubar::Part::Trigger, |t, k| {
+                    t.focus(|p| p.ring(3.0, k.ring.gamma_multiply(0.5)))
+                });
+            }
         }
         if cell.items == Items::Menubar {
             let base = style.sheet.clone();
@@ -3984,7 +4007,7 @@ mod menubar_candidates {
         );
         sheet(
             "L3_hover",
-            "L3. The closed bar under the pointer, and with the keyboard on a trigger",
+            "L3. The closed bar under the pointer",
             &[
                 Candidate {
                     caption: "(a) shadcn's today: hover:bg-muted  [recommended]",
@@ -3998,7 +4021,33 @@ mod menubar_candidates {
                     },
                 },
             ],
-            &[Scene::Hovered("edit"), Scene::Focused("edit")],
+            &[Scene::Hovered("edit"), Scene::Hovered("profiles")],
+            look,
+        );
+        sheet(
+            "L7_focus",
+            "L7. A trigger of the closed bar with the keyboard on it",
+            &[
+                Candidate {
+                    caption: "(a) nothing, as shadcn's (outline-hidden, no focus class)",
+                    cell: TODAY,
+                },
+                Candidate {
+                    caption: "(b) the hover look, bg-muted  [recommended]",
+                    cell: Cell {
+                        focus: FocusLook::HoverLook,
+                        ..TODAY
+                    },
+                },
+                Candidate {
+                    caption: "(c) the buttons' focus ring, ring-3 ring/50",
+                    cell: Cell {
+                        focus: FocusLook::Ring,
+                        ..TODAY
+                    },
+                },
+            ],
+            &[Scene::Focused("edit"), Scene::Focused("file")],
             look,
         );
         sheet(

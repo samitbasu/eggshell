@@ -1,8 +1,9 @@
 //! Triggers that open one popup at a time and switch between them: a menu
 //! bar's dropdowns, a navigation menu's triggers. While one popup is open,
 //! the pointer on a neighbouring trigger, or Left and Right, opens that one
-//! in its place. [`resolve`] is the rule; each widget keeps its own
-//! [`Groups`] and opens and closes its own popups.
+//! in its place. [`switch`](fn@switch) is the rule, and [`resolve`] finds the
+//! trigger a menu bar's pointer or keys arrive at; each widget keeps its own
+//! state and opens and closes its own popups.
 
 use std::collections::HashMap;
 
@@ -104,30 +105,37 @@ impl Groups {
     }
 }
 
-/// The one rule of switching: the trigger among `members` whose popup
-/// `switch` opens, while `open`'s is open. The pointer switches only while
-/// another is open; a step goes to the neighbouring enabled member of the
-/// open one, wrapping as `wrap` says.
+/// The one rule of switching: what arriving at `trigger` opens, while `open`
+/// is the group's trigger whose popup is open. `trigger` itself if another
+/// one's is, so the open one moves along the group; nothing if none is, or
+/// if `trigger` is the open one.
+pub(crate) fn switch(open: Option<Id>, trigger: Id) -> Option<Id> {
+    open.filter(|&open| open != trigger).map(|_| trigger)
+}
+
+/// The trigger among `members` whose popup `switch` opens, while `open`'s
+/// is open: the enabled trigger it arrives at, by the pointer or by a step
+/// to the neighbour of the open one (wrapping as `wrap` says), as
+/// [`switch`](fn@switch) rules.
 pub(crate) fn resolve(
     members: &[Member],
     wrap: Wrap,
     open: Option<Id>,
     switch: Switch,
 ) -> Option<Id> {
-    let open = open?;
     let enabled: Vec<Id> = members
         .iter()
         .filter(|m| m.enablement == Enablement::Enabled)
         .map(|m| m.trigger)
         .collect();
-    let to = match switch {
+    let arrives = match switch {
         Switch::Hover(trigger) => Some(trigger).filter(|t| enabled.contains(t)),
-        Switch::Step { from, step } if from == open => {
+        Switch::Step { from, step } if Some(from) == open => {
             nav::target(&enabled, Some(from), step, wrap)
         }
         Switch::Step { .. } => None,
-    };
-    to.filter(|&to| to != open)
+    }?;
+    self::switch(open, arrives)
 }
 
 #[cfg(test)]
@@ -165,6 +173,17 @@ mod tests {
             step,
         };
         resolve(&bar(disabled), wrap, Some(id(open)), switch)
+    }
+
+    #[test]
+    fn arriving_at_a_neighbour_while_one_is_open_opens_the_neighbour() {
+        assert_eq!(switch(Some(id("a")), id("b")), Some(id("b")));
+    }
+
+    #[test]
+    fn arriving_with_none_open_or_at_the_open_one_opens_nothing() {
+        assert_eq!(switch(None, id("b")), None);
+        assert_eq!(switch(Some(id("b")), id("b")), None);
     }
 
     #[test]
