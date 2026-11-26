@@ -2,7 +2,7 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::emath::TSTransform;
-use egui::epaint::{Mesh, RectShape, Shape, StrokeKind, Tessellator};
+use egui::epaint::{ClippedShape, Mesh, RectShape, Shape, StrokeKind, Tessellator};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -48,8 +48,8 @@ use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
-    BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
-    Sides, State, Visibility,
+    BoxPaint, Grouping, Look, Mirror, Opacity, Paint, PointerEvents, Presence, Progress,
+    RingPlacement, Sides, State, Variants, Visibility,
 };
 use crate::window;
 
@@ -316,15 +316,94 @@ fn paint_box(
         .ring
         .filter(|ring| ring.width > 0.0 && ring.color.a() > 0)
     {
-        painter.add(RectShape::stroke(
-            border,
-            paint.radius,
-            Stroke::new(ring.width, ring.color),
-            match paint.ring_placement {
-                RingPlacement::Outside => StrokeKind::Outside,
-                RingPlacement::Inside => StrokeKind::Inside,
-            },
-        ));
+        paint_ring(
+            painter,
+            RectShape::stroke(
+                border,
+                paint.radius,
+                Stroke::new(ring.width, ring.color),
+                match paint.ring_placement {
+                    RingPlacement::Outside => StrokeKind::Outside,
+                    RingPlacement::Inside => StrokeKind::Inside,
+                },
+            ),
+        );
+    }
+}
+
+/// Paints a ring. It ends up over everything else its layer's walk paints,
+/// as a CSS outline does, when the walk moves it to the layer's end (see
+/// [`PendingRings`]).
+fn paint_ring(painter: &Painter, ring: RectShape) {
+    let at = painter.add(ring);
+    let key = PendingRings::key(painter.ctx(), painter.layer_id());
+    painter.ctx().data_mut(|data| {
+        let pending = data.get_temp_mut_or_default::<PendingRings>(key);
+        if pending.walks > 0 {
+            pending.rings.push(at);
+        }
+    });
+}
+
+/// The rings painted in a layer whose walk is still going, in paint order.
+/// They stay in place while the walk runs, so that the shape ranges its
+/// nodes transform and lift hold them, and move to the end of the layer when
+/// the outermost walk of the layer ends: a layout drawn from a draw closure
+/// of another, in the same layer, leaves its rings to the outer walk, whose
+/// later nodes would otherwise cover them.
+#[derive(Clone, Default)]
+struct PendingRings {
+    walks: u32,
+    rings: Vec<ShapeIdx>,
+}
+
+impl PendingRings {
+    fn key(ctx: &egui::Context, layer: egui::LayerId) -> Id {
+        Id::NULL
+            .with("eggshell-pending-rings")
+            .with(ctx.viewport_id())
+            .with(layer)
+    }
+
+    /// Runs `walk` as a walk of `layer`, then moves the rings to the end of
+    /// the layer if no walk of it is left.
+    fn walk(ctx: &egui::Context, layer: egui::LayerId, walk: impl FnOnce()) {
+        let key = Self::key(ctx, layer);
+        ctx.data_mut(|data| data.get_temp_mut_or_default::<Self>(key).walks += 1);
+        walk();
+        let done = ctx.data_mut(|data| {
+            let pending = data.get_temp_mut_or_default::<Self>(key);
+            pending.walks = pending.walks.saturating_sub(1);
+            (pending.walks == 0).then(|| data.remove_temp::<Self>(key))
+        });
+        let Some(Some(Self { rings, .. })) = done else {
+            return;
+        };
+        ctx.graphics_mut(|graphics| {
+            let list = graphics.entry(layer);
+            for at in rings {
+                let mut ring = None;
+                list.mutate_shape(at, |clipped| {
+                    let noop = ClippedShape::new(clipped.clip_rect, Shape::Noop);
+                    ring = Some(std::mem::replace(clipped, noop));
+                });
+                if let Some(ring) = ring {
+                    let to = list.add(ring.clip_rect, Shape::Noop);
+                    list.mutate_shape(to, |clipped| *clipped = ring);
+                }
+            }
+        });
+    }
+
+    /// Takes the rings of `layer` painted since `first`, which are leaving
+    /// it.
+    fn take_since(ctx: &egui::Context, layer: egui::LayerId, first: ShapeIdx) -> Vec<ShapeIdx> {
+        let key = Self::key(ctx, layer);
+        ctx.data_mut(|data| {
+            let pending = data.get_temp_mut_or_default::<Self>(key);
+            let from = pending.rings.partition_point(|at| at.0 < first.0);
+            pending.rings.split_off(from)
+        })
     }
 }
 
@@ -592,6 +671,13 @@ impl<A> Walk<'_, A> {
         }
     }
 
+    /// Visits the root of a tree drawn in this walk's layer: the page, an
+    /// embedded window or an overlay.
+    fn visit_root(&mut self, index: usize, inherited: Inherited) {
+        let ctx = self.ui.ctx().clone();
+        PendingRings::walk(&ctx, self.ui.layer_id(), || self.visit(index, inherited));
+    }
+
     fn painter(&self, clip: Rect, opacity: Opacity) -> Painter {
         let mut painter = self.ui.painter().with_clip_rect(clip);
         painter.multiply_opacity(opacity.into());
@@ -809,17 +895,32 @@ impl<A> Walk<'_, A> {
         Hovering::of(highlighted || (pointed && !in_listbox))
     }
 
+    /// The node's variants, and for a scroll container that is a Tab stop
+    /// with no `focus:` look of its own, the inset focus ring as that look.
+    fn variants<'n>(&self, index: usize, node: &'n PlacedNode) -> Cow<'n, Variants> {
+        let variants = &node.interaction.variants;
+        if variants.has_focus() || !self.scroller_takes_focus(index) {
+            return Cow::Borrowed(variants);
+        }
+        let ring = node.style.tokens.focus();
+        Cow::Owned(
+            variants
+                .clone()
+                .with_focus(Paint::default().ring(ring.width, ring.color).ring_inset()),
+        )
+    }
+
     /// How far each state variant has taken hold, animated when the node has
     /// a `transition`.
     fn presence(
         &self,
         node: &PlacedNode,
+        variants: &Variants,
         response: Option<&Response>,
         hovering: Option<Hovering>,
         group: Option<Hovering>,
         stakes: Stakes,
     ) -> Presence {
-        let variants = &node.interaction.variants;
         let progress = |state: State| {
             if variants.get(state).is_none() {
                 return Progress::START;
@@ -1030,8 +1131,10 @@ impl<A> Walk<'_, A> {
             .as_ref()
             .filter(|_| needs_hovering)
             .map(|own| self.hovering(index, node, own));
+        let variants = self.variants(index, node);
         let presence = self.presence(
             node,
+            &variants,
             response.as_ref(),
             hovering,
             parent.group,
@@ -1046,7 +1149,7 @@ impl<A> Walk<'_, A> {
             (ColorSource::Inherited, Some(inherited)) => inherited,
             _ => node.text().color,
         };
-        let look = interaction.variants.resolve(
+        let look = variants.resolve(
             Look {
                 paint: *node.paint(),
                 translate: Vec2::ZERO,
@@ -1195,18 +1298,6 @@ impl<A> Walk<'_, A> {
             if shown {
                 self.paint_dividers(node, index, inherited);
             }
-        }
-        if self.scroller_takes_focus(index)
-            && !interaction.variants.has_focus()
-            && response.as_ref().is_some_and(Response::has_focus)
-        {
-            let ring = node.style.tokens.focus();
-            self.painter(parent.clip, opacity).add(RectShape::stroke(
-                boxes.border,
-                look.paint.radius,
-                Stroke::new(ring.width, ring.color),
-                StrokeKind::Inside,
-            ));
         }
         if let Some(first) = moved_from {
             let about = node.rect().center().to_vec2() * (1.0 - staged_scale);
@@ -1396,19 +1487,21 @@ impl<A> Walk<'_, A> {
     fn lift_shapes_since(&self, first: ShapeIdx) {
         let layer = self.ui.layer_id();
         let screen = self.ui.ctx().content_rect();
+        let rings = PendingRings::take_since(self.ui.ctx(), layer, first);
         self.ui.ctx().graphics_mut(|graphics| {
-            let lifted: Vec<Shape> = graphics
+            let (rings, shapes): (Vec<_>, Vec<_>) = graphics
                 .entry(layer)
                 .all_entries()
+                .enumerate()
                 .skip(first.0)
-                .map(|clipped| clipped.shape.clone())
-                .collect();
+                .map(|(at, clipped)| (ShapeIdx(at), clipped.shape.clone()))
+                .partition(|(at, _)| rings.contains(at));
             let source = graphics.entry(layer);
-            for at in first.0..first.0 + lifted.len() {
-                source.reset_shape(ShapeIdx(at));
+            for &(at, _) in shapes.iter().chain(&rings) {
+                source.reset_shape(at);
             }
             let target = graphics.entry(drag_layer());
-            for shape in lifted {
+            for (_, shape) in shapes.into_iter().chain(rings) {
                 target.add(screen, shape);
             }
         });
@@ -1658,7 +1751,7 @@ impl<A> Walk<'_, A> {
             let drawn = window::embedded(window, chrome, &mut open).show(&ctx, |ui| {
                 let inherited = Inherited::root(ui.clip_rect(), window.content.min);
                 let content = ui.max_rect();
-                self.in_layer(ui).visit(root.first, inherited);
+                self.in_layer(ui).visit_root(root.first, inherited);
                 ui.allocate_rect(content, Sense::hover());
                 content
             });
@@ -1736,7 +1829,7 @@ impl<A> Walk<'_, A> {
                     if swallows {
                         ui.interact(rect, overlay.id.with("swallow"), Sense::CLICK | Sense::DRAG);
                     }
-                    self.in_layer(ui).visit(root.first, inherited);
+                    self.in_layer(ui).visit_root(root.first, inherited);
                 });
             shown.push((
                 overlay.stack_index,
@@ -1772,11 +1865,13 @@ impl<A> Placed<A> {
     /// disabled. The node's `hover`, `active` and `group_hover` variants are
     /// then resolved, animated if the node has a `transition`, and used for
     /// everything painted for the node. For each node the library paints, in
-    /// order: shadow, background, borders and ring (clipped by the ancestors'
+    /// order: shadow, background and borders (clipped by the ancestors'
     /// `overflow`); then its text, icon, image or custom paint; then the draw
     /// closure of an identified node; then its children stable-sorted by
     /// [`z`](crate::PlacedNode::z); and last the `divide_x` / `divide_y`
-    /// hairlines between its in-flow children.
+    /// hairlines between its in-flow children. Rings, as CSS outlines, are
+    /// painted over everything else of the layer the tree is drawn in, in the
+    /// same order among themselves, each with its node's clip and motion.
     ///
     /// Each draw closure runs with `app` in its own child [`Ui`] whose
     /// [`scope_id`](Ui::scope_id) is derived from the node's [`Id`](egui::Id)
@@ -2039,7 +2134,7 @@ impl<A> Painting<A> {
             roots,
             shell: &shell,
         };
-        walk.visit(first, inherited);
+        walk.visit_root(first, inherited);
         let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
         let shown = walk.overlays(here);
         stack::repair(&ctx, &shown, pressed);

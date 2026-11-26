@@ -478,6 +478,12 @@ impl Variants {
         self.data().is_some_and(VariantData::has_focus)
     }
 
+    /// These variants with `paint` as the `focus:` look.
+    pub(crate) fn with_focus(mut self, paint: Paint) -> Self {
+        self.edit(|data| data.focus = Some(paint));
+        self
+    }
+
     /// These variants with `other`'s on top, state by state.
     pub(crate) fn merge(self, other: Self) -> Self {
         Self(match (self.0, other.0) {
