@@ -33,8 +33,8 @@ use crate::theme::ShadcnStyle;
 use crate::{Builder, Key, NodeUi as _, tw};
 
 /// TODO(prose): a menu bar's anatomy for the style's sheet: shadcn's
-/// `menubar`. The bar draws its menus' items as the dropdown menu's
-/// ([`menu::Part`]); its own item parts are here for the look review.
+/// `menubar`. Its menus are dropdown menus drawn with these parts in place
+/// of [`menu::Part`]'s, each part for its namesake.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Part {
     /// TODO(prose): the bar's box.
@@ -47,12 +47,11 @@ pub enum Part {
     Item,
     /// TODO(prose): an item with a check mark.
     CheckboxItem,
-    /// TODO(prose): the square a check item keeps before its label.
+    /// TODO(prose): the square a check or radio item keeps before its label.
+    /// shadcn gives a radio item's its own slot, with the same classes.
     CheckboxItemIndicator,
     /// TODO(prose): an item with a dot.
     RadioItem,
-    /// TODO(prose): the square a radio item keeps before its label.
-    RadioItemIndicator,
     /// TODO(prose): a heading over a group of items.
     Label,
     /// TODO(prose): a line between groups.
@@ -77,7 +76,6 @@ impl crate::sheet::Part for Part {
             Self::CheckboxItem => "menubar-checkbox-item",
             Self::CheckboxItemIndicator => "menubar-checkbox-item-indicator",
             Self::RadioItem => "menubar-radio-item",
-            Self::RadioItemIndicator => "menubar-radio-item-indicator",
             Self::Label => "menubar-label",
             Self::Separator => "menubar-separator",
             Self::Shortcut => "menubar-shortcut",
@@ -87,15 +85,38 @@ impl crate::sheet::Part for Part {
     }
 }
 
+impl From<menu::Part> for Part {
+    fn from(part: menu::Part) -> Self {
+        match part {
+            menu::Part::Content => Self::Content,
+            menu::Part::Item => Self::Item,
+            menu::Part::CheckboxItem => Self::CheckboxItem,
+            menu::Part::RadioItem => Self::RadioItem,
+            menu::Part::ItemIndicator => Self::CheckboxItemIndicator,
+            menu::Part::Label => Self::Label,
+            menu::Part::Separator => Self::Separator,
+            menu::Part::Shortcut => Self::Shortcut,
+            menu::Part::SubTrigger => Self::SubTrigger,
+            menu::Part::SubContent => Self::SubContent,
+        }
+    }
+}
+
 /// Writes the menu bar's recorded exceptions over its generated look.
 ///
 /// Lyra's trigger is `py-[calc(--spacing(0.8))]`, which the importer cannot
-/// map yet. An item of the default variant keeps the generated look, which
-/// names only the destructive one; naming it says so.
+/// map yet. shadcn's trigger has no focus look (`outline-hidden`); it takes
+/// the controls' keyboard focus ring. An item of the default variant keeps
+/// the generated look, which names only the destructive one; naming it says
+/// so.
 pub(crate) fn write_exceptions(sheet: &mut Sheet) {
-    sheet.rule(Part::Trigger, |t, k| match k.style {
-        ShadcnStyle::Vega => t,
-        ShadcnStyle::Lyra => t.py(0.8),
+    sheet.rule(Part::Trigger, |t, k| {
+        let focus = k.focus();
+        let t = t.focus(|p| p.ring(focus.width, focus.color));
+        match k.style {
+            ShadcnStyle::Vega => t,
+            ShadcnStyle::Lyra => t.py(0.8),
+        }
     });
     sheet.rule_when(
         Part::Item,
@@ -217,13 +238,11 @@ impl<'f, A: 'static> Bar<'_, '_, 'f, A> {
         key: K,
         face: impl Into<Face>,
     ) -> menu::Chain<'_, 'f, A, K> {
-        let content = self.b.resolved_part(Part::Content, &[]);
         self.b
             .dropdown_menu(key, face)
             .linked(self.link)
             .trigger_of(Part::Trigger, self.bar)
             .offset(Distance::new(SIDE_OFFSET))
             .align_shift(Distance::new(ALIGN_OFFSET))
-            .menu_classes(content)
     }
 }

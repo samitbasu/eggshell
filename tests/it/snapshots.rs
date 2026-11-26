@@ -83,6 +83,9 @@ mod icons_example;
 #[path = "../../examples/list_nav.rs"]
 mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/menubar.rs"]
+mod menubar_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/slider_header.rs"]
 mod slider_header_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -3342,590 +3345,15 @@ mod alert {
     }
 }
 
-/// The menu bar's look candidates (#377), for review: the look is the
-/// user's choice. `cargo test --features snapshots --test it
-/// menubar_candidates -- --ignored` with `EGGSHELL_MENUBAR_DIR` naming where
-/// the PNGs go, and `VK_ICD_FILENAMES` the software renderer. Each sheet
-/// sets one decision's candidates side by side, each in its own window, at
-/// 1x.
-mod menubar_candidates {
+mod menubar {
+    use super::menubar_example::State;
     use super::*;
-    use eggshell_ui::Aria;
-    use eggshell_ui::contract::{KindMotion, Variant};
-    use eggshell_ui::overlay::{Distance, Nav, Wrap};
-    use eggshell_ui::owned::button::Options;
-    use eggshell_ui::owned::{Mark, menu, menubar};
-    use eggshell_ui::sheet::{Key as SheetKey, Part, Sheet, When};
-    use eggshell_ui::theme::{Palette, Shadcn, size, variant};
-    use egui::{ColorImage, Role, Shadow, TextureOptions};
 
-    fn out() -> std::path::PathBuf {
-        let dir = std::env::var("EGGSHELL_MENUBAR_DIR")
-            .expect("EGGSHELL_MENUBAR_DIR names the output directory");
-        std::fs::create_dir_all(&dir).expect("the directory can be made");
-        dir.into()
-    }
+    const FILE: &str = "/Page/Bar/File";
+    const VIEW: &str = "/Page/Bar/View";
 
-    /// L1: the bar's box.
-    #[derive(Clone, Copy, PartialEq)]
-    enum BarBox {
-        Shadcn,
-        Flat,
-        Bare,
-    }
-
-    /// L2: the triggers.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Trigger {
-        Shadcn,
-        GhostSm,
-    }
-
-    /// L3: the closed bar under the pointer.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Hover {
-        Muted,
-        Nothing,
-    }
-
-    /// L7: a trigger of the closed bar with the keyboard on it.
-    #[derive(Clone, Copy, PartialEq)]
-    enum FocusLook {
-        Nothing,
-        HoverLook,
-        Ring,
-    }
-
-    /// L4: where the menu opens, and how wide it is at least.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Place {
-        Shadcn,
-        Dropdown,
-    }
-
-    /// L5: the motion of a switch between menus.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Switching {
-        BothMove,
-        Instant,
-        EntersOnly,
-    }
-
-    /// L6: the items.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Items {
-        Dropdown,
-        Menubar,
-    }
-
-    #[derive(Clone, Copy)]
-    struct Cell {
-        bar: BarBox,
-        trigger: Trigger,
-        hover: Hover,
-        focus: FocusLook,
-        place: Place,
-        switching: Switching,
-        items: Items,
-    }
-
-    /// shadcn's everywhere, and the dropdown's items: what the widget does
-    /// today.
-    const TODAY: Cell = Cell {
-        bar: BarBox::Shadcn,
-        trigger: Trigger::Shadcn,
-        hover: Hover::Muted,
-        focus: FocusLook::Nothing,
-        place: Place::Shadcn,
-        switching: Switching::BothMove,
-        items: Items::Dropdown,
-    };
-
-    const MENUS: [(&str, &str); 4] = [
-        ("file", "File"),
-        ("edit", "Edit"),
-        ("view", "View"),
-        ("profiles", "Profiles"),
-    ];
-
-    /// shadcn's menubar demo, with the shortcuts as Linux writes them.
-    fn fill(key: &str, chain: menu::Chain<'_, '_, Cell, &'static str>) {
-        match key {
-            "file" => chain.items(|m| {
-                m.item("new-tab", "New Tab")
-                    .shortcut("Ctrl+T")
-                    .on_click(|_| {});
-                m.item("new-window", "New Window")
-                    .shortcut("Ctrl+N")
-                    .on_click(|_| {});
-                m.item("incognito", "New Incognito Window")
-                    .enablement(eggshell_ui::owned::Enablement::Disabled)
-                    .on_click(|_| {});
-                m.separator();
-                m.submenu("share", "Share", |m| {
-                    m.item("email", "Email link").on_click(|_| {});
-                    m.item("messages", "Messages").on_click(|_| {});
-                    m.item("notes", "Notes").on_click(|_| {});
-                });
-                m.separator();
-                m.item("print", "Print…")
-                    .shortcut("Ctrl+P")
-                    .on_click(|_| {});
-            }),
-            "edit" => chain.items(|m| {
-                m.item("undo", "Undo").shortcut("Ctrl+Z").on_click(|_| {});
-                m.item("redo", "Redo")
-                    .shortcut("Shift+Ctrl+Z")
-                    .on_click(|_| {});
-                m.separator();
-                m.submenu("find", "Find", |m| {
-                    m.item("web", "Search the web").on_click(|_| {});
-                    m.item("find", "Find…").on_click(|_| {});
-                });
-                m.separator();
-                m.item("cut", "Cut").on_click(|_| {});
-                m.item("copy", "Copy").on_click(|_| {});
-                m.item("paste", "Paste").on_click(|_| {});
-            }),
-            "view" => chain.items(|m| {
-                m.checkbox_item("bookmarks", "Always Show Bookmarks Bar", Mark::Off)
-                    .on_change(|_, _| {});
-                m.checkbox_item("urls", "Always Show Full URLs", Mark::On)
-                    .shortcut("Ctrl+U")
-                    .on_change(|_, _| {});
-                m.separator();
-                m.item("reload", "Reload")
-                    .inset()
-                    .shortcut("Ctrl+R")
-                    .on_click(|_| {});
-                m.item("force", "Force Reload")
-                    .inset()
-                    .shortcut("Shift+Ctrl+R")
-                    .enablement(eggshell_ui::owned::Enablement::Disabled)
-                    .on_click(|_| {});
-                m.separator();
-                m.item("sidebar", "Hide Sidebar").inset().on_click(|_| {});
-            }),
-            _ => chain.items(|m| {
-                m.label("Switch profile");
-                m.radio_item("andy", "Andy", Mark::Off).on_click(|_| {});
-                m.radio_item("benoit", "Benoit", Mark::On).on_click(|_| {});
-                m.radio_item("luis", "Luis", Mark::Off).on_click(|_| {});
-                m.separator();
-                m.item("edit-profile", "Edit…").inset().on_click(|_| {});
-                m.item("add", "Add Profile…").inset().on_click(|_| {});
-            }),
-        }
-    }
-
-    /// The menu bar's item parts drawn as the dropdown's: shadcn's
-    /// menubar items in place of the dropdown's, rule for rule.
-    const ITEMS: [(menubar::Part, menu::Part, Keyed); 9] = [
-        (menubar::Part::Item, menu::Part::Item, Keyed::Item),
-        (
-            menubar::Part::CheckboxItem,
-            menu::Part::CheckboxItem,
-            Keyed::Item,
-        ),
-        (menubar::Part::RadioItem, menu::Part::RadioItem, Keyed::Item),
-        (
-            menubar::Part::SubTrigger,
-            menu::Part::SubTrigger,
-            Keyed::Item,
-        ),
-        (
-            menubar::Part::CheckboxItemIndicator,
-            menu::Part::ItemIndicator,
-            Keyed::Plain,
-        ),
-        (menubar::Part::Label, menu::Part::Label, Keyed::Plain),
-        (
-            menubar::Part::Separator,
-            menu::Part::Separator,
-            Keyed::Plain,
-        ),
-        (menubar::Part::Shortcut, menu::Part::Shortcut, Keyed::Plain),
-        (
-            menubar::Part::SubContent,
-            menu::Part::SubContent,
-            Keyed::Plain,
-        ),
-    ];
-
-    /// Which keys a menu part's nodes say.
-    #[derive(Clone, Copy)]
-    enum Keyed {
-        /// A variant, and any of disabled, inset and expanded.
-        Item,
-        Plain,
-    }
-
-    /// Replaces `to`'s rules with `from`'s as `base` resolves them, for every
-    /// set of keys a node of `to` can say: the least specific first, so the
-    /// last rule that holds is the node's own set.
-    fn draw_as<F: Part, T: Part>(
-        sheet: &mut Sheet,
-        base: &Sheet,
-        (from, to, keyed): (F, T, Keyed),
-    ) {
-        let flags = [
-            SheetKey::Aria(Aria::Disabled),
-            SheetKey::Attr("inset", "true"),
-            SheetKey::Aria(Aria::Expanded),
-        ];
-        let variants: &[Option<Variant>] = match keyed {
-            Keyed::Item => &[None, Some(Variant::DEFAULT), Some(Variant("destructive"))],
-            Keyed::Plain => &[None],
-        };
-        let subsets: Vec<Vec<SheetKey>> = match keyed {
-            Keyed::Plain => vec![Vec::new()],
-            Keyed::Item => {
-                let mut all: Vec<Vec<SheetKey>> = (0u8..8)
-                    .map(|bits| {
-                        flags
-                            .iter()
-                            .enumerate()
-                            .filter(|(at, _)| bits & (1 << at) != 0)
-                            .map(|(_, key)| *key)
-                            .collect()
-                    })
-                    .collect();
-                all.sort_by_key(Vec::len);
-                all
-            }
-        };
-        for subset in &subsets {
-            for variant in variants {
-                let keys: Vec<SheetKey> = variant
-                    .map(SheetKey::Variant)
-                    .into_iter()
-                    .chain(subset.iter().copied())
-                    .collect();
-                let when = keys.iter().fold(When::always(), |when, key| when.and(*key));
-                let base = base.clone();
-                sheet.replace_when(to, when, move |_, k| base.resolve(from, &keys, k));
-            }
-        }
-    }
-
-    /// The edits of the style that `cell`'s candidates make.
-    fn restyle(cell: Cell, style: &mut eggshell_ui::Style) {
-        if cell.hover == Hover::Nothing {
-            style.sheet.rule(menubar::Part::Trigger, |t, _| {
-                t.hover(|p| p.bg(Color32::TRANSPARENT))
-            });
-        }
-        match cell.focus {
-            FocusLook::Nothing => {}
-            FocusLook::HoverLook => {
-                style
-                    .sheet
-                    .rule(menubar::Part::Trigger, |t, k| t.focus(|p| p.bg(k.muted)));
-            }
-            FocusLook::Ring => {
-                style.sheet.rule(menubar::Part::Trigger, |t, k| {
-                    t.focus(|p| p.ring(3.0, k.ring.gamma_multiply(0.5)))
-                });
-            }
-        }
-        if cell.items == Items::Menubar {
-            let base = style.sheet.clone();
-            for pair in ITEMS {
-                draw_as(&mut style.sheet, &base, pair);
-            }
-        }
-        match cell.switching {
-            Switching::BothMove => {}
-            Switching::Instant => style.motion.menu = KindMotion::INSTANT,
-            Switching::EntersOnly => style.motion.menu.exit = std::time::Duration::ZERO,
-        }
-    }
-
-    fn bar_classes(bar: BarBox) -> Tw {
-        match bar {
-            BarBox::Shadcn => tw(),
-            BarBox::Flat => tw()
-                .w_full()
-                .rounded_px(0.0)
-                .border(0.0)
-                .border_b(1.0)
-                .shadow(Shadow::NONE)
-                .px(2.0),
-            BarBox::Bare => tw().border(0.0).shadow(Shadow::NONE),
-        }
-    }
-
-    fn placed<'c, 'f>(
-        place: Place,
-        menu_offset: Distance,
-        chain: menu::Chain<'c, 'f, Cell, &'static str>,
-    ) -> menu::Chain<'c, 'f, Cell, &'static str> {
-        match place {
-            Place::Shadcn => chain,
-            Place::Dropdown => chain
-                .offset(menu_offset)
-                .align_shift(Distance::ZERO)
-                .menu_classes(tw().min_w(32.0)),
-        }
-    }
-
-    /// The bar, as the widget builds it or, for ghost triggers, from core's
-    /// linked dropdowns.
-    fn bar(b: &mut Builder<'_, '_, Cell>, cell: Cell) {
-        let offset = b.style().menu.offset;
-        match cell.trigger {
-            Trigger::Shadcn => {
-                b.menubar("bar")
-                    .classes(bar_classes(cell.bar))
-                    .menus(|bar| {
-                        for (key, face) in MENUS {
-                            fill(key, placed(cell.place, offset, bar.menu(key, face)));
-                        }
-                    });
-            }
-            Trigger::GhostSm => {
-                let link = b.menu_link("link");
-                let classes = b.part(
-                    menubar::Part::Root,
-                    &[],
-                    tw().sense_hover().merge(bar_classes(cell.bar)),
-                );
-                b.div_id("bar", classes, |b| {
-                    for (key, face) in MENUS {
-                        let chain = b
-                            .dropdown_menu(key, face)
-                            .linked(link)
-                            .variant(variant::GHOST)
-                            .with_options(Options::new().size(size::SM))
-                            .offset(Distance::new(8.0))
-                            .align_shift(Distance::new(-4.0))
-                            .menu_classes(tw().min_w(36.0));
-                        fill(key, placed(cell.place, offset, chain));
-                    }
-                })
-                .role(Role::MenuBar)
-                .named("Menu bar")
-                .nav(Nav::Row(Wrap::Around));
-            }
-        }
-    }
-
-    /// A window with the bar at its top and a page under it.
-    fn window(b: &mut Builder<'_, '_, Cell>, cell: &Cell) {
-        let cell = *cell;
-        let tokens = b.style().tokens.clone();
-        b.styled(
-            |style| restyle(cell, style),
-            |b| {
-                b.div_id("Page", tw().flex().flex_col().w_full().h_full(), |b| {
-                    let around = match cell.bar {
-                        BarBox::Flat => tw(),
-                        BarBox::Shadcn | BarBox::Bare => tw().p(4.0),
-                    };
-                    b.div(around.flex().flex_col().items_start(), |b| bar(b, cell));
-                    b.div(tw().flex().flex_col().gap(2.0).px(4.0).pt(4.0), |b| {
-                        b.text(
-                            tw().text(tokens.foreground).font_medium(),
-                            "Quarterly notes".to_owned(),
-                        );
-                        for line in [
-                            "The menu bar sits at the top of the window, over the page.",
-                            "A menu opens over this text, which shows what it covers.",
-                            "Its shadow and ring are drawn against the page.",
-                        ] {
-                            b.text(tw().text(tokens.muted_foreground), line.to_owned());
-                        }
-                    });
-                });
-            },
-        );
-    }
-
-    /// What is done to the window before it is drawn.
-    #[derive(Clone, Copy)]
-    enum Scene {
-        Closed,
-        Hovered(&'static str),
-        Focused(&'static str),
-        Open(&'static str, Option<&'static str>),
-        /// The menu `from` open, then the pointer on `to`'s trigger, drawn
-        /// `frames` frames later.
-        Switch {
-            from: &'static str,
-            to: &'static str,
-            frames: usize,
-        },
-    }
-
-    impl Scene {
-        fn caption(self) -> String {
-            match self {
-                Self::Closed => "closed".to_owned(),
-                Self::Hovered(key) => format!("closed, pointer on {key}"),
-                Self::Focused(key) => format!("closed, keyboard focus on {key}"),
-                Self::Open(key, None) => format!("{key} open"),
-                Self::Open(key, Some(sub)) => format!("{key} open, {sub} submenu open"),
-                Self::Switch { from, to, frames } => {
-                    format!("{from} open, pointer onto {to}: +{} ms", frames * 1000 / 60)
-                }
-            }
-        }
-    }
-
-    const CELL: Vec2 = Vec2::new(500.0, 330.0);
-
-    fn trigger(key: &str) -> String {
-        format!(r#"/"Page"/"bar"/"{key}""#)
-    }
-
-    fn menu_item(key: &str, item: &str) -> String {
-        format!(r#"/"Page"/"bar"/("{key}", Menu)/Box/"{item}""#)
-    }
-
-    fn shoot(cell: Cell, scene: Scene, (shadcn, theme): (ShadcnStyle, egui::Theme)) -> ColorImage {
-        let mut harness = support::harness_stepped(
-            CELL,
-            1.0 / 60.0,
-            common::base_text_styled(theme, shadcn),
-            cell,
-            window,
-        );
-        harness
-            .state_mut()
-            .set_style(Shadcn::themed(shadcn, Palette::new()));
-        harness.state_mut().page = support::Page::Themed;
-        harness.state_mut().companion = support::Companion::Alone;
-        harness.ctx.set_theme(theme);
-        harness.run_steps(8);
-        let settle = |harness: &mut Harness<'static, support::Rig<Cell>>| harness.run_steps(20);
-        match scene {
-            Scene::Closed => {}
-            Scene::Hovered(key) => {
-                support::hover_node(&mut harness, &trigger(key));
-                settle(&mut harness);
-            }
-            Scene::Focused(key) => {
-                for _ in 0..4 {
-                    harness.key_press(egui::Key::Tab);
-                    harness.run_steps(4);
-                    if support::focused_path(&harness) == Some(trigger("file")) {
-                        break;
-                    }
-                }
-                let steps = MENUS.iter().position(|(k, _)| *k == key).unwrap_or(0);
-                for _ in 0..steps {
-                    harness.key_press(egui::Key::ArrowRight);
-                    harness.run_steps(4);
-                }
-                assert_eq!(
-                    support::focused_path(&harness),
-                    Some(trigger(key)),
-                    "precondition: the keyboard is on {key}"
-                );
-            }
-            Scene::Open(key, sub) => {
-                support::click_node(&mut harness, &trigger(key));
-                settle(&mut harness);
-                if let Some(sub) = sub {
-                    support::click_node(&mut harness, &menu_item(key, sub));
-                    settle(&mut harness);
-                }
-            }
-            Scene::Switch { from, to, frames } => {
-                support::click_node(&mut harness, &trigger(from));
-                settle(&mut harness);
-                support::hover_node(&mut harness, &trigger(to));
-                harness.run_steps(frames);
-            }
-        }
-        let image = harness.render().expect("renders");
-        ColorImage::from_rgba_unmultiplied(
-            [image.width() as usize, image.height() as usize],
-            image.as_raw(),
-        )
-    }
-
-    /// One candidate: its caption and the cell it draws.
-    struct Candidate {
-        caption: &'static str,
-        cell: Cell,
-    }
-
-    /// Draws `rows` of scenes for each of `candidates` side by side, under
-    /// `title`, and saves the sheet as `name`.
-    fn sheet(
-        name: &str,
-        title: &str,
-        candidates: &[Candidate],
-        scenes: &[Scene],
-        (shadcn, theme): (ShadcnStyle, egui::Theme),
-    ) {
-        let shots: Vec<Vec<ColorImage>> = scenes
-            .iter()
-            .map(|&scene| {
-                candidates
-                    .iter()
-                    .map(|candidate| shoot(candidate.cell, scene, (shadcn, theme)))
-                    .collect()
-            })
-            .collect();
-        let gap = 12.0;
-        let caption = 34.0;
-        let width = (candidates.len() as f32 * (CELL.x + gap) + gap).max(1100.0);
-        let height = 40.0 + scenes.len() as f32 * (CELL.y + caption + gap) + caption;
-        let captions: Vec<&str> = candidates.iter().map(|c| c.caption).collect();
-        let rows: Vec<String> = scenes.iter().map(|scene| scene.caption()).collect();
-        let title = format!("{title}  ({shadcn:?}, {theme:?})");
-        let mut textures: Option<Vec<Vec<egui::TextureHandle>>> = None;
-        let mut harness = Harness::builder()
-            .with_size(Vec2::new(width, height))
-            .with_pixels_per_point(1.0)
-            .with_theme(theme)
-            .build_ui(move |ui| {
-                let textures = textures.get_or_insert_with(|| {
-                    shots
-                        .iter()
-                        .enumerate()
-                        .map(|(row, images)| {
-                            images
-                                .iter()
-                                .enumerate()
-                                .map(|(column, image)| {
-                                    ui.ctx().load_texture(
-                                        format!("{row}-{column}"),
-                                        image.clone(),
-                                        TextureOptions::NEAREST,
-                                    )
-                                })
-                                .collect()
-                        })
-                        .collect()
-                });
-                ui.spacing_mut().item_spacing = Vec2::splat(gap / 2.0);
-                ui.add_space(gap / 2.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(gap);
-                    ui.heading(&title);
-                });
-                for (row, textures) in rows.iter().zip(textures.iter()) {
-                    ui.horizontal(|ui| {
-                        ui.add_space(gap);
-                        ui.label(egui::RichText::new(row).italics());
-                    });
-                    ui.horizontal_top(|ui| {
-                        ui.add_space(gap / 2.0);
-                        for (caption, texture) in captions.iter().zip(textures) {
-                            ui.vertical(|ui| {
-                                ui.set_width(CELL.x);
-                                ui.label(egui::RichText::new(*caption).strong());
-                                ui.add(egui::Image::new((texture.id(), CELL)));
-                            });
-                        }
-                    });
-                }
-            });
-        harness.run_steps(3);
-        let style = match shadcn {
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
             ShadcnStyle::Vega => "vega",
             ShadcnStyle::Lyra => "lyra",
         };
@@ -3933,206 +3361,116 @@ mod menubar_candidates {
             egui::Theme::Light => "light",
             egui::Theme::Dark => "dark",
         };
-        harness
-            .render()
-            .expect("renders")
-            .save(out().join(format!("{name}_{style}_{theme}.png")))
-            .expect("saves");
+        format!("menubar_{what}_{style}_{theme}")
     }
 
-    fn sheets(look: (ShadcnStyle, egui::Theme)) {
-        sheet(
-            "overview",
-            "The menu bar as built now: shadcn's bar, trigger, place; the dropdown's items",
-            &[Candidate {
-                caption: "today",
-                cell: TODAY,
-            }],
-            &[
-                Scene::Closed,
-                Scene::Open("file", Some("share")),
-                Scene::Open("view", None),
-                Scene::Open("profiles", None),
-            ],
-            look,
+    fn menu(trigger: &str) -> String {
+        let (bar, key) = trigger.rsplit_once('/').unwrap_or_default();
+        format!("{bar}/({key}, Menu)/Box")
+    }
+
+    fn has(h: &Harness<'static, support::Rig<State>>, path: &str) -> bool {
+        h.state()
+            .nodes
+            .iter()
+            .any(|(candidate, _)| candidate == path)
+    }
+
+    fn harness(
+        style: ShadcnStyle,
+        theme: egui::Theme,
+        state: State,
+    ) -> Harness<'static, support::Rig<State>> {
+        let mut h = themed_harness(
+            style,
+            Vec2::new(520.0, 300.0),
+            (
+                state,
+                menubar_example::layout,
+                common::base_text_styled(theme, style),
+            ),
+            (theme, |_, _| {}),
         );
-        sheet(
-            "L1_bar",
-            "L1. The bar's box",
-            &[
-                Candidate {
-                    caption: "(a) shadcn's: h-9 border rounded-md p-1 gap-1 shadow-xs  [recommended]",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) flat app chrome: full width, bottom border only",
-                    cell: Cell {
-                        bar: BarBox::Flat,
-                        ..TODAY
-                    },
-                },
-                Candidate {
-                    caption: "(c) no box",
-                    cell: Cell {
-                        bar: BarBox::Bare,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[Scene::Closed, Scene::Open("file", None)],
-            look,
+        h.run_steps(8);
+        h
+    }
+
+    fn open(h: &mut Harness<'static, support::Rig<State>>, path: &str) {
+        support::click_node(h, path);
+        h.run_steps(20);
+    }
+
+    fn closed(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        assert!(!has(&h, &menu(FILE)), "precondition: every menu closed");
+        h.snapshot(name("closed", style, theme));
+    }
+
+    /// File open, its Open Recent submenu open beside it.
+    fn submenu(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        open(&mut h, FILE);
+        let recent = format!("{}/Recent", menu(FILE));
+        open(&mut h, &recent);
+        assert!(
+            has(&h, &format!("{}/(Recent, Submenu)/Box", menu(FILE))),
+            "precondition: the submenu is open"
         );
-        sheet(
-            "L2_trigger",
-            "L2. The triggers",
-            &[
-                Candidate {
-                    caption: "(a) shadcn's menubar-trigger  [recommended]",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) the ghost button at size sm",
-                    cell: Cell {
-                        trigger: Trigger::GhostSm,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[
-                Scene::Closed,
-                Scene::Hovered("edit"),
-                Scene::Open("file", None),
-            ],
-            look,
-        );
-        sheet(
-            "L3_hover",
-            "L3. The closed bar under the pointer",
-            &[
-                Candidate {
-                    caption: "(a) shadcn's today: hover:bg-muted  [recommended]",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) nothing, as the note's older shadcn had",
-                    cell: Cell {
-                        hover: Hover::Nothing,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[Scene::Hovered("edit"), Scene::Hovered("profiles")],
-            look,
-        );
-        sheet(
-            "L7_focus",
-            "L7. A trigger of the closed bar with the keyboard on it",
-            &[
-                Candidate {
-                    caption: "(a) nothing, as shadcn's (outline-hidden, no focus class)",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) the hover look, bg-muted  [recommended]",
-                    cell: Cell {
-                        focus: FocusLook::HoverLook,
-                        ..TODAY
-                    },
-                },
-                Candidate {
-                    caption: "(c) the buttons' focus ring, ring-3 ring/50",
-                    cell: Cell {
-                        focus: FocusLook::Ring,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[Scene::Focused("edit"), Scene::Focused("file")],
-            look,
-        );
-        sheet(
-            "L4_place",
-            "L4. Where the menu opens and its least width",
-            &[
-                Candidate {
-                    caption: "(a) shadcn's: 8 below, 4 left, min-w-36  [recommended]",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) the dropdown's: 4 below, aligned, min-w-32",
-                    cell: Cell {
-                        place: Place::Dropdown,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[Scene::Open("file", None), Scene::Open("edit", None)],
-            look,
-        );
-        let switch = |frames| Scene::Switch {
-            from: "file",
-            to: "edit",
-            frames,
+        h.snapshot(name("submenu", style, theme));
+    }
+
+    /// View open: Show Grid checked, Comfortable chosen of the densities.
+    fn marks(style: ShadcnStyle, theme: egui::Theme) {
+        let state = State {
+            grid: true,
+            ..State::default()
         };
-        sheet(
-            "L5_switch",
-            "L5. A switch from File to Edit, frame by frame (60 fps)",
-            &[
-                Candidate {
-                    caption: "(a) both move: File fades out as Edit pops in (150 ms)",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) a switch is instant  [recommended]",
-                    cell: Cell {
-                        switching: Switching::Instant,
-                        ..TODAY
-                    },
-                },
-                Candidate {
-                    caption: "(c) shadcn's: every open pops in, no close moves",
-                    cell: Cell {
-                        switching: Switching::EntersOnly,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[switch(1), switch(3), switch(6), switch(12)],
-            look,
-        );
-        sheet(
-            "L6_items",
-            "L6. The items",
-            &[
-                Candidate {
-                    caption: "(a) the dropdown's: marks at the right",
-                    cell: TODAY,
-                },
-                Candidate {
-                    caption: "(b) shadcn's menubar items: marks at the left  [recommended]",
-                    cell: Cell {
-                        items: Items::Menubar,
-                        ..TODAY
-                    },
-                },
-            ],
-            &[
-                Scene::Open("view", None),
-                Scene::Open("profiles", None),
-                Scene::Open("file", Some("share")),
-            ],
-            look,
-        );
+        let mut h = harness(style, theme, state);
+        open(&mut h, VIEW);
+        assert!(has(&h, &menu(VIEW)), "precondition: View is open");
+        h.snapshot(name("marks", style, theme));
     }
 
-    #[test]
-    #[ignore = "writes review images, see the module comment"]
-    fn menubar_candidates() {
-        report_renderer();
-        for shadcn in [ShadcnStyle::Vega, ShadcnStyle::Lyra] {
-            for theme in [egui::Theme::Light, egui::Theme::Dark] {
-                sheets((shadcn, theme));
+    /// The keyboard on File of the closed bar.
+    fn focused(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        for _ in 0..4 {
+            if support::focused_path(&h).as_deref() == Some(FILE) {
+                break;
             }
+            h.key_press(egui::Key::Tab);
+            h.run_steps(4);
         }
+        assert_eq!(support::focused_path(&h).as_deref(), Some(FILE));
+        assert!(!has(&h, &menu(FILE)), "precondition: focus opens nothing");
+        h.snapshot(name("focused", style, theme));
+    }
+
+    macro_rules! menubar_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
+            }
+        )*};
+    }
+
+    menubar_goldens! {
+        menubar_closed_vega_light: closed, Vega, Light;
+        menubar_closed_vega_dark: closed, Vega, Dark;
+        menubar_closed_lyra_light: closed, Lyra, Light;
+        menubar_closed_lyra_dark: closed, Lyra, Dark;
+        menubar_submenu_vega_light: submenu, Vega, Light;
+        menubar_submenu_vega_dark: submenu, Vega, Dark;
+        menubar_submenu_lyra_light: submenu, Lyra, Light;
+        menubar_submenu_lyra_dark: submenu, Lyra, Dark;
+        menubar_marks_vega_light: marks, Vega, Light;
+        menubar_marks_vega_dark: marks, Vega, Dark;
+        menubar_marks_lyra_light: marks, Lyra, Light;
+        menubar_marks_lyra_dark: marks, Lyra, Dark;
+        menubar_focused_vega_light: focused, Vega, Light;
+        menubar_focused_vega_dark: focused, Vega, Dark;
+        menubar_focused_lyra_light: focused, Lyra, Light;
+        menubar_focused_lyra_dark: focused, Lyra, Dark;
     }
 }

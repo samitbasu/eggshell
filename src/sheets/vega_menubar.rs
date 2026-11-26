@@ -244,25 +244,6 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(VEGA, 827, "data-inset:pl-8")
             .pl(8.0)
     });
-    s.replace(RadioItemIndicator, |t, _| {
-        t
-            .from(VEGA, 831, "left-2")
-            .left(2.0)
-            .from(VEGA, 831, "size-4")
-            .size(4.0)
-            .from(VEGA, 831, "[&_svg:not([class*='size-'])]:size-4")
-            .descendants(Match::glyph(), |t| t.size(4.0))
-            .from(MENUBAR, 165, "pointer-events-none")
-            .pointer_events_none()
-            .from(MENUBAR, 165, "absolute")
-            .absolute()
-            .from(MENUBAR, 165, "flex")
-            .flex()
-            .from(MENUBAR, 165, "items-center")
-            .items_center()
-            .from(MENUBAR, 165, "justify-center")
-            .justify_center()
-    });
     s.replace(Label, |t, k| {
         t
             .from(VEGA, 835, "px-2")
@@ -626,25 +607,6 @@ pub(crate) fn dark(s: &mut Sheet) {
         t
             .from(VEGA, 827, "data-inset:pl-8")
             .pl(8.0)
-    });
-    s.replace(RadioItemIndicator, |t, _| {
-        t
-            .from(VEGA, 831, "left-2")
-            .left(2.0)
-            .from(VEGA, 831, "size-4")
-            .size(4.0)
-            .from(VEGA, 831, "[&_svg:not([class*='size-'])]:size-4")
-            .descendants(Match::glyph(), |t| t.size(4.0))
-            .from(MENUBAR, 165, "pointer-events-none")
-            .pointer_events_none()
-            .from(MENUBAR, 165, "absolute")
-            .absolute()
-            .from(MENUBAR, 165, "flex")
-            .flex()
-            .from(MENUBAR, 165, "items-center")
-            .items_center()
-            .from(MENUBAR, 165, "justify-center")
-            .justify_center()
     });
     s.replace(Label, |t, k| {
         t

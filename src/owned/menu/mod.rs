@@ -195,6 +195,44 @@ impl Menus {
     }
 }
 
+/// Whose sheet parts a menu's nodes are drawn as: the dropdown menu's, or a
+/// menu bar's, whose items shadcn styles apart.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Anatomy {
+    Dropdown,
+    #[cfg(feature = "menubar")]
+    Menubar,
+}
+
+impl Anatomy {
+    /// The classes of `part` for a node with `keys`, as this anatomy draws it.
+    #[track_caller]
+    fn part<A: 'static>(
+        self,
+        b: &mut Builder<'_, '_, A>,
+        part: Part,
+        keys: &[Key],
+        call_site: Tw,
+    ) -> Tw {
+        match self {
+            Self::Dropdown => b.part(part, keys, call_site),
+            #[cfg(feature = "menubar")]
+            Self::Menubar => b.part(crate::owned::menubar::Part::from(part), keys, call_site),
+        }
+    }
+
+    /// How long the menu takes to leave, where it is not the style's: a menu
+    /// bar's vanishes at once, as shadcn's `menubar-content` has no exit
+    /// animation, so a switch never shows two menus.
+    fn exit(self) -> Option<std::time::Duration> {
+        match self {
+            Self::Dropdown => None,
+            #[cfg(feature = "menubar")]
+            Self::Menubar => Some(std::time::Duration::ZERO),
+        }
+    }
+}
+
 /// What Left or Right on a menu item asks for.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Sideways {
@@ -208,6 +246,7 @@ enum Sideways {
 struct Shared {
     root: Id,
     link: Option<MenuLink>,
+    anatomy: Anatomy,
     style: Arc<Style>,
     kept: Handle,
     ctx: Context,
@@ -218,6 +257,7 @@ impl Shared {
         Self {
             root,
             link: None,
+            anatomy: Anatomy::Dropdown,
             style: b.style().clone(),
             kept: b.kept().clone(),
             ctx: b.ctx().clone(),
@@ -419,13 +459,19 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
 
     /// A line between groups of items.
     pub fn separator(&mut self) {
-        let classes = self.b.part(Part::Separator, &[], tw());
+        let classes = self
+            .shared
+            .anatomy
+            .part(&mut self.b, Part::Separator, &[], tw());
         self.b.div(classes, |_| {});
     }
 
     /// A heading over a group of items. It takes no input.
     pub fn label(&mut self, text: impl Into<String>) {
-        let classes = self.b.part(Part::Label, &[], tw());
+        let classes = self
+            .shared
+            .anatomy
+            .part(&mut self.b, Part::Label, &[], tw());
         let text = text.into();
         self.b.div(classes, |b| b.text(tw(), text));
     }
@@ -514,7 +560,8 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         }
         keys.extend(super::expanded_key(expanded));
         let own = enablement.senses();
-        let classes = self.b.part(part, &keys, own.merge(caller));
+        let anatomy = shared.anatomy;
+        let classes = anatomy.part(&mut self.b, part, &keys, own.merge(caller));
         let shown = label;
         let owns = match reaction {
             Reaction::Run(_) => Owns::Nothing,
@@ -532,7 +579,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                         b.icon("icon", tw(), icon);
                     }
                     Lead::Check(mark) | Lead::Dot(mark) => {
-                        let classes = b.part(Part::ItemIndicator, &[], tw());
+                        let classes = anatomy.part(b, Part::ItemIndicator, &[], tw());
                         b.div(classes, |b| {
                             if mark == Mark::On {
                                 b.glyph(tw(), check());
@@ -544,7 +591,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 match trail {
                     Trail::Nothing => {}
                     Trail::Shortcut(keys) => {
-                        let classes = b.part(Part::Shortcut, &[], tw());
+                        let classes = anatomy.part(b, Part::Shortcut, &[], tw());
                         b.text(classes, keys);
                     }
                     Trail::Chevron => {
@@ -646,7 +693,7 @@ fn menu_box<'f, A: 'static>(
     } else {
         Part::SubContent
     };
-    let classes = s.reborrow().part(part, &[], caller);
+    let classes = shared.anatomy.part(&mut s.reborrow(), part, &[], caller);
     let shared = shared.clone();
     super::fitted_box(s, fit, (Node::Box, Node::Rows), classes, |s| {
         items(&mut Menu {
@@ -937,11 +984,13 @@ pub struct Chain<'a, 'f, A, K> {
     menu_classes: Tw,
 }
 
-/// How a menu bar draws a dropdown's trigger: as its sheet's `part`, inside
-/// the bar's node `owner` for assistive technology.
+/// How a menu bar draws a dropdown: its trigger as the bar's sheet's `part`,
+/// inside the bar's node `owner` for assistive technology, and its menu as
+/// `anatomy` says.
 struct BarTrigger<'a, 'f, A> {
     part: button::PartOf<'a, 'f, A>,
     owner: Id,
+    anatomy: Anatomy,
 }
 
 /// What a dropdown trigger's [`children`](Chain::children) build.
@@ -1031,14 +1080,15 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
         self
     }
 
-    /// Draws the trigger's box as `part` of the sheet, in place of a button,
-    /// and puts it inside the node `owner` for assistive technology: a menu
-    /// bar's trigger.
+    /// Draws the dropdown as a menu bar's: the trigger's box as `part` of the
+    /// sheet, in place of a button, inside the node `owner` for assistive
+    /// technology, and the menu with the bar's parts.
     #[cfg(feature = "menubar")]
     pub(crate) fn trigger_of<P: crate::sheet::Part>(mut self, part: P, owner: Id) -> Self {
         self.bar_trigger = Some(BarTrigger {
             part: button::part_of(part),
             owner,
+            anatomy: Anatomy::Menubar,
         });
         self
     }
@@ -1062,6 +1112,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
         } = self;
         let shared = Shared {
             link,
+            anatomy: bar_trigger
+                .as_ref()
+                .map_or(Anatomy::Dropdown, |bar| bar.anatomy),
             ..Shared::of(&b, b.slot(&key).id)
         };
         let trigger = shared.root;
@@ -1094,7 +1147,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             None => button,
         };
         let button = match bar_trigger {
-            Some(BarTrigger { part, owner }) => button.drawn_as(part).owned_by(owner),
+            Some(BarTrigger { part, owner, .. }) => button.drawn_as(part).owned_by(owner),
             None => button,
         };
         let button = match (children, trail) {
@@ -1147,7 +1200,10 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             .nav(Nav::Menu(Wrap::Around))
             .role(Role::Menu)
             .named(name)
-            .on_dismiss(move |_| close.close());
+            .on_dismiss(move |_| close.close())
+            .when_some(shared.anatomy.exit(), |menu, exit| {
+                menu.exit_transition(exit)
+            });
         let menu = match link {
             Some(_) => menu
                 .outside(Outside::PassThrough)

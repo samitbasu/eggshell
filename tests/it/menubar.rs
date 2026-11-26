@@ -209,3 +209,22 @@ fn tab_is_held_while_a_menu_is_open_as_the_dropdowns_is() {
     assert_eq!(open(&harness), [FILE]);
     assert_eq!(focused_path(&harness), first);
 }
+
+#[test]
+fn a_menu_of_the_bar_vanishes_at_once_so_a_switch_shows_one_menu() {
+    let mut harness = harness();
+    click_node(&mut harness, FILE);
+    settle(&mut harness);
+    let frame = support::Drives::frame_dt(&harness);
+    let edit = support::rect_of(&harness, EDIT).center();
+    harness.hover_at(edit);
+    harness.run_steps(2);
+    assert!(
+        2.0 * frame < 0.15,
+        "precondition: less time than a dropdown's 150 ms exit"
+    );
+    assert_eq!(open(&harness), [EDIT], "File is gone at once");
+    harness.key_press(Key::Escape);
+    harness.run_steps(1);
+    assert!(open(&harness).is_empty(), "Edit is gone as Esc closes it");
+}
