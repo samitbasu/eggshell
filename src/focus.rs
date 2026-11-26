@@ -57,6 +57,10 @@ pub(crate) enum Autofocus {
     /// As the overlay it is in opens: the node is marked, and the overlay
     /// gives it focus.
     OnOverlayOpen,
+    /// As the overlay it is in opens, unless another node is marked
+    /// [`OnOverlayOpen`](Self::OnOverlayOpen).
+    #[cfg_attr(not(feature = "dialog"), expect(dead_code))]
+    OnOverlayOpenByDefault,
     /// On every frame it is set.
     Now(Select),
 }
@@ -89,10 +93,10 @@ impl Autofocus {
     /// Whether the node holding the control's widget is the one its overlay
     /// opens on.
     pub(crate) fn open_focus(self) -> OpenFocus {
-        if self == Self::OnOverlayOpen {
-            OpenFocus::Here
-        } else {
-            OpenFocus::Elsewhere
+        match self {
+            Self::OnOverlayOpen => OpenFocus::Here,
+            Self::OnOverlayOpenByDefault => OpenFocus::Fallback,
+            _ => OpenFocus::Elsewhere,
         }
     }
 
@@ -101,7 +105,7 @@ impl Autofocus {
     /// changed, or if it asks now. Returns what to select when it did.
     pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) -> Option<Select> {
         let (token, select) = match self {
-            Self::Never | Self::OnOverlayOpen => return None,
+            Self::Never | Self::OnOverlayOpen | Self::OnOverlayOpenByDefault => return None,
             Self::Now(select) => {
                 response.request_focus();
                 return Some(select);

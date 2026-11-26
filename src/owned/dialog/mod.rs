@@ -37,6 +37,7 @@ mod parts;
 pub use parts::{AlertDialogPart, Part, PopoverPart, SheetPart};
 
 use crate::contract::{Size, Variant};
+use crate::focus::Autofocus;
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
 use crate::owned::button::{self, Face};
 use crate::sheet::Key as SheetKey;
@@ -246,7 +247,8 @@ pub trait Ext<'c, 'f, A> {
     /// TODO(prose): a confirmation that must be answered: as
     /// [`dialog`](Self::dialog), with [`Role::AlertDialog`], no close
     /// button, and [`DismissOn::EscOnly`], which overrides an earlier
-    /// `dismiss_on`.
+    /// `dismiss_on`. It opens on its cancel button, as Radix's does, unless
+    /// a control is marked `focus_on_open`.
     fn alert_dialog(self, dialog: Dialog, content: impl FnOnce(&mut Content<'c, 'f, A>));
 }
 
@@ -438,12 +440,15 @@ fn buttons<'f, A: 'static>(s: &mut Scope<'_, 'f, A>, shape: Shape, footer: Foote
             then(s.button(Node::Leading, face).classes(push));
         }
         if let Some(Button { face, then }) = cancel {
-            then(
-                s.button(Node::Cancel, face)
-                    .variant(CANCEL)
-                    .cancel_action()
-                    .dismisses(),
-            );
+            let button = s
+                .button(Node::Cancel, face)
+                .variant(CANCEL)
+                .cancel_action()
+                .dismisses();
+            then(match shape {
+                Shape::Centered(Kind::Alert) => button.autofocus(Autofocus::OnOverlayOpenByDefault),
+                _ => button,
+            });
         }
         if let Some(Button { face, then }) = default {
             then(

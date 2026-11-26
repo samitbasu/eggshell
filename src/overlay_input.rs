@@ -22,7 +22,7 @@ use crate::nodes::Nodes;
 use crate::overlay::{
     Anchor, AnchorLookup, Anchored, Behavior, Dismissed, Focus, Nav, Outside, Showing,
 };
-use crate::pipeline::{DismissFn, PlacedNode};
+use crate::pipeline::{DismissFn, OpenFocus, PlacedNode};
 use crate::relation::Relation;
 use crate::roots::{
     Form, Here, PlacedOverlay, PlacedRoot, ancestors, root_and_node, root_at, stacked_top_down,
@@ -664,8 +664,8 @@ fn enters_focus(behavior: Behavior, source: Source) -> bool {
 /// Where focus goes as the overlay whose root is `nodes[first]` opens: the
 /// first focusable widget of the node marked with
 /// [`focus_on_open`](crate::NodeHandle::focus_on_open), the node itself or
-/// one inside it, else the overlay's first focusable. Of two marked nodes the
-/// first declared is the one.
+/// one inside it, else of the first marked as a fallback, else the overlay's
+/// first focusable. Of two marked nodes the first declared is the one.
 fn opening_focus(
     ctx: &Context,
     nodes: &Nodes,
@@ -677,12 +677,17 @@ fn opening_focus(
         .iter()
         .find(|(node, _)| *node == open.overlay.id)
         .map(|(_, focusable)| &**focusable)?;
-    let mut marked = nodes
-        .subtree(first)
-        .iter()
-        .filter(|node| node.focuses_on_open())
-        .filter_map(PlacedNode::id);
-    let chosen = marked.next();
+    let subtree = nodes.subtree(first);
+    let marked_as = |open_focus| {
+        subtree
+            .iter()
+            .filter(move |node| node.open_focus() == open_focus)
+            .filter_map(PlacedNode::id)
+    };
+    let mut marked = marked_as(OpenFocus::Here);
+    let chosen = marked
+        .next()
+        .or_else(|| marked_as(OpenFocus::Fallback).next());
     if marked.next().is_some() {
         crate::report::report(
             ctx,
