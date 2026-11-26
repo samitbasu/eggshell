@@ -92,6 +92,8 @@ pub mod input;
 #[cfg(feature = "markdown")]
 pub mod markdown;
 pub mod menu;
+#[cfg(feature = "menubar")]
+pub mod menubar;
 #[cfg(feature = "navigation-menu")]
 pub mod navigation_menu;
 #[cfg(feature = "notify")]

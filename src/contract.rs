@@ -1818,6 +1818,8 @@ impl Style {
         crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
         #[cfg(feature = "alert")]
         crate::owned::alert::write_exceptions(&mut self.sheet);
+        #[cfg(feature = "menubar")]
+        crate::owned::menubar::write_exceptions(&mut self.sheet);
         #[cfg(feature = "navigation-menu")]
         crate::owned::navigation_menu::write_exceptions(&mut self.sheet);
         #[cfg(feature = "badge")]

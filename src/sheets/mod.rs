@@ -32,6 +32,7 @@ mod vega_table;
 #[cfg(feature = "dialog")] mod vega_sheet;
 #[cfg(feature = "dialog")] mod vega_popover;
 #[cfg(feature = "alert")] mod vega_alert;
+#[cfg(feature = "menubar")] mod vega_menubar;
 #[cfg(feature = "navigation-menu")] mod vega_navigation_menu;
 #[cfg(feature = "badge")] mod vega_badge;
 #[cfg(feature = "form")] mod vega_card;
@@ -63,6 +64,7 @@ mod lyra_table;
 #[cfg(feature = "dialog")] mod lyra_sheet;
 #[cfg(feature = "dialog")] mod lyra_popover;
 #[cfg(feature = "alert")] mod lyra_alert;
+#[cfg(feature = "menubar")] mod lyra_menubar;
 #[cfg(feature = "navigation-menu")] mod lyra_navigation_menu;
 #[cfg(feature = "badge")] mod lyra_badge;
 #[cfg(feature = "form")] mod lyra_card;
@@ -100,6 +102,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             #[cfg(feature = "dialog")] (vega_sheet::light, vega_sheet::dark),
             #[cfg(feature = "dialog")] (vega_popover::light, vega_popover::dark),
             #[cfg(feature = "alert")] (vega_alert::light, vega_alert::dark),
+            #[cfg(feature = "menubar")] (vega_menubar::light, vega_menubar::dark),
             #[cfg(feature = "navigation-menu")] (vega_navigation_menu::light, vega_navigation_menu::dark),
             #[cfg(feature = "badge")] (vega_badge::light, vega_badge::dark),
             #[cfg(feature = "form")] (vega_card::light, vega_card::dark),
@@ -133,6 +136,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             #[cfg(feature = "dialog")] (lyra_sheet::light, lyra_sheet::dark),
             #[cfg(feature = "dialog")] (lyra_popover::light, lyra_popover::dark),
             #[cfg(feature = "alert")] (lyra_alert::light, lyra_alert::dark),
+            #[cfg(feature = "menubar")] (lyra_menubar::light, lyra_menubar::dark),
             #[cfg(feature = "navigation-menu")] (lyra_navigation_menu::light, lyra_navigation_menu::dark),
             #[cfg(feature = "badge")] (lyra_badge::light, lyra_badge::dark),
             #[cfg(feature = "form")] (lyra_card::light, lyra_card::dark),

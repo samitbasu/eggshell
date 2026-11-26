@@ -23,7 +23,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 32] = [
+const COMPONENTS: [&str; 33] = [
     "accordion",
     "alert",
     "alert-dialog",
@@ -40,6 +40,7 @@ const COMPONENTS: [&str; 32] = [
     "input",
     "input-group",
     "item",
+    "menubar",
     "navigation-menu",
     "popover",
     "radio-group",
@@ -61,7 +62,7 @@ const COMPONENTS: [&str; 32] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 31] = [
+const WIDGETS: [emit::Widget; 32] = [
     emit::Widget {
         component: "button",
         home: Home::Core("button"),
@@ -477,6 +478,25 @@ const WIDGETS: [emit::Widget; 31] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
+        component: "menubar",
+        home: Home::Feature {
+            module: "menubar",
+            feature: "menubar",
+        },
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &MENU,
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &MENUBAR_ABSENT,
         copies: &[],
     },
     emit::Widget {
@@ -901,6 +921,16 @@ const MENU_ABSENT: [(&str, &str); 1] = [(
     "rtl-flip",
     "a submenu's chevron is a glyph of its trigger, last in the row",
 )];
+
+/// The parts of shadcn's menubar that eggshell's does not name: its menus
+/// are dropdown menus, with one indicator part.
+const MENUBAR_ABSENT: [(&str, &str); 2] = [
+    MENU_ABSENT[0],
+    (
+        "menubar-radio-item-indicator",
+        "a radio item's mark is drawn in the check item's indicator, whose classes are the same",
+    ),
+];
 
 /// eggshell's select opens its list below the trigger and keeps it off the
 /// trigger by the menu's offset, as Radix's `popper` position does.

@@ -566,7 +566,7 @@ pub(crate) fn enter_pass(
             && overlay.behavior.focus != crate::overlay::Focus::None
             && let Some(open) = stack.get_mut(overlay.id)
         {
-            open.restore = focused;
+            open.restore = overlay.behavior.restores(focused);
         }
     }
     stack.store(kept, viewport);

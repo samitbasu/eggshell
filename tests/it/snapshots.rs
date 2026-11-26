@@ -83,6 +83,9 @@ mod icons_example;
 #[path = "../../examples/list_nav.rs"]
 mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/menubar.rs"]
+mod menubar_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/slider_header.rs"]
 mod slider_header_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -3339,6 +3342,136 @@ mod alert {
         alert_shapes_vega_dark: shapes, Vega, Dark;
         alert_shapes_lyra_light: shapes, Lyra, Light;
         alert_shapes_lyra_dark: shapes, Lyra, Dark;
+    }
+}
+
+mod menubar {
+    use super::menubar_example::State;
+    use super::*;
+
+    const FILE: &str = "/Page/Bar/File";
+    const VIEW: &str = "/Page/Bar/View";
+
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
+            ShadcnStyle::Vega => "vega",
+            ShadcnStyle::Lyra => "lyra",
+        };
+        let theme = match theme {
+            egui::Theme::Light => "light",
+            egui::Theme::Dark => "dark",
+        };
+        format!("menubar_{what}_{style}_{theme}")
+    }
+
+    fn menu(trigger: &str) -> String {
+        let (bar, key) = trigger.rsplit_once('/').unwrap_or_default();
+        format!("{bar}/({key}, Menu)/Box")
+    }
+
+    fn has(h: &Harness<'static, support::Rig<State>>, path: &str) -> bool {
+        h.state()
+            .nodes
+            .iter()
+            .any(|(candidate, _)| candidate == path)
+    }
+
+    fn harness(
+        style: ShadcnStyle,
+        theme: egui::Theme,
+        state: State,
+    ) -> Harness<'static, support::Rig<State>> {
+        let mut h = themed_harness(
+            style,
+            Vec2::new(520.0, 300.0),
+            (
+                state,
+                menubar_example::layout,
+                common::base_text_styled(theme, style),
+            ),
+            (theme, |_, _| {}),
+        );
+        h.run_steps(8);
+        h
+    }
+
+    fn open(h: &mut Harness<'static, support::Rig<State>>, path: &str) {
+        support::click_node(h, path);
+        h.run_steps(20);
+    }
+
+    fn closed(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        assert!(!has(&h, &menu(FILE)), "precondition: every menu closed");
+        h.snapshot(name("closed", style, theme));
+    }
+
+    /// File open, its Open Recent submenu open beside it.
+    fn submenu(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        open(&mut h, FILE);
+        let recent = format!("{}/Recent", menu(FILE));
+        open(&mut h, &recent);
+        assert!(
+            has(&h, &format!("{}/(Recent, Submenu)/Box", menu(FILE))),
+            "precondition: the submenu is open"
+        );
+        h.snapshot(name("submenu", style, theme));
+    }
+
+    /// View open: Show Grid checked, Comfortable chosen of the densities.
+    fn marks(style: ShadcnStyle, theme: egui::Theme) {
+        let state = State {
+            grid: true,
+            ..State::default()
+        };
+        let mut h = harness(style, theme, state);
+        open(&mut h, VIEW);
+        assert!(has(&h, &menu(VIEW)), "precondition: View is open");
+        h.snapshot(name("marks", style, theme));
+    }
+
+    /// The keyboard on File of the closed bar.
+    fn focused(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, theme, State::default());
+        for _ in 0..4 {
+            if support::focused_path(&h).as_deref() == Some(FILE) {
+                break;
+            }
+            h.key_press(egui::Key::Tab);
+            h.run_steps(4);
+        }
+        assert_eq!(support::focused_path(&h).as_deref(), Some(FILE));
+        assert!(!has(&h, &menu(FILE)), "precondition: focus opens nothing");
+        h.snapshot(name("focused", style, theme));
+    }
+
+    macro_rules! menubar_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
+            }
+        )*};
+    }
+
+    menubar_goldens! {
+        menubar_closed_vega_light: closed, Vega, Light;
+        menubar_closed_vega_dark: closed, Vega, Dark;
+        menubar_closed_lyra_light: closed, Lyra, Light;
+        menubar_closed_lyra_dark: closed, Lyra, Dark;
+        menubar_submenu_vega_light: submenu, Vega, Light;
+        menubar_submenu_vega_dark: submenu, Vega, Dark;
+        menubar_submenu_lyra_light: submenu, Lyra, Light;
+        menubar_submenu_lyra_dark: submenu, Lyra, Dark;
+        menubar_marks_vega_light: marks, Vega, Light;
+        menubar_marks_vega_dark: marks, Vega, Dark;
+        menubar_marks_lyra_light: marks, Lyra, Light;
+        menubar_marks_lyra_dark: marks, Lyra, Dark;
+        menubar_focused_vega_light: focused, Vega, Light;
+        menubar_focused_vega_dark: focused, Vega, Dark;
+        menubar_focused_lyra_light: focused, Lyra, Light;
+        menubar_focused_lyra_dark: focused, Lyra, Dark;
     }
 }
 

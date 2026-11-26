@@ -32,7 +32,7 @@ pub(crate) struct Menu {
 
 /// Where a key moves among the items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Step {
+pub(crate) enum Step {
     Next,
     Previous,
     First,
@@ -281,7 +281,7 @@ enum HomeEnd {
 /// The item `step` goes to from `current`: past an end it goes round or
 /// stays as `wrap` says, and from something that is not an item it goes to
 /// the first or last.
-fn target(items: &[Id], current: Option<Id>, step: Step, wrap: Wrap) -> Option<Id> {
+pub(crate) fn target(items: &[Id], current: Option<Id>, step: Step, wrap: Wrap) -> Option<Id> {
     let at = current.and_then(|current| items.iter().position(|&item| item == current));
     let last = items.len().checked_sub(1)?;
     let to = match (step, at, wrap) {

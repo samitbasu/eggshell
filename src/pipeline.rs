@@ -982,7 +982,9 @@ impl<'f, A> Built<'f, A> {
                 && home == Home::Page
                 && let Some(open) = open.as_deref_mut()
             {
-                open.restore = ctx.memory(|memory| memory.focused());
+                open.restore = overlay
+                    .behavior
+                    .restores(ctx.memory(|memory| memory.focused()));
             }
             let (anchor_decl, anchor, anchored, lookup, rect, form, bounds, natural) = match overlay
                 .presentation

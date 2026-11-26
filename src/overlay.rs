@@ -455,6 +455,29 @@ pub(crate) struct Behavior {
     pub(crate) nav: Nav,
     /// The trigger of a hover card, which hover intent opens.
     pub(crate) hover: Option<Hovered>,
+    pub(crate) pointer_open: PointerOpen,
+    pub(crate) returns_to: ReturnsTo,
+}
+
+/// Whether a menu opened with the pointer takes the focus, as one opened
+/// from the keyboard does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum PointerOpen {
+    /// Nothing is focused until an arrow key, as in Radix.
+    #[default]
+    Waits,
+    /// The focus enters it: a menu bar's, whose arrows switch menus.
+    Enters,
+}
+
+/// The widget that gets the focus back when an overlay closes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ReturnsTo {
+    /// The one that had it when the overlay opened.
+    #[default]
+    Opener,
+    /// This one, whatever had the focus: a menu bar's trigger.
+    Widget(Id),
 }
 
 /// The trigger hover intent opens an overlay from, and the group it is in.
@@ -468,6 +491,15 @@ impl Behavior {
     /// What a press outside the overlay does to the press.
     pub(crate) fn outside(self) -> Outside {
         self.outside.unwrap_or_else(|| Outside::of(self.nav))
+    }
+
+    /// The widget that gets the focus back when the overlay closes, if
+    /// `focused` had it as it opened.
+    pub(crate) fn restores(self, focused: Option<Id>) -> Option<Id> {
+        match self.returns_to {
+            ReturnsTo::Opener => focused,
+            ReturnsTo::Widget(id) => Some(id),
+        }
     }
 }
 
