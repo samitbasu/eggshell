@@ -92,6 +92,9 @@ pub(crate) enum OpenFocus {
     Elsewhere,
     /// To this node: the current colour of a swatch picker.
     Here,
+    /// To this node, unless another is marked [`Here`](Self::Here): an
+    /// alert dialog's cancel button.
+    Fallback,
 }
 
 /// taffy's per-node context.
@@ -2232,8 +2235,8 @@ impl PlacedNode {
     }
 
     /// Whether the overlay the node is in gives it focus as it opens.
-    pub(crate) fn focuses_on_open(&self) -> bool {
-        self.open_focus == OpenFocus::Here
+    pub(crate) fn open_focus(&self) -> OpenFocus {
+        self.open_focus
     }
 
     /// Whether the node is an item of a menu, a listbox, a grid or a group: it

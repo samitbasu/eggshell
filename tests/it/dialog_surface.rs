@@ -309,6 +309,56 @@ fn an_alert_dialog_without_a_leading_button_enters_at_cancel() {
 }
 
 #[test]
+fn an_alert_dialog_with_a_leading_button_and_a_field_enters_at_cancel() {
+    let harness = opened(App {
+        kind: Kind::Alert,
+        field: true,
+        ..App::default()
+    });
+    assert_eq!(focused_path(&harness).as_deref(), Some(CANCEL));
+}
+
+#[test]
+fn an_alert_dialog_enters_at_a_field_marked_focus_on_open() {
+    fn alert(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(P::Page, tw().w_full().h_full().p(4.0), |s| {
+            s.button(P::Trigger, "Open")
+                .on_click(|app: &mut App| app.open = Shown::Open);
+        });
+        b.overlay(P::Dlg)
+            .modal(Modal::Center)
+            .shown(app.open)
+            .on_dismiss(|app: &mut App| app.open = Shown::Closed)
+            .alert_dialog(Dialog::new("Type the name to delete"), |d| {
+                d.body(|s| {
+                    s.text_field_with(P::Name, Field::singleline(&app.name).named("Name"))
+                        .focus_on_open()
+                        .on_change(|app: &mut App, text| app.name = text);
+                });
+                d.footer(|f| {
+                    f.cancel("Cancel", |button| button.add())
+                        .default("Delete", |button| button.add())
+                });
+            });
+    }
+    let mut harness = support::harness_prepared(
+        SCREEN,
+        common::base_text(egui::Theme::Light),
+        App::default(),
+        alert,
+        prepare,
+    );
+    harness.run_steps(4);
+    open_from_the_keyboard(&mut harness);
+    assert_eq!(
+        support::focused_node(&harness).as_deref(),
+        Some("/Dlg/Box/Body/Name"),
+        "the marked field, not the cancel button"
+    );
+    eggshell_ui::testing::assert_no_reports(&harness.ctx);
+}
+
+#[test]
 fn a_sheet_docks_to_each_side() {
     for side in [Side::Left, Side::Right, Side::Top, Side::Bottom] {
         let harness = opened(App {
