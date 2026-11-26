@@ -42,6 +42,13 @@ pub const PAUSE: ImageSource<'static> = include_image!("lucide/pause.svg");
 pub const PLAY: ImageSource<'static> = include_image!("lucide/play.svg");
 /// TODO(prose): lucide `triangle-exclamation-point` (formerly `triangle-alert`).
 pub const WARNING: ImageSource<'static> = include_image!("lucide/triangle-exclamation-point.svg");
+/// TODO(prose): lucide `info`.
+pub const INFO: ImageSource<'static> = include_image!("lucide/info.svg");
+/// TODO(prose): lucide `circle-check`.
+pub const CIRCLE_CHECK: ImageSource<'static> = include_image!("lucide/circle-check.svg");
+/// TODO(prose): lucide `circle-exclamation-point` (formerly `circle-alert`).
+pub const CIRCLE_ALERT: ImageSource<'static> =
+    include_image!("lucide/circle-exclamation-point.svg");
 /// TODO(prose): lucide `search`.
 pub const SEARCH: ImageSource<'static> = include_image!("lucide/search.svg");
 /// TODO(prose): lucide `circle-question-mark` (formerly `circle-help`).

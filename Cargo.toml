@@ -49,6 +49,7 @@ snapshots = ["screenshots", "egui_kittest/snapshot"]
 # The widgets beyond core's controls, each its own feature.
 # keep sorted
 accordion = ["disclosure"]
+alert = []
 badge = []
 command = ["dep:unicode-normalization"]
 dialog = []
@@ -88,6 +89,7 @@ eggshell-ui = { path = ".", features = [
     "driver",
     # keep sorted
     "accordion",
+    "alert",
     "badge",
     "command",
     "dialog",

@@ -147,4 +147,11 @@ pub mod variant {
     pub const GHOST: Variant = Variant("ghost");
     /// TODO(prose): `link`: primary-coloured text, underlined under the pointer.
     pub const LINK: Variant = Variant("link");
+    /// TODO(prose): `info`: an alert in the info tone, which shadcn's alert
+    /// does not have.
+    pub const INFO: Variant = Variant("info");
+    /// TODO(prose): `success`: an alert in the success tone.
+    pub const SUCCESS: Variant = Variant("success");
+    /// TODO(prose): `warning`: an alert in the warning tone.
+    pub const WARNING: Variant = Variant("warning");
 }
