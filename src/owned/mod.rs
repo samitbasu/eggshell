@@ -67,6 +67,8 @@
 // keep sorted
 #[cfg(feature = "disclosure")]
 pub mod accordion;
+#[cfg(feature = "alert")]
+pub mod alert;
 #[cfg(feature = "badge")]
 pub mod badge;
 pub mod button;

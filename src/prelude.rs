@@ -11,6 +11,8 @@ pub use crate::{Builder, Style, Tw, tw};
 
 #[cfg(feature = "accordion")]
 pub use crate::owned::accordion::Ext as _;
+#[cfg(feature = "alert")]
+pub use crate::owned::alert::Ext as _;
 #[cfg(feature = "badge")]
 pub use crate::owned::badge::Ext as _;
 #[cfg(feature = "command")]
