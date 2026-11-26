@@ -3474,3 +3474,198 @@ mod menubar {
         menubar_focused_lyra_dark: focused, Lyra, Dark;
     }
 }
+
+/// The navigation menu (#380): the closed row with a current link, a panel
+/// opened by a click holding the link grid, the icon links, and the
+/// indicator, in each shadcn style and theme.
+mod navigation_menu {
+    use super::*;
+    use eggshell_ui::{Icon, icons};
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Links {
+        /// Title over a muted description, in two columns: shadcn's demo.
+        Described,
+        /// An icon and the title inline: shadcn's "With Icon" list.
+        Icons,
+    }
+
+    struct Scene {
+        indicator: bool,
+        links: Links,
+    }
+
+    const STARTED: [(&str, &str); 4] = [
+        (
+            "Introduction",
+            "Re-usable components built using Radix UI and Tailwind CSS.",
+        ),
+        (
+            "Installation",
+            "How to install dependencies and structure your app.",
+        ),
+        ("Typography", "Styles for headings, paragraphs, lists...etc"),
+        (
+            "Hover Card",
+            "For sighted users to preview content available behind a link.",
+        ),
+    ];
+
+    fn view(b: &mut Builder<'_, '_, Scene>, scene: &Scene) {
+        let muted = b.style().tokens.muted_foreground;
+        let links = scene.links;
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(3.0).p(4.0).w_full(),
+            |b| {
+                let menu = b
+                    .navigation_menu("site")
+                    .named("Main")
+                    .panel("started", "Getting started", move |p| match links {
+                        Links::Described => {
+                            p.div(tw().grid().grid_cols(2).gap(2.0).w_px(480.0), |g| {
+                                for (title, description) in STARTED {
+                                    g.nav_link(title, title)
+                                        .description(description)
+                                        .current(title == "Installation")
+                                        .on_click(|_: &mut Scene| {});
+                                }
+                            });
+                        }
+                        Links::Icons => {
+                            p.div(tw().flex().flex_col().w_px(200.0), |g| {
+                                for (title, icon) in [
+                                    ("Backlog", icons::CIRCLE_ALERT),
+                                    ("To Do", icons::INFO),
+                                    ("Done", icons::CIRCLE_CHECK),
+                                ] {
+                                    g.nav_link(title, title)
+                                        .icon(Icon::new(icon))
+                                        .on_click(|_: &mut Scene| {});
+                                }
+                            });
+                        }
+                    })
+                    .panel("components", "Components", |p| {
+                        p.nav_link("Alert", "Alert").on_click(|_: &mut Scene| {});
+                    })
+                    .link("docs", "Docs", |link| {
+                        link.current(true).on_click(|_: &mut Scene| {});
+                    });
+                if scene.indicator {
+                    menu.indicator().add();
+                } else {
+                    menu.add();
+                }
+                b.text(tw().font_semibold(), "Installation");
+                b.text(
+                    tw().text(muted),
+                    "The page under the menu: Docs is the current page in the row.",
+                );
+            },
+        );
+    }
+
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
+            ShadcnStyle::Vega => "vega",
+            ShadcnStyle::Lyra => "lyra",
+        };
+        let theme = match theme {
+            egui::Theme::Light => "light",
+            egui::Theme::Dark => "dark",
+        };
+        format!("navigation_menu_{what}_{style}_{theme}")
+    }
+
+    /// Renders `scene`, its "Getting started" panel clicked open with the
+    /// pointer left on the page, unless `open` says not.
+    fn golden(what: &str, scene: Scene, open: bool, style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = themed_harness(
+            style,
+            Vec2::new(620.0, 300.0),
+            (scene, view, common::base_text_styled(theme, style)),
+            (theme, |_, _| {}),
+        );
+        h.run_steps(8);
+        if open {
+            let trigger = support::nodes(&h)
+                .into_iter()
+                .find(|(path, _)| path.ends_with("/\"started\"/Trigger"))
+                .expect("the trigger is laid out")
+                .1;
+            h.hover_at(trigger.center());
+            h.run_steps(2);
+            support::press_and_release(&mut h, trigger.center());
+            h.hover_at(egui::pos2(600.0, 290.0));
+            h.run_steps(40);
+            assert!(
+                support::nodes(&h)
+                    .iter()
+                    .any(|(path, _)| path.ends_with("/Panel/Content")),
+                "precondition: the panel is open"
+            );
+        }
+        h.snapshot(name(what, style, theme));
+    }
+
+    fn closed(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: false,
+            links: Links::Described,
+        };
+        golden("closed", scene, false, style, theme);
+    }
+
+    fn open(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: false,
+            links: Links::Described,
+        };
+        golden("open", scene, true, style, theme);
+    }
+
+    fn icons(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: false,
+            links: Links::Icons,
+        };
+        golden("icons", scene, true, style, theme);
+    }
+
+    fn indicator(style: ShadcnStyle, theme: egui::Theme) {
+        let scene = Scene {
+            indicator: true,
+            links: Links::Described,
+        };
+        golden("indicator", scene, true, style, theme);
+    }
+
+    macro_rules! navigation_menu_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
+            }
+        )*};
+    }
+
+    navigation_menu_goldens! {
+        navigation_menu_closed_vega_light: closed, Vega, Light;
+        navigation_menu_closed_vega_dark: closed, Vega, Dark;
+        navigation_menu_closed_lyra_light: closed, Lyra, Light;
+        navigation_menu_closed_lyra_dark: closed, Lyra, Dark;
+        navigation_menu_open_vega_light: open, Vega, Light;
+        navigation_menu_open_vega_dark: open, Vega, Dark;
+        navigation_menu_open_lyra_light: open, Lyra, Light;
+        navigation_menu_open_lyra_dark: open, Lyra, Dark;
+        navigation_menu_icons_vega_light: icons, Vega, Light;
+        navigation_menu_icons_vega_dark: icons, Vega, Dark;
+        navigation_menu_icons_lyra_light: icons, Lyra, Light;
+        navigation_menu_icons_lyra_dark: icons, Lyra, Dark;
+        navigation_menu_indicator_vega_light: indicator, Vega, Light;
+        navigation_menu_indicator_vega_dark: indicator, Vega, Dark;
+        navigation_menu_indicator_lyra_light: indicator, Lyra, Light;
+        navigation_menu_indicator_lyra_dark: indicator, Lyra, Dark;
+    }
+}

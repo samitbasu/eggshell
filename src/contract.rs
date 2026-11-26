@@ -1296,6 +1296,9 @@ pub struct Style {
     /// [`Typeset::apply`]: crate::owned::markdown::Typeset::apply
     #[cfg(feature = "markdown")]
     pub markdown: crate::owned::markdown::Typeset,
+    /// TODO(prose): navigation menus' delays and panels.
+    #[cfg(feature = "navigation-menu")]
+    pub navigation_menu: crate::owned::navigation_menu::Style,
     /// TODO(prose): notifications.
     #[cfg(feature = "notify")]
     pub notify: crate::owned::notify::Style,
@@ -1638,6 +1641,8 @@ impl Style {
         let hover_card = crate::theme::Shadcn::hover_card(t, &base);
         #[cfg(feature = "markdown")]
         let markdown = crate::owned::markdown::Typeset::default();
+        #[cfg(feature = "navigation-menu")]
+        let navigation_menu = crate::owned::navigation_menu::Style::default();
         #[cfg(feature = "notify")]
         let notify = crate::theme::Shadcn::notify(t, &base);
         #[cfg(feature = "skeleton")]
@@ -1771,6 +1776,8 @@ impl Style {
             hover_card,
             #[cfg(feature = "markdown")]
             markdown,
+            #[cfg(feature = "navigation-menu")]
+            navigation_menu,
             #[cfg(feature = "notify")]
             notify,
             #[cfg(feature = "skeleton")]
@@ -1813,6 +1820,8 @@ impl Style {
         crate::owned::alert::write_exceptions(&mut self.sheet);
         #[cfg(feature = "menubar")]
         crate::owned::menubar::write_exceptions(&mut self.sheet);
+        #[cfg(feature = "navigation-menu")]
+        crate::owned::navigation_menu::write_exceptions(&mut self.sheet);
         #[cfg(feature = "badge")]
         crate::owned::badge::write_exceptions(&mut self.sheet);
         #[cfg(feature = "form")]

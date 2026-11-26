@@ -33,11 +33,11 @@ use std::rc::Rc;
 
 use crate::overlay::Shown;
 use crate::owned::{Enablement, button::Face};
-use crate::{Angle, Builder, Icon, Key, NodeUi as _, Problem, Progress, Tw, tw};
+use crate::{Builder, Key, NodeUi as _, Problem, Progress, Tw, tw};
 use egui::{Color32, Role};
 
 pub use section::SectionChain;
-pub use style::{Glyph, HeaderStyle, Style};
+pub use style::{HeaderStyle, Style};
 
 /// TODO(prose): a section's `on_change`, not yet given.
 pub struct Unset;
@@ -131,25 +131,6 @@ pub(crate) fn write_collapsible_exceptions(
     sheet.rule(accordion::Part::Trigger, |t, _| {
         t.descendants(crate::Match::glyph(), |glyph| glyph.size(4.0))
     });
-}
-
-/// TODO(prose): `glyph`'s icon turned by its turn times `open`, zero closed
-/// and one open: the chevron of a section header and of a disclosure
-/// button, for an app that draws one of its own.
-///
-/// ```
-/// use eggshell_ui::Progress;
-/// use eggshell_ui::owned::disclosure::chevron;
-///
-/// let style = eggshell_ui::Style::default().disclosure;
-/// let open = chevron(&style.section, Progress::END);
-/// # let _ = open;
-/// ```
-pub fn chevron(glyph: &Glyph, open: Progress) -> Icon {
-    glyph
-        .icon
-        .clone()
-        .rotated(Angle::radians(f32::from(glyph.turn) * f32::from(open)))
 }
 
 fn toggled(shown: Shown) -> Shown {
@@ -315,7 +296,7 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
                 .shrink_0()
                 .merge(classes),
         );
-        let glyph = chevron(&style.tree, progress_of(current));
+        let glyph = style.tree.at(progress_of(current));
         let glyph_classes = b.part(CollapsiblePart::TriggerIcon, &keys, tw().shrink_0());
         let button = b
             .div_id(key, box_classes, |b| b.glyph(glyph_classes, glyph))

@@ -8,7 +8,7 @@
 
 use egui::{Color32, ImageSource, Painter, Rect, WidgetText};
 
-use crate::{Angle, Mirror};
+use crate::{Angle, Mirror, Progress};
 
 /// An icon: an image source tinted with the inherited text colour.
 ///
@@ -44,6 +44,45 @@ impl Icon {
     /// This icon mirrored.
     pub fn mirrored(self, mirror: Mirror) -> Self {
         Self { mirror, ..self }
+    }
+}
+
+/// An icon that turns with how far open what it marks is: a chevron, which
+/// a section header turns over and a navigation menu's trigger turns up.
+///
+/// ```
+/// use eggshell_ui::{Angle, Icon, Progress, TurningIcon, icons};
+///
+/// let chevron = TurningIcon::new(Icon::new(icons::CHEVRON_DOWN), Angle::degrees(180.0));
+/// assert_eq!(chevron.at(Progress::START).rotate, Angle::ZERO);
+/// assert_eq!(chevron.at(Progress::END).rotate, Angle::degrees(180.0));
+/// ```
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct TurningIcon {
+    /// The icon while closed.
+    pub icon: Icon,
+    /// How far it turns once open.
+    pub turn: Angle,
+}
+
+impl TurningIcon {
+    /// `icon`, turned by `turn` once open.
+    pub fn new(icon: Icon, turn: Angle) -> Self {
+        Self { icon, turn }
+    }
+
+    /// `icon`, which does not turn.
+    pub fn still(icon: Icon) -> Self {
+        Self::new(icon, Angle::ZERO)
+    }
+
+    /// The icon turned by the turn times `open`: unturned closed, all the
+    /// way open.
+    pub fn at(&self, open: Progress) -> Icon {
+        self.icon
+            .clone()
+            .rotated(Angle::radians(f32::from(self.turn) * f32::from(open)))
     }
 }
 

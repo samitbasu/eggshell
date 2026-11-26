@@ -422,7 +422,7 @@ pub mod web;
 pub mod widget;
 pub mod window;
 
-pub use builder::{AnyNode, Builder, DragSource, NodeHandle, Scope, SpansHandle};
+pub use builder::{AnyNode, Builder, Current, DragSource, NodeHandle, Scope, SpansHandle};
 pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
@@ -440,7 +440,7 @@ pub use mount::MountChain;
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode, SharedStyle};
-pub use prim::Icon;
+pub use prim::{Icon, TurningIcon};
 pub(crate) use report::report;
 pub use report::{Problem, Report};
 pub use roots::OverlayRef;

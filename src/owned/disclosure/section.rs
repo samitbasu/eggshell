@@ -10,7 +10,7 @@ use egui::Role;
 
 use crate::sheet::Key as SheetKey;
 
-use super::{ChangeFn, OnChange, Style, Unset, chevron, enablement_in, name_of, toggled};
+use super::{ChangeFn, OnChange, Style, Unset, enablement_in, name_of, toggled};
 
 /// The parts of a section, under its key.
 #[derive(Clone, Copy, Debug, Hash)]
@@ -247,7 +247,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         let keys = keys_of(enablement);
         let box_classes = b.part(accordion::Part::Trigger, keys, sense);
         let name = name_of(&face).to_owned();
-        let glyph = chevron(&style.section, open);
+        let glyph = style.section.at(open);
         let glyph_classes = b.part(accordion::Part::TriggerIcon, keys, tw());
         let handle = b
             .div_id(Node::Header, box_classes.merge(classes), |b| {

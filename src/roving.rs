@@ -1,12 +1,12 @@
 //! Groups of items on the page that the arrow keys move the focus through:
 //! a tab list, a radio group ([`NodeHandle::nav`](crate::NodeHandle::nav)).
 //!
-//! A group is one Tab stop. While the focus is on one of its items, that
-//! item is the stop; otherwise the item marked selected is, or, with none,
-//! the first enabled item. The other items are left out of the Tab order, so
-//! the stop is settled before the frame's widgets are drawn: the arrow keys
-//! move the focus first, and the item they reach is focusable in the same
-//! frame.
+//! A group is one Tab stop unless it keeps every item one
+//! ([`TabStops::Every`]). While the focus is on one of its items, that item
+//! is the stop; otherwise the item marked selected is, or, with none, the
+//! first enabled item. The other items are left out of the Tab order, so the
+//! stop is settled before the frame's widgets are drawn: the arrow keys move
+//! the focus first, and the item they reach is focusable in the same frame.
 
 use std::collections::HashSet;
 
@@ -14,7 +14,7 @@ use egui::{Context, Id, Rect};
 
 use crate::kept::Handle;
 use crate::nodes::Nodes;
-use crate::overlay::Nav;
+use crate::overlay::{Nav, TabStops};
 use crate::owned::Mark;
 use crate::pipeline::PlacedNode;
 
@@ -24,13 +24,21 @@ use crate::pipeline::PlacedNode;
 pub(crate) struct Group {
     pub(crate) nav: Nav,
     pub(crate) follows: Follows,
+    pub(crate) stops: TabStops,
 }
 
 impl Group {
+    /// A group that navigates as `nav`: an accordion's headers
+    /// ([`Nav::Column`]) are each a Tab stop, the others one.
     pub(crate) fn new(nav: Nav) -> Self {
+        let stops = match nav {
+            Nav::Column(_) => TabStops::Every,
+            _ => TabStops::One,
+        };
         Self {
             nav,
             follows: Follows::Focus,
+            stops,
         }
     }
 }
@@ -156,7 +164,7 @@ pub(crate) fn settle(ctx: &Context, kept: &Handle, nodes: &Nodes) -> HashSet<Id>
         .iter()
         .flat_map(|group| {
             let stop = group.stop(focused);
-            let roving = !matches!(group.group.nav, Nav::Column(_));
+            let roving = group.group.stops == TabStops::One;
             group
                 .items
                 .iter()
