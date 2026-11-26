@@ -3,6 +3,7 @@
 //! hit, focused, tooltipped or put in the AccessKit tree, and a `visible`
 //! descendant is shown again.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Key, vec2};

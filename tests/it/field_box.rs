@@ -1,6 +1,7 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
 use eggshell_ui::contract::Size;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, size};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};

@@ -4,6 +4,7 @@
 //! within it, ahead of the page's.
 
 use eggshell_ui::owned::text_field::Field;
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

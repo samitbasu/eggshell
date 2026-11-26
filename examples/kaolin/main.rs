@@ -6,6 +6,7 @@
 mod common;
 mod layouts;
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
 use egui::load::SizedTexture;
 use egui::{ImageSource, TextureHandle, TextureOptions};

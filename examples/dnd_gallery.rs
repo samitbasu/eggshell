@@ -14,6 +14,7 @@
 mod common;
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::drag_chip::Chip as _;

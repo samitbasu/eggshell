@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use crate::overlay::{Anchor, DismissOn, Dismissed, Focus, MatchWidth, Modal, Placement};
 use crate::owned::Mark;
-use crate::owned::text_field::Select;
+use crate::owned::options::{Configure as _, Interactive as _, Respond as _};
+
 use crate::pipeline::DismissFn;
 use crate::sheet::Key as SheetKey;
 use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
@@ -482,7 +483,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                     ..state.clone()
                 }
                 .store(&ctx, key);
-                field = field.focus_now(Select::None);
+                field = field.focus_now();
             }
             let (handled, shown) = (ctx.clone(), text.clone());
             field = field.on_response(move |_, response| {

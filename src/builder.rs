@@ -2207,6 +2207,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// TODO(prose)
     ///
     /// ```
+    /// use eggshell_ui::prelude::*;
     /// use eggshell_ui::{Builder, tw};
     ///
     /// struct App { saves: u32 }
@@ -2682,6 +2683,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 /// so that the caller adds the click handler:
 ///
 /// ```
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::Scope;
 /// use eggshell_ui::owned::button;
 ///

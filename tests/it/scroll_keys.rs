@@ -2,6 +2,7 @@
 //! scroll, which container they scroll, Tab into content that is scrolled
 //! out of view, and the accessibility tree of that content.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain};
 use eggshell_ui::testing::{Timeline, record};
 use eggshell_ui::{Builder, Opacity, TextSpec, TextStyle, Weight, tw};

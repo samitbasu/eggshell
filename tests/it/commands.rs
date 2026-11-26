@@ -5,6 +5,7 @@
 use eggshell_ui::overlay::{Anchor, Modal};
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{
     Builder, Chord, Command, CommandState, Commands, Icon, InText, Shell, TextSpec, TextStyle,

@@ -10,19 +10,16 @@ use egui::{Context, Id, Key, Role, WidgetInfo};
 use super::choice::{self, Choice, IntoChoice};
 use super::number::{hold_arrows, pressed};
 use super::options::Refused;
-use super::{
-    Chevron, Enablement, Mark, OnResponse, check, describe, options, options::Gate,
-    options::IntoTip, options::Validity, tipped,
-};
+use super::options::{Configure, Interactive, Options, Resolved, Respond, Validity};
+use super::{Chevron, Enablement, Mark, OnResponse, check, describe, tipped};
 use crate::Aria;
 use crate::builder::Slot;
 use crate::contract::{SelectStyle, Size};
-use crate::focus::{Autofocus, Select};
 use crate::overlay::Fit;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::sheet::{Key as SheetKey, Part as SheetPart, Sheet, When};
-use crate::{Builder, NodeUi as _, Scope, Tw, nav, tw};
+use crate::{Builder, NodeUi as _, Scope, nav, tw};
 
 /// The parts of a select's list.
 #[derive(Hash, Debug, Clone, Copy)]
@@ -140,6 +137,12 @@ impl Listing {
 ///   Europe <svg class="size-4 opacity-50">chevron-down</svg>
 /// </button>
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its classes are the trigger's,
+/// which is `w-fit` until then.
 #[must_use = "a select is not added until you call `.on_change(..)`"]
 pub struct Chain<'a, 'f, A, T> {
     b: Builder<'a, 'f, A>,
@@ -147,14 +150,10 @@ pub struct Chain<'a, 'f, A, T> {
     list: Slot,
     current: T,
     options: Vec<Choice<T>>,
-    name: Option<String>,
+    opts: Options,
     offset: Option<Distance>,
-    gate: Gate,
-    classes: Tw,
-    enablement: Enablement,
     size: Option<Size>,
     on_response: OnResponse<A>,
-    autofocus: Autofocus,
     validity: Validity,
 }
 
@@ -172,22 +171,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             b,
             current,
             options: choice::collect(options),
-            name: None,
+            opts: Options::new(),
             offset: None,
-            gate: Gate::default(),
-            classes: tw(),
-            enablement: Enablement::Enabled,
             size: None,
             on_response: OnResponse::default(),
-            autofocus: Autofocus::Never,
             validity: Validity::Valid,
         }
-    }
-
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
     }
 
     /// TODO(prose): marks the select invalid while `error` is `Some`, as
@@ -205,86 +194,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
         self
     }
 
-    /// Classes merged over the styled ones of the trigger, such as its width,
-    /// which is `w-fit` until then; the later class wins ([`Tw::merge`]).
-    /// The style's state looks still apply over them in their states: see
-    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// Runs `then` with the trigger's response each frame: the escape hatch for what the
-    /// builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
-        self
-    }
-
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
         self
-    }
-
-    /// Whether the select takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
     }
 
     /// Adds the select. `choose` runs with the chosen value.
@@ -303,17 +216,20 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             list,
             current: chosen,
             options,
-            name,
+            opts,
             offset,
-            gate,
-            classes: caller,
-            enablement,
             size,
             on_response,
-            autofocus,
             validity,
         } = self;
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let ctx = b.ctx().clone();
         let trigger = slot.id;
         if enablement == Enablement::Disabled && Listing::of(&ctx, trigger) == Listing::Open {
@@ -488,6 +404,22 @@ impl<T: Copy + 'static> List<T> {
                 });
             }
         }
+    }
+}
+
+impl<A, T> Configure for Chain<'_, '_, A, T> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, T> Interactive for Chain<'_, '_, A, T> {}
+
+impl<A, T> Respond for Chain<'_, '_, A, T> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

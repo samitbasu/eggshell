@@ -1,8 +1,12 @@
 //! TODO(prose): what an app imports with `use eggshell_ui::prelude::*`: the
-//! builder, the classes and the style, and every compiled-in widget's
-//! extension trait, unnamed, so that `b.badge(..)`, `b.tabs(..)` and the
-//! rest are in scope.
+//! builder, the classes and the style, the traits of the options the owned
+//! controls share ([`Configure`](crate::owned::options::Configure),
+//! [`Interactive`](crate::owned::options::Interactive) and
+//! [`Respond`](crate::owned::options::Respond)), and every compiled-in
+//! widget's extension trait, all unnamed, so that `.tooltip(..)`,
+//! `b.badge(..)`, `b.tabs(..)` and the rest are in scope.
 
+pub use crate::owned::options::{Configure as _, Interactive as _, Respond as _};
 pub use crate::{Builder, Style, Tw, tw};
 
 #[cfg(feature = "accordion")]

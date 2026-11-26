@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::owned::options::Configure as _;
 use crate::owned::{Enablement, Mark, input, menu};
 use crate::sheet::Key as SheetKey;
 use crate::vlist::{ListNav, RowKind};

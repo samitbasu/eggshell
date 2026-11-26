@@ -11,6 +11,7 @@ mod common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::table::{Align, Column, Stripes};
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::variant;
 use eggshell_ui::{Builder, Track, tw};
 

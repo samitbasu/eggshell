@@ -2,6 +2,7 @@
 //! the values a gesture sets, through kittest's real pointer and key events.
 
 use eggshell_ui::owned::number::Edit;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};

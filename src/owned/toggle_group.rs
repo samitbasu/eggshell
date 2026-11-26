@@ -40,6 +40,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::owned::{button, toggle_group::Group};
 /// use eggshell_ui::{Builder, tw};
 ///

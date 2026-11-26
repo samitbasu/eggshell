@@ -49,6 +49,7 @@
 //! ```
 //!
 //! ```
+//! use eggshell_ui::prelude::*;
 //! use eggshell_ui::{Builder, tw};
 //! use egui::Color32;
 //!
@@ -266,9 +267,9 @@ fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
 }
 
-/// What a control's [`on_response`](button::Chain::on_response) runs with its
-/// response each frame, if it has one.
-pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
+/// What a control's [`on_response`](options::Respond::on_response) runs with
+/// its response each frame, if it has one.
+pub struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
 
 type ResponseFn<A> = dyn Fn(&mut A, &Response);
 type Hook<A> = Option<Rc<dyn Fn(&mut A)>>;

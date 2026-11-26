@@ -8,9 +8,10 @@ use egui::{Key, Role, WidgetInfo};
 
 use super::number::field::Session;
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
+use super::options::{Configure, Interactive, Options, Resolved, Respond, Validity};
 use super::{
-    Chevron, Enablement, FieldHooks, Tip, button, centered, described, input, options,
-    options::Gate, options::IntoTip, options::Validity, text_sized, tip_describes, tipped_whole,
+    Chevron, Enablement, FieldHooks, OnResponse, Tip, button, centered, described, input,
+    text_sized, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Size, StepperStyle};
@@ -50,6 +51,11 @@ enum Node {
 ///   </div>
 /// </div>
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its response is the field's.
 #[must_use = "a stepper is not added until you call `.on_change(..)`"]
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
@@ -57,14 +63,10 @@ pub struct Chain<'a, 'f, A> {
     value: f64,
     range: ValueRange,
     step: Step,
-    name: Option<String>,
-    gate: Gate,
-    classes: Tw,
-    enablement: Enablement,
+    opts: Options,
     size: Option<Size>,
     hooks: FieldHooks<A>,
     edits: Edits<A>,
-    autofocus: Autofocus,
     validity: Validity,
 }
 
@@ -82,14 +84,10 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             value,
             range,
             step: Step::ONE,
-            name: None,
-            gate: Gate::default(),
-            classes: tw(),
-            enablement: Enablement::Enabled,
+            opts: Options::new(),
             size: None,
             hooks: FieldHooks::default(),
             edits: Edits::default(),
-            autofocus: Autofocus::Never,
             validity: Validity::Valid,
         }
     }
@@ -97,49 +95,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// The distance one button press moves the value.
     pub fn step(mut self, step: Step) -> Self {
         self.step = step;
-        self
-    }
-
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// Classes merged over the styled ones of the whole stepper, such as its
-    /// width, which is 112 points until then; the later class wins
-    /// ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// Runs `then` with the field's response each frame: the escape hatch for
-    /// what the builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.hooks.response.set(then);
         self
     }
 
@@ -173,42 +128,20 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
     /// `select` says when it takes focus.
     pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
-        self.autofocus = Autofocus::OnAppear(select);
+        self.opts.set_autofocus(Autofocus::OnAppear(select));
         self
     }
 
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set, selecting as
-    /// `select` says.
-    pub fn focus_now(mut self, select: Select) -> Self {
-        self.autofocus = Autofocus::Now(select);
+    /// TODO(prose): [`focus_now`](Interactive::focus_now), selecting as
+    /// `select` says when it takes focus.
+    pub fn focus_now_selecting(mut self, select: Select) -> Self {
+        self.opts.set_autofocus(Autofocus::Now(select));
         self
     }
 
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
-        self
-    }
-
-    /// Whether the stepper takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
         self
     }
 
@@ -221,16 +154,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
     /// Adds the stepper. `set` runs with the new value.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
@@ -241,18 +164,21 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             value,
             range,
             step,
-            name,
-            gate,
-            classes,
-            enablement,
+            opts,
             size,
             hooks,
             edits,
-            autofocus,
             validity,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let style = b.style().clone();
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
@@ -530,6 +456,22 @@ impl<A> Spec<A> {
             session.close(app, ui, (&text, value), accept, (&self.edits, &set));
         }
         self.hooks.run(app, ui, &response, field.enter());
+    }
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.hooks.response
     }
 }
 

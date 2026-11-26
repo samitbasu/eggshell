@@ -3,6 +3,7 @@
 //! accessibility check the support harness switches on.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed};

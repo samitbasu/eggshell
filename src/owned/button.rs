@@ -5,16 +5,14 @@ use std::fmt::Debug;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{
-    Enablement, OnResponse, centered, described, options, options::Gate, options::IntoTip,
-};
+use super::options::{self, Configure, Interactive, Resolved, Respond};
+use super::{Enablement, OnResponse, centered, described};
 use crate::Aria;
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
-use crate::focus::{Autofocus, Select};
 use crate::sheet::Key;
-use crate::{Builder, Icon, Scope, Tw, tw};
+use crate::{Builder, Icon, Scope, tw};
 
 /// TODO(prose): a button's anatomy for the [`Sheet`](crate::sheet::Sheet): its box. shadcn styles
 /// the icons inside it from the box (`[&_svg]:size-4`), so an icon is not a
@@ -48,11 +46,12 @@ enum Press {
 /// name is an icon-only face, which assistive technology reads by the name.
 /// [`Face::Empty`] shows nothing, for a button whose content is all
 /// [`children`](Chain::children), and is named too. The button's
-/// [`named`](Chain::named) overrides any of these.
+/// [`named`](Configure::named) overrides any of these.
 ///
 /// ```
 /// use eggshell_ui::owned::button::Face;
-/// use eggshell_ui::{Builder, Icon};
+/// use eggshell_ui::prelude::*;
+/// use eggshell_ui::Icon;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
 ///     b.button("save", "Save").add();
@@ -66,7 +65,7 @@ enum Press {
 ///
 /// TODO(prose): an icon alone has no name, and a button showing one is
 /// reported as [`Unnamed`](crate::Problem::Unnamed) in debug builds unless
-/// it is [`named`](Chain::named).
+/// it is [`named`](Configure::named).
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](Chain::icon) adds one.
@@ -80,7 +79,7 @@ pub enum Face {
 
 impl Face {
     /// What assistive technology reads, unless the button is
-    /// [`named`](Chain::named).
+    /// [`named`](Configure::named).
     pub(crate) fn name(&self) -> &str {
         match self {
             Self::Label(name) | Self::Icon(_, name) | Self::Empty(name) => name,
@@ -119,13 +118,19 @@ impl<S: Into<String>> From<(Icon, S)> for Face {
 ///
 /// A button without a visible label has nothing for assistive technology to
 /// read but its name: an icon-only or empty [`Face`] holds one, and
-/// [`named`](Self::named) overrides it. In debug builds, a button whose name
+/// [`named`](Configure::named) overrides it. In debug builds, a button whose name
 /// is empty is reported as [`Unnamed`](crate::Problem::Unnamed).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], through the [`prelude`](crate::prelude). A
+/// [`command`](Self::command)'s button is disabled while its command is,
+/// whatever its [`enablement`](Interactive::enablement) or
+/// [`refused`](Interactive::refused) say.
 ///
 /// TODO(prose)
 ///
 /// ```
-/// use eggshell_ui::Builder;
+/// use eggshell_ui::prelude::*;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.dropdown_menu("crumbs", "···").named("The levels between").items(|_| {});
@@ -144,7 +149,6 @@ pub struct Chain<'a, 'f, A> {
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
     action: Option<Action>,
-    autofocus: Autofocus,
     closes: Closes,
     /// The key of an open popup's trigger, while its popup is open.
     expanded: Option<Key>,
@@ -165,11 +169,13 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 ///
 /// A setting that was never set leaves the button's own (or the style's) in
 /// place. When two sets of options meet in [`merge`](Self::merge), a setting
-/// the second one has set wins, and classes merge as [`Tw::merge`] does.
+/// the second one has set wins, and classes merge as [`Tw::merge`](crate::Tw::merge) does.
+///
+/// It has the options of [`Configure`] and [`Interactive`] as a chain does.
 ///
 /// ```
 /// use eggshell_ui::owned::button::Options;
-/// use eggshell_ui::Builder;
+/// use eggshell_ui::prelude::*;
 /// use eggshell_ui::contract::Size;
 ///
 /// fn verb() -> Options {
@@ -183,14 +189,11 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 /// ```
 #[derive(Clone)]
 pub struct Options {
+    common: options::Options,
     icon: Option<Icon>,
     variant: Option<Variant>,
     size: Option<Size>,
-    name: Option<String>,
-    gate: Gate,
-    enablement: Option<Enablement>,
     press: Option<Press>,
-    classes: Tw,
 }
 
 impl Default for Options {
@@ -203,29 +206,23 @@ impl Options {
     /// Options that set nothing.
     pub fn new() -> Self {
         Self {
+            common: options::Options::new(),
             icon: None,
             variant: None,
             size: None,
-            name: None,
-            gate: Gate::default(),
-            enablement: None,
             press: None,
-            classes: tw(),
         }
     }
 
     /// `self` with every setting `other` has set taking `other`'s value, and
-    /// the classes of both merged, `other`'s winning ([`Tw::merge`]).
+    /// the classes of both merged, `other`'s winning ([`Tw::merge`](crate::Tw::merge)).
     pub fn merge(self, other: Self) -> Self {
         Self {
+            common: self.common.merge(other.common),
             icon: other.icon.or(self.icon),
             variant: other.variant.or(self.variant),
             size: other.size.or(self.size),
-            name: other.name.or(self.name),
-            gate: self.gate.merge(other.gate),
-            enablement: other.enablement.or(self.enablement),
             press: other.press.or(self.press),
-            classes: self.classes.merge(other.classes),
         }
     }
 
@@ -255,60 +252,29 @@ impl Options {
         self
     }
 
-    /// Classes merged over the styled ones, such as the button's width or how
-    /// it grows; the later class wins ([`Tw::merge`]). The style's hover and
-    /// pressed looks still apply over them in their states: see
-    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// TODO(prose): the accessible name, in place of the face's, as
-    /// `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
     /// Disabled while the options refuse the button.
     pub(super) fn refusal(&self) -> Enablement {
-        match self.gate.refused() {
-            super::options::Refused::Yes => Enablement::Disabled,
-            super::options::Refused::No => Enablement::Enabled,
-        }
+        self.common.refusal()
+    }
+
+    /// The enablement the options set, enabled unless they set one.
+    pub(super) fn own_enablement(&self) -> Enablement {
+        self.common.own_enablement()
     }
 
     /// The name assistive technology reads for a button showing `face`.
     pub(crate) fn name_or<'s>(&'s self, face: &'s Face) -> &'s str {
-        self.name.as_deref().unwrap_or_else(|| face.name())
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Whether the button takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = Some(enablement);
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
+        self.common.name().unwrap_or_else(|| face.name())
     }
 }
+
+impl Configure for Options {
+    fn options(&mut self) -> &mut options::Options {
+        &mut self.common
+    }
+}
+
+impl Interactive for Options {}
 
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
@@ -332,7 +298,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             on_response: OnResponse::default(),
             children: None,
             action: None,
-            autofocus: Autofocus::Never,
             closes: Closes::Nothing,
             expanded: None,
         }
@@ -352,8 +317,9 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     }
 
     /// Asks for focus as `autofocus` says.
-    pub(crate) fn autofocus(mut self, autofocus: Autofocus) -> Self {
-        self.autofocus = autofocus;
+    #[cfg(feature = "dialog")]
+    pub(crate) fn autofocus(mut self, autofocus: crate::focus::Autofocus) -> Self {
+        self.opts.common.set_autofocus(autofocus);
         self
     }
 
@@ -382,19 +348,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     /// first declared is the one.
     pub fn cancel_action(mut self) -> Self {
         self.action = Some(Action::Cancel);
-        self
-    }
-
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
         self
     }
 
@@ -464,77 +417,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// Classes merged over the styled ones, such as the button's width or how
-    /// it grows; the later class wins ([`Tw::merge`]). The style's hover and
-    /// pressed looks still apply over them in their states: see
-    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.opts = self.opts.classes(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.opts = self.opts.tooltip(text);
-        self
-    }
-
-    /// TODO(prose): the accessible name, in place of the face's, as
-    /// `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.opts = self.opts.named(name);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.opts.gate.tooltip_with(build);
-        self
-    }
-
-    /// Runs `then` with the button's response each frame: the escape hatch for what the
-    /// builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
-        self
-    }
-
-    /// Whether the button takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.opts = self.opts.enablement(enablement);
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins. A [`command`](Self::command)'s button is disabled while its
-    /// command is, whatever this says.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.opts = self.opts.refused(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<T>(self, value: Option<T>, then: impl FnOnce(Self, T) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
     /// Builds `body`'s nodes inside the button, after its icon and label, as
     /// React's `children` do. The button is `relative`, so an absolute child
     /// is placed against its border box; a flow child follows the face in the
@@ -594,12 +476,12 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                     )
                 },
             );
-            self.opts.enablement = Some(Enablement::Disabled);
+            self.opts.common.set_enablement(Enablement::Disabled);
             self.add();
             return;
         };
         if bound.enablement == Enablement::Disabled {
-            self.opts.enablement = Some(Enablement::Disabled);
+            self.opts.common.set_enablement(Enablement::Disabled);
         }
         let (command, shell) = (bound.command, self.b.shell());
         self.on_click(move |app| command.run(app, &shell));
@@ -632,25 +514,27 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             role,
             opts:
                 Options {
+                    common,
                     icon,
                     variant,
                     size,
-                    name,
-                    gate,
-                    enablement,
                     press,
-                    classes: caller,
                 },
             on_response,
             children,
             action,
-            autofocus,
             closes,
             expanded,
         } = self;
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = common.resolve(&mut b, slot.id);
         let name = name.unwrap_or(face_name);
-        let (enablement, tooltip) =
-            gate.resolve(&mut b, slot.id, enablement.unwrap_or(Enablement::Enabled));
         let size = b.size_of(size);
         let press = press.unwrap_or(Press::Shifts);
         let ctx = b.ctx();
@@ -743,6 +627,22 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             }
             on_response.run(app, &response);
         });
+    }
+}
+
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut options::Options {
+        &mut self.opts.common
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

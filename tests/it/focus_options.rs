@@ -6,6 +6,7 @@ use eggshell_ui::Problem;
 use eggshell_ui::overlay::Anchor;
 use eggshell_ui::owned::text_field::Select;
 use eggshell_ui::owned::{splitter::PaneSize, toggle_group};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{assert_no_reports, assert_reported};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
@@ -115,7 +116,7 @@ fn control(b: &mut Builder<'_, '_, App>, app: &App) {
             match app.ask {
                 Ask::Nothing => chain,
                 Ask::OnOpen => chain.focus_on_open(),
-                Ask::Now(select) => chain.focus_now(select),
+                Ask::Now(select) => chain.focus_now_selecting(select),
             }
         }};
     }

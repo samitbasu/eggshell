@@ -2,6 +2,7 @@
 //! on the field (`Focus::Stay`), through the real path.
 
 use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Role, vec2};

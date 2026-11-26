@@ -3,6 +3,7 @@
 //! toggle variants and node-opacity disabling. Pointer and
 //! key input goes through kittest's real events.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Paint, Size, Themed, Variant};

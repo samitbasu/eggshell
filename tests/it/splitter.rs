@@ -1,6 +1,7 @@
 //! Splitters through kittest's real pointer and key events: the drag, the
 //! keys, the reset, the accessibility tree and how layout squeezes a pane.
 
+use eggshell_ui::prelude::*;
 use std::time::Duration;
 
 use eggshell_ui::owned::splitter::PaneSize;

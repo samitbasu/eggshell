@@ -8,15 +8,14 @@ use std::rc::Rc;
 use egui::{Role, Vec2};
 
 use super::Mark;
+use super::options::{Configure, Interactive, Options, Resolved, Respond, Validity};
 use super::{
-    Card, Enablement, Form, OnResponse, Unset, choice_card, choice_label, choice_row, described,
-    flip, options, options::Gate, options::IntoTip, options::Validity,
+    Card, Form, OnResponse, Unset, choice_card, choice_label, choice_row, described, flip,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::focus::{Autofocus, Select};
 use crate::transition;
-use crate::{Builder, Easing, Progress, Tw, tw};
+use crate::{Builder, Easing, Progress, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Node {
@@ -34,6 +33,12 @@ enum Node {
 /// The thumb scales with the track's height and travels its width, so
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its classes are the whole row's,
+/// and its response is the track's.
 #[must_use = "a switch is not added until you call `.on_change(..)`"]
 pub struct Chain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
@@ -41,17 +46,13 @@ pub struct Chain<'a, 'f, A, T, V = Unset> {
     label: Option<String>,
     description: Option<String>,
     form: Form,
-    name: Option<String>,
-    gate: Gate,
+    opts: Options,
     validity: Validity,
     current: T,
     values: V,
     size: Option<Size>,
     track: Option<Vec2>,
-    classes: Tw,
-    enablement: Enablement,
     on_response: OnResponse<A>,
-    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
@@ -67,16 +68,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             label,
             description: None,
             form: Form::Row,
-            name: None,
-            gate: Gate::default(),
+            opts: Options::new(),
             current,
             values: Unset,
             size: None,
             track: None,
-            classes: tw(),
-            enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
-            autofocus: Autofocus::Never,
             validity: Validity::Valid,
         }
     }
@@ -89,16 +86,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
             label: self.label,
             description: self.description,
             form: self.form,
-            name: self.name,
-            gate: self.gate,
+            opts: self.opts,
             current: self.current,
             values: [off, on],
             size: self.size,
             track: self.track,
-            classes: self.classes,
-            enablement: self.enablement,
             on_response: self.on_response,
-            autofocus: self.autofocus,
             validity: self.validity,
         }
     }
@@ -110,12 +103,6 @@ impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
     /// does: its track's border and ring turn destructive, and so does its field's label.
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);
-        self
-    }
-
-    /// The accessible name, when it is not the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
         self
     }
 
@@ -142,80 +129,6 @@ impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
         self.description = Some(text.into());
         self
     }
-
-    /// Classes merged over the styled ones of the whole row, such as its
-    /// width or placement; the later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, in a tooltip overlay
-    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
-    /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
-    /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    /// The content takes no input, and its text describes the control to
-    /// assistive technology.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// Whether the switch takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Runs `then` with the track's response each frame: the escape hatch for
-    /// what the builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
-        self
-    }
 }
 
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
@@ -238,19 +151,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
             label,
             description,
             form,
-            name,
-            gate,
+            opts,
             current,
             values: [off, on_value],
             size,
             track,
-            classes: caller,
-            enablement,
             on_response,
-            autofocus,
             validity,
         } = self;
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
@@ -434,6 +350,22 @@ impl Part {
         enablement: super::Enablement,
     ) -> Vec<crate::sheet::Key> {
         super::field::choice_keys(size, mark, enablement)
+    }
+}
+
+impl<A, T, V> Configure for Chain<'_, '_, A, T, V> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, T, V> Interactive for Chain<'_, '_, A, T, V> {}
+
+impl<A, T, V> Respond for Chain<'_, '_, A, T, V> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

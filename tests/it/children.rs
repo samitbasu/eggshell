@@ -1,6 +1,7 @@
 //! `.children(..)` on buttons and toggles: nodes built inside the button,
 //! after its face, through the real layout and draw path.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};

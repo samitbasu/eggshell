@@ -10,6 +10,7 @@
 mod common;
 
 use eggshell_ui::owned::text_field::{Enter, Select};
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};
 
 /// The parts the layout names.

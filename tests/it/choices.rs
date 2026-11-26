@@ -2,6 +2,7 @@
 //! option that is disabled on its own, through kittest's real pointer and key
 //! events and the accessibility check the support harness switches on.
 
+use eggshell_ui::prelude::*;
 use std::fmt;
 
 use eggshell_ui::owned::{Enablement, choice::Choice};
