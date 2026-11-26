@@ -23,7 +23,7 @@ use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
 use crate::owned::tooltip::{Content, Tooltip};
 use crate::pipeline::{
-    BuildState, ColorSource, DismissFn, DrawKind, Frame, Identified, Identity, Interaction,
+    AppFn, BuildState, ColorSource, DismissFn, DrawKind, Frame, Identified, Identity, Interaction,
     MeasureFn, Node, NodeKind, Pass, ScrollNode, Sink, solve,
 };
 use crate::presence::{self, Entrance, Motion, Phase as Presence, Shown, Step};
@@ -1148,7 +1148,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         slot: &Slot,
         decl: OverlayDecl,
         on_dismiss: Option<DismissFn<A>>,
-        (motion, on_exited): (Option<Motion>, Option<DismissFn<A>>),
+        (motion, on_exited): (Option<Motion>, Option<AppFn<A>>),
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
         let mut decl = decl;

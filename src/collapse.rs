@@ -18,7 +18,7 @@ use taffy::{Dimension, NodeId, style_helpers::length};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::layout_tree::LayoutTree;
-use crate::pipeline::DismissFn;
+use crate::pipeline::AppFn;
 use crate::presence::Shown;
 use crate::tw::{Easing, Progress, Tw, tw};
 
@@ -73,7 +73,7 @@ pub struct CollapsibleChain<'b, 'f, A> {
     easing: Easing,
     classes: Tw,
     content: Tw,
-    on_collapsed: Option<DismissFn<A>>,
+    on_collapsed: Option<AppFn<A>>,
 }
 
 impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
@@ -96,7 +96,7 @@ pub(crate) struct Declared<A> {
     pub(crate) easing: Easing,
     pub(crate) classes: Tw,
     pub(crate) content: Tw,
-    pub(crate) on_collapsed: Option<DismissFn<A>>,
+    pub(crate) on_collapsed: Option<AppFn<A>>,
 }
 
 impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
