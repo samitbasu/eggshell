@@ -6,8 +6,8 @@ use egui::{Id, Role};
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Fit, Focus, HoverIntent, MatchWidth, Modal, Nav, Outside,
-    Placement, Showing,
+    Anchor, Band, Behavior, DismissOn, Dismissed, Fit, Focus, HoverIntent, MatchWidth, Modal, Nav,
+    Outside, Placement, Showing,
 };
 use crate::pipeline::DismissFn;
 use crate::presence::{Entrance, ExitedFn, Motion, Shown, Staged};
@@ -294,7 +294,17 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
     /// Runs `then` when the library dismisses the overlay (see
     /// [`DismissOn`]): close it. The library never changes the application's
     /// state itself, and an overlay no handler closes stays open.
-    pub fn on_dismiss(mut self, then: impl FnOnce(&mut A) + 'static) -> Self {
+    ///
+    /// Replaces a handler [`on_dismiss_with`](Self::on_dismiss_with) set.
+    pub fn on_dismiss(self, then: impl FnOnce(&mut A) + 'static) -> Self {
+        self.on_dismiss_with(move |app, _| then(app))
+    }
+
+    /// TODO(prose): as [`on_dismiss`](Self::on_dismiss), and told why the
+    /// library dismissed the overlay: an application that reverts edits on
+    /// Esc and keeps them on a press outside. Replaces a handler `on_dismiss`
+    /// set.
+    pub fn on_dismiss_with(mut self, then: impl FnOnce(&mut A, Dismissed) + 'static) -> Self {
         self.on_dismiss = Some(Box::new(then));
         self
     }

@@ -630,3 +630,116 @@ fn the_palettes_headings_are_not_options_and_separators_part_the_groups() {
         assert_eq!(above, expected, "separators in {heading}'s row");
     }
 }
+
+/// A command dialog's `dismiss_on` and `on_dismiss_with`, which runs instead
+/// of `on_close` for a dismissal (#326).
+mod dismissal {
+    use eggshell_ui::overlay::{DismissOn, Dismissed};
+    use eggshell_ui::owned::command::Open;
+    use eggshell_ui::prelude::*;
+    use eggshell_ui::{Builder, tw};
+    use egui::{Key, Pos2, vec2};
+    use egui_kittest::Harness;
+
+    use crate::support::{self, Rig, rect_of};
+
+    #[derive(Default)]
+    struct Palette {
+        open: bool,
+        dismiss_on: DismissOn,
+        closed: Vec<&'static str>,
+        whys: Vec<Dismissed>,
+    }
+
+    fn view(b: &mut Builder<'_, '_, Palette>, app: &Palette) {
+        b.div(tw().w_full().h_full(), |_| {});
+        b.command_dialog("palette", Open::from(app.open), |app: &mut Palette| {
+            app.open = false;
+            app.closed.push("on_close");
+        })
+        .named("Palette")
+        .dismiss_on(app.dismiss_on)
+        .on_dismiss_with(|app: &mut Palette, why| {
+            app.open = false;
+            app.whys.push(why);
+        })
+        .items(|items| {
+            items.item("one", "One").on_pick(|_: &mut Palette| {});
+        });
+    }
+
+    fn opened(dismiss_on: DismissOn) -> Harness<'static, Rig<Palette>> {
+        let mut harness = support::harness(
+            vec2(800.0, 700.0),
+            super::base_text(),
+            Palette {
+                open: true,
+                dismiss_on,
+                ..Palette::default()
+            },
+            view,
+        );
+        harness.run_steps(20);
+        assert!(
+            harness
+                .state()
+                .nodes
+                .iter()
+                .any(|(path, _)| path.ends_with("/Box")),
+            "precondition: the dialog is showing"
+        );
+        harness
+    }
+
+    fn dialog_box(harness: &Harness<'_, Rig<Palette>>) -> egui::Rect {
+        let path = harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with("/Box"))
+            .map(|(path, _)| path.clone())
+            .unwrap_or_default();
+        rect_of(harness, &path)
+    }
+
+    #[test]
+    fn escape_is_told_to_on_dismiss_with_and_not_to_on_close() {
+        let mut harness = opened(DismissOn::Default);
+        harness.key_press(Key::Escape);
+        harness.run_steps(6);
+        let app = &harness.state().app;
+        assert_eq!(app.whys, [Dismissed::Esc]);
+        assert!(app.closed.is_empty());
+        assert!(!app.open);
+    }
+
+    #[test]
+    fn a_pick_still_runs_on_close() {
+        let mut harness = opened(DismissOn::Default);
+        harness.key_press(Key::Enter);
+        harness.run_steps(20);
+        let app = &harness.state().app;
+        assert_eq!(app.closed, ["on_close"]);
+        assert!(app.whys.is_empty());
+    }
+
+    #[test]
+    fn dismiss_on_reaches_the_dialog() {
+        let scrim = Pos2::new(5.0, 5.0);
+        let mut harness = opened(DismissOn::EscOnly);
+        assert!(!dialog_box(&harness).contains(scrim), "precondition");
+        support::hover_over(&mut harness, scrim);
+        support::press_and_release(&mut harness, scrim);
+        harness.run_steps(6);
+        assert!(harness.state().app.open, "EscOnly ignores the scrim");
+        let mut harness = opened(DismissOn::Default);
+        support::hover_over(&mut harness, scrim);
+        support::press_and_release(&mut harness, scrim);
+        harness.run_steps(6);
+        assert_eq!(
+            harness.state().app.whys,
+            [Dismissed::Outside],
+            "precondition: the scrim press dismisses a Default dialog"
+        );
+    }
+}

@@ -239,6 +239,10 @@ pub enum DismissOn {
     /// focus.
     #[default]
     Default,
+    /// TODO(prose): a press outside it and Esc, but not focus leaving it or
+    /// the window losing focus: a popover that stays open while the user
+    /// works elsewhere with the keyboard, or in another window.
+    Outside,
     /// Esc only: a confirmation that must be answered, or a suggestion list
     /// whose outside click is the field's own concern.
     EscOnly,
@@ -248,7 +252,7 @@ pub enum DismissOn {
 
 impl DismissOn {
     pub(crate) fn outside(self) -> bool {
-        self == Self::Default
+        matches!(self, Self::Default | Self::Outside)
     }
 
     pub(crate) fn esc(self) -> bool {
@@ -258,6 +262,33 @@ impl DismissOn {
     pub(crate) fn focus_out(self) -> bool {
         self == Self::Default
     }
+}
+
+/// TODO(prose): why the library dismissed an overlay, as
+/// [`on_dismiss_with`](OverlayChain::on_dismiss_with) is told.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Dismissed {
+    /// TODO(prose): a press outside it.
+    Outside,
+    /// TODO(prose): Esc, in an overlay with no cancel button: one that has
+    /// one runs the button's handler instead.
+    Esc,
+    /// TODO(prose): focus moved from inside it to a widget outside it.
+    FocusOut,
+    /// TODO(prose): the window lost the keyboard focus.
+    WindowBlur,
+    /// TODO(prose): another overlay opened while this menu was open: menus
+    /// are exclusive.
+    Exclusive,
+    /// TODO(prose): the node it is anchored to is not in the frame.
+    AnchorGone,
+    /// TODO(prose): a menu's navigation keys closed it: Left in a submenu.
+    Keys,
+    /// TODO(prose): a button in it marked
+    /// [`dismisses`](crate::owned::button::Chain::dismisses) was pressed:
+    /// a dialog's ×, or a cancel button with no handler of its own.
+    Closed,
 }
 
 /// What becomes of the press that dismisses an overlay.

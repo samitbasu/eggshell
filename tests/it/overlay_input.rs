@@ -2,7 +2,9 @@
 //! events dispatched by `egui_kittest::Harness`, build, layout, draw, and the
 //! judgement of the frame's input after the draw.
 
-use eggshell_ui::overlay::{Anchor, DismissOn, Focus, Nav, Outside, Placement, Wrap};
+use eggshell_ui::overlay::{
+    Anchor, DismissOn, Dismissed, Focus, Nav, Outside, OverlayChain, Placement, Wrap,
+};
 use eggshell_ui::testing::{Driver, Target, WindowFocus};
 use eggshell_ui::{Builder, Scope, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
@@ -48,9 +50,22 @@ enum Part {
     Dialog,
     List,
     Option(u8),
+    Close,
 }
 
 struct Card;
+
+/// Which handler the popover, the menu and the submenu are given.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Told {
+    /// `on_dismiss`.
+    #[default]
+    Nothing,
+    /// `on_dismiss_with`, which records why.
+    Why,
+    /// `on_dismiss_with`, then `on_dismiss`, which replaces it.
+    Replaced,
+}
 
 #[derive(Default)]
 struct App {
@@ -66,6 +81,10 @@ struct App {
     menu_outside: Option<Outside>,
     popover_focus: Option<Focus>,
     disabled_item: Option<u8>,
+    told: Told,
+    /// The popover holds a button that dismisses it.
+    closer: bool,
+    whys: Vec<Dismissed>,
     page_clicks: u32,
     log: Vec<String>,
     drops: Vec<&'static str>,
@@ -159,18 +178,18 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 
 fn popover(s: &mut Scope<'_, '_, App>, app: &App) {
     let trigger = s.id_of(Part::Trigger);
-    let mut chain = s
+    let chain = s
         .overlay(Part::Popover)
         .anchor(Anchor::Node(trigger))
         .placement(Placement::below())
         .role(Role::Dialog)
         .named("Popover")
         .dismiss_on(app.popover_dismiss)
-        .focus(app.popover_focus.unwrap_or_default())
-        .on_dismiss(|app: &mut App| {
-            app.popover = false;
-            app.log.push("popover dismissed".into());
-        });
+        .focus(app.popover_focus.unwrap_or_default());
+    let mut chain = closing(chain, app.told, |app| {
+        app.popover = false;
+        app.log.push("popover dismissed".into());
+    });
     if let Some(outside) = app.popover_outside {
         chain = chain.outside(outside);
     }
@@ -194,6 +213,9 @@ fn popover(s: &mut Scope<'_, '_, App>, app: &App) {
                 |_| {},
             )
             .drag_source(Card);
+            if app.closer {
+                s.button(Part::Close, "Close").dismisses().add();
+            }
             if app.child {
                 let a = s.id_of(Part::A);
                 s.overlay(Part::Child)
@@ -227,17 +249,17 @@ fn menu_item(s: &mut Scope<'_, '_, App>, app: &App, index: u8, label: &'static s
 
 fn menu(s: &mut Scope<'_, '_, App>, app: &App) {
     let trigger = s.id_of(Part::MenuTrigger);
-    let mut chain = s
+    let chain = s
         .overlay(Part::Menu)
         .anchor(Anchor::Node(trigger))
         .placement(Placement::below())
         .nav(Nav::Menu(Wrap::Around))
         .role(Role::Menu)
-        .named("Menu")
-        .on_dismiss(|app: &mut App| {
-            app.menu = false;
-            app.log.push("menu dismissed".into());
-        });
+        .named("Menu");
+    let mut chain = closing(chain, app.told, |app| {
+        app.menu = false;
+        app.log.push("menu dismissed".into());
+    });
     if let Some(outside) = app.menu_outside {
         chain = chain.outside(outside);
     }
@@ -258,33 +280,53 @@ fn menu(s: &mut Scope<'_, '_, App>, app: &App) {
             .on_click(|app: &mut App| app.dialog = true);
             if app.submenu {
                 let more = s.id_of(Part::More);
-                s.overlay(Part::Submenu)
+                let chain = s
+                    .overlay(Part::Submenu)
                     .anchor(Anchor::Node(more))
                     .placement(Placement::submenu())
                     .nav(Nav::Submenu(Wrap::Around))
                     .role(Role::Menu)
-                    .named("More")
-                    .on_dismiss(|app: &mut App| {
-                        app.submenu = false;
-                        app.log.push("submenu dismissed".into());
-                    })
-                    .children(|s| {
-                        s.div_id(Part::Box, box_classes(), |s| {
-                            for index in 0..2 {
-                                s.div_id(Part::SubItem(index), item_classes(), |s| {
-                                    s.text(tw(), "Sub");
-                                })
-                                .role(Role::MenuItem)
-                                .named("Sub")
-                                .on_click(move |app: &mut App| {
-                                    app.log.push(format!("sub {index} chosen"));
-                                });
-                            }
-                        });
+                    .named("More");
+                closing(chain, app.told, |app| {
+                    app.submenu = false;
+                    app.log.push("submenu dismissed".into());
+                })
+                .children(|s| {
+                    s.div_id(Part::Box, box_classes(), |s| {
+                        for index in 0..2 {
+                            s.div_id(Part::SubItem(index), item_classes(), |s| {
+                                s.text(tw(), "Sub");
+                            })
+                            .role(Role::MenuItem)
+                            .named("Sub")
+                            .on_click(move |app: &mut App| {
+                                app.log.push(format!("sub {index} chosen"));
+                            });
+                        }
                     });
+                });
             }
         });
     });
+}
+
+/// Gives `chain` the handler `told` says, which runs `close`.
+fn closing<'b, 'f, State, Motion>(
+    chain: OverlayChain<'b, 'f, App, State, Motion>,
+    told: Told,
+    close: fn(&mut App),
+) -> OverlayChain<'b, 'f, App, State, Motion> {
+    let with_why = move |chain: OverlayChain<'b, 'f, App, State, Motion>| {
+        chain.on_dismiss_with(move |app: &mut App, why| {
+            close(app);
+            app.whys.push(why);
+        })
+    };
+    match told {
+        Told::Nothing => chain.on_dismiss(close),
+        Told::Why => with_why(chain),
+        Told::Replaced => with_why(chain).on_dismiss(close),
+    }
 }
 
 fn list(s: &mut Scope<'_, '_, App>) {
@@ -1274,5 +1316,184 @@ mod egui_facts {
             !pressed(&harness),
             "a release is not a press, so dismissal judged at the press never sees it"
         );
+    }
+}
+
+/// `on_dismiss_with` is told why, and `DismissOn::Outside` (#326).
+mod dismissed {
+    use super::*;
+
+    fn told() -> App {
+        App {
+            told: Told::Why,
+            ..App::default()
+        }
+    }
+
+    fn whys(d: &Driver<App>) -> Vec<Dismissed> {
+        d.app().whys.clone()
+    }
+
+    /// Shift+Tab from the popover's first button, which takes focus out to
+    /// the page.
+    fn tab_out_of_the_popover(d: &mut Driver<App>) {
+        assert_eq!(
+            focused_path(d).as_deref(),
+            Some("/Page/Top/Popover/Box/A"),
+            "precondition: focus entered"
+        );
+        d.press(egui::KeyboardShortcut::new(
+            egui::Modifiers::SHIFT,
+            Key::Tab,
+        ))
+        .frames(3);
+        let landed = focused_path(d).unwrap_or_default();
+        assert!(
+            landed.starts_with("/Page/") && !landed.starts_with("/Page/Top/Popover"),
+            "precondition: focus left for the page: {landed}"
+        );
+    }
+
+    fn blur_the_window(d: &mut Driver<App>) {
+        assert!(
+            d.ctx().input(|input| input.focused),
+            "precondition: the window has had focus while the popover was open"
+        );
+        d.event(Event::WindowFocused(false)).frames(3);
+    }
+
+    #[test]
+    fn a_press_outside() {
+        let mut d = harness(told());
+        open_popover(&mut d);
+        outside_both(&d, "/Page/Top/Popover");
+        d.click(EMPTY).frames(4);
+        assert_eq!(whys(&d), [Dismissed::Outside]);
+        assert_eq!(log(&d), ["popover dismissed"]);
+    }
+
+    #[test]
+    fn escape() {
+        let mut d = harness(told());
+        open_popover(&mut d);
+        d.press(Key::Escape).frames(3);
+        assert_eq!(whys(&d), [Dismissed::Esc]);
+    }
+
+    #[test]
+    fn focus_leaving() {
+        let mut d = harness(told());
+        open_popover(&mut d);
+        tab_out_of_the_popover(&mut d);
+        assert_eq!(whys(&d), [Dismissed::FocusOut]);
+    }
+
+    #[test]
+    fn the_window_losing_focus() {
+        let mut d = harness(told());
+        open_popover(&mut d);
+        blur_the_window(&mut d);
+        assert_eq!(whys(&d), [Dismissed::WindowBlur]);
+    }
+
+    #[test]
+    fn the_anchor_leaving_the_frame() {
+        let mut d = harness(told());
+        open_popover(&mut d);
+        d.app_mut().hide_trigger = true;
+        d.frames(4);
+        assert_eq!(whys(&d), [Dismissed::AnchorGone]);
+    }
+
+    #[test]
+    fn another_overlay_opening_over_a_menu() {
+        let mut d = harness(told());
+        open_menu(&mut d);
+        d.app_mut().popover = true;
+        d.frames(4);
+        assert_eq!(log(&d), ["menu dismissed"]);
+        assert_eq!(whys(&d), [Dismissed::Exclusive]);
+    }
+
+    #[test]
+    fn a_menus_navigation_keys() {
+        let mut d = harness(told());
+        open_menu_from_the_keyboard(&mut d);
+        d.click(Target::suffix("/Page/Top/Menu/Box/More")).frames(4);
+        assert!(d.app().submenu, "precondition: the submenu is open");
+        d.press(Key::ArrowLeft).frames(3);
+        assert_eq!(log(&d), ["submenu dismissed"]);
+        assert_eq!(whys(&d), [Dismissed::Keys]);
+    }
+
+    #[test]
+    fn a_button_that_dismisses() {
+        let mut d = harness(App {
+            closer: true,
+            ..told()
+        });
+        open_popover(&mut d);
+        d.click(Target::suffix("/Page/Top/Popover/Box/Close"))
+            .frames(4);
+        assert_eq!(whys(&d), [Dismissed::Closed]);
+        assert!(!d.app().popover);
+    }
+
+    #[test]
+    fn on_dismiss_set_last_replaces_on_dismiss_with() {
+        let mut d = harness(App {
+            told: Told::Replaced,
+            ..App::default()
+        });
+        open_popover(&mut d);
+        d.press(Key::Escape).frames(3);
+        assert_eq!(log(&d), ["popover dismissed"]);
+        assert!(whys(&d).is_empty(), "the handler that records why is gone");
+    }
+
+    fn outside_only() -> App {
+        App {
+            popover_dismiss: DismissOn::Outside,
+            ..told()
+        }
+    }
+
+    #[test]
+    fn outside_ignores_focus_leaving() {
+        let mut d = harness(outside_only());
+        open_popover(&mut d);
+        tab_out_of_the_popover(&mut d);
+        assert!(d.app().popover);
+        assert!(log(&d).is_empty());
+    }
+
+    #[test]
+    fn outside_ignores_the_window_losing_focus() {
+        let mut d = harness(outside_only());
+        open_popover(&mut d);
+        blur_the_window(&mut d);
+        assert!(d.app().popover);
+        assert!(log(&d).is_empty());
+    }
+
+    #[test]
+    fn outside_still_closes_on_a_press_outside_after_focus_left() {
+        let mut d = harness(outside_only());
+        open_popover(&mut d);
+        tab_out_of_the_popover(&mut d);
+        assert!(d.app().popover, "precondition: still open");
+        outside_both(&d, "/Page/Top/Popover");
+        d.click(EMPTY).frames(4);
+        assert_eq!(whys(&d), [Dismissed::Outside]);
+        assert!(!d.app().popover);
+    }
+
+    #[test]
+    fn outside_still_closes_on_escape() {
+        let mut d = harness(outside_only());
+        open_popover(&mut d);
+        d.press(Key::Escape).frames(3);
+        assert_eq!(whys(&d), [Dismissed::Esc]);
+        assert!(!d.app().popover);
     }
 }

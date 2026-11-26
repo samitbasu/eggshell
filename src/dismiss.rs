@@ -10,7 +10,7 @@
 
 use egui::{Id, Pos2, Rect};
 
-use crate::overlay::{AnchorLookup, Band, DismissOn, Outside};
+use crate::overlay::{AnchorLookup, Band, DismissOn, Dismissed, Outside};
 
 /// Where keyboard focus is, relative to an overlay.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -148,6 +148,23 @@ pub(crate) enum Cause {
     /// A button that dismisses the overlay was pressed, whatever
     /// [`DismissOn`] says.
     Closed,
+}
+
+impl Cause {
+    /// What the overlay's handler is told, or `None` for Esc that its cancel
+    /// button answers.
+    pub(crate) fn dismissed(self) -> Option<Dismissed> {
+        match self {
+            Self::Outside => Some(Dismissed::Outside),
+            Self::Esc => Some(Dismissed::Esc),
+            Self::Cancel => None,
+            Self::FocusOut => Some(Dismissed::FocusOut),
+            Self::WindowBlur => Some(Dismissed::WindowBlur),
+            Self::Exclusive => Some(Dismissed::Exclusive),
+            Self::AnchorGone => Some(Dismissed::AnchorGone),
+            Self::Closed => Some(Dismissed::Closed),
+        }
+    }
 }
 
 /// An overlay to dismiss.
@@ -671,6 +688,40 @@ mod tests {
             closed(&[not_yet], &press(PAGE)),
             vec![0],
             "the rest still apply"
+        );
+    }
+
+    #[test]
+    fn outside_takes_a_press_and_esc_but_not_focus_leaving_blur_or_exclusivity() {
+        let outside = |layer: Layer| Layer {
+            dismiss_on: DismissOn::Outside,
+            ..layer
+        };
+        let leaving = Layer {
+            focus_before: FocusAt::Inside,
+            focus_now: FocusAt::Elsewhere,
+            ..outside(popover(0.0))
+        };
+        let blur = Input {
+            window_blurred: true,
+            ..Input::default()
+        };
+        let opened = Layer {
+            opening: Opening::Opened,
+            ..popover(200.0)
+        };
+        assert_eq!(closed(&[outside(popover(0.0))], &press(PAGE)), vec![0]);
+        assert_eq!(closed(&[outside(popover(0.0))], &ESC), vec![0]);
+        assert_eq!(closed(&[leaving], &Input::default()), Vec::<usize>::new());
+        assert_eq!(closed(&[outside(popover(0.0))], &blur), Vec::<usize>::new());
+        assert_eq!(
+            closed(&[outside(menu(0.0)), opened], &Input::default()),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            closed(&[menu(0.0), opened], &Input::default()),
+            vec![0],
+            "precondition: a Default menu is closed by the opening"
         );
     }
 
