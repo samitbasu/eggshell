@@ -48,8 +48,8 @@ use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
-    BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
-    Sides, State, Visibility,
+    BoxPaint, Grouping, Look, Mirror, Opacity, Paint, PointerEvents, Presence, Progress,
+    RingPlacement, Sides, State, Variants, Visibility,
 };
 use crate::window;
 
@@ -895,17 +895,32 @@ impl<A> Walk<'_, A> {
         Hovering::of(highlighted || (pointed && !in_listbox))
     }
 
+    /// The node's variants, and for a scroll container that is a Tab stop
+    /// with no `focus:` look of its own, the inset focus ring as that look.
+    fn variants<'n>(&self, index: usize, node: &'n PlacedNode) -> Cow<'n, Variants> {
+        let variants = &node.interaction.variants;
+        if variants.has_focus() || !self.scroller_takes_focus(index) {
+            return Cow::Borrowed(variants);
+        }
+        let ring = node.style.tokens.focus();
+        Cow::Owned(
+            variants
+                .clone()
+                .with_focus(Paint::default().ring(ring.width, ring.color).ring_inset()),
+        )
+    }
+
     /// How far each state variant has taken hold, animated when the node has
     /// a `transition`.
     fn presence(
         &self,
         node: &PlacedNode,
+        variants: &Variants,
         response: Option<&Response>,
         hovering: Option<Hovering>,
         group: Option<Hovering>,
         stakes: Stakes,
     ) -> Presence {
-        let variants = &node.interaction.variants;
         let progress = |state: State| {
             if variants.get(state).is_none() {
                 return Progress::START;
@@ -1116,8 +1131,10 @@ impl<A> Walk<'_, A> {
             .as_ref()
             .filter(|_| needs_hovering)
             .map(|own| self.hovering(index, node, own));
+        let variants = self.variants(index, node);
         let presence = self.presence(
             node,
+            &variants,
             response.as_ref(),
             hovering,
             parent.group,
@@ -1132,7 +1149,7 @@ impl<A> Walk<'_, A> {
             (ColorSource::Inherited, Some(inherited)) => inherited,
             _ => node.text().color,
         };
-        let look = interaction.variants.resolve(
+        let look = variants.resolve(
             Look {
                 paint: *node.paint(),
                 translate: Vec2::ZERO,
@@ -1281,18 +1298,6 @@ impl<A> Walk<'_, A> {
             if shown {
                 self.paint_dividers(node, index, inherited);
             }
-        }
-        if self.scroller_takes_focus(index)
-            && !interaction.variants.has_focus()
-            && response.as_ref().is_some_and(Response::has_focus)
-        {
-            let ring = node.style.tokens.focus();
-            self.painter(parent.clip, opacity).add(RectShape::stroke(
-                boxes.border,
-                look.paint.radius,
-                Stroke::new(ring.width, ring.color),
-                StrokeKind::Inside,
-            ));
         }
         if let Some(first) = moved_from {
             let about = node.rect().center().to_vec2() * (1.0 - staged_scale);
