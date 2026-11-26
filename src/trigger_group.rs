@@ -249,16 +249,27 @@ mod tests {
         assert_eq!(groups.siblings(id("file")), [id("edit")], "no duplicate");
         groups.join(group, 2, member("view", Enablement::Enabled));
         assert_eq!(groups.siblings(id("view")), Vec::<Id>::new());
-        assert!(groups.siblings(id("file")).is_empty(), "file left the group");
+        assert!(
+            groups.siblings(id("file")).is_empty(),
+            "file left the group"
+        );
     }
 
     #[test]
     fn the_target_is_resolved_among_the_group_of_the_switch() {
         let mut groups = Groups::default();
         for name in ["file", "edit"] {
-            groups.join((id("bar"), Wrap::Around), 1, member(name, Enablement::Enabled));
+            groups.join(
+                (id("bar"), Wrap::Around),
+                1,
+                member(name, Enablement::Enabled),
+            );
         }
-        groups.join((id("other"), Wrap::Around), 1, member("tools", Enablement::Enabled));
+        groups.join(
+            (id("other"), Wrap::Around),
+            1,
+            member("tools", Enablement::Enabled),
+        );
         let file_open = |trigger| trigger == id("file");
         assert_eq!(
             groups.target(Switch::Hover(id("edit")), file_open),

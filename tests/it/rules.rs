@@ -1,6 +1,7 @@
 //! Rules a node declares for the nodes under it (#443): which nodes they
 //! reach, whose classes win, and what they do not reach.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Aria, Builder, Icon, Match, TextSpec, TextStyle, Weight, icons, tw};
 use egui::{FontFamily, vec2};

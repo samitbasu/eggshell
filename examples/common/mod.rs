@@ -10,6 +10,7 @@
     reason = "each crate that includes this file uses a subset of it"
 )]
 
+use eggshell_ui::prelude::*;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;

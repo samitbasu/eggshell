@@ -14,13 +14,12 @@ use crate::contract::Size as ControlSize;
 pub use crate::focus::Select;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
-use crate::owned::FieldHooks;
 use crate::owned::input::{INLINE_END, INLINE_START};
-use crate::owned::options::{self, Gate, Validity};
-use crate::owned::{Enablement, field_box, input, options::IntoTip, text_sized, tipped};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond, Validity};
+use crate::owned::{Enablement, FieldHooks, OnResponse, field_box, input, text_sized, tipped};
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
-use crate::{Builder, Icon, Key, Measure, Tw, tw};
+use crate::{Builder, Icon, Key, Measure, tw};
 
 pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
@@ -140,11 +139,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             b: self.reborrow(),
             text: field.text().to_owned(),
             field,
-            classes: tw(),
-            enablement: Enablement::Enabled,
-            gate: Gate::default(),
+            opts: Options::new(),
             hooks: FieldHooks::default(),
-            autofocus: Autofocus::Never,
             size: None,
             leading: None,
             trailing: None,
@@ -162,17 +158,18 @@ enum Node {
 
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
 /// with [`on_change`](Self::on_change).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`]. A disabled field is inert, as an HTML `disabled` input is:
+/// it takes no focus, and its text cannot be selected.
 #[must_use = "a text field is not added until you call `.on_change(..)`"]
 pub struct TextFieldChain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     field: Field,
     text: String,
-    classes: Tw,
-    enablement: Enablement,
-    gate: Gate,
+    opts: Options,
     hooks: FieldHooks<A>,
-    autofocus: Autofocus,
     size: Option<ControlSize>,
     leading: Option<Icon>,
     trailing: Option<Icon>,
@@ -215,28 +212,32 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// frame in which it was not: an inline edit or a sheet's name field that
     /// appears on a click. A field that stays built keeps whatever focus it
     /// has.
-    pub fn focus_on_appear(self) -> Self {
-        self.focus_on_appear_selecting(Select::None)
-    }
-
-    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
-    /// `select` says when it takes focus.
-    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
-        self.autofocus = Autofocus::OnAppear(select);
+    pub fn focus_on_appear(mut self) -> Self {
+        self.opts.set_autofocus(Autofocus::OnAppear(Select::None));
         self
     }
 
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set, selecting as
-    /// `select` says.
-    pub fn focus_now(mut self, select: Select) -> Self {
-        self.autofocus = Autofocus::Now(select);
+    /// TODO(prose): what the field selects when it takes focus, by any of
+    /// [`focus_now`](Interactive::focus_now), [`focus_on_open`](Interactive::focus_on_open),
+    /// [`focus_on_change`](Self::focus_on_change) and [`focus_on_appear`](Self::focus_on_appear): with [`Select::All`], typing
+    /// replaces the text, as a browser's `input.select()` arranges.
+    /// [`Select::None`] until it is set.
+    ///
+    /// ```
+    /// use eggshell_ui::prelude::*;
+    /// use eggshell_ui::owned::text_field::Select;
+    ///
+    /// struct App { name: String, focus_name: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("name", &app.name)
+    ///         .focus_on_change(app.focus_name)
+    ///         .select_on_focus(Select::All)
+    ///         .on_change(|app, name| app.name = name);
+    /// }
+    /// ```
+    pub fn select_on_focus(mut self, select: Select) -> Self {
+        self.opts.set_select(select);
         self
     }
 
@@ -279,32 +280,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     ///         .on_change(|app, name| app.name = name);
     /// }
     /// ```
-    pub fn focus_on_change(self, token: impl std::hash::Hash) -> Self {
-        self.focus_on_change_selecting(token, Select::None)
-    }
-
-    /// TODO(prose): [`focus_on_change`](Self::focus_on_change), selecting as
-    /// `select` says when it takes focus: with [`Select::All`], typing
-    /// replaces the text, as a browser's `input.select()` arranges.
-    ///
-    /// ```
-    /// use eggshell_ui::Builder;
-    /// use eggshell_ui::owned::text_field::Select;
-    ///
-    /// struct App { name: String, focus_name: u32 }
-    ///
-    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-    ///     b.text_field("name", &app.name)
-    ///         .focus_on_change_selecting(app.focus_name, Select::All)
-    ///         .on_change(|app, name| app.name = name);
-    /// }
-    /// ```
-    pub fn focus_on_change_selecting(
-        mut self,
-        token: impl std::hash::Hash,
-        select: Select,
-    ) -> Self {
-        self.autofocus = Autofocus::OnChange(Token::of(&token), select);
+    pub fn focus_on_change(mut self, token: impl std::hash::Hash) -> Self {
+        self.opts
+            .set_autofocus(Autofocus::OnChange(Token::of(&token), Select::None));
         self
     }
 
@@ -320,15 +298,10 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
-    /// The accessible name, the equivalent of `aria-label`.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.field = self.field.named(name);
-        self
-    }
-
     /// TODO(prose): the role assistive technology sees, `Role::TextInput` unless set: a combobox's field says `Role::ComboBox`, a search box `Role::SearchInput`.
     ///
     /// ```
+    /// use eggshell_ui::prelude::*;
     /// use eggshell_ui::Builder;
     ///
     /// struct App { query: String }
@@ -345,46 +318,6 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
-    /// Classes of the leaf, such as its width; the later class wins
-    /// ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
-    /// TODO(prose): shown while the pointer hovers the field or it has
-    /// keyboard focus, also when it is disabled.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.gate.tooltip(text);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.gate.tooltip_with(build);
-        self
-    }
-
-    /// TODO(prose): whether the field takes input. A disabled field is inert,
-    /// as an HTML `disabled` input is: it takes no focus, and its text cannot
-    /// be selected.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
     /// TODO(prose): marks the field invalid while `error` is `Some`: shadcn's
     /// `aria-invalid` look, a destructive border and ring, which an input
     /// group around the field takes too, and the error as its accessible
@@ -392,6 +325,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// refused field keeps its disabled look, and is still reported invalid.
     ///
     /// ```
+    /// use eggshell_ui::prelude::*;
     /// use eggshell_ui::Builder;
     ///
     /// fn email(b: &mut Builder<'_, '_, String>, text: &String) {
@@ -404,24 +338,6 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// ```
     pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
         self.validity = Validity::of(error);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Runs `then` with the field's response each frame: the escape hatch
-    /// for what the builder does not offer, such as describing it to
-    /// assistive technology or acting on a key chord.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &Response) + 'static) -> Self {
-        self.hooks.response.set(then);
         self
     }
 
@@ -442,25 +358,40 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// user edits it, and not otherwise.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
+        self.on_change_with(move |app, _, text| on_change(app, text));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, String) + 'static) {
         let Self {
             mut b,
             slot,
             field,
             text,
-            classes,
-            enablement,
-            gate,
+            opts,
             hooks,
-            autofocus,
             size,
             leading,
             trailing,
             validity,
         } = self;
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
+        let field = match name {
+            Some(name) => field.named(name),
+            None => field,
+        };
         // shadcn's Input: `min-w-0`, so a field shrinks below egui's
         // text-edit width rather than out of a narrow row.
         let classes = tw().min_w_0().merge(classes);
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let size = b.size_of(size);
         let field = field.sized(size);
         let measured = field.clone();
@@ -529,7 +460,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                     Opening::from(select).open(ui, &response, &edited);
                                 }
                                 if response.changed() {
-                                    on_change(app, edited);
+                                    on_change(app, ui.ctx(), edited);
                                 }
                                 hooks.run(app, ui, &response, field.enter());
                             });
@@ -569,9 +500,25 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                     Opening::from(select).open(ui, &response, &edited);
                 }
                 if response.changed() {
-                    on_change(app, edited);
+                    on_change(app, ui.ctx(), edited);
                 }
                 hooks.run(app, ui, &response, field.enter());
             });
+    }
+}
+
+impl<A> Configure for TextFieldChain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for TextFieldChain<'_, '_, A> {}
+
+impl<A> Respond for TextFieldChain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.hooks.response
     }
 }

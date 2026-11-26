@@ -3442,8 +3442,12 @@ mod menubar_candidates {
     fn fill(key: &str, chain: menu::Chain<'_, '_, Cell, &'static str>) {
         match key {
             "file" => chain.items(|m| {
-                m.item("new-tab", "New Tab").shortcut("Ctrl+T").on_click(|_| {});
-                m.item("new-window", "New Window").shortcut("Ctrl+N").on_click(|_| {});
+                m.item("new-tab", "New Tab")
+                    .shortcut("Ctrl+T")
+                    .on_click(|_| {});
+                m.item("new-window", "New Window")
+                    .shortcut("Ctrl+N")
+                    .on_click(|_| {});
                 m.item("incognito", "New Incognito Window")
                     .enablement(eggshell_ui::owned::Enablement::Disabled)
                     .on_click(|_| {});
@@ -3454,11 +3458,15 @@ mod menubar_candidates {
                     m.item("notes", "Notes").on_click(|_| {});
                 });
                 m.separator();
-                m.item("print", "Print…").shortcut("Ctrl+P").on_click(|_| {});
+                m.item("print", "Print…")
+                    .shortcut("Ctrl+P")
+                    .on_click(|_| {});
             }),
             "edit" => chain.items(|m| {
                 m.item("undo", "Undo").shortcut("Ctrl+Z").on_click(|_| {});
-                m.item("redo", "Redo").shortcut("Shift+Ctrl+Z").on_click(|_| {});
+                m.item("redo", "Redo")
+                    .shortcut("Shift+Ctrl+Z")
+                    .on_click(|_| {});
                 m.separator();
                 m.submenu("find", "Find", |m| {
                     m.item("web", "Search the web").on_click(|_| {});
@@ -3476,7 +3484,10 @@ mod menubar_candidates {
                     .shortcut("Ctrl+U")
                     .on_change(|_, _| {});
                 m.separator();
-                m.item("reload", "Reload").inset().shortcut("Ctrl+R").on_click(|_| {});
+                m.item("reload", "Reload")
+                    .inset()
+                    .shortcut("Ctrl+R")
+                    .on_click(|_| {});
                 m.item("force", "Force Reload")
                     .inset()
                     .shortcut("Shift+Ctrl+R")
@@ -3501,18 +3512,34 @@ mod menubar_candidates {
     /// menubar items in place of the dropdown's, rule for rule.
     const ITEMS: [(menubar::Part, menu::Part, Keyed); 9] = [
         (menubar::Part::Item, menu::Part::Item, Keyed::Item),
-        (menubar::Part::CheckboxItem, menu::Part::CheckboxItem, Keyed::Item),
+        (
+            menubar::Part::CheckboxItem,
+            menu::Part::CheckboxItem,
+            Keyed::Item,
+        ),
         (menubar::Part::RadioItem, menu::Part::RadioItem, Keyed::Item),
-        (menubar::Part::SubTrigger, menu::Part::SubTrigger, Keyed::Item),
+        (
+            menubar::Part::SubTrigger,
+            menu::Part::SubTrigger,
+            Keyed::Item,
+        ),
         (
             menubar::Part::CheckboxItemIndicator,
             menu::Part::ItemIndicator,
             Keyed::Plain,
         ),
         (menubar::Part::Label, menu::Part::Label, Keyed::Plain),
-        (menubar::Part::Separator, menu::Part::Separator, Keyed::Plain),
+        (
+            menubar::Part::Separator,
+            menu::Part::Separator,
+            Keyed::Plain,
+        ),
         (menubar::Part::Shortcut, menu::Part::Shortcut, Keyed::Plain),
-        (menubar::Part::SubContent, menu::Part::SubContent, Keyed::Plain),
+        (
+            menubar::Part::SubContent,
+            menu::Part::SubContent,
+            Keyed::Plain,
+        ),
     ];
 
     /// Which keys a menu part's nodes say.
@@ -3526,7 +3553,11 @@ mod menubar_candidates {
     /// Replaces `to`'s rules with `from`'s as `base` resolves them, for every
     /// set of keys a node of `to` can say: the least specific first, so the
     /// last rule that holds is the node's own set.
-    fn draw_as<F: Part, T: Part>(sheet: &mut Sheet, base: &Sheet, (from, to, keyed): (F, T, Keyed)) {
+    fn draw_as<F: Part, T: Part>(
+        sheet: &mut Sheet,
+        base: &Sheet,
+        (from, to, keyed): (F, T, Keyed),
+    ) {
         let flags = [
             SheetKey::Aria(Aria::Disabled),
             SheetKey::Attr("inset", "true"),
@@ -3817,7 +3848,7 @@ mod menubar_candidates {
             .collect();
         let gap = 12.0;
         let caption = 34.0;
-        let width = candidates.len() as f32 * (CELL.x + gap) + gap;
+        let width = (candidates.len() as f32 * (CELL.x + gap) + gap).max(1100.0);
         let height = 40.0 + scenes.len() as f32 * (CELL.y + caption + gap) + caption;
         let captions: Vec<&str> = candidates.iter().map(|c| c.caption).collect();
         let rows: Vec<String> = scenes.iter().map(|scene| scene.caption()).collect();

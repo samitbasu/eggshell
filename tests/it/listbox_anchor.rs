@@ -5,6 +5,7 @@
 
 use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
 use eggshell_ui::owned::choice::Choice;
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Role as AccessRole};
 use egui::{Color32, FontFamily, Key, Role, vec2};

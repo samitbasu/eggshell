@@ -3,6 +3,7 @@
 //! egui's, for the build, the draw, the shell, tooltips, the base text and
 //! the faces text is drawn in.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::Themed;

@@ -3,6 +3,7 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::number::Step;
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens, size};
 use eggshell_ui::{Builder, TextStyle, tw};

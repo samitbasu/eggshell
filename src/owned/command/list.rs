@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::owned::options::Configure as _;
 use crate::owned::{Enablement, Mark, input, menu};
 use crate::sheet::Key as SheetKey;
 use crate::vlist::{ListNav, RowKind};
@@ -19,7 +20,8 @@ use super::{ComboboxPart, Part};
 
 use super::{Filter, Filtering, Options, Pending, filter};
 
-type Pick<A> = Rc<dyn Fn(&mut A)>;
+type Pick<A> = Rc<dyn Fn(&mut A, &Context)>;
+type After<A> = Rc<dyn Fn(&mut A)>;
 
 /// The key of a row: the item's group and its own key, the same from frame
 /// to frame while the query narrows the rows.
@@ -146,7 +148,13 @@ impl<A> ItemChain<'_, A> {
     }
 
     /// TODO(prose): runs `then` when the item is picked: clicked, or Enter on its highlight.
-    pub fn on_pick(mut self, then: impl Fn(&mut A) + 'static) {
+    pub fn on_pick(self, then: impl Fn(&mut A) + 'static) {
+        self.on_pick_with(move |app, _| then(app));
+    }
+
+    /// Like [`on_pick`](Self::on_pick), with a handler that also gets the egui
+    /// context, for an effect the context performs.
+    pub fn on_pick_with(mut self, then: impl Fn(&mut A, &Context) + 'static) {
         if let Some(entry) = self.entry() {
             entry.pick = Some(Rc::new(then));
         }
@@ -188,7 +196,7 @@ pub(crate) struct ListOptions<A> {
     pub(crate) looks: Looks,
     pub(crate) first: First,
     /// What runs after an item's own pick: closing what holds the list.
-    pub(crate) after: Option<Pick<A>>,
+    pub(crate) after: Option<After<A>>,
     /// The search field, or the app's own field, and what typing in it does.
     pub(crate) field: Field,
 }
@@ -272,7 +280,7 @@ pub(crate) enum Field {
 }
 
 impl<A> ListOptions<A> {
-    pub(crate) fn palette(after: Option<Pick<A>>) -> Self {
+    pub(crate) fn palette(after: Option<After<A>>) -> Self {
         Self {
             looks: Looks::Command,
             first: First::Highlighted,
@@ -469,6 +477,7 @@ pub(crate) fn show<'f, A: 'static>(
         classes,
         error: _,
     } = options;
+    let picker = b.ctx().clone();
     let listing = Rc::new(Listing::filtered(items, &query, filter.as_ref(), filtering));
     let looks = shape.looks;
     let root = looks.command_part(
@@ -582,7 +591,7 @@ pub(crate) fn show<'f, A: 'static>(
                     return;
                 }
                 if let Some(pick) = &entry.pick {
-                    pick(app);
+                    pick(app, &picker);
                 }
                 if let Some(after) = &after {
                     after(app);

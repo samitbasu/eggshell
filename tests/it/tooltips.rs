@@ -3,6 +3,7 @@
 //! also on a disabled control, and in addition to the accessible name.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::owned::{Enablement, button::Face, choice::Choice, tooltip};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};

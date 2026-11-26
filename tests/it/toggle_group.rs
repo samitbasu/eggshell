@@ -1,6 +1,7 @@
 //! `toggle_group::Group`: exclusive toggles placed anywhere below the group's builder,
 //! driven through the real layout, event and draw path.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Metrics, Size, Themed};

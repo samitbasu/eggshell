@@ -5,6 +5,7 @@
 use eggshell_ui::overlay::{Distance, Nav, Wrap};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::owned::menu::{Chain, MenuLink};
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Color32, Key, Role, Theme, vec2};

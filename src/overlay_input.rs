@@ -569,6 +569,7 @@ pub(crate) fn judge<A>(
                 && let Some(first) = opening_focus(ctx, nodes, root.first, subtrees, open)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
+                crate::focus::note_opening_focus(ctx, first);
             } else if open.holds_tab()
                 && layer.focus_now == FocusAt::Elsewhere
                 && let Some(focused) = ctx.memory(|memory| memory.focused())

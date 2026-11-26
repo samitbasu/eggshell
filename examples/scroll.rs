@@ -13,6 +13,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::scroll::{Axis, EdgeFade};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Opacity, Tw, tw};

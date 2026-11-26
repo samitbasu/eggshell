@@ -951,7 +951,7 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                     owned::choice::Choice::new(Unit::Imperial, "Dark"),
                 ],
             )
-            .track(tw().w_full())
+            .classes(tw().w_full())
             .cells(tw().flex_1())
             .on_change(|s: &mut State, unit| s.unit = unit);
         });

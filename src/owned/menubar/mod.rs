@@ -26,9 +26,11 @@ use crate::contract::Variant;
 use crate::overlay::{Distance, Nav, Wrap};
 use crate::owned::button::Face;
 use crate::owned::menu::{self, MenuLink};
+use crate::owned::options::{Configure, Options, Resolved};
+use crate::owned::tipped;
 use crate::sheet::{Sheet, When};
 use crate::theme::ShadcnStyle;
-use crate::{Builder, Key, NodeUi as _, Tw, tw};
+use crate::{Builder, Key, NodeUi as _, tw};
 
 /// TODO(prose): a menu bar's anatomy for the style's sheet: shadcn's
 /// `menubar`. The bar draws its menus' items as the dropdown menu's
@@ -119,8 +121,7 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
         Chain {
             b: self,
             key,
-            name: None,
-            classes: tw(),
+            opts: Options::new(),
         }
     }
 }
@@ -133,8 +134,12 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
 /// item. While a menu is open, the pointer on another trigger opens that
 /// one, and Left and Right open the neighbouring menus; Esc closes the menu
 /// and focuses its trigger. Assistive technology sees a `Role::MenuBar`,
-/// named "Menu bar" unless [`named`](Self::named), and each trigger as a
-/// `Role::MenuItem`.
+/// named "Menu bar" unless [`named`](Configure::named), and each trigger as
+/// a `Role::MenuItem`.
+///
+/// The bar takes no input of its own, so of the shared options it has only
+/// [`Configure`]'s, which are the bar's box's; each menu's are its trigger's,
+/// set on the chain [`Bar::menu`] returns.
 ///
 /// ```html
 /// <Menubar class="flex h-9 items-center gap-1 rounded-md border p-1 shadow-xs">
@@ -148,8 +153,13 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
 pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
-    name: Option<String>,
-    classes: Tw,
+    opts: Options,
+}
+
+impl<A, K> Configure for Chain<'_, '_, '_, A, K> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
 }
 
 /// The parts of a menu bar that are not nodes.
@@ -159,32 +169,20 @@ enum Node {
 }
 
 impl<'f, A: 'static, K: Key + Clone> Chain<'_, '_, 'f, A, K> {
-    /// TODO(prose): the bar's accessible name, "Menu bar" unless set.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// TODO(prose): classes merged over the styled ones of the bar's box;
-    /// the later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
-        self
-    }
-
     /// TODO(prose): adds the bar, with the menus `menus` adds with
     /// [`Bar::menu`], in order.
     #[track_caller]
     pub fn menus(self, menus: impl for<'m, 'c> FnOnce(&mut Bar<'m, 'c, 'f, A>)) {
-        let Self {
-            b,
-            key,
-            name,
-            classes,
-        } = self;
+        let Self { b, key, opts } = self;
         let link = b.menu_link((key.clone(), Node::Link));
         let slot = b.slot(&key);
         let bar = slot.id;
+        let Resolved {
+            name,
+            classes,
+            tooltip,
+            ..
+        } = opts.resolve(b, bar);
         // A node shows its role to assistive technology only if it senses.
         let own = tw().sense_hover();
         let classes = b.part(Part::Root, &[], own.merge(classes));
@@ -192,8 +190,8 @@ impl<'f, A: 'static, K: Key + Clone> Chain<'_, '_, 'f, A, K> {
             .role(Role::MenuBar)
             .named(name.unwrap_or_else(|| "Menu bar".to_owned()))
             .nav(Nav::Row(Wrap::Around))
-            .draw(|_, ui| {
-                let id = ui.node_response().id;
+            .draw(move |_, ui| {
+                let id = tipped(ui, ui.node_response(), &tooltip).id;
                 ui.ctx().accesskit_node_builder(id, |node| {
                     node.set_orientation(Orientation::Horizontal);
                 });
@@ -214,7 +212,11 @@ impl<'f, A: 'static> Bar<'_, '_, 'f, A> {
     /// TODO(prose): the next menu of the bar, under `key`, its trigger
     /// showing `face`: the dropdown menu, linked to the bar and drawn as its
     /// trigger, which [`items`](menu::Chain::items) fills and adds.
-    pub fn menu<K: Key + Clone>(&mut self, key: K, face: impl Into<Face>) -> menu::Chain<'_, 'f, A, K> {
+    pub fn menu<K: Key + Clone>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+    ) -> menu::Chain<'_, 'f, A, K> {
         let content = self.b.resolved_part(Part::Content, &[]);
         self.b
             .dropdown_menu(key, face)

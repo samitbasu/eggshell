@@ -7,6 +7,7 @@
 mod common;
 
 use eggshell_ui::owned::number::Step;
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
 

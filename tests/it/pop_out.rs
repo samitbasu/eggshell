@@ -4,6 +4,7 @@
 //! immediate-viewport renderer that runs each window's pass as eframe does.
 
 use eggshell_ui::overlay::{Anchor, Placement};
+use eggshell_ui::prelude::*;
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
 use eggshell_ui::{Builder, Chord, Command, Commands, Debug, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, Pos2, Vec2, vec2};

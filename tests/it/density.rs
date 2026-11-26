@@ -1,6 +1,7 @@
 //! A theme's metric tokens resize the generated looks and the call site's
 //! own classes, with no application rule (#487).
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Radius, Spacing, TextSize, Themed};

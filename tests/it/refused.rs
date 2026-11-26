@@ -3,6 +3,7 @@
 //! clears it. With the gap fills, `when`/`when_some`, and `classes` merging.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::testing::{Driver, Target};

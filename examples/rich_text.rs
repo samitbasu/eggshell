@@ -4,6 +4,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, FontStyle, Span, Weight, tw};
 
 pub struct State {

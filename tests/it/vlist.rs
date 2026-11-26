@@ -2,6 +2,7 @@
 //! heights are measured and remembered, the list stays put when rows above
 //! it change height, and a row that holds focus or a popup stays built.
 
+use eggshell_ui::prelude::*;
 use std::cell::Cell;
 use std::collections::HashMap;
 

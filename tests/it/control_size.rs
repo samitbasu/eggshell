@@ -3,6 +3,7 @@
 
 use eggshell_ui::contract::{Size, Style};
 use eggshell_ui::owned::button;
+use eggshell_ui::prelude::*;
 use eggshell_ui::sheet::When;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};

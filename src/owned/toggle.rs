@@ -2,10 +2,11 @@
 
 use egui::Role;
 
+use super::options::{self, Configure, Interactive, Respond};
 use super::toggle_group::Member;
-use super::{Enablement, Mark, Unset, button, button::Face, flip};
+use super::{Mark, OnResponse, Unset, button, button::Face, flip};
 use crate::contract::{Size, Variant};
-use crate::{Builder, Icon, Scope, Tw};
+use crate::{Builder, Icon, Scope};
 
 /// A member of a [`toggle_group::Group`](super::toggle_group::Group): a toggle with the
 /// group's options, finished with [`add`](Chain::add). Start one with
@@ -19,7 +20,7 @@ pub type ItemChain<'a, 'f, A, T> = Chain<'a, 'f, A, T, Member<A, T>>;
 /// It shows `current` and is pressed when that is its `on` value: `true` for a
 /// `bool`, or the second of [`values`](Self::values). A click passes the other
 /// value to `on_change`. Its other options are those of a
-/// [`button::Chain`].
+/// [`button::Chain`], with [`Configure`], [`Interactive`] and [`Respond`].
 ///
 /// ```
 /// # use eggshell_ui::Builder;
@@ -79,19 +80,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
 }
 
 impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.button = self.button.focus_on_open();
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.button = self.button.focus_now();
-        self
-    }
-
     /// Applies shared `options`: what they set overrides what the chain has
     /// so far, and what is set after them overrides them.
     pub fn with_options(mut self, options: button::Options) -> Self {
@@ -118,73 +106,27 @@ impl<'a, 'f, A: 'static, T, V> Chain<'a, 'f, A, T, V> {
         self
     }
 
-    /// Classes merged over the styled ones, such as the toggle's width; the
-    /// later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.button = self.button.classes(classes);
-        self
-    }
-
-    /// Shown while the pointer hovers the control, also when it is disabled.
-    pub fn tooltip(mut self, text: impl super::options::IntoTip) -> Self {
-        self.button = self.button.tooltip(text);
-        self
-    }
-
-    /// TODO(prose): the accessible name, in place of the face's, as
-    /// `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.button = self.button.named(name);
-        self
-    }
-
-    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
-    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
-    pub fn tooltip_with(
-        mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
-    ) -> Self {
-        self.button = self.button.tooltip_with(build);
-        self
-    }
-
-    /// Whether the toggle takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.button = self.button.enablement(enablement);
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl super::options::IntoTip) -> Self {
-        self.button = self.button.refused(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        super::options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<V2>(self, value: Option<V2>, then: impl FnOnce(Self, V2) -> Self) -> Self {
-        super::options::when_some(self, value, then)
-    }
-
     /// Builds `body`'s nodes inside the toggle after its face; see
     /// [`button::Chain::children`].
     pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
         self.button = self.button.children(body);
         self
     }
+}
 
-    /// Runs `then` with the toggle's response each frame: the escape hatch
-    /// for what the builder does not offer, such as hover.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.button = self.button.on_response(then);
-        self
+impl<A, T, V> Configure for Chain<'_, '_, A, T, V> {
+    fn options(&mut self) -> &mut options::Options {
+        self.button.options()
+    }
+}
+
+impl<A, T, V> Interactive for Chain<'_, '_, A, T, V> {}
+
+impl<A, T, V> Respond for Chain<'_, '_, A, T, V> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        self.button.responses()
     }
 }
 
@@ -195,6 +137,13 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A, bool> {
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
         self.values(false, true).on_change(on_change);
     }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, bool) + 'static) {
+        self.values(false, true).on_change_with(on_change);
+    }
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 2]> {
@@ -202,10 +151,17 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T, [T; 
     /// clicked or activated with Space or Enter.
     #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {
+        self.on_change_with(move |app, _, value| on_change(app, value));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, on_change: impl Fn(&mut A, &egui::Context, T) + 'static) {
         let (mark, toggled) = flip(self.values, self.current);
         self.button
             .marked(mark)
-            .on_click(move |app| on_change(app, toggled));
+            .on_click_with(move |app, ctx| on_change(app, ctx, toggled));
     }
 }
 
@@ -217,11 +173,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ItemChain<'a, 'f, A, T> 
     pub fn add(self) {
         let Member { value, on_change } = self.values;
         let mark = Mark::from(self.current == value);
-        self.button.marked(mark).on_click(move |app| {
+        self.button.marked(mark).on_click_with(move |app, ctx| {
             if mark == Mark::Off
                 && let Some(on_change) = on_change
             {
-                on_change(app, value);
+                on_change(app, ctx, value);
             }
         });
     }

@@ -2,6 +2,7 @@
 //! infinite: each is reported and falls back, and none panics, in debug
 //! builds included.
 
+use eggshell_ui::prelude::*;
 use std::time::Duration;
 
 use eggshell_ui::testing::{Driver, Headless, Target, assert_reported};
