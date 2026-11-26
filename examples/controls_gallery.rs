@@ -12,7 +12,7 @@
 //!
 //! The buttons, choices and values sections show every control built from
 //! eggshell nodes, which have no size computation to check, and the labels
-//! section the badges, chips, spinners and skeletons of `eggshell-ui-extras`.
+//! section the alerts, badges, chips, spinners and skeletons of `eggshell-ui-extras`.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -261,7 +261,7 @@ pub enum Section {
     Choices,
     /// The owned slider, select and stepper.
     Values,
-    /// The extras' badges, chips, spinners and skeletons.
+    /// The extras' badges, chips, alerts, spinners and skeletons.
     Labels,
 }
 
@@ -1048,7 +1048,8 @@ const TAGS: [&str; 3] = ["Rust", "egui", "taffy"];
 const LABELS_COLUMN: f32 = 360.0;
 
 /// A row per badge variant with a badge, one with an icon and a chip of each
-/// kind, then removable tags, and the spinner at each size and composed.
+/// kind, then removable tags, an alert plain and destructive, and the
+/// spinner at each size and composed.
 fn labels_section(s: &mut S<'_, '_>, state: &State) {
     rows(s, |b| {
         for (name, variant) in BADGE_VARIANTS {
@@ -1088,6 +1089,22 @@ fn labels_section(s: &mut S<'_, '_>, state: &State) {
                     .size(size::XS)
                     .on_click(|s: &mut State| s.owned_tags = TAGS.to_vec());
             });
+        });
+        row_of(b, "alert", LABELS_COLUMN, |b| {
+            b.alert("alert")
+                .title("Your changes have been saved.")
+                .description("An alert with a title and a description.")
+                .add();
+        });
+        row_of(b, "alert, destructive", LABELS_COLUMN, |b| {
+            b.alert("alert-destructive")
+                .variant(variant::DESTRUCTIVE)
+                .title("Input clipped on channel 2")
+                .description("Lower the gain, or re-arm.")
+                .action("Re-arm", |button| {
+                    button.on_click(|s: &mut State| s.owned_clicks += 1);
+                })
+                .add();
         });
         row_of(b, "spinner", LABELS_COLUMN, |b| {
             b.div(tw().flex().items_center().gap(4.0), |b| {

@@ -1809,6 +1809,8 @@ impl Style {
         crate::owned::command::write_exceptions(self);
         #[cfg(feature = "notify")]
         crate::owned::notify::write_exceptions(&self.notify, &mut self.sheet);
+        #[cfg(feature = "alert")]
+        crate::owned::alert::write_exceptions(&mut self.sheet);
         #[cfg(feature = "badge")]
         crate::owned::badge::write_exceptions(&mut self.sheet);
         #[cfg(feature = "form")]

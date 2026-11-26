@@ -16,6 +16,7 @@
 
 mod accordion;
 mod accordion_example;
+mod alert;
 mod autosuggest;
 mod badge;
 mod blur_cause;

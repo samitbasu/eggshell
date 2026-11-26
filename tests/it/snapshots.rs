@@ -3148,3 +3148,196 @@ mod child_rules {
         invalid_controls_every_control(egui::Theme::Dark);
     }
 }
+
+/// The alert (#372): its five looks and its shapes, in each style and theme.
+mod alert {
+    use super::*;
+    use eggshell_ui::contract::Variant;
+    use eggshell_ui::theme::variant;
+
+    const LOOKS: [(&str, Variant); 5] = [
+        ("default", Variant::DEFAULT),
+        ("destructive", variant::DESTRUCTIVE),
+        ("info", variant::INFO),
+        ("success", variant::SUCCESS),
+        ("warning", variant::WARNING),
+    ];
+
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
+            ShadcnStyle::Vega => "vega",
+            ShadcnStyle::Lyra => "lyra",
+        };
+        let theme = match theme {
+            egui::Theme::Light => "light",
+            egui::Theme::Dark => "dark",
+        };
+        format!("alert_{what}_{style}_{theme}")
+    }
+
+    fn harness(
+        style: ShadcnStyle,
+        size: Vec2,
+        view: support::View<()>,
+        theme: egui::Theme,
+    ) -> Harness<'static, support::Rig<()>> {
+        let mut h = themed_harness(
+            style,
+            size,
+            ((), view, common::base_text_styled(theme, style)),
+            (theme, |_, _| {}),
+        );
+        h.run_steps(8);
+        h
+    }
+
+    /// A row per look: the title alone, with a description, and with an
+    /// action.
+    fn looks_view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div_id("Page", tw().flex().flex_col().gap(3.0).p(4.0), |b| {
+            for (name, look) in LOOKS {
+                b.div(tw().flex().items_start().gap(3.0), |b| {
+                    let column = tw().w_px(300.0).shrink_0();
+                    b.div(column.clone(), |b| {
+                        b.alert((name, "title"))
+                            .variant(look)
+                            .title("Your changes have been saved.")
+                            .add();
+                    });
+                    b.div(column.clone(), |b| {
+                        b.alert((name, "described"))
+                            .variant(look)
+                            .title("Your changes have been saved.")
+                            .description("An alert with a title and a description.")
+                            .add();
+                    });
+                    b.div(column, |b| {
+                        b.alert((name, "action"))
+                            .variant(look)
+                            .title("Input clipped on channel 2")
+                            .description("Lower the gain, or re-arm.")
+                            .action("Re-arm", |button| button.add())
+                            .add();
+                    });
+                });
+            }
+        });
+    }
+
+    fn looks(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, Vec2::new(960.0, 460.0), looks_view, theme);
+        let nodes = h.state().nodes.clone();
+        let tokens = Tokens::for_theme(theme);
+        let path = |look: &str, form: &str| format!(r#"/"Page"/("{look}", "{form}")"#);
+        let alert = support::rect_of(&h, &path("destructive", "action"));
+        let icon = support::rect_of(&h, &format!("{}/<glyph>", path("destructive", "action")));
+        let button = support::rect_of(
+            &h,
+            &format!("{}/\"action\"/\"button\"", path("destructive", "action")),
+        );
+        assert_eq!(icon.size(), Vec2::splat(16.0), "size-4");
+        assert_eq!(
+            support::glyph_color(&h, icon),
+            tokens.destructive,
+            "text-current"
+        );
+        assert!(
+            alert.contains_rect(button),
+            "the action is inside the alert"
+        );
+        assert!(
+            nodes
+                .iter()
+                .all(|(path, _)| !path.starts_with(r#"/"Page"/("default""#)
+                    || !path.ends_with("<glyph>")),
+            "the default look has no icon"
+        );
+        let bottom = nodes
+            .iter()
+            .map(|(_, rect)| rect.bottom())
+            .fold(0.0, f32::max);
+        assert!(bottom < 460.0, "nothing is clipped: {bottom}");
+        h.snapshot(name("looks", style, theme));
+    }
+
+    /// The banner across the window, then a cut title beside one that fits.
+    fn shapes_view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(4.0).w_full().py(4.0),
+            |b| {
+                b.alert("banner")
+                    .variant(variant::DESTRUCTIVE)
+                    .title("Input clipped on channel 2: lower the gain, or re-arm.")
+                    .action("Re-arm", |button| button.add())
+                    .classes(tw().rounded_px(0.0).border_x(0.0))
+                    .add();
+                b.div(tw().flex().items_start().gap(4.0).px(4.0), |b| {
+                    for (key, title) in [
+                        (
+                            "cut",
+                            "Input clipped on channel 2: lower the gain, or re-arm.",
+                        ),
+                        ("fits", "Input clipped on channel 2"),
+                    ] {
+                        b.div(tw().w_px(300.0).shrink_0(), |b| {
+                            b.alert(key)
+                                .variant(variant::WARNING)
+                                .title(title)
+                                .truncate()
+                                .add();
+                        });
+                    }
+                });
+            },
+        );
+    }
+
+    fn shapes(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, Vec2::new(680.0, 160.0), shapes_view, theme);
+        let page = support::rect_of(&h, r#"/"Page""#);
+        let banner = support::rect_of(&h, r#"/"Page"/"banner""#);
+        assert_eq!(
+            banner.x_range(),
+            page.x_range(),
+            "the banner spans the page"
+        );
+        let elided: Vec<bool> = support::shapes(&h)
+            .iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Text(text)
+                    if text.galley.text().starts_with("Input clipped on channel 2") =>
+                {
+                    Some(text.galley.elided)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            elided,
+            [false, true, false],
+            "the banner, the cut title, the one that fits"
+        );
+        h.snapshot(name("shapes", style, theme));
+    }
+
+    macro_rules! alert_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
+            }
+        )*};
+    }
+
+    alert_goldens! {
+        alert_looks_vega_light: looks, Vega, Light;
+        alert_looks_vega_dark: looks, Vega, Dark;
+        alert_looks_lyra_light: looks, Lyra, Light;
+        alert_looks_lyra_dark: looks, Lyra, Dark;
+        alert_shapes_vega_light: shapes, Vega, Light;
+        alert_shapes_vega_dark: shapes, Vega, Dark;
+        alert_shapes_lyra_light: shapes, Lyra, Light;
+        alert_shapes_lyra_dark: shapes, Lyra, Dark;
+    }
+}
