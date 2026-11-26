@@ -281,6 +281,7 @@ pub(crate) fn declare<A>(
 
 /// Whether the card `trigger` of the row `group` opens is open, as
 /// [`declare`] will say: for the trigger's own look, built before its card.
+#[cfg(feature = "navigation-menu")]
 pub(crate) fn is_open<A>(b: &Builder<'_, '_, A>, group: Id, trigger: Id) -> bool {
     b.kept().viewport(b.viewport(), |here| {
         here.hover_cards
