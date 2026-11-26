@@ -18,7 +18,7 @@ use crate::NodeUi as _;
 use crate::builder::{Builder, NodeHandle, Slot};
 use crate::commands::{Commands, Declared, Table, Within, look_up};
 use crate::owned::tooltip::{BuildBuilt, build_built};
-use crate::pipeline::{DismissFn, DrawFn, FrameCore, Sink, Twice};
+use crate::pipeline::{AppFn, DismissFn, DrawFn, FrameCore, Sink, Twice};
 use crate::region::RegionDecl;
 use crate::window::Hooks;
 
@@ -201,9 +201,14 @@ impl<'f, R: 'static, S: 'static> Mount<'f, R, S> {
         self.lens.clone()
     }
 
-    fn lift(&self, then: DismissFn<S>) -> DismissFn<R> {
+    fn lift(&self, then: AppFn<S>) -> AppFn<R> {
         let lens = self.lens();
         Box::new(move |app| then(lens(app)))
+    }
+
+    fn lift_dismiss(&self, then: DismissFn<S>) -> DismissFn<R> {
+        let lens = self.lens();
+        Box::new(move |app, why| then(lens(app), why))
     }
 
     fn lift_table(&self, table: Table<S>) -> Table<R> {
@@ -265,10 +270,11 @@ impl<'f, R: 'static, S: 'static> Sink<'f, S> for Lensed<'_, 'f, R, S> {
     }
 
     fn on_dismiss(&mut self, overlay: Id, then: DismissFn<S>) {
-        self.outer.on_dismiss(overlay, self.mount.lift(then));
+        self.outer
+            .on_dismiss(overlay, self.mount.lift_dismiss(then));
     }
 
-    fn on_exited(&mut self, then: DismissFn<S>) {
+    fn on_exited(&mut self, then: AppFn<S>) {
         self.outer.on_exited(self.mount.lift(then));
     }
 

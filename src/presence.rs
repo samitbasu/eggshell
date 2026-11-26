@@ -17,7 +17,7 @@ use egui::{Context, Id, Vec2, vec2};
 
 use crate::kept::Handle;
 use crate::overlay::Side;
-use crate::pipeline::DismissFn;
+use crate::pipeline::AppFn;
 use crate::roots::Form;
 use crate::transition::{self, Transition};
 use crate::tw::{Easing, Opacity, Progress};
@@ -337,7 +337,7 @@ pub(crate) fn step(kept: &Handle, ctx: &Context, id: Id, motion: &Motion, first:
 }
 
 /// What to run once an overlay has left.
-pub(crate) type ExitedFn<A> = DismissFn<A>;
+pub(crate) type ExitedFn<A> = AppFn<A>;
 
 #[cfg(test)]
 mod tests {

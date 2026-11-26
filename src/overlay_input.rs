@@ -13,14 +13,15 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Cause, Closer, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals,
-    esc_target,
+    Boundary, Closer, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals, esc_target,
 };
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::nodes::Nodes;
-use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside, Showing};
+use crate::overlay::{
+    Anchor, AnchorLookup, Anchored, Behavior, Dismissed, Focus, Nav, Outside, Showing,
+};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::relation::Relation;
 use crate::roots::{
@@ -528,16 +529,17 @@ pub(crate) fn judge<A>(
         let (Some(layer), Some(open)) = (layers.get(found.layer), judged.get(found.layer)) else {
             continue;
         };
-        match (found.cause, layer.cancel) {
-            (Cause::Cancel, Some(button)) => actions::press(ctx, kept, button),
-            _ => {
+        match (found.cause.dismissed(), layer.cancel) {
+            (None, Some(button)) => actions::press(ctx, kept, button),
+            (None, None) => {}
+            (Some(why), _) => {
                 let id = open.overlay.id;
                 dismissed.push(id);
                 if open.overlay.behavior.hover.is_some() {
                     kept.viewport(ctx.viewport_id(), |here| here.hover_cards.dismissed());
                 }
                 if let Some(then) = dismiss.remove(&id) {
-                    then(app);
+                    then(app, why);
                 }
             }
         }
@@ -603,7 +605,7 @@ pub(crate) fn judge<A>(
         .collect();
     for id in nav::navigate(ctx, kept, &menus) {
         if let Some(then) = dismiss.remove(&id) {
-            then(app);
+            then(app, Dismissed::Keys);
         }
     }
     popups

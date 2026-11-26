@@ -217,7 +217,7 @@ fn dismissals(stack: &[OverlayState], input: &FrameInput) -> Vec<usize>   // ove
 7. **Nested overlays.** An outside press on a parent's area closes only the child (the parent contains the press, so the walk stops there). A press on the page closes both, child first. Esc closes the child only.
 8. **Activation** (choosing a menu item, a select option) is the *app's* handler setting its state, as in D22's example. The library does not guess that an item "closes the menu".
 
-`DismissOn` is a closed set, not flags: `Default` (Outside, Esc and FocusOut), `EscOnly` (a confirm dialog that must be answered, or an autosuggest whose outside click is the field's own concern), `Never` (tooltips, which the library closes itself).
+`DismissOn` is a closed set, not flags: `Default` (Outside, Esc and FocusOut), `Outside` (a press outside and Esc, not focus leaving nor the window losing focus; #326), `EscOnly` (a confirm dialog that must be answered, or an autosuggest whose outside click is the field's own concern), `Never` (tooltips, which the library closes itself).
 
 **What becomes of the press (decided 2026-11-11, #105).** The press that dismisses an overlay is **swallowed** for menus, context menus and `Select` (native and Radix `DropdownMenu`: while open, the overlay's blocker covers the whole screen and draws nothing) and **passes through** for popovers (Radix `Popover`). It is a closed enum on the overlay, `Outside { PassThrough, Swallow }`, with a per-overlay override (`.outside(..)`). A swallowing overlay's anchor is *not* inside it, since the blocker covers the trigger: a press on the trigger closes the menu instead of toggling it. A swallowing overlay ends the walk of rule 2 (the press went to it and no further) except for the overlays it is nested in, which the same press closes after it. An overlay nested in a swallowing one has no blocker of its own: its parent's covers the page, so a press on the parent's items still reaches them.
 
@@ -232,7 +232,7 @@ fn dismissals(stack: &[OverlayState], input: &FrameInput) -> Vec<usize>   // ove
 - If a root has several buttons of one kind, the first declared is the one.
 - The page's default and cancel buttons are not reachable from inside an overlay (the nearest root is the overlay), nor under a modal (it traps the focus).
 
-**Design.** Rules 1 to 8 as one function with a unit-test matrix (stack shapes x press positions x Esc x drag live). `on_dismiss` stays `FnOnce(&mut A)`, as in D22.
+**Design.** Rules 1 to 8 as one function with a unit-test matrix (stack shapes x press positions x Esc x drag live). `on_dismiss` stays `FnOnce(&mut A)`, as in D22; `on_dismiss_with` is also told why, as `Dismissed` (#326): `Outside`, `Esc`, `FocusOut`, `WindowBlur`, `Exclusive`, `AnchorGone`, `Keys` (Left closing a submenu) or `Closed` (a button marked `dismisses()`). Esc a cancel button answers runs the button, not the handler. One handler is kept, the last set.
 
 ## 5. Focus and keyboard
 

@@ -305,7 +305,9 @@ pub(crate) struct Interaction {
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 pub(crate) type DrawFn<A> = Box<dyn FnOnce(&mut A, &mut egui::Ui)>;
-pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A)>;
+pub(crate) type AppFn<A> = Box<dyn FnOnce(&mut A)>;
+/// What runs when the library dismisses an overlay, told why.
+pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A, crate::overlay::Dismissed)>;
 
 /// Build data that persists across frames so allocations are reused.
 pub(crate) struct BuildState {
@@ -404,7 +406,7 @@ pub(crate) struct Frame<'f, A> {
     /// What to run when a pop-out's window is closed or moved, by its id.
     pub windows: HashMap<Id, crate::window::Hooks<A>>,
     /// What to run for the overlays that finished leaving this frame.
-    pub exited: Vec<DismissFn<A>>,
+    pub exited: Vec<AppFn<A>>,
     pub build_built: Option<crate::owned::tooltip::BuildBuilt<A>>,
     /// The command tables each root declared, by the root's index.
     pub tables: Vec<(usize, Commands<A>)>,
@@ -500,7 +502,7 @@ pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
     /// Declares a region in the root being built.
     fn add_region(&mut self, region: RegionDecl<'f, A>);
     fn on_dismiss(&mut self, overlay: Id, then: DismissFn<A>);
-    fn on_exited(&mut self, then: DismissFn<A>);
+    fn on_exited(&mut self, then: AppFn<A>);
     fn window_hooks(&mut self, window: Id, hooks: crate::window::Hooks<A>);
     fn build_built(&self) -> Option<crate::owned::tooltip::BuildBuilt<A>>;
     fn set_build_built(&mut self, build: crate::owned::tooltip::BuildBuilt<A>);
@@ -550,7 +552,7 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
         self.dismiss.insert(overlay, then);
     }
 
-    fn on_exited(&mut self, then: DismissFn<A>) {
+    fn on_exited(&mut self, then: AppFn<A>) {
         self.exited.push(then);
     }
 
@@ -2321,7 +2323,7 @@ pub struct Placed<A> {
     pub(crate) windows: HashMap<Id, crate::window::Hooks<A>>,
     /// Every pop-out declared, inline or popped out.
     pub(crate) pop_outs: Vec<Id>,
-    pub(crate) exited: Vec<DismissFn<A>>,
+    pub(crate) exited: Vec<AppFn<A>>,
     /// The command tables declared, the page's and the mounts'.
     pub(crate) commands: Vec<Declared<A>>,
     /// Whether a collapsible is opening or closing in this frame.
