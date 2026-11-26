@@ -8,9 +8,10 @@ mod parts;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
+use crate::overlay::{Anchor, DismissOn, Dismissed, Focus, MatchWidth, Modal, Placement};
 use crate::owned::Mark;
 use crate::owned::text_field::Select;
+use crate::pipeline::DismissFn;
 use crate::sheet::Key as SheetKey;
 use crate::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
@@ -109,6 +110,9 @@ enum Shape<A> {
     Dialog {
         open: Open,
         close: Rc<dyn Fn(&mut A)>,
+        dismiss_on: DismissOn,
+        /// Runs instead of `close` when the dialog is dismissed.
+        on_dismiss: Option<DismissFn<A>>,
     },
 }
 
@@ -194,6 +198,28 @@ impl<'f, A: 'static> List<'_, '_, 'f, A> {
         self
     }
 
+    /// TODO(prose): what dismisses a command dialog, as
+    /// [`OverlayChain::dismiss_on`](crate::overlay::OverlayChain::dismiss_on)
+    /// says. An inline list has no overlay, and ignores it.
+    pub fn dismiss_on(mut self, dismiss_on: DismissOn) -> Self {
+        if let Shape::Dialog { dismiss_on: on, .. } = &mut self.shape {
+            *on = dismiss_on;
+        }
+        self
+    }
+
+    /// TODO(prose): runs `then` instead of the dialog's `on_close` when the
+    /// library dismisses a command dialog, told why, as
+    /// [`OverlayChain::on_dismiss_with`](crate::overlay::OverlayChain::on_dismiss_with)
+    /// is. A pick still runs `on_close`. An inline list has no overlay, and
+    /// ignores it.
+    pub fn on_dismiss_with(mut self, then: impl FnOnce(&mut A, Dismissed) + 'static) -> Self {
+        if let Shape::Dialog { on_dismiss, .. } = &mut self.shape {
+            *on_dismiss = Some(Box::new(then));
+        }
+        self
+    }
+
     /// TODO(prose): adds the list, whose items `items` gives, in groups.
     pub fn items(self, items: impl FnOnce(&mut Items<A>)) {
         let Self {
@@ -210,14 +236,20 @@ impl<'f, A: 'static> List<'_, '_, 'f, A> {
             Shape::Dialog {
                 open: Open::Yes,
                 close,
+                dismiss_on,
+                on_dismiss,
             } => {
                 let name = options.name.clone().unwrap_or_default();
-                let dismiss = Rc::clone(&close);
+                let on_dismiss = on_dismiss.unwrap_or_else(|| {
+                    let close = Rc::clone(&close);
+                    Box::new(move |app, _| close(app))
+                });
                 b.overlay((key, Node::Dialog))
                     .modal(Modal::Center)
                     .role(Role::Dialog)
                     .named(name)
-                    .on_dismiss(move |app| dismiss(app))
+                    .dismiss_on(dismiss_on)
+                    .on_dismiss_with(on_dismiss)
                     .children(|s| {
                         let classes = s.part(Part::Dialog, &[], tw());
                         s.div_id(Node::Box, classes, |s| {
@@ -251,6 +283,8 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
             shape: Shape::Dialog {
                 open,
                 close: Rc::new(on_close),
+                dismiss_on: DismissOn::default(),
+                on_dismiss: None,
             },
             options: Options::default(),
         }
