@@ -17,6 +17,8 @@ use crate::support;
 const OPEN: Duration = Duration::from_millis(200);
 const SKIP: Duration = Duration::from_millis(300);
 const CLOSE: Duration = Duration::from_millis(150);
+/// A frame: short, so the delays are measured to within a few frames.
+const STEP: Duration = Duration::from_millis(4);
 
 #[derive(Default)]
 struct App {
@@ -71,6 +73,7 @@ fn harness_with(app: App) -> Driver<App> {
         view,
         still,
     )
+    .step(STEP)
     .build();
     d.frames(4);
     d
@@ -166,7 +169,10 @@ fn the_style_holds_radixs_delays() {
 fn resting_on_a_trigger_opens_its_panel_after_the_delay_below_it() {
     let mut d = harness();
     let spent = rest(&mut d, trigger("start"));
-    assert!(spent < OPEN - Duration::from_millis(40), "precondition: {spent:?}");
+    assert!(
+        spent < OPEN - Duration::from_millis(40),
+        "precondition: {spent:?}"
+    );
     d.advance(OPEN - spent - Duration::from_millis(30));
     assert!(!is_open(&d, "start"), "waits for 200 ms");
     d.advance(Duration::from_millis(50));
@@ -205,8 +211,11 @@ fn while_one_is_open_the_pointer_on_a_neighbour_switches_at_once() {
 fn leaving_closes_after_the_close_delay_and_the_skip_delay_follows_it() {
     let mut d = harness();
     open_by_pointer(&mut d, "start");
-    let spent = rest(&mut d, Target::suffix("/\"after\""));
-    assert!(spent < CLOSE - Duration::from_millis(60), "precondition: {spent:?}");
+    let spent = rest(&mut d, Target::suffix("/\"before\""));
+    assert!(
+        spent < CLOSE - Duration::from_millis(60),
+        "precondition: {spent:?}"
+    );
     d.advance(CLOSE - spent - Duration::from_millis(40));
     assert!(is_open(&d, "start"), "still open within 150 ms");
     d.advance(Duration::from_millis(80));
@@ -216,7 +225,7 @@ fn leaving_closes_after_the_close_delay_and_the_skip_delay_follows_it() {
         is_open(&d, "more"),
         "within 300 ms of the close it opens at once"
     );
-    d.hover(Target::suffix("/\"after\""))
+    d.hover(Target::suffix("/\"before\""))
         .advance(CLOSE + SKIP + Duration::from_millis(100));
     assert!(
         !is_open(&d, "more"),
@@ -242,7 +251,7 @@ fn a_click_opens_and_keeps_it_open_and_a_second_click_closes_it() {
     let mut d = harness();
     d.click(trigger("start")).frames(3);
     assert!(is_open(&d, "start"), "the click opens it at once");
-    d.hover(Target::suffix("/\"after\"")).advance(CLOSE * 4);
+    d.hover(Target::suffix("/\"before\"")).advance(CLOSE * 4);
     assert!(is_open(&d, "start"), "a pressed panel stays when left");
     d.click(trigger("start")).frames(3);
     assert!(!is_open(&d, "start"), "the second click closes it");
@@ -266,7 +275,7 @@ fn a_press_outside_closes_a_pressed_panel() {
     let mut d = harness();
     d.click(trigger("start")).frames(3);
     assert!(is_open(&d, "start"), "precondition: open");
-    d.click(Target::suffix("/\"after\"")).frames(3);
+    d.click(Target::suffix("/\"before\"")).frames(3);
     assert!(!is_open(&d, "start"));
 }
 

@@ -330,6 +330,9 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced, Static> {
     ///   [`description`](HoverIntent::description) describes the trigger's
     ///   widgets to assistive technology.
     /// - It replaces the tooltip of `trigger` and of anything inside it.
+    /// - With a [`group`](HoverIntent::group), it is one of a row of
+    ///   triggers that open one at a time and behave as a navigation menu's
+    ///   do: see [`TriggerGroup`](crate::overlay::TriggerGroup).
     ///
     /// A hover card declared inside another is reported
     /// ([`Problem::NestedHoverCard`](crate::Problem::NestedHoverCard)) and

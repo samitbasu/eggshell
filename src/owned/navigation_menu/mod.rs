@@ -48,8 +48,10 @@ use core::time::Duration;
 use egui::{Painter, Pos2, Rect, Role, Shape, pos2};
 
 use crate::overlay::{Align, Distance, HoverIntent, Nav, Placement, TabStops, TriggerGroup, Wrap};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
+use crate::owned::{Enablement, OnResponse, tipped, tipped_whole};
 use crate::sheet::{Key as SheetKey, Sheet};
-use crate::{Builder, Current, Icon, Key, NodeUi as _, Tw, icons, tw};
+use crate::{Builder, Current, Icon, Key, NodeUi as _, icons, tw};
 
 /// TODO(prose): a navigation menu's anatomy for the style's sheet: shadcn's
 /// `navigation-menu`.
@@ -152,6 +154,9 @@ pub struct Style {
     /// TODO(prose): the gap between a trigger and its panel: shadcn's
     /// `mt-1.5`.
     pub offset: Distance,
+    /// TODO(prose): how a panel lines up with its trigger: at its start
+    /// edge, as shadcn's `left-0`.
+    pub align: Align,
     /// TODO(prose): how long a panel takes to enter and to leave.
     pub transition: Duration,
     /// TODO(prose): the trigger's chevron while its panel is open.
@@ -167,6 +172,7 @@ impl Default for Style {
             skip_delay: Duration::from_millis(300),
             close_delay: Duration::from_millis(150),
             offset: Distance::new(6.0),
+            align: Align::Start,
             transition: Duration::from_millis(150),
             chevron: Chevron::Turns,
         }
@@ -191,26 +197,17 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
         Chain {
             b: self,
             key,
-            name: None,
+            opts: Options::new(),
             items: Vec::new(),
             indicator: Indicator::Hidden,
             open_delay: None,
             skip_delay: None,
             close_delay: None,
-            classes: tw(),
         }
     }
 
     fn nav_link<K: Key>(&mut self, key: K, title: impl Into<String>) -> Link<'_, 'b, 'f, A, K> {
-        Link {
-            b: self,
-            key,
-            title: title.into(),
-            description: None,
-            icon: None,
-            current: None,
-            look: LinkLook::Panel,
-        }
+        Link::new(self, key, title.into(), LinkLook::Panel)
     }
 }
 
@@ -253,34 +250,63 @@ type Declare<'s, 'f, A> = Box<dyn for<'x> FnOnce(&mut Builder<'x, 'f, A>, &Menu)
 pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
-    name: Option<String>,
+    opts: Options,
     items: Vec<Declare<'s, 'f, A>>,
     indicator: Indicator,
     open_delay: Option<Duration>,
     skip_delay: Option<Duration>,
     close_delay: Option<Duration>,
-    classes: Tw,
 }
 
-impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
-    /// TODO(prose): the menu's accessible name, as the landmark's: "Main".
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
+impl<A, K> Configure for Chain<'_, '_, '_, A, K> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
     }
+}
 
+/// TODO(prose): a panel's trigger, as [`panel_with`](Chain::panel_with) gives
+/// it to be configured: its name, classes, tooltip and enablement.
+#[must_use]
+pub struct Trigger {
+    opts: Options,
+}
+
+impl Configure for Trigger {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl Interactive for Trigger {}
+
+impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
     /// TODO(prose): a trigger reading `label` whose panel `body` fills: free
     /// content, built while the panel is shown, usually of
     /// [`nav_link`](Ext::nav_link)s.
     pub fn panel<I: Key>(
-        mut self,
+        self,
         key: I,
         label: impl Into<String>,
         body: impl for<'x> FnOnce(&mut Builder<'x, 'f, A>) + 's,
     ) -> Self {
+        self.panel_with(key, label, |trigger| trigger, body)
+    }
+
+    /// TODO(prose): [`panel`](Self::panel), with the trigger configured by
+    /// `trigger`: its name, classes, tooltip and enablement.
+    pub fn panel_with<I: Key>(
+        mut self,
+        key: I,
+        label: impl Into<String>,
+        trigger: impl FnOnce(Trigger) -> Trigger,
+        body: impl for<'x> FnOnce(&mut Builder<'x, 'f, A>) + 's,
+    ) -> Self {
         let label = label.into();
+        let Trigger { opts } = trigger(Trigger {
+            opts: Options::new(),
+        });
         self.items.push(Box::new(move |b, menu| {
-            panel_item(b, key, label, Box::new(body), menu);
+            panel_item(b, key, (label, opts), Box::new(body), menu);
         }));
         self
     }
@@ -298,15 +324,7 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
         self.items.push(Box::new(move |b, _| {
             let item = b.part(Part::Item, &[], tw().sense_hover());
             b.div_id(key, item, |b| {
-                link(Link {
-                    b,
-                    key: "Link",
-                    title: label,
-                    description: None,
-                    icon: None,
-                    current: None,
-                    look: LinkLook::Bar,
-                });
+                link(Link::new(b, "Link", label, LinkLook::Bar));
             })
             .role(Role::ListItem);
         }));
@@ -338,32 +356,31 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
         self
     }
 
-    /// TODO(prose): classes merged over the root's styled ones; the later
-    /// class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
-        self
-    }
-
     /// TODO(prose): adds the menu.
     #[track_caller]
     pub fn add(self) {
         let Self {
             b,
             key,
-            name,
+            opts,
             items,
             indicator,
             open_delay,
             skip_delay,
             close_delay,
-            classes,
         } = self;
+        let slot = b.slot(&key);
+        let Resolved {
+            name,
+            classes,
+            tooltip,
+            ..
+        } = opts.resolve(b, slot.id);
         let style = b.style().navigation_menu.clone();
         // A node shows its role to assistive technology only if it senses.
         let own = tw().sense_hover();
         let root = b.part(Part::Root, &[], own.clone().merge(classes));
-        let node = b.div_id(key, root, |b| {
+        let node = b.div_id_with(&slot, root, |b| {
             let menu = Menu {
                 group: TriggerGroup::new(
                     b.id_of(Node::List),
@@ -384,7 +401,9 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
             .nav(Nav::Row(Wrap::Stop))
             .tab_stops(TabStops::Every);
         });
-        let node = node.role(Role::Navigation);
+        let node = node
+            .role(Role::Navigation)
+            .draw(move |_, ui| tipped_whole(ui, &tooltip));
         if let Some(name) = name {
             node.named(name);
         }
@@ -397,31 +416,52 @@ type Body<'s, 'f, A> = Box<dyn for<'x> FnOnce(&mut Builder<'x, 'f, A>) + 's>;
 fn panel_item<'f, A: 'static, K: Key>(
     b: &mut Builder<'_, 'f, A>,
     key: K,
-    label: String,
+    (label, opts): (String, Options),
     body: Body<'_, 'f, A>,
     menu: &Menu,
 ) {
     let item = b.part(Part::Item, &[], tw().sense_hover());
     b.div_id(key, item, |b| {
-        let trigger = b.id_of(Node::Trigger);
+        let slot = b.slot(&Node::Trigger);
+        let trigger = slot.id;
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(b, trigger);
         let content = crate::child_id(b.id_of(Node::Panel), &Node::Content);
         let open = crate::hover::is_open(b, menu.group.id, trigger);
-        let keys: Vec<SheetKey> = crate::owned::expanded_key(open).into_iter().collect();
-        let classes = b.part(Part::Trigger, &keys, tw().sense_click());
+        let mut keys: Vec<SheetKey> = crate::owned::expanded_key(open).into_iter().collect();
+        let own = match enablement {
+            Enablement::Enabled => tw().sense_click(),
+            Enablement::Disabled => {
+                keys.push(SheetKey::Aria(crate::Aria::Disabled));
+                tw().sense_click().inert()
+            }
+        };
+        let classes = b.part(Part::Trigger, &keys, own.merge(caller));
         let chevron = match (open, menu.style.chevron) {
             (true, Chevron::Turns) => icons::CHEVRON_UP,
             _ => icons::CHEVRON_DOWN,
         };
-        b.div_id(Node::Trigger, classes, |b| {
+        b.div_id_with(&slot, classes, |b| {
             b.text(tw(), label.clone());
             let icon = b.part(Part::TriggerIcon, &[], tw());
             b.glyph(icon, Icon::new(chevron));
         })
         .role(Role::Button)
-        .named(label)
+        .named(name.unwrap_or(label))
         .expanded(open)
         .controls(content)
-        .nav_item();
+        .nav_item()
+        .open_focus(autofocus.open_focus())
+        .draw(move |_, ui| {
+            let response = tipped(ui, ui.node_response(), &tooltip);
+            autofocus.apply(ui.ctx(), &response);
+        });
         if open && menu.indicator == Indicator::Shown {
             let fill = b
                 .resolved_part(Part::IndicatorArrow, &[])
@@ -435,7 +475,7 @@ fn panel_item<'f, A: 'static, K: Key>(
         }
         let intent = HoverIntent::new(menu.open_delay, menu.close_delay).group(menu.group);
         let placement = Placement::below()
-            .align(Align::Start)
+            .align(menu.style.align)
             .gap(menu.style.offset);
         b.overlay(Node::Panel)
             .nav(Nav::Grid)
@@ -497,9 +537,41 @@ pub struct Link<'s, 'b, 'f, A, K> {
     icon: Option<Icon>,
     current: Option<Current>,
     look: LinkLook,
+    opts: Options,
+    on_response: OnResponse<A>,
 }
 
-impl<'f, A: 'static, K: Key> Link<'_, '_, 'f, A, K> {
+impl<A, K> Configure for Link<'_, '_, '_, A, K> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, K> Interactive for Link<'_, '_, '_, A, K> {}
+
+impl<A, K> Respond for Link<'_, '_, '_, A, K> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
+}
+
+impl<'s, 'b, 'f, A: 'static, K: Key> Link<'s, 'b, 'f, A, K> {
+    fn new(b: &'s mut Builder<'b, 'f, A>, key: K, title: String, look: LinkLook) -> Self {
+        Self {
+            b,
+            key,
+            title,
+            description: None,
+            icon: None,
+            current: None,
+            look,
+            opts: Options::new(),
+            on_response: OnResponse::default(),
+        }
+    }
+
     /// TODO(prose): a muted line under the title, cut to two lines; also the
     /// link's accessible description.
     pub fn description(mut self, description: impl Into<String>) -> Self {
@@ -524,6 +596,13 @@ impl<'f, A: 'static, K: Key> Link<'_, '_, 'f, A, K> {
     /// pressed in a panel closes the panel.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) {
+        self.on_click_with(move |app, _| act(app));
+    }
+
+    /// TODO(prose): [`on_click`](Self::on_click), with `act` given the egui
+    /// context too, for an effect the context performs.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &egui::Context) + 'static) {
         let Self {
             b,
             key,
@@ -532,15 +611,34 @@ impl<'f, A: 'static, K: Key> Link<'_, '_, 'f, A, K> {
             icon,
             current,
             look,
+            opts,
+            on_response,
         } = self;
-        let keys: Vec<SheetKey> = current.map(|_| ACTIVE).into_iter().collect();
-        let link = b.part(Part::Link, &keys, tw().sense_click());
+        let slot = b.slot(&key);
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(b, slot.id);
+        let mut keys: Vec<SheetKey> = current.map(|_| ACTIVE).into_iter().collect();
+        let own = match enablement {
+            Enablement::Enabled => tw().sense_click(),
+            Enablement::Disabled => {
+                keys.push(SheetKey::Aria(crate::Aria::Disabled));
+                tw().sense_click().inert()
+            }
+        };
+        let link = b.part(Part::Link, &keys, own);
         let classes = match look {
             LinkLook::Panel => link,
-            LinkLook::Bar => link.merge(b.part(Part::Trigger, &[], tw())),
-        };
+            LinkLook::Bar => link.merge(b.part(Part::Trigger, &keys, tw())),
+        }
+        .merge(caller);
         let muted = b.style().tokens.muted_foreground;
-        let node = b.div_id(key, classes, |b| {
+        let node = b.div_id_with(&slot, classes, |b| {
             if let Some(icon) = icon {
                 b.glyph(tw(), icon);
             }
@@ -554,7 +652,11 @@ impl<'f, A: 'static, K: Key> Link<'_, '_, 'f, A, K> {
                 _ => b.text(tw(), title.clone()),
             }
         });
-        let node = node.role(Role::Link).named(title).nav_item();
+        let node = node
+            .role(Role::Link)
+            .named(name.unwrap_or(title))
+            .nav_item()
+            .open_focus(autofocus.open_focus());
         let node = match current {
             Some(current) => node.current(current),
             None => node,
@@ -564,13 +666,15 @@ impl<'f, A: 'static, K: Key> Link<'_, '_, 'f, A, K> {
             None => node,
         };
         node.draw(move |app, ui| {
-            let id = ui.node_response().id;
-            if ui.node_response().clicked() || crate::nav::take_activation(ui, id) {
-                act(app);
+            let response = tipped(ui, ui.node_response(), &tooltip);
+            autofocus.apply(ui.ctx(), &response);
+            if response.clicked() || crate::nav::take_activation(ui, response.id) {
+                act(app, ui.ctx());
                 if let Some(shell) = crate::shell::shell_or_report(ui, "a navigation link") {
-                    crate::actions::note_closer(ui.ctx(), &shell.kept, id);
+                    crate::actions::note_closer(ui.ctx(), &shell.kept, response.id);
                 }
             }
+            on_response.run(app, &response);
         });
     }
 }
