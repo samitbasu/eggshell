@@ -11,6 +11,7 @@ use eggshell_ui::owned::{
     button::{self, Face},
     toggle_group,
 };
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, Scope, tw};
 

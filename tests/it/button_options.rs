@@ -3,6 +3,7 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::button;
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::{size, variant};
 use eggshell_ui::{Builder, LayoutState, Scope, tw};
 use egui::epaint::ClippedShape;

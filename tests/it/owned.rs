@@ -3,6 +3,7 @@
 //! the support harness switches on.
 
 use eggshell_ui::Style;
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};

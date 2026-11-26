@@ -2,6 +2,7 @@
 //! key events, build, layout, draw and the judgement of the frame's input.
 
 use core::time::Duration;
+use eggshell_ui::prelude::*;
 
 use eggshell_ui::overlay::Modal;
 use eggshell_ui::owned::{Enablement, choice::Choice};

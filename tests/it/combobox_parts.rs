@@ -3,6 +3,7 @@
 //! role, and a command read and run from outside the library.
 
 use eggshell_ui::overlay::{Modal, Nav, Wrap};
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role as AccessRole;
 use egui::{Color32, FontFamily, Key, Role, vec2};

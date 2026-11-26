@@ -56,7 +56,7 @@ pub(crate) enum Autofocus {
     OnChange(Token, Select),
     /// As the overlay it is in opens: the node is marked, and the overlay
     /// gives it focus.
-    OnOverlayOpen,
+    OnOverlayOpen(Select),
     /// As the overlay it is in opens, unless another node is marked
     /// [`OnOverlayOpen`](Self::OnOverlayOpen).
     #[cfg_attr(not(feature = "dialog"), expect(dead_code))]
@@ -94,18 +94,33 @@ impl Autofocus {
     /// opens on.
     pub(crate) fn open_focus(self) -> OpenFocus {
         match self {
-            Self::OnOverlayOpen => OpenFocus::Here,
+            Self::OnOverlayOpen(_) => OpenFocus::Here,
             Self::OnOverlayOpenByDefault => OpenFocus::Fallback,
             _ => OpenFocus::Elsewhere,
         }
     }
 
+    /// The same request, selecting as `select` says when it takes focus.
+    pub(crate) fn selecting(self, select: Select) -> Self {
+        match self {
+            Self::OnAppear(_) => Self::OnAppear(select),
+            Self::OnChange(token, _) => Self::OnChange(token, select),
+            Self::OnOverlayOpen(_) => Self::OnOverlayOpen(select),
+            Self::Now(_) => Self::Now(select),
+            Self::Never | Self::OnOverlayOpenByDefault => self,
+        }
+    }
+
     /// Requests focus for `response`'s widget if this is the first frame it
     /// is drawn after a frame in which it was not, or ever, if its token
-    /// changed, or if it asks now. Returns what to select when it did.
+    /// changed, or if it asks now. Returns what to select when it did, or
+    /// when its overlay opened on it.
     pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) -> Option<Select> {
         let (token, select) = match self {
-            Self::Never | Self::OnOverlayOpen | Self::OnOverlayOpenByDefault => return None,
+            Self::Never | Self::OnOverlayOpenByDefault => return None,
+            Self::OnOverlayOpen(select) => {
+                return took_opening_focus(ctx, response).then_some(select);
+            }
             Self::Now(select) => {
                 response.request_focus();
                 return Some(select);
@@ -133,6 +148,24 @@ impl Autofocus {
             select
         })
     }
+}
+
+fn opening_focus_slot(widget: Id) -> Id {
+    widget.with("eggshell-opening-focus")
+}
+
+/// Notes that an opening overlay gave focus to `widget`, which takes the
+/// note the first frame it is drawn with focus.
+pub(crate) fn note_opening_focus(ctx: &Context, widget: Id) {
+    ctx.data_mut(|data| data.insert_temp(opening_focus_slot(widget), ()));
+}
+
+/// Whether `response`'s widget has focus that its overlay gave it as it
+/// opened, and has not yet taken.
+fn took_opening_focus(ctx: &Context, response: &egui::Response) -> bool {
+    let slot = opening_focus_slot(response.id);
+    let noted = ctx.data_mut(|data| data.remove_temp::<()>(slot)).is_some();
+    noted && response.has_focus()
 }
 
 impl Shell {

@@ -2,6 +2,7 @@
 //! as eframe web sends them: how far the content moves for how far the finger
 //! does, from the background and from a control, and that it coasts on.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Pos2, TouchDeviceId, TouchId, TouchPhase, Vec2, vec2};
 use egui_kittest::Harness;

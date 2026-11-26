@@ -1,6 +1,7 @@
 //! A focused text field shows shadcn's focus: `border-ring` and the ring
 //! around the box, as the owned controls do.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Shadcn;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};

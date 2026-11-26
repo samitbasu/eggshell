@@ -4,6 +4,7 @@
 //! the list and the highlighted row.
 
 use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::prelude::*;
 use eggshell_ui::vlist::RowKind;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role as AccessRole;

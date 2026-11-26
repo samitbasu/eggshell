@@ -5,6 +5,7 @@ use eggshell_ui::owned::{
     Enablement,
     number::{Edit, Step},
 };
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Color32, Event, Key, Role, Shape, vec2};
 use egui_kittest::Harness;

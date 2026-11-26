@@ -3,6 +3,7 @@
 
 use eggshell_ui::overlay::{Anchor, Nav, Placement, Wrap};
 use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Toggled};

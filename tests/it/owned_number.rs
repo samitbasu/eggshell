@@ -3,6 +3,7 @@
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{Enablement, number::Step, slider};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, ShadcnStyle, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, tw};

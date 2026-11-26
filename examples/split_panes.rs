@@ -7,6 +7,7 @@
 mod common;
 
 use eggshell_ui::owned::splitter::PaneSize;
+use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};
 
 const FILES: [&str; 6] = [

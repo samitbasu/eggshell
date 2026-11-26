@@ -3,6 +3,7 @@
 //! draw, and leaves every node outside it alone.
 
 use eggshell_ui::owned::table::{self, Column};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};

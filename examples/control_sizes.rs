@@ -4,6 +4,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::theme::size;
 use eggshell_ui::{Builder, tw};
 

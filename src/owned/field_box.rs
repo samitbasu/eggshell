@@ -3,22 +3,27 @@
 
 use crate::builder::{Scope, Slot};
 use crate::contract::Size;
-use crate::{Builder, Tw, tw};
+use crate::{Builder, NodeUi as _, tw};
 
-use super::{
-    Enablement, input, options, options::Gate, options::IntoTip, text_sized, tipped_whole,
-};
+use super::options::{Configure, Interactive, Options, Resolved, Respond};
+use super::{Enablement, OnResponse, input, text_sized, tipped_whole};
 
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
 /// finish it with [`children`](Self::children).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`]. Its [`enablement`](Interactive::enablement) is that of the
+/// box and what is inside it, and its tooltip shows while the pointer is
+/// anywhere over it. [`focus_on_open`](Interactive::focus_on_open) gives the
+/// overlay's opening focus to the first control inside it; the box itself
+/// takes no focus, so [`focus_now`](Interactive::focus_now) does nothing.
 #[must_use = "a field box is not added until you call `.children(..)`"]
 pub struct Chain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
-    classes: Tw,
-    enablement: Enablement,
-    gate: Gate,
+    opts: Options,
     size: Option<Size>,
+    on_response: OnResponse<A>,
 }
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
@@ -29,15 +34,30 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 }
 
+impl<A> Configure for Chain<'_, '_, A> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A> Interactive for Chain<'_, '_, A> {}
+
+impl<A> Respond for Chain<'_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
+}
+
 impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot) -> Self {
         Self {
             b,
             slot,
-            classes: tw(),
-            enablement: Enablement::Enabled,
-            gate: Gate::default(),
+            opts: Options::new(),
             size: None,
+            on_response: OnResponse::default(),
         }
     }
 
@@ -47,50 +67,25 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         self
     }
 
-    /// Whether the box and what is inside it takes input.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description. `None` clears it; the last
-    /// call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Classes merged over the styled ones, such as its width; the later class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = self.classes.merge(classes);
-        self
-    }
-
     /// TODO(prose): builds `body` inside the box.
     #[track_caller]
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         let Self {
             mut b,
             slot,
-            classes,
-            enablement,
-            gate,
+            opts,
             size,
+            on_response,
         } = self;
         let size = b.size_of(size);
-        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let style = b.style().clone();
         let metrics = *style.input.sizes.lookup(b.ctx(), size);
         let keys = super::input::keys(
@@ -112,7 +107,16 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             Some(_) => classes.sense_hover(),
             None => classes,
         };
-        b.div_id_with(&slot, classes, body)
-            .draw(move |_, ui| tipped_whole(ui, &tooltip));
+        let node = b
+            .div_id_with(&slot, classes, body)
+            .open_focus(autofocus.open_focus());
+        let node = match name {
+            Some(name) => node.named(name),
+            None => node,
+        };
+        node.draw(move |app, ui| {
+            tipped_whole(ui, &tooltip);
+            on_response.run(app, &ui.node_response());
+        });
     }
 }

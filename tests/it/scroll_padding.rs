@@ -2,6 +2,7 @@
 //! keys: scrolling into view keeps the padding from the edges, and the wheel
 //! is unaffected.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role;

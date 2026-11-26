@@ -40,6 +40,7 @@ use crate::contract::{Size, Variant};
 use crate::focus::Autofocus;
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
 use crate::owned::button::{self, Face};
+use crate::owned::options::Configure as _;
 use crate::sheet::Key as SheetKey;
 use crate::theme::{size, variant};
 use crate::{Builder, Icon, Scope, Tw, icons, tw};

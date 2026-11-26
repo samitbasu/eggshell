@@ -14,18 +14,14 @@ use egui::{Context, EventFilter, Id, Key as EguiKey, Pos2, Role, Vec2};
 use super::button::{self, Face};
 mod sheet;
 
-use super::{
-    Chevron, Enablement, Mark, OnResponse, check, describe, options, options::Gate,
-    options::IntoTip, tipped,
-};
+use super::options::{Configure, Interactive, Options, Resolved, Respond};
+use super::{Chevron, Enablement, Mark, OnResponse, check, describe, tipped};
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
-use crate::focus::{Autofocus, Select};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Distance, Fit, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
-use crate::pipeline::OpenFocus;
 use crate::sheet::Key;
 use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 use sheet::INSET;
@@ -192,7 +188,7 @@ enum Trail {
 
 /// What an item does when it is activated.
 enum Reaction<A> {
-    Run(Box<dyn FnOnce(&mut A)>),
+    Run(Act<A>),
     OpenSubmenu,
 }
 
@@ -203,9 +199,8 @@ struct Row<A> {
     lead: Lead,
     trail: Trail,
     tone: Tone,
-    enablement: Enablement,
-    gate: Gate,
-    open_focus: OpenFocus,
+    opts: Options,
+    on_response: OnResponse<A>,
     reaction: Reaction<A>,
 }
 
@@ -336,10 +331,9 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             lead,
             shortcut: None,
             tone: Tone::Plain,
-            enablement: Enablement::Enabled,
-            gate: Gate::default(),
+            opts: Options::new(),
+            on_response: OnResponse::default(),
             allowed: Enablement::Enabled,
-            open_focus: OpenFocus::Elsewhere,
             kind,
         }
     }
@@ -379,9 +373,8 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             lead: Lead::Nothing,
             trail: Trail::Chevron,
             tone: Tone::Plain,
-            enablement: Enablement::Enabled,
-            gate: Gate::default(),
-            open_focus: OpenFocus::Elsewhere,
+            opts: Options::new(),
+            on_response: OnResponse::default(),
             reaction: Reaction::OpenSubmenu,
         });
         let (root, depth) = (self.shared.root, self.depth);
@@ -414,12 +407,19 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             lead,
             trail,
             tone,
-            enablement,
-            gate,
-            open_focus,
+            opts,
+            on_response,
             reaction,
         } = row;
-        let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip: tip,
+            autofocus,
+            ..
+        } = opts.resolve(&mut self.b, slot.id);
+        let name = name.unwrap_or_else(|| label.clone());
         let shared = self.shared.clone();
         let part = match (&lead, &trail) {
             (_, Trail::Chevron) => Part::SubTrigger,
@@ -435,8 +435,8 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         }
         keys.extend(super::expanded_key(expanded));
         let own = enablement.senses();
-        let classes = self.b.part(part, &keys, own);
-        let shown = label.clone();
+        let classes = self.b.part(part, &keys, own.merge(caller));
+        let shown = label;
         let owns = match reaction {
             Reaction::Run(_) => Owns::Nothing,
             Reaction::OpenSubmenu => Owns::Submenu,
@@ -474,11 +474,13 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 }
             })
             .role(role)
-            .named(label.clone())
-            .open_focus(open_focus)
+            .named(name.clone())
+            .open_focus(autofocus.open_focus())
             .draw(move |app, ui| {
                 let response = tipped(ui, ui.node_response(), &tip);
-                describe(&response, ui.is_enabled().into(), role, mark, &label);
+                describe(&response, ui.is_enabled().into(), role, mark, &name);
+                autofocus.apply(ui.ctx(), &response);
+                on_response.run(app, &response);
                 if owns == Owns::Submenu {
                     ui.ctx().accesskit_node_builder(response.id, |node| {
                         node.set_has_popup(HasPopup::Menu);
@@ -497,7 +499,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 match reaction {
                     Reaction::Run(act) => {
                         if activated {
-                            act(app);
+                            act(app, ui.ctx());
                             shared.close();
                         }
                     }
@@ -550,6 +552,14 @@ fn menu_box<'f, A: 'static>(
 /// An item of a menu, started with [`Menu::item`], [`Menu::checkbox_item`],
 /// [`Menu::radio_item`] or [`Menu::command`] and finished with the handler of
 /// its kind.
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its classes are the item's row's, and its
+/// accessible name is its label unless it is [`named`](Configure::named). A
+/// command's item takes input only while its command is enabled too, whatever
+/// its enablement or refusal say.
 #[must_use = "an item is not added until you call `.on_click(..)`, `.on_change(..)` or `.add()`"]
 pub struct ItemChain<'m, 'f, A, Kind> {
     b: Builder<'m, 'f, A>,
@@ -561,14 +571,16 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     lead: Lead,
     shortcut: Option<String>,
     tone: Tone,
-    enablement: Enablement,
-    gate: Gate,
+    opts: Options,
+    on_response: OnResponse<A>,
     /// Whether the item may take input at all, whatever its own enablement
     /// says: a command item's command.
     allowed: Enablement,
-    open_focus: OpenFocus,
     kind: Kind,
 }
+
+/// What activating an item runs.
+type Act<A> = Box<dyn FnOnce(&mut A, &Context)>;
 
 /// The kind of an item that runs a handler.
 pub struct Action;
@@ -633,7 +645,7 @@ impl<A: 'static> ItemChain<'_, '_, A, CommandItem<A>> {
     /// TODO(prose): adds the item; activating it runs the command, and then the menu closes.
     #[track_caller]
     pub fn add(self) {
-        self.finish_with(|CommandItem(run)| run);
+        self.finish_with(|CommandItem(run)| move |app: &mut A, _: &Context| run(app));
     }
 }
 
@@ -661,48 +673,13 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
         self
     }
 
-    /// Whether the item takes input. A disabled item is skipped by the arrow
-    /// keys. A command's item takes input only while its command is enabled
-    /// too.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the item's tooltip and accessible description. `None` clears it; the
-    /// last call wins. A command's item is disabled while its command is,
-    /// whatever this says.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.gate.refuse(reason);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Gives the item focus as the menu opens from the keyboard, instead of
-    /// the first item: the current choice.
-    pub fn focus_on_open(mut self) -> Self {
-        self.open_focus = OpenFocus::Here;
-        self
-    }
-
     #[track_caller]
-    fn finish(self, handler: impl FnOnce(&mut A) + 'static) {
+    fn finish(self, handler: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish_with(|_| handler);
     }
 
     #[track_caller]
-    fn finish_with<H: FnOnce(&mut A) + 'static>(self, handler: impl FnOnce(Kind) -> H) {
+    fn finish_with<H: FnOnce(&mut A, &Context) + 'static>(self, handler: impl FnOnce(Kind) -> H) {
         let Self {
             b,
             shared,
@@ -713,16 +690,14 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             lead,
             shortcut,
             tone,
-            enablement,
-            gate,
+            mut opts,
+            on_response,
             allowed,
-            open_focus,
             kind,
         } = self;
-        let enablement = match allowed {
-            Enablement::Enabled => enablement,
-            Enablement::Disabled => Enablement::Disabled,
-        };
+        if allowed == Enablement::Disabled {
+            opts.set_enablement(Enablement::Disabled);
+        }
         Menu { b, shared, depth }.add_row(Row {
             slot,
             label,
@@ -730,9 +705,8 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             lead,
             trail: shortcut.map_or(Trail::Nothing, Trail::Shortcut),
             tone,
-            enablement,
-            gate,
-            open_focus,
+            opts,
+            on_response,
             reaction: Reaction::Run(Box::new(handler(kind))),
         });
     }
@@ -743,6 +717,14 @@ impl<A: 'static> ItemChain<'_, '_, A, Action> {
     /// or Space, and then the menu closes.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) {
+        self.finish(move |app, _| act(app));
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs, such as copying
+    /// text.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish(act);
     }
 }
@@ -752,6 +734,14 @@ impl<A: 'static> ItemChain<'_, '_, A, Radio> {
     /// closes.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) {
+        self.finish(move |app, _| act(app));
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs, such as copying
+    /// text.
+    #[track_caller]
+    pub fn on_click_with(self, act: impl FnOnce(&mut A, &Context) + 'static) {
         self.finish(act);
     }
 }
@@ -761,11 +751,34 @@ impl<A: 'static> ItemChain<'_, '_, A, Checkbox> {
     /// is activated, and then the menu closes.
     #[track_caller]
     pub fn on_change(self, change: impl FnOnce(&mut A, Mark) + 'static) {
+        self.on_change_with(move |app, _, mark| change(app, mark));
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    #[track_caller]
+    pub fn on_change_with(self, change: impl FnOnce(&mut A, &Context, Mark) + 'static) {
         let moves_to = match self.kind.0 {
             Mark::On => Mark::Off,
             Mark::Off => Mark::On,
         };
-        self.finish(move |app| change(app, moves_to));
+        self.finish(move |app, ctx| change(app, ctx, moves_to));
+    }
+}
+
+impl<A, Kind> Configure for ItemChain<'_, '_, A, Kind> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, Kind> Interactive for ItemChain<'_, '_, A, Kind> {}
+
+impl<A, Kind> Respond for ItemChain<'_, '_, A, Kind> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 
@@ -794,6 +807,12 @@ fn hold_vertical_arrows(ctx: &Context, trigger: Id) {
 ///   </DropdownMenuContent>
 /// </DropdownMenu>
 /// ```
+///
+/// Its shared options come from [`Configure`],
+/// [`Interactive`] and
+/// [`Respond`], in scope through the
+/// [`prelude`](crate::prelude). Its options are the trigger's; a trigger that
+/// becomes disabled or refused closes its menu.
 #[must_use = "a dropdown menu is not added until you call `.items(..)`"]
 pub struct Chain<'a, 'f, A, K> {
     b: Builder<'a, 'f, A>,
@@ -801,12 +820,10 @@ pub struct Chain<'a, 'f, A, K> {
     face: Face,
     options: button::Options,
     offset: Option<Distance>,
-    enablement: Enablement,
     on_response: OnResponse<A>,
     children: Option<Body<'a, 'f, A>>,
     trail: TriggerTrail,
     menu_classes: Tw,
-    autofocus: Autofocus,
 }
 
 /// What a dropdown trigger's [`children`](Chain::children) build.
@@ -827,12 +844,10 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             face,
             options: button::Options::new(),
             offset: None,
-            enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
             children: None,
             trail: TriggerTrail::Nothing,
             menu_classes: tw(),
-            autofocus: Autofocus::Never,
         }
     }
 
@@ -872,75 +887,10 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
         self
     }
 
-    /// Classes merged over the styled ones of the trigger ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.options = self.options.classes(classes);
-        self
-    }
-
-    /// TODO(prose): the accessible name of the trigger and of its menu, in
-    /// place of the face's, as `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.options = self.options.named(name);
-        self
-    }
-
     /// The gap between the trigger and its menu, in place of the style's
     /// [`MenuStyle::offset`](crate::contract::MenuStyle::offset).
     pub fn offset(mut self, offset: Distance) -> Self {
         self.offset = Some(offset);
-        self
-    }
-
-    /// Whether the trigger takes input. A trigger that becomes disabled
-    /// closes its menu.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        let enablement = enablement.into();
-        self.enablement = enablement;
-        self
-    }
-
-    /// TODO(prose): shown while the pointer hovers the trigger or it has
-    /// keyboard focus, also when it is disabled.
-    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
-        self.options = self.options.tooltip(text);
-        self
-    }
-
-    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
-    /// the tooltip and the accessible description; a refused trigger closes
-    /// its menu. `None` clears it; the last call wins.
-    pub fn refused(mut self, reason: impl IntoTip) -> Self {
-        self.options = self.options.refused(reason);
-        self
-    }
-
-    /// TODO(prose): takes focus as the overlay it is in opens, as
-    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
-    pub fn focus_on_open(mut self) -> Self {
-        self.autofocus = Autofocus::OnOverlayOpen;
-        self
-    }
-
-    /// TODO(prose): takes focus on every frame this is set.
-    pub fn focus_now(mut self) -> Self {
-        self.autofocus = Autofocus::Now(Select::None);
-        self
-    }
-
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        options::when_some(self, value, then)
-    }
-
-    /// Runs `then` with the trigger's response each frame.
-    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
-        self.on_response.set(then);
         self
     }
 
@@ -953,17 +903,15 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             face,
             options,
             offset,
-            enablement,
             on_response,
             children,
             trail,
             menu_classes,
-            autofocus,
         } = self;
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
         let list = b.slot(&(key.clone(), Node::Menu));
-        let enablement = b.enablement_of(enablement.and(options.refusal()));
+        let enablement = b.enablement_of(options.own_enablement().and(options.refusal()));
         if enablement == Enablement::Disabled {
             shared.close();
         }
@@ -975,8 +923,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             .with_options(options)
             .opens_popup()
             .expanded(open)
-            .enablement(enablement)
-            .autofocus(autofocus);
+            .enablement(enablement);
         let button = match (children, trail) {
             (None, TriggerTrail::Nothing) => button,
             (children, trail) => button.children(move |s| {
@@ -1073,6 +1020,22 @@ pub(crate) fn open_on_secondary_click(ui: &egui::Ui, shared_kept: &Handle, owner
     {
         shared_kept.with(|kept| kept.menus.open(owner, Some(at)));
         ui.ctx().request_repaint();
+    }
+}
+
+impl<A, K> Configure for Chain<'_, '_, A, K> {
+    fn options(&mut self) -> &mut Options {
+        self.options.options()
+    }
+}
+
+impl<A, K> Interactive for Chain<'_, '_, A, K> {}
+
+impl<A, K> Respond for Chain<'_, '_, A, K> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
     }
 }
 

@@ -12,6 +12,7 @@
 #[path = "common/mod.rs"]
 pub mod common;
 
+use eggshell_ui::prelude::*;
 use std::convert::identity;
 
 use eggshell_ui::{Builder, Tw, tw};

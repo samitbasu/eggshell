@@ -3,6 +3,7 @@
 //! toggle variants and node-opacity disabling. Pointer and
 //! key input goes through kittest's real events.
 
+use eggshell_ui::prelude::*;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Paint, Size, Themed, Variant};
@@ -187,7 +188,7 @@ fn icon_in(d: &Harn, inside: Rect) -> (Color32, Rect) {
 fn wide_wrapping(b: &mut Builder<'_, '_, App>, app: &App) {
     b.segmented("seg", app.mode, MODES)
         .wrapping()
-        .track(tw().w_px(300.0))
+        .classes(tw().w_px(300.0))
         .on_change(|app: &mut App, mode| app.mode = mode);
 }
 
@@ -211,7 +212,7 @@ fn a_wrapping_lists_cells_keep_their_content_width_in_a_wide_track() {
 /// ```
 fn centred_cells(b: &mut Builder<'_, '_, App>, app: &App) {
     b.segmented("seg", app.mode, MODES)
-        .track(tw().h_px(app.height))
+        .classes(tw().h_px(app.height))
         .cells(tw().role(spec(app.font)))
         .on_change(|app: &mut App, mode| app.mode = mode);
 }
@@ -421,7 +422,7 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
 fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().w_px(400.0), |b| {
         b.segmented("seg", app.mode, MODES)
-            .track(tw().w_full())
+            .classes(tw().w_full())
             .cells(tw().flex_1())
             .on_change(|app: &mut App, mode| app.mode = mode);
     });

@@ -1,6 +1,7 @@
 //! The uniform `on_change` of the value widgets, and the hooks before it,
 //! through kittest's real pointer and key events.
 
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, TextStyle, tw};
