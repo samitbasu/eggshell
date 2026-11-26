@@ -23,7 +23,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 31] = [
+const COMPONENTS: [&str; 32] = [
     "accordion",
     "alert",
     "alert-dialog",
@@ -40,6 +40,7 @@ const COMPONENTS: [&str; 31] = [
     "input",
     "input-group",
     "item",
+    "navigation-menu",
     "popover",
     "radio-group",
     "select",
@@ -60,7 +61,7 @@ const COMPONENTS: [&str; 31] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 30] = [
+const WIDGETS: [emit::Widget; 31] = [
     emit::Widget {
         component: "button",
         home: Home::Core("button"),
@@ -479,6 +480,25 @@ const WIDGETS: [emit::Widget; 30] = [
         copies: &[],
     },
     emit::Widget {
+        component: "navigation-menu",
+        home: Home::Feature {
+            module: "navigation_menu",
+            feature: "navigation-menu",
+        },
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &NAVIGATION_MENU,
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &NAVIGATION_MENU_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
         component: "badge",
         home: Home::Feature {
             module: "badge",
@@ -770,6 +790,40 @@ const ALERT_DIALOG_ABSENT: [(&str, &str); 4] = {
 
 /// The parts of shadcn's sheet that eggshell's surface does not draw.
 const SHEET_ABSENT: [(&str, &str); 1] = [("sheet-overlay", SCRIM)];
+
+/// eggshell's navigation menu opens each panel under its own trigger
+/// (shadcn's `viewport={false}`), and is built on Radix, whose open trigger is
+/// `data-open`, not Base UI's `data-popup-open`.
+const NAVIGATION_MENU: [emit::Assumed; 3] = {
+    use emit::{Assumed, Fact::*};
+    const RADIX: &str = "eggshell's navigation menu is Radix's: an open trigger is `data-open`";
+    [
+        Assumed {
+            variant: "group-data-[viewport=false]/navigation-menu",
+            fact: Holds,
+            why: "eggshell's navigation menu has no shared viewport yet",
+        },
+        Assumed {
+            variant: "data-popup-open",
+            fact: Never,
+            why: RADIX,
+        },
+        Assumed {
+            variant: "group-data-popup-open/navigation-menu-trigger",
+            fact: Never,
+            why: RADIX,
+        },
+    ]
+};
+
+/// The parts of shadcn's navigation menu that eggshell's does not draw.
+const NAVIGATION_MENU_ABSENT: [(&str, &str); 2] = {
+    const VIEWPORT: &str = "eggshell's navigation menu has no shared viewport yet";
+    [
+        ("navigation-menu-viewport", VIEWPORT),
+        ("navigation-menu-viewport-wrapper", VIEWPORT),
+    ]
+};
 
 /// The parts of shadcn's popover that eggshell's does not draw: it holds
 /// what the app builds.

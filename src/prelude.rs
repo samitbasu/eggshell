@@ -27,6 +27,8 @@ pub use crate::owned::form::Ext as _;
 pub use crate::owned::hover_card::Ext as _;
 #[cfg(feature = "markdown")]
 pub use crate::owned::markdown::Ext as _;
+#[cfg(feature = "navigation-menu")]
+pub use crate::owned::navigation_menu::Ext as _;
 #[cfg(feature = "notify")]
 pub use crate::owned::notify::Ext as _;
 #[cfg(feature = "skeleton")]

@@ -437,6 +437,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
                 parent: None,
                 description: None,
                 member: Member::ByRole,
+                current: None,
             },
         };
         b.scroll_with(&slot, classes, options, body)
@@ -757,6 +758,7 @@ pub(crate) struct Description {
     /// Whether the node is an item of its group by what it declared rather
     /// than by its role.
     pub(crate) member: Member,
+    pub(crate) current: Option<crate::Current>,
 }
 
 /// How a node comes to be an item of the group it is in.
@@ -775,6 +777,7 @@ impl Description {
             || self.name.is_some()
             || self.description.is_some()
             || self.member == Member::Marked
+            || self.current.is_some()
     }
 
     /// Announces `response`'s widget as described, as a `fallback` when no
@@ -791,6 +794,11 @@ impl Description {
         if let Some(description) = &self.description {
             response.ctx.accesskit_node_builder(response.id, |node| {
                 node.set_description(description.as_str());
+            });
+        }
+        if let Some(current) = self.current {
+            response.ctx.accesskit_node_builder(response.id, |node| {
+                node.set_aria_current(current.into());
             });
         }
     }

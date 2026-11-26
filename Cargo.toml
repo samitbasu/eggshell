@@ -58,6 +58,7 @@ disclosure = []
 form = []
 hover-card = []
 markdown = ["dep:pulldown-cmark"]
+navigation-menu = []
 notify = []
 skeleton = []
 spinner = []
@@ -98,6 +99,7 @@ eggshell-ui = { path = ".", features = [
     "form",
     "hover-card",
     "markdown",
+    "navigation-menu",
     "notify",
     "skeleton",
     "spinner",

@@ -58,6 +58,18 @@ pub(crate) enum FocusOpens {
     AfterDelay,
 }
 
+/// What a press on a trigger does to what it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Press {
+    /// Opens it, and keeps it open until the next interruption: a tooltip
+    /// that shows on a press.
+    Pins,
+    /// Opens it as [`Pins`](Self::Pins) does when it is closed, and closes
+    /// it when it is open, keeping it closed until the trigger is left: a
+    /// navigation menu's trigger.
+    Toggles,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Timing {
     /// How long the pointer rests on a trigger before it opens.
@@ -67,6 +79,7 @@ pub(crate) struct Timing {
     pub(crate) close: Duration,
     pub(crate) skip: Skip,
     pub(crate) focus: FocusOpens,
+    pub(crate) press: Press,
 }
 
 #[derive(Clone)]
@@ -188,6 +201,11 @@ impl<P: Clone> Intent<P> {
             .collect()
     }
 
+    /// The trigger a press opened, while it is open.
+    pub(crate) fn pinned(&self) -> Option<Id> {
+        self.pinned.filter(|&pinned| self.is_open_for(pinned))
+    }
+
     fn is_open(&self) -> bool {
         self.present.iter().any(|present| present.open)
     }
@@ -278,9 +296,15 @@ impl<P: Clone> Intent<P> {
         interruption: Option<Interruption>,
     ) -> Option<Duration> {
         if let Some(trigger) = wanted.filter(|trigger| trigger.cause == Cause::Pressed) {
+            self.waiting = None;
+            if timing.press == Press::Toggles && self.is_open_for(trigger.id) {
+                self.pinned = None;
+                self.latched = Some(trigger.id);
+                self.close_all(now);
+                return None;
+            }
             self.pinned = Some(trigger.id);
             self.latched = None;
-            self.waiting = None;
             self.open(trigger, now, timing);
             return None;
         }
@@ -376,6 +400,7 @@ mod tests {
         close: Duration::ZERO,
         skip: Skip::Grace(Duration::from_millis(300)),
         focus: FocusOpens::AtOnce,
+        press: Press::Pins,
     };
 
     type Tooltips = Intent<()>;
@@ -573,6 +598,7 @@ mod tests {
         close: Duration::from_millis(300),
         skip: Skip::Never,
         focus: FocusOpens::AfterDelay,
+        press: Press::Pins,
     };
 
     fn open_card(a: &Trigger<()>) -> Intent<()> {
@@ -642,5 +668,66 @@ mod tests {
         cards.tick(ms(1000), CARD, None, None);
         cards.tick(ms(1100), CARD, None, Some(Interruption::Escape));
         assert!(open_ids(&cards).is_empty());
+    }
+
+    /// A navigation menu's timing: Radix's delays, and a press toggles.
+    const MENU: Timing = Timing {
+        open: Duration::from_millis(200),
+        close: Duration::from_millis(150),
+        skip: Skip::Grace(Duration::from_millis(300)),
+        focus: FocusOpens::AfterDelay,
+        press: Press::Toggles,
+    };
+
+    #[test]
+    fn a_toggling_press_opens_a_closed_trigger_and_closes_an_open_one() {
+        let mut menu = Intent::default();
+        let pressed = trigger("a", Cause::Pressed);
+        let pointer = trigger("a", Cause::Pointer);
+        menu.tick(ms(0), MENU, Some(&pressed), None);
+        assert_eq!(open_ids(&menu), [pressed.id]);
+        assert_eq!(menu.pinned(), Some(pressed.id));
+        menu.tick(ms(5000), MENU, Some(&pointer), None);
+        menu.tick(ms(5100), MENU, Some(&pressed), None);
+        assert!(open_ids(&menu).is_empty(), "the second press closes it");
+        assert_eq!(menu.pinned(), None);
+        assert_eq!(
+            menu.tick(ms(9000), MENU, Some(&pointer), None),
+            None,
+            "the pointer resting on it does not reopen it"
+        );
+        assert!(open_ids(&menu).is_empty(), "latched until left");
+        menu.tick(ms(9100), MENU, None, None);
+        menu.tick(ms(9200), MENU, Some(&pointer), None);
+        menu.tick(ms(9400), MENU, Some(&pointer), None);
+        assert_eq!(open_ids(&menu), [pointer.id], "left and back, it opens");
+    }
+
+    #[test]
+    fn a_pinning_press_on_an_open_trigger_keeps_it_open() {
+        let mut tooltips = Tooltips::default();
+        let pressed = trigger("a", Cause::Pressed);
+        tooltips.tick(ms(0), TIMING, Some(&pressed), None);
+        tooltips.tick(ms(100), TIMING, Some(&pressed), None);
+        assert_eq!(open_ids(&tooltips), [pressed.id]);
+    }
+
+    #[test]
+    fn a_pressed_trigger_stays_open_when_left_and_a_hovered_one_closes_after_the_delay() {
+        let mut menu = Intent::default();
+        let (a, b) = (trigger("a", Cause::Pressed), trigger("b", Cause::Pointer));
+        menu.tick(ms(0), MENU, Some(&a), None);
+        assert_eq!(menu.tick(ms(1000), MENU, None, None), None);
+        assert_eq!(open_ids(&menu), [a.id], "pinned");
+        menu.tick(ms(1100), MENU, None, Some(Interruption::Escape));
+        menu.tick(ms(5000), MENU, Some(&b), None);
+        menu.tick(ms(5200), MENU, Some(&b), None);
+        assert_eq!(open_ids(&menu), [b.id], "after the 200 ms delay");
+        assert_eq!(menu.tick(ms(5300), MENU, None, None), Some(ms(150)));
+        menu.tick(ms(5450), MENU, None, None);
+        assert!(
+            open_ids(&menu).is_empty(),
+            "closed 150 ms after it was left"
+        );
     }
 }

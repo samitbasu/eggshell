@@ -414,13 +414,14 @@ compile_error!(
 mod text;
 mod tiling;
 mod transition;
+mod trigger_group;
 mod tw;
 pub mod vlist;
 pub mod web;
 pub mod widget;
 pub mod window;
 
-pub use builder::{AnyNode, Builder, DragSource, NodeHandle, Scope, SpansHandle};
+pub use builder::{AnyNode, Builder, Current, DragSource, NodeHandle, Scope, SpansHandle};
 pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};

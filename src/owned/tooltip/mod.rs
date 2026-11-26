@@ -21,7 +21,9 @@ use crate::NodeUi as _;
 use crate::builder::{Builder, Surface};
 use crate::finite::clamp;
 use crate::hover::Quiet;
-use crate::intent::{Cause, FocusOpens, Intent, Interruption, Skip, Timing, Trigger, wanted};
+use crate::intent::{
+    Cause, FocusOpens, Intent, Interruption, Press as PressDoes, Skip, Timing, Trigger, wanted,
+};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
@@ -285,6 +287,7 @@ pub(crate) fn end(
         close: Duration::ZERO,
         skip: Skip::Grace(style.tooltip.grace),
         focus: FocusOpens::AtOnce,
+        press: PressDoes::Pins,
     };
     let now = crate::intent::now(ctx);
     let wanted = wanted(triggers).filter(|trigger| !quiet.outranks(trigger.id, trigger.cause));

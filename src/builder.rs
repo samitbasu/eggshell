@@ -2465,6 +2465,35 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// How many Tab stops this [`nav`](Self::nav) group is: one, as
+    /// [`nav`](Self::nav) says, unless set. Give it after `nav`.
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::{Nav, TabStops, Wrap};
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.div_id("site", tw().flex(), |b| {
+    ///         for page in ["Docs", "Blog"] {
+    ///             b.div_id(page, tw().sense_click(), |b| b.text(tw(), page))
+    ///                 .role(egui::Role::Link)
+    ///                 .named(page)
+    ///                 .nav_item();
+    ///         }
+    ///     })
+    ///     .nav(Nav::Row(Wrap::Stop))
+    ///     .tab_stops(TabStops::Every);
+    /// }
+    /// ```
+    pub fn tab_stops(mut self, stops: crate::overlay::TabStops) -> Self {
+        self.edit(|context| {
+            if let Some(group) = context.group.as_mut() {
+                group.stops = stops;
+            }
+        });
+        self
+    }
+
     /// TODO(prose): an arrow key that moves focus to an item of this [`nav`](Self::nav) group also activates it, as a click would.
     pub fn selection_follows_focus(mut self) -> Self {
         self.edit(|context| {
@@ -2524,6 +2553,24 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// Announces the node as the current one of a set, the `aria-current`
+    /// of the web: the link to the page on screen, the step a wizard is at.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, Current, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.div_id("docs", tw().sense_click(), |b| b.text(tw(), "Docs"))
+    ///         .role(egui::Role::Link)
+    ///         .named("Docs")
+    ///         .current(Current::Page);
+    /// }
+    /// ```
+    pub fn current(mut self, current: Current) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().current = Some(current));
+        self
+    }
+
     /// The node's accessible name, the `aria-label` of the web.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         let name = name.into();
@@ -2553,6 +2600,37 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
                 act(app);
             }
         })
+    }
+}
+
+/// What a node is the current one of, for
+/// [`NodeHandle::current`]: the values of the web's `aria-current`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Current {
+    /// The page on screen, among links to pages.
+    Page,
+    /// The step a process is at.
+    Step,
+    /// The place in a flow chart or a map.
+    Location,
+    /// The date, in a calendar.
+    Date,
+    /// The time, in a timetable.
+    Time,
+    /// The current one of a set of another kind.
+    Item,
+}
+
+impl From<Current> for egui::accesskit::AriaCurrent {
+    fn from(current: Current) -> Self {
+        match current {
+            Current::Page => Self::Page,
+            Current::Step => Self::Step,
+            Current::Location => Self::Location,
+            Current::Date => Self::Date,
+            Current::Time => Self::Time,
+            Current::Item => Self::True,
+        }
     }
 }
 

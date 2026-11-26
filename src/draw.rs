@@ -2005,6 +2005,7 @@ impl<A> Painting<A> {
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
         pass.off_tab = crate::roving::settle(&ctx, kept, nodes);
+        crate::hover::route_keys(&ctx, kept);
         pass.off_tab
             .extend(crate::hover::off_tab(nodes, roots, here));
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);

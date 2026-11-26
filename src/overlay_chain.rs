@@ -363,12 +363,13 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced, Static> {
         trigger: Id,
         intent: HoverIntent,
     ) -> OverlayChain<'b, 'f, A, Floating, Animated> {
-        let shown =
-            crate::hover::declare(&self.b, (self.slot.id, trigger), intent, self.declared_at);
         self.band = Band::Popup;
         self.behavior.focus = Focus::None;
         self.behavior.outside = Some(Outside::PassThrough);
-        self.behavior.hover = shown.map(|_| trigger);
+        let group = intent.group.map(|group| group.id);
+        let shown =
+            crate::hover::declare(&self.b, (self.slot.id, trigger), intent, self.declared_at);
+        self.behavior.hover = shown.map(|_| crate::overlay::Hovered { trigger, group });
         self.anchor(Anchor::Node(trigger))
             .shown(shown.unwrap_or(Shown::Closed))
     }

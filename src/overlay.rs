@@ -419,6 +419,24 @@ impl Nav {
     }
 }
 
+/// How many Tab stops a [`nav`](crate::NodeHandle::nav) group on the page
+/// is.
+///
+/// ```
+/// use eggshell_ui::overlay::TabStops;
+///
+/// assert_ne!(TabStops::One, TabStops::Every);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TabStops {
+    /// One: the focused item, else the selected one, else the first enabled.
+    /// A tab list, a radio group.
+    One,
+    /// Every item, and the arrow keys move between them as well: an
+    /// accordion's headers, a navigation menu's triggers and links.
+    Every,
+}
+
 /// What an arrow key does at the first or last item of a [`Nav`] overlay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Wrap {
@@ -436,7 +454,14 @@ pub(crate) struct Behavior {
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
     /// The trigger of a hover card, which hover intent opens.
-    pub(crate) hover: Option<Id>,
+    pub(crate) hover: Option<Hovered>,
+}
+
+/// The trigger hover intent opens an overlay from, and the group it is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Hovered {
+    pub(crate) trigger: Id,
+    pub(crate) group: Option<Id>,
 }
 
 impl Behavior {
@@ -469,6 +494,47 @@ pub struct HoverIntent {
     /// The trigger's accessible description: the text of the content, which
     /// a screen reader cannot reach by focus.
     pub description: Option<String>,
+    /// The row of triggers this one is in, if it is in one.
+    pub group: Option<TriggerGroup>,
+}
+
+/// A row of triggers whose overlays open one at a time, as a navigation
+/// menu's panels do. Give each trigger's [`HoverIntent`] the same group.
+///
+/// - Within `skip` of one closing, or while one is open, the pointer on
+///   another trigger opens it at once; while one is open, the arrow keys
+///   reaching another trigger open it too.
+/// - Focus on a trigger does not open it. A press (Enter, Space, a click or
+///   a tap) toggles it, and keeps it open until it is pressed again or
+///   dismissed; Down opens it and moves focus into it.
+/// - Its widgets are in the Tab order: Tab from an open trigger goes into
+///   it, Shift+Tab from its first widget goes back to the trigger, and Tab
+///   from its last goes on to what follows the trigger.
+///
+/// ```
+/// use core::time::Duration;
+/// use eggshell_ui::overlay::{HoverIntent, TriggerGroup};
+///
+/// let menu = TriggerGroup::new(egui::Id::new("site"), Duration::from_millis(300));
+/// let intent = HoverIntent::new(Duration::from_millis(200), Duration::from_millis(150))
+///     .group(menu);
+/// assert_eq!(intent.group, Some(menu));
+/// ```
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TriggerGroup {
+    /// Names the row: the triggers given the same id are one row.
+    pub id: Id,
+    /// How long after one closes another still opens at once: Radix's skip
+    /// delay.
+    pub skip: Duration,
+}
+
+impl TriggerGroup {
+    /// The row `id`, whose triggers open at once within `skip` of a close.
+    pub fn new(id: Id, skip: Duration) -> Self {
+        Self { id, skip }
+    }
 }
 
 impl HoverIntent {
@@ -478,7 +544,15 @@ impl HoverIntent {
             open,
             close,
             description: None,
+            group: None,
         }
+    }
+
+    /// Makes the trigger one of the row `group`.
+    #[must_use]
+    pub fn group(mut self, group: TriggerGroup) -> Self {
+        self.group = Some(group);
+        self
     }
 
     /// Describes the trigger's widgets to assistive technology by `text`.

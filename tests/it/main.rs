@@ -104,6 +104,7 @@ mod modal;
 mod mount;
 mod named_layouts;
 mod nav_column;
+mod navigation_menu;
 mod nested_layouts;
 mod node_controls;
 mod notify;

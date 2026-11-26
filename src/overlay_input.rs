@@ -536,7 +536,7 @@ pub(crate) fn judge<A>(
                 let id = open.overlay.id;
                 dismissed.push(id);
                 if open.overlay.behavior.hover.is_some() {
-                    kept.viewport(ctx.viewport_id(), |here| here.hover_cards.dismissed());
+                    kept.viewport(ctx.viewport_id(), |here| here.hover_cards.dismissed(id));
                 }
                 if let Some(then) = dismiss.remove(&id) {
                     then(app, why);
