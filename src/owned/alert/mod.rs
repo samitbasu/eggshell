@@ -24,7 +24,7 @@ use egui::accesskit::Live;
 use crate::contract::Variant;
 use crate::owned::button;
 use crate::sheet::{Key as SheetKey, Part as _, Sheet, When};
-use crate::theme::{ShadcnStyle, Tokens, variant};
+use crate::theme::{ShadcnStyle, Tokens, size, variant};
 use crate::{Builder, Icon, Key, Match, Track, Tw, icons, tw};
 
 /// TODO(prose): an alert's anatomy for the style's sheet: shadcn's `alert`.
@@ -132,7 +132,8 @@ pub enum Announce {
     Polite,
     /// TODO(prose): an alert, announced at once, interrupting.
     Assertive,
-    /// TODO(prose): not announced: a static callout, a group named by its title.
+    /// TODO(prose): not announced: a static callout, a group named by its
+    /// title, if it has one.
     Off,
 }
 
@@ -149,7 +150,7 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
             key,
             variant: None,
             icon: Glyph::Look,
-            title: String::new(),
+            title: None,
             description: None,
             lines: Lines::Wrap,
             action: None,
@@ -188,7 +189,7 @@ pub struct Chain<'s, 'b, 'f, A, K> {
     key: K,
     variant: Option<Variant>,
     icon: Glyph,
-    title: String,
+    title: Option<String>,
     description: Option<String>,
     lines: Lines,
     action: Option<(String, ActionButton<'s, 'f, A>)>,
@@ -218,9 +219,10 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
         self
     }
 
-    /// TODO(prose): the title, the alert's message.
+    /// TODO(prose): the title, the alert's message. An alert may have only a
+    /// description, as shadcn's may.
     pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = title.into();
+        self.title = Some(title.into());
         self
     }
 
@@ -239,7 +241,8 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
     }
 
     /// TODO(prose): a button reading `label` at the top right. `button` gets
-    /// the core button and finishes it, with its handler.
+    /// the core button, already outline and `xs`, and finishes it with its
+    /// handler; it may set another variant or size.
     pub fn action(
         mut self,
         label: impl Into<String>,
@@ -288,16 +291,24 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
             Lines::Wrap => tw(),
             Lines::Truncate => tw().truncate().min_w_0(),
         };
-        let root = b.part(Part::Root, &[SheetKey::Variant(variant)], classes);
+        // A node shows its role to assistive technology only if it senses.
+        let own = tw().sense_hover();
+        let root = b.part(
+            Part::Root,
+            &[SheetKey::Variant(variant)],
+            own.merge(classes),
+        );
         let named = title.clone();
         let node = b.div_id(key, root, |b| {
             if let Some(icon) = icon {
                 b.glyph(tw(), icon);
             }
-            let classes = b.part(Part::Title, &[], line.clone());
-            let title = b.span("title", classes, title);
-            if lines == Lines::Truncate {
-                title.tooltip_when_truncated();
+            if let Some(title) = title {
+                let classes = b.part(Part::Title, &[], line.clone());
+                let title = b.span("title", classes, title);
+                if lines == Lines::Truncate {
+                    title.tooltip_when_truncated();
+                }
             }
             if let Some(description) = &description {
                 let classes = b.part(Part::Description, &[], line);
@@ -308,13 +319,22 @@ impl<'s, 'f, A: 'static, K: Key> Chain<'s, '_, 'f, A, K> {
             }
             if let Some((label, button)) = action {
                 let classes = b.part(Part::Action, &[], tw());
-                b.div_id("action", classes, |b| button(b.button("button", label)));
+                b.div_id("action", classes, |b| {
+                    button(
+                        b.button("button", label)
+                            .variant(variant::OUTLINE)
+                            .size(size::XS),
+                    );
+                });
             }
         });
         let node = match announce {
             Announce::Polite => node.role(Role::Status).live(Live::Polite),
             Announce::Assertive => node.role(Role::Alert).live(Live::Assertive),
-            Announce::Off => node.role(Role::Group).named(named),
+            Announce::Off => match named {
+                Some(title) => node.role(Role::Group).named(title),
+                None => node.role(Role::Group),
+            },
         };
         if let Some(description) = description {
             node.description(description);

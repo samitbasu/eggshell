@@ -3149,263 +3149,195 @@ mod child_rules {
     }
 }
 
-/// The alert's look candidates, for review (the look is the user's choice):
-/// `cargo test --features snapshots --test it alert_candidates -- --ignored`
-/// with `EGGSHELL_ALERT_DIR` naming where the PNGs go, and
-/// `VK_ICD_FILENAMES` the software renderer.
-mod alert_candidates {
+/// The alert (#372): its five looks and its shapes, in each style and theme.
+mod alert {
     use super::*;
-    use eggshell_ui::contract::{Size, Variant};
-    use eggshell_ui::theme::{Palette, Shadcn, size, variant};
-
-    fn out() -> std::path::PathBuf {
-        let dir = std::env::var("EGGSHELL_ALERT_DIR")
-            .expect("EGGSHELL_ALERT_DIR names the output directory");
-        std::fs::create_dir_all(&dir).expect("the directory can be made");
-        dir.into()
-    }
+    use eggshell_ui::contract::Variant;
+    use eggshell_ui::theme::variant;
 
     const LOOKS: [(&str, Variant); 5] = [
-        ("Default", Variant::DEFAULT),
-        ("Destructive", variant::DESTRUCTIVE),
-        ("Info", variant::INFO),
-        ("Success", variant::SUCCESS),
-        ("Warning", variant::WARNING),
+        ("default", Variant::DEFAULT),
+        ("destructive", variant::DESTRUCTIVE),
+        ("info", variant::INFO),
+        ("success", variant::SUCCESS),
+        ("warning", variant::WARNING),
     ];
 
-    /// The action buttons to choose from: shadcn's example's (primary xs),
-    /// then the note's candidates.
-    const ACTIONS: [(&str, Variant, Size); 5] = [
-        ("primary xs (shadcn example)", variant::PRIMARY, size::XS),
-        ("outline xs", variant::OUTLINE, size::XS),
-        ("outline sm", variant::OUTLINE, size::SM),
-        ("ghost sm", variant::GHOST, size::SM),
-        ("link sm", variant::LINK, size::SM),
-    ];
-
-    /// A button and an input, for scale.
-    fn controls(b: &mut Builder<'_, '_, ()>) {
-        b.div(tw().flex().items_center().gap(2.0), |b| {
-            b.button("scale-button", "Button").add();
-            b.text_field("scale-input", "")
-                .named("Input")
-                .hint("Input")
-                .classes(tw().w_px(200.0))
-                .on_change(|_, _| {});
-        });
+    fn name(what: &str, style: ShadcnStyle, theme: egui::Theme) -> String {
+        let style = match style {
+            ShadcnStyle::Vega => "vega",
+            ShadcnStyle::Lyra => "lyra",
+        };
+        let theme = match theme {
+            egui::Theme::Light => "light",
+            egui::Theme::Dark => "dark",
+        };
+        format!("alert_{what}_{style}_{theme}")
     }
 
-    fn caption(b: &mut Builder<'_, '_, ()>, text: &str, tokens: &Tokens) {
-        b.text(
-            tw().text_size(12.0, 16.0).text(tokens.muted_foreground),
-            text.to_owned(),
+    fn harness(
+        style: ShadcnStyle,
+        size: Vec2,
+        view: support::View<()>,
+        theme: egui::Theme,
+    ) -> Harness<'static, support::Rig<()>> {
+        let mut h = themed_harness(
+            style,
+            size,
+            ((), view, common::base_text_styled(theme, style)),
+            (theme, |_, _| {}),
         );
+        h.run_steps(8);
+        h
     }
 
+    /// A row per look: the title alone, with a description, and with an
+    /// action.
     fn looks_view(b: &mut Builder<'_, '_, ()>, _: &()) {
-        let tokens = b.style().tokens.clone();
-        b.div(tw().flex().flex_col().gap(4.0).p(4.0).w_full(), |b| {
-            controls(b);
+        b.div_id("Page", tw().flex().flex_col().gap(3.0).p(4.0), |b| {
             for (name, look) in LOOKS {
-                b.div(tw().flex().flex_col().gap(1.0), |b| {
-                    caption(b, name, &tokens);
-                    b.div(tw().flex().items_start().gap(4.0), |b| {
-                        let column = tw().w_px(360.0).shrink_0();
-                        b.div(column.clone(), |b| {
-                            b.alert((name, "title"))
-                                .variant(look)
-                                .title("Your changes have been saved.")
-                                .add();
-                        });
-                        b.div(column.clone(), |b| {
-                            b.alert((name, "described"))
-                                .variant(look)
-                                .title("Your changes have been saved.")
-                                .description("This is an alert with a title and a description.")
-                                .add();
-                        });
-                        b.div(column, |b| {
-                            b.alert((name, "action"))
-                                .variant(look)
-                                .title("Input clipped on channel 2")
-                                .description("Lower the gain, or re-arm.")
-                                .action("Re-arm", |button| {
-                                    button.variant(variant::OUTLINE).size(size::SM).add()
-                                })
-                                .add();
-                        });
+                b.div(tw().flex().items_start().gap(3.0), |b| {
+                    let column = tw().w_px(300.0).shrink_0();
+                    b.div(column.clone(), |b| {
+                        b.alert((name, "title"))
+                            .variant(look)
+                            .title("Your changes have been saved.")
+                            .add();
+                    });
+                    b.div(column.clone(), |b| {
+                        b.alert((name, "described"))
+                            .variant(look)
+                            .title("Your changes have been saved.")
+                            .description("An alert with a title and a description.")
+                            .add();
+                    });
+                    b.div(column, |b| {
+                        b.alert((name, "action"))
+                            .variant(look)
+                            .title("Input clipped on channel 2")
+                            .description("Lower the gain, or re-arm.")
+                            .action("Re-arm", |button| button.add())
+                            .add();
                     });
                 });
             }
         });
     }
 
-    fn actions_view(b: &mut Builder<'_, '_, ()>, _: &()) {
-        let tokens = b.style().tokens.clone();
-        b.div(tw().flex().flex_col().gap(4.0).p(4.0).w_full(), |b| {
-            controls(b);
-            for (name, look) in [LOOKS[0], LOOKS[1]] {
-                b.div(tw().flex().items_start().gap(4.0), |b| {
-                    for (label, action, size) in ACTIONS {
-                        b.div(
-                            tw().flex().flex_col().gap(1.0).w_px(300.0).shrink_0(),
-                            |b| {
-                                caption(b, label, &tokens);
-                                b.alert((name, label, "title"))
-                                    .variant(look)
-                                    .title("The emails were marked as spam.")
-                                    .action("Undo", move |button| {
-                                        button.variant(action).size(size).add()
-                                    })
-                                    .add();
-                                b.alert((name, label, "described"))
-                                    .variant(look)
-                                    .title("Input clipped on channel 2")
-                                    .description("Lower the gain, or re-arm.")
-                                    .action("Re-arm", move |button| {
-                                        button.variant(action).size(size).add()
-                                    })
-                                    .add();
-                            },
-                        );
-                    }
-                });
-            }
-        });
+    fn looks(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, Vec2::new(960.0, 460.0), looks_view, theme);
+        let nodes = h.state().nodes.clone();
+        let tokens = Tokens::for_theme(theme);
+        let path = |look: &str, form: &str| format!(r#"/"Page"/("{look}", "{form}")"#);
+        let alert = support::rect_of(&h, &path("destructive", "action"));
+        let icon = support::rect_of(&h, &format!("{}/<glyph>", path("destructive", "action")));
+        let button = support::rect_of(
+            &h,
+            &format!("{}/\"action\"/\"button\"", path("destructive", "action")),
+        );
+        assert_eq!(icon.size(), Vec2::splat(16.0), "size-4");
+        assert_eq!(
+            support::glyph_color(&h, icon),
+            tokens.destructive,
+            "text-current"
+        );
+        assert!(
+            alert.contains_rect(button),
+            "the action is inside the alert"
+        );
+        assert!(
+            nodes
+                .iter()
+                .all(|(path, _)| !path.starts_with(r#"/"Page"/("default""#)
+                    || !path.ends_with("<glyph>")),
+            "the default look has no icon"
+        );
+        let bottom = nodes
+            .iter()
+            .map(|(_, rect)| rect.bottom())
+            .fold(0.0, f32::max);
+        assert!(bottom < 460.0, "nothing is clipped: {bottom}");
+        h.snapshot(name("looks", style, theme));
     }
 
-    fn banner_view(b: &mut Builder<'_, '_, ()>, _: &()) {
-        let tokens = b.style().tokens.clone();
-        b.div(tw().flex().flex_col().gap(4.0).w_full().pt(4.0), |b| {
-            b.div(tw().px(4.0), |b| {
-                caption(
-                    b,
-                    "Banner: the alert, rounded-none, top and bottom border only",
-                    &tokens,
-                );
-            });
-            b.alert("banner")
-                .variant(variant::DESTRUCTIVE)
-                .title("Input clipped on channel 2: lower the gain, or re-arm.")
-                .action("Re-arm", |button| {
-                    button.variant(variant::OUTLINE).size(size::SM).add()
-                })
-                .classes(tw().rounded_px(0.0).border_x(0.0))
-                .add();
-            b.div(tw().flex().flex_col().gap(4.0).px(4.0), |b| {
-                controls(b);
-                caption(b, "Inset, for comparison", &tokens);
-                b.div(tw().w_px(560.0), |b| {
-                    b.alert("inset")
-                        .variant(variant::DESTRUCTIVE)
-                        .title("Input clipped on channel 2: lower the gain, or re-arm.")
-                        .action("Re-arm", |button| {
-                            button.variant(variant::OUTLINE).size(size::SM).add()
-                        })
-                        .add();
-                });
-                caption(
-                    b,
-                    "truncate(): a cut title (pointer over it, tooltip open) beside one that fits",
-                    &tokens,
-                );
-                b.div(tw().flex().items_start().gap(4.0).mt(12.0), |b| {
-                    for (key, title, description) in [
+    /// The banner across the window, then a cut title beside one that fits.
+    fn shapes_view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(4.0).w_full().py(4.0),
+            |b| {
+                b.alert("banner")
+                    .variant(variant::DESTRUCTIVE)
+                    .title("Input clipped on channel 2: lower the gain, or re-arm.")
+                    .action("Re-arm", |button| button.add())
+                    .classes(tw().rounded_px(0.0).border_x(0.0))
+                    .add();
+                b.div(tw().flex().items_start().gap(4.0).px(4.0), |b| {
+                    for (key, title) in [
                         (
                             "cut",
-                            "Input clipped on channel 2: lower the gain, or re-arm the trip.",
-                            "The description is cut to one line as well.",
+                            "Input clipped on channel 2: lower the gain, or re-arm.",
                         ),
-                        ("fits", "Input clipped on channel 2", "Lower the gain."),
+                        ("fits", "Input clipped on channel 2"),
                     ] {
                         b.div(tw().w_px(300.0).shrink_0(), |b| {
                             b.alert(key)
                                 .variant(variant::WARNING)
                                 .title(title)
-                                .description(description)
                                 .truncate()
                                 .add();
                         });
                     }
                 });
-            });
-        });
-    }
-
-    fn render(
-        name: &str,
-        view: support::View<()>,
-        size: Vec2,
-        shadcn: ShadcnStyle,
-        theme: egui::Theme,
-        hover: Option<&str>,
-    ) {
-        let tokens = Tokens::for_theme(theme);
-        let mut harness = support::harness_at(
-            size,
-            1.0,
-            TextStyle::new(layouts::BODY, tokens.foreground),
-            (),
-            view,
+            },
         );
-        harness
-            .state_mut()
-            .set_style(Shadcn::themed(shadcn, Palette::new()));
-        harness.state_mut().page = support::Page::Themed;
-        harness.state_mut().companion = support::Companion::Alone;
-        harness.ctx.set_theme(theme);
-        harness.run_steps(8);
-        if let Some(path) = hover {
-            support::hover_node(&mut harness, path);
-            support::rest_for_tooltip(&mut harness);
-        }
-        let style = match shadcn {
-            ShadcnStyle::Vega => "vega",
-            ShadcnStyle::Lyra => "lyra",
-        };
-        let theme = if theme == egui::Theme::Light {
-            "light"
-        } else {
-            "dark"
-        };
-        harness
-            .render()
-            .expect("renders")
-            .save(out().join(format!("alert_{name}_{style}_{theme}.png")))
-            .expect("saves");
     }
 
-    #[test]
-    #[ignore = "writes review images, see the module comment"]
-    fn alert_candidates() {
-        report_renderer();
-        for shadcn in [ShadcnStyle::Vega, ShadcnStyle::Lyra] {
-            for theme in [egui::Theme::Light, egui::Theme::Dark] {
-                render(
-                    "looks",
-                    looks_view,
-                    Vec2::new(1140.0, 640.0),
-                    shadcn,
-                    theme,
-                    None,
-                );
-                render(
-                    "actions",
-                    actions_view,
-                    Vec2::new(1640.0, 480.0),
-                    shadcn,
-                    theme,
-                    None,
-                );
-                render(
-                    "banner",
-                    banner_view,
-                    Vec2::new(900.0, 470.0),
-                    shadcn,
-                    theme,
-                    Some("/\"cut\"/\"title\""),
-                );
+    fn shapes(style: ShadcnStyle, theme: egui::Theme) {
+        let mut h = harness(style, Vec2::new(680.0, 160.0), shapes_view, theme);
+        let page = support::rect_of(&h, r#"/"Page""#);
+        let banner = support::rect_of(&h, r#"/"Page"/"banner""#);
+        assert_eq!(
+            banner.x_range(),
+            page.x_range(),
+            "the banner spans the page"
+        );
+        let elided: Vec<bool> = support::shapes(&h)
+            .iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Text(text)
+                    if text.galley.text().starts_with("Input clipped on channel 2") =>
+                {
+                    Some(text.galley.elided)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            elided,
+            [false, true, false],
+            "the banner, the cut title, the one that fits"
+        );
+        h.snapshot(name("shapes", style, theme));
+    }
+
+    macro_rules! alert_goldens {
+        ($($test:ident: $what:ident, $style:ident, $theme:ident;)*) => {$(
+            #[test]
+            fn $test() {
+                $what(ShadcnStyle::$style, egui::Theme::$theme);
             }
-        }
+        )*};
+    }
+
+    alert_goldens! {
+        alert_looks_vega_light: looks, Vega, Light;
+        alert_looks_vega_dark: looks, Vega, Dark;
+        alert_looks_lyra_light: looks, Lyra, Light;
+        alert_looks_lyra_dark: looks, Lyra, Dark;
+        alert_shapes_vega_light: shapes, Vega, Light;
+        alert_shapes_vega_dark: shapes, Vega, Dark;
+        alert_shapes_lyra_light: shapes, Lyra, Light;
+        alert_shapes_lyra_dark: shapes, Lyra, Dark;
     }
 }

@@ -25,6 +25,7 @@ default = [
     "fonts",
     # keep sorted
     "accordion",
+    "alert",
     "badge",
     "dialog",
     "disclosure",
