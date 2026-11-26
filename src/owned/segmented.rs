@@ -72,7 +72,8 @@ pub enum Rows {
 /// [`Interactive`] and
 /// [`Respond`], in scope through the
 /// [`prelude`](crate::prelude). Its classes are the
-/// [`track`](Chain::track)'s, and its response is each cell's. A cell's own
+/// track's, the whole control's, such as `w_full()` to make it fill its
+/// row, and its response is each cell's. A cell's own
 /// tooltip shows instead of the control's.
 #[must_use = "a segmented control is not added until you call `.on_change(..)`"]
 pub struct Chain<'a, 'f, A, T> {
@@ -122,14 +123,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
     pub fn wrapping(mut self) -> Self {
         self.rows = Rows::Wrapping;
         self
-    }
-
-    /// Classes merged over the styled ones of the track, such as `w_full()`
-    /// to make it fill its row; the later class wins ([`Tw::merge`]). The
-    /// track is the whole control, so these are its
-    /// [`classes`](Configure::classes).
-    pub fn track(self, track: Tw) -> Self {
-        self.classes(track)
     }
 
     /// Classes merged over the styled ones of every cell, such as `flex_1()`
