@@ -352,7 +352,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
     }
 
     /// Asks for focus as `autofocus` says.
-    pub(super) fn autofocus(mut self, autofocus: Autofocus) -> Self {
+    pub(crate) fn autofocus(mut self, autofocus: Autofocus) -> Self {
         self.autofocus = autofocus;
         self
     }
