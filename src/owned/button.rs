@@ -148,6 +148,18 @@ pub struct Chain<'a, 'f, A> {
     closes: Closes,
     /// The key of an open popup's trigger, while its popup is open.
     expanded: Option<Key>,
+    drawn_as: Option<PartOf<'a, 'f, A>>,
+    /// The node assistive technology puts the button inside.
+    owner: Option<egui::Id>,
+}
+
+/// The classes of another widget's sheet part that a button's box is drawn
+/// as, for the ARIA keys it says and its own classes.
+pub(crate) type PartOf<'a, 'f, A> = Box<dyn FnOnce(&mut Builder<'_, 'f, A>, &[Key], Tw) -> Tw + 'a>;
+
+/// [`PartOf`] for `part`.
+pub(crate) fn part_of<'a, 'f, A: 'static, P: crate::sheet::Part>(part: P) -> PartOf<'a, 'f, A> {
+    Box::new(move |b, keys, own| b.part(part, keys, own))
 }
 
 /// What pressing a button does to the overlay it is in.
@@ -335,7 +347,23 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             autofocus: Autofocus::Never,
             closes: Closes::Nothing,
             expanded: None,
+            drawn_as: None,
+            owner: None,
         }
+    }
+
+    /// Puts the button inside the node `owner` for assistive technology: a
+    /// menu bar's trigger inside the bar.
+    pub(super) fn owned_by(mut self, owner: egui::Id) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    /// Draws the box as another widget's part, which takes no variant or
+    /// size: a menu bar's trigger.
+    pub(super) fn drawn_as(mut self, part: PartOf<'a, 'f, A>) -> Self {
+        self.drawn_as = Some(part);
+        self
     }
 
     /// Says whether the popup the button opens is open, for the sheet's
@@ -647,6 +675,8 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             autofocus,
             closes,
             expanded,
+            drawn_as,
+            owner,
         } = self;
         let name = name.unwrap_or(face_name);
         let (enablement, tooltip) =
@@ -667,20 +697,30 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let disabled = enablement == Enablement::Disabled;
         let (classes, selected, glyph) = match toggle {
             None => {
-                let mut keys = vec![
-                    Key::Variant(variant.unwrap_or(Variant::DEFAULT)),
-                    Key::Size(size),
-                ];
+                let mut said = Vec::new();
                 if disabled {
-                    keys.push(Key::Aria(Aria::Disabled));
+                    said.push(Key::Aria(Aria::Disabled));
                 }
                 if press == Press::Stays {
-                    keys.push(Key::Aria(Aria::HasPopup));
+                    said.push(Key::Aria(Aria::HasPopup));
                 }
-                keys.extend(expanded);
+                said.extend(expanded);
                 let own = tw().relative().sense_click();
                 let own = if disabled { own.inert() } else { own };
-                (b.part(Part::Root, &keys, own.merge(caller)), None, None)
+                let classes = match drawn_as {
+                    Some(part) => part(&mut b, &said, own.merge(caller)),
+                    None => {
+                        let keys: Vec<Key> = [
+                            Key::Variant(variant.unwrap_or(Variant::DEFAULT)),
+                            Key::Size(size),
+                        ]
+                        .into_iter()
+                        .chain(said)
+                        .collect();
+                        b.part(Part::Root, &keys, own.merge(caller))
+                    }
+                };
+                (classes, None, None)
             }
             Some(mark) => {
                 let toggles = &style.toggle;
@@ -728,6 +768,10 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let node = node.announces(role).open_focus(autofocus.open_focus());
         let node = match action {
             Some(action) => node.action(action),
+            None => node,
+        };
+        let node = match owner {
+            Some(owner) => node.accessibility_parent(owner),
             None => node,
         };
         node.draw(move |app, ui| {

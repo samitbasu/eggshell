@@ -20,7 +20,7 @@ use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::nodes::Nodes;
 use crate::overlay::{
-    Anchor, AnchorLookup, Anchored, Behavior, Dismissed, Focus, Nav, Outside, Showing,
+    Anchor, AnchorLookup, Anchored, Behavior, Dismissed, Focus, Nav, Outside, PointerOpen, Showing,
 };
 use crate::pipeline::{DismissFn, OpenFocus, PlacedNode};
 use crate::relation::Relation;
@@ -654,11 +654,14 @@ impl Source {
 }
 
 /// Whether an overlay that just opened takes the focus. A menu opened with
-/// the pointer does not, as in Radix: nothing is highlighted until an arrow
-/// key, whose first press goes to the first (Down) or last (Up) item.
+/// the pointer does not, as in Radix, unless it says it does: nothing is
+/// highlighted until an arrow key, whose first press goes to the first
+/// (Down) or last (Up) item.
 fn enters_focus(behavior: Behavior, source: Source) -> bool {
-    let menu = behavior.nav.is_menu();
-    behavior.focus == Focus::Enter && !(menu && source == Source::Pointer)
+    let waits = behavior.nav.is_menu()
+        && source == Source::Pointer
+        && behavior.pointer_open == PointerOpen::Waits;
+    behavior.focus == Focus::Enter && !waits
 }
 
 /// Where focus goes as the overlay whose root is `nodes[first]` opens: the

@@ -29,6 +29,7 @@ default = [
     "badge",
     "dialog",
     "disclosure",
+    "menubar",
     "skeleton",
     "spinner",
     "tabs",
@@ -58,6 +59,7 @@ disclosure = []
 form = []
 hover-card = []
 markdown = ["dep:pulldown-cmark"]
+menubar = []
 notify = []
 skeleton = []
 spinner = []
@@ -98,6 +100,7 @@ eggshell-ui = { path = ".", features = [
     "form",
     "hover-card",
     "markdown",
+    "menubar",
     "notify",
     "skeleton",
     "spinner",

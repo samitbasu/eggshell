@@ -23,10 +23,13 @@ use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::focus::{Autofocus, Select};
 use crate::kept::Handle;
-use crate::overlay::{Anchor, Distance, Fit, Nav, Outside, Placement, Shown, Wrap};
+use crate::overlay::{
+    Anchor, Distance, Fit, Nav, Outside, Placement, PointerOpen, ReturnsTo, Shown, Wrap,
+};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
 use crate::sheet::Key;
+use crate::trigger_group::{Groups, Member, Switch};
 use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 use sheet::INSET;
 pub use sheet::Part;
@@ -43,15 +46,55 @@ enum Node {
 }
 
 /// The open menus, by the id of the node that opened each: the trigger of a
-/// dropdown, the node of a context menu.
+/// dropdown, the node of a context menu; and the dropdowns linked into bars.
 #[derive(Default)]
-pub(crate) struct Menus(HashMap<Id, Open>);
+pub(crate) struct Menus {
+    open: HashMap<Id, Open>,
+    links: Groups,
+}
 
 struct Open {
     /// Where a context menu was opened.
     at: Option<Pos2>,
     /// The item that owns the open submenu at each depth, outermost first.
     submenus: Vec<Id>,
+    by: OpenedBy,
+}
+
+/// What opened a menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OpenedBy {
+    /// The pointer moving onto its trigger while a linked menu was open.
+    Hover,
+    /// Anything else: a press, a key.
+    Asking,
+}
+
+/// A link between dropdown menus that makes them one menu bar. Get one with
+/// [`Builder::menu_link`] and join each dropdown to it with
+/// [`Chain::linked`]; the menus' order is the order they are declared in.
+///
+/// Opening a linked menu closes the others. While one is open, the pointer on
+/// another's trigger opens that one, and Left and Right in the open menu open
+/// the previous and next enabled one, wrapping as [`wrap`](Self::wrap) says.
+/// A press outside a linked menu reaches what is under it, so a press on
+/// another trigger opens that one too. A linked menu takes the focus however
+/// it is opened, and gives it back to its own trigger when it closes. A
+/// linked trigger is a `Role::MenuItem`, an item of a
+/// [`Nav::Row`](crate::overlay::Nav::Row) group around the triggers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MenuLink {
+    id: Id,
+    wrap: Wrap,
+}
+
+impl MenuLink {
+    /// What Left and Right do in the first and last menu. [`Wrap::Around`]
+    /// unless set.
+    #[must_use]
+    pub fn wrap(self, wrap: Wrap) -> Self {
+        Self { wrap, ..self }
+    }
 }
 
 /// What an item does to the submenu open beside it.
@@ -63,48 +106,74 @@ enum Owns {
 
 impl Menus {
     pub(crate) fn is_open(&self, root: Id) -> bool {
-        self.0.contains_key(&root)
+        self.open.contains_key(&root)
     }
 
     fn open(&mut self, root: Id, at: Option<Pos2>) {
-        self.0.insert(
+        self.open_by(root, at, OpenedBy::Asking);
+    }
+
+    /// Opens the menu of `root`, closing the others linked to it.
+    fn open_by(&mut self, root: Id, at: Option<Pos2>, by: OpenedBy) {
+        for sibling in self.links.siblings(root) {
+            self.close(sibling);
+        }
+        self.open.insert(
             root,
             Open {
                 at,
                 submenus: Vec::new(),
+                by,
             },
         );
     }
 
     fn close(&mut self, root: Id) {
-        self.0.remove(&root);
+        self.open.remove(&root);
     }
 
+    /// Opens the linked menu `switch` asks for, if any, with its submenus
+    /// closed. Returns whether anything changed.
+    fn switch(&mut self, switch: Switch) -> bool {
+        let Some(to) = self.links.target(switch, |trigger| self.is_open(trigger)) else {
+            return false;
+        };
+        let by = match switch {
+            Switch::Hover(_) => OpenedBy::Hover,
+            Switch::Step { .. } => OpenedBy::Asking,
+        };
+        self.open_by(to, None, by);
+        true
+    }
+
+    /// A click on the trigger `root`. It keeps open a menu the pointer opened
+    /// on its way to the trigger, so that a press on another trigger of a bar
+    /// switches to that menu rather than closing it.
     fn toggle(&mut self, root: Id) {
-        if self.is_open(root) {
-            self.close(root);
-        } else {
-            self.open(root, None);
+        match self.open.get_mut(&root) {
+            Some(open) if open.by == OpenedBy::Hover => open.by = OpenedBy::Asking,
+            Some(_) => self.close(root),
+            None => self.open(root, None),
         }
     }
 
     fn position(&self, root: Id) -> Option<Pos2> {
-        self.0.get(&root)?.at
+        self.open.get(&root)?.at
     }
 
     fn submenu(&self, root: Id, depth: usize) -> Option<Id> {
-        self.0.get(&root)?.submenus.get(depth).copied()
+        self.open.get(&root)?.submenus.get(depth).copied()
     }
 
     fn open_submenu(&mut self, root: Id, depth: usize, item: Id) {
-        if let Some(open) = self.0.get_mut(&root) {
+        if let Some(open) = self.open.get_mut(&root) {
             open.submenus.truncate(depth);
             open.submenus.push(item);
         }
     }
 
     fn close_submenu(&mut self, root: Id, depth: usize) {
-        if let Some(open) = self.0.get_mut(&root) {
+        if let Some(open) = self.open.get_mut(&root) {
             open.submenus.truncate(depth);
         }
     }
@@ -130,10 +199,19 @@ impl Menus {
     }
 }
 
+/// What Left or Right on a menu item asks for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Sideways {
+    Nothing,
+    OpenSubmenu,
+    Switch(nav::Step),
+}
+
 /// What every part of one open menu chain shares.
 #[derive(Clone)]
 struct Shared {
     root: Id,
+    link: Option<MenuLink>,
     style: Arc<Style>,
     kept: Handle,
     ctx: Context,
@@ -143,6 +221,7 @@ impl Shared {
     fn of<A>(b: &Builder<'_, '_, A>, root: Id) -> Self {
         Self {
             root,
+            link: None,
             style: b.style().clone(),
             kept: b.kept().clone(),
             ctx: b.ctx().clone(),
@@ -494,6 +573,10 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                     shared.change_if(|menus| menus.hover(root, depth, id, owns));
                 }
                 let activated = response.clicked() || nav::take_activation(ui, id);
+                let sideways = shared.sideways(ui, &response, (depth, owns));
+                if let Sideways::Switch(step) = sideways {
+                    shared.change_if(|menus| menus.switch(Switch::Step { from: root, step }));
+                }
                 match reaction {
                     Reaction::Run(act) => {
                         if activated {
@@ -502,9 +585,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                         }
                     }
                     Reaction::OpenSubmenu => {
-                        let right =
-                            response.has_focus() && super::number::pressed(ui, EguiKey::ArrowRight);
-                        if activated || right {
+                        if activated || sideways == Sideways::OpenSubmenu {
                             shared.change(|menus| menus.open_submenu(root, depth, id));
                         }
                     }
@@ -514,6 +595,33 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
 }
 
 impl Shared {
+    /// What Left or Right on the focused item at `depth` asks for, taking the
+    /// key. Right opens an item's own submenu; elsewhere in a linked menu it
+    /// opens the next menu of the bar, at any depth, as Left at the top level
+    /// opens the previous one. Left in a submenu is the submenu's.
+    fn sideways(
+        &self,
+        ui: &egui::Ui,
+        response: &egui::Response,
+        (depth, owns): (usize, Owns),
+    ) -> Sideways {
+        if !response.has_focus() {
+            return Sideways::Nothing;
+        }
+        let linked = self.link.is_some();
+        let pressed = |key| super::number::pressed(ui, key);
+        if (owns == Owns::Submenu || linked) && pressed(EguiKey::ArrowRight) {
+            return match owns {
+                Owns::Submenu => Sideways::OpenSubmenu,
+                Owns::Nothing => Sideways::Switch(nav::Step::Next),
+            };
+        }
+        if linked && depth == 0 && pressed(EguiKey::ArrowLeft) {
+            return Sideways::Switch(nav::Step::Previous);
+        }
+        Sideways::Nothing
+    }
+
     /// Like [`change`](Self::change), for a change that reports whether it
     /// did anything.
     fn change_if(&self, change: impl FnOnce(&mut Menus) -> bool) {
@@ -801,12 +909,22 @@ pub struct Chain<'a, 'f, A, K> {
     face: Face,
     options: button::Options,
     offset: Option<Distance>,
+    align_shift: Distance,
+    link: Option<MenuLink>,
+    bar_trigger: Option<BarTrigger<'a, 'f, A>>,
     enablement: Enablement,
     on_response: OnResponse<A>,
     children: Option<Body<'a, 'f, A>>,
     trail: TriggerTrail,
     menu_classes: Tw,
     autofocus: Autofocus,
+}
+
+/// How a menu bar draws a dropdown's trigger: as its sheet's `part`, inside
+/// the bar's node `owner` for assistive technology.
+struct BarTrigger<'a, 'f, A> {
+    part: button::PartOf<'a, 'f, A>,
+    owner: Id,
 }
 
 /// What a dropdown trigger's [`children`](Chain::children) build.
@@ -827,6 +945,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             face,
             options: button::Options::new(),
             offset: None,
+            align_shift: Distance::ZERO,
+            link: None,
+            bar_trigger: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
             children: None,
@@ -892,6 +1013,33 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
         self
     }
 
+    /// Moves the menu along the trigger's edge, away from the edge they are
+    /// aligned at, as Radix's `alignOffset` does; a negative shift moves it
+    /// the other way. None unless set.
+    pub fn align_shift(mut self, shift: Distance) -> Self {
+        self.align_shift = shift;
+        self
+    }
+
+    /// Joins the dropdown to the menu bar `link`, after the dropdowns joined
+    /// before it this frame. The trigger becomes a `Role::MenuItem`; see
+    /// [`MenuLink`] for what the link does.
+    pub fn linked(mut self, link: MenuLink) -> Self {
+        self.link = Some(link);
+        self
+    }
+
+    /// Draws the trigger's box as `part` of the sheet, in place of a button,
+    /// and puts it inside the node `owner` for assistive technology: a menu
+    /// bar's trigger.
+    pub(crate) fn trigger_of<P: crate::sheet::Part>(mut self, part: P, owner: Id) -> Self {
+        self.bar_trigger = Some(BarTrigger {
+            part: button::part_of(part),
+            owner,
+        });
+        self
+    }
+
     /// Whether the trigger takes input. A trigger that becomes disabled
     /// closes its menu.
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
@@ -953,6 +1101,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             face,
             options,
             offset,
+            align_shift,
+            link,
+            bar_trigger,
             enablement,
             on_response,
             children,
@@ -960,10 +1111,25 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             menu_classes,
             autofocus,
         } = self;
-        let shared = Shared::of(&b, b.slot(&key).id);
+        let shared = Shared {
+            link,
+            ..Shared::of(&b, b.slot(&key).id)
+        };
         let trigger = shared.root;
         let list = b.slot(&(key.clone(), Node::Menu));
         let enablement = b.enablement_of(enablement.and(options.refusal()));
+        if let Some(link) = link {
+            let pass = b.ctx().cumulative_pass_nr();
+            let member = Member {
+                trigger,
+                enablement,
+            };
+            shared.kept.with(|kept| {
+                kept.menus
+                    .links
+                    .join((link.id, link.wrap), pass, member);
+            });
+        }
         if enablement == Enablement::Disabled {
             shared.close();
         }
@@ -977,6 +1143,14 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             .expanded(open)
             .enablement(enablement)
             .autofocus(autofocus);
+        let button = match link {
+            Some(_) => button.role(Role::MenuItem),
+            None => button,
+        };
+        let button = match bar_trigger {
+            Some(BarTrigger { part, owner }) => button.drawn_as(part).owned_by(owner),
+            None => button,
+        };
         let button = match (children, trail) {
             (None, TriggerTrail::Nothing) => button,
             (children, trail) => button.children(move |s| {
@@ -1001,6 +1175,10 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
                     node.set_expanded(open);
                     node.set_has_popup(HasPopup::Menu);
                 });
+                let pointer_moved = ctx.input(|input| input.pointer.delta() != Vec2::ZERO);
+                if on_key.link.is_some() && pointer_moved && response.hovered() {
+                    on_key.change_if(|menus| menus.switch(Switch::Hover(trigger)));
+                }
                 if response.has_focus() {
                     hold_vertical_arrows(ctx, response.id);
                     let down = ctx.input_mut(|input| {
@@ -1013,15 +1191,25 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> Chain<'a, 'f, A, K> {
             })
             .on_click(move |_| on_click.change(|menus| menus.toggle(trigger)));
         let close = shared.clone();
-        OverlayChain::new(b.reborrow(), list)
+        let placement = Placement::below()
+            .gap(offset.unwrap_or(shared.style.menu.offset))
+            .shift(align_shift);
+        let menu = OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
-            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu.offset)))
+            .placement(placement)
             .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu(Wrap::Around))
             .role(Role::Menu)
             .named(name)
-            .on_dismiss(move |_| close.close())
-            .children_fitted(|s, fit| menu_box(s, &shared, ((0, menu_classes), fit), items));
+            .on_dismiss(move |_| close.close());
+        let menu = match link {
+            Some(_) => menu
+                .outside(Outside::PassThrough)
+                .pointer_open(PointerOpen::Enters)
+                .returns_to(ReturnsTo::Widget(trigger)),
+            None => menu,
+        };
+        menu.children_fitted(|s, fit| menu_box(s, &shared, ((0, menu_classes), fit), items));
     }
 }
 
@@ -1087,6 +1275,24 @@ impl<'b, 'f, A: 'static> crate::Builder<'b, 'f, A> {
         face: impl Into<Face>,
     ) -> Chain<'_, 'f, A, K> {
         Chain::new(self.reborrow(), key, face.into())
+    }
+
+    /// A link under `key` that makes the dropdown menus joined to it with
+    /// [`Chain::linked`] one menu bar. Declare it each frame, before its
+    /// menus.
+    pub fn menu_link<K: crate::Key>(&self, key: K) -> MenuLink {
+        MenuLink {
+            id: self.id_of(key),
+            wrap: Wrap::Around,
+        }
+    }
+
+    /// Whether the menu the node `id` opens is open, a dropdown's by its
+    /// trigger or a context menu's by its node, as
+    /// [`PlacedFrame::menu_open_with`](crate::testing::PlacedFrame::menu_open_with)
+    /// says after the frame: for a trigger's open look.
+    pub fn menu_open_with(&self, id: Id) -> bool {
+        self.kept().with(|kept| kept.menus.is_open(id))
     }
 }
 

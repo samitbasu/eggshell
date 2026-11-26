@@ -7,7 +7,7 @@ use egui::{Id, Role};
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
     Anchor, Band, Behavior, DismissOn, Dismissed, Fit, Focus, HoverIntent, MatchWidth, Modal, Nav,
-    Outside, Placement, Showing,
+    Outside, Placement, PointerOpen, ReturnsTo, Showing,
 };
 use crate::pipeline::DismissFn;
 use crate::presence::{Entrance, ExitedFn, Motion, Shown, Staged};
@@ -282,6 +282,16 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
     /// closes. [`Focus::Enter`] unless set.
     pub fn focus(mut self, focus: Focus) -> Self {
         self.behavior.focus = focus;
+        self
+    }
+
+    pub(crate) fn pointer_open(mut self, pointer_open: PointerOpen) -> Self {
+        self.behavior.pointer_open = pointer_open;
+        self
+    }
+
+    pub(crate) fn returns_to(mut self, returns_to: ReturnsTo) -> Self {
+        self.behavior.returns_to = returns_to;
         self
     }
 
