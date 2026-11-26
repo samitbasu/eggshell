@@ -101,10 +101,11 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet) {
     for (tone, color) in TONES {
         sheet.rule_when(Part::Root, When::always().variant(tone), move |t, k| {
             let tone = color(k);
-            t.text(tone).bg(k.card).children(
-                Match::any().with_slot(Part::Description.slot()),
-                |t| t.text(tone.gamma_multiply(0.9)),
-            )
+            t.text(tone)
+                .bg(k.card)
+                .children(Match::any().with_slot(Part::Description.slot()), |t| {
+                    t.text(tone.gamma_multiply(0.9))
+                })
         });
     }
 }
