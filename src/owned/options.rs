@@ -150,6 +150,26 @@ impl Options {
         }
     }
 
+    /// The classes, which are left empty, for a chain that puts them on
+    /// another node than the rest.
+    #[cfg_attr(
+        not(feature = "command"),
+        expect(dead_code, reason = "only the command chains split their options")
+    )]
+    pub(crate) fn take_classes(&mut self) -> Tw {
+        std::mem::replace(&mut self.classes, tw())
+    }
+
+    /// The enablement of the control built in `b`: its own, the subtree's
+    /// and the refusal's.
+    #[cfg_attr(
+        not(feature = "command"),
+        expect(dead_code, reason = "only the command chains split their options")
+    )]
+    pub(crate) fn enablement_in<A>(&self, b: &Builder<'_, '_, A>) -> Enablement {
+        b.enablement_of(self.own_enablement().and(self.refusal()))
+    }
+
     pub(crate) fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }

@@ -3,7 +3,8 @@
 //! frame it asks, whether the control is new then or already built.
 
 use eggshell_ui::Problem;
-use eggshell_ui::overlay::Anchor;
+use eggshell_ui::overlay::{Anchor, Shown};
+use eggshell_ui::owned::accordion::Single;
 use eggshell_ui::owned::text_field::Select;
 use eggshell_ui::owned::{splitter::PaneSize, toggle_group};
 use eggshell_ui::prelude::*;
@@ -33,9 +34,16 @@ enum Control {
     TextField,
     Splitter,
     Dropdown,
+    Disclosure,
+    Section,
+    AccordionItem,
+    Tabs,
+    CommandList,
+    Combobox,
+    Autosuggest,
 }
 
-const ALL: [Control; 13] = [
+const ALL: [Control; 20] = [
     Control::Button,
     Control::Toggle,
     Control::ToggleItem,
@@ -49,6 +57,13 @@ const ALL: [Control; 13] = [
     Control::TextField,
     Control::Splitter,
     Control::Dropdown,
+    Control::Disclosure,
+    Control::Section,
+    Control::AccordionItem,
+    Control::Tabs,
+    Control::CommandList,
+    Control::Combobox,
+    Control::Autosuggest,
 ];
 
 impl Control {
@@ -62,6 +77,11 @@ impl Control {
             Self::Segmented => r#""target"/1"#,
             Self::Slider => r#""target"/Track/Thumb"#,
             Self::Stepper => "/Field",
+            Self::Section => r#""target"/Header"#,
+            Self::AccordionItem => r#""item"/Header"#,
+            Self::Tabs => r#""target"/List/Tab(1)"#,
+            Self::CommandList => "/Search/Query",
+            Self::Combobox | Self::Autosuggest => "Field)",
             _ => r#""target""#,
         }
     }
@@ -184,6 +204,42 @@ fn control(b: &mut Builder<'_, '_, App>, app: &App) {
             ask!(b.dropdown_menu("target", "More")).items(|m| {
                 m.item("copy", "Copy").on_click(|_: &mut App| {});
             });
+        }
+        Control::Disclosure => {
+            ask!(b.disclosure("target", Shown::Closed).named("Tree")).on_change(|_, _| {});
+        }
+        Control::Section => {
+            ask!(
+                b.section("target", "Press", Shown::Closed)
+                    .on_change(|_, _| {})
+            )
+            .children(|_| {});
+        }
+        Control::AccordionItem => {
+            b.accordion("target", Single::collapsible(None::<&str>))
+                .on_change(|_, _| {})
+                .items(|items| {
+                    items.item("before", "Before").children(|_| {});
+                    ask!(items.item("item", "Press")).children(|_| {});
+                });
+        }
+        Control::Tabs => {
+            ask!(b.tabs("target", 1u8, CHOICES))
+                .on_change(|_, _| {})
+                .panel(|b, _| b.text(tw(), "Panel"));
+        }
+        Control::CommandList => {
+            ask!(b.command_list("target").named("Commands")).items(|items| {
+                items.item("alpha", "Alpha").on_pick(|_| {});
+            });
+        }
+        Control::Combobox => {
+            let options = CHOICES.map(|(value, label)| (value, label.to_owned()));
+            ask!(b.combobox("target", Some(1u8), options).named("Fruit")).on_change(|_, _| {});
+        }
+        Control::Autosuggest => {
+            ask!(b.autosuggest("target", &app.text, []).named("Search"))
+                .on_change(|app: &mut App, text| app.text = text);
         }
     }
 }

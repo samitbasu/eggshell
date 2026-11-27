@@ -116,7 +116,7 @@ impl Readout {
                 .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Button, None, label.trim(), &None);
-                    tip_describes(ui, &response, &describes);
+                    tip_describes(&response, &describes);
                     autofocus.apply(ui.ctx(), &response);
                     responses.run(app, &response);
                     let opened = response.clicked().then(|| {

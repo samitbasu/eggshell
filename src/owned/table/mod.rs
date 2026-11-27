@@ -6,12 +6,14 @@ use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
+use egui::{Context, Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
 mod sheet;
 
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
+use crate::owned::options::{Configure, Options, Resolved};
+use crate::owned::tipped_whole;
 use crate::sheet::Key as SheetKey;
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
 pub use sheet::Part;
@@ -173,7 +175,7 @@ pub struct Selectable<A, K> {
     select: Select<A, K>,
 }
 
-type Select<A, K> = Rc<dyn Fn(&mut A, K)>;
+type Select<A, K> = Rc<dyn Fn(&mut A, &Context, K)>;
 
 type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 
@@ -224,11 +226,15 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 ///         }).add();
 /// }
 /// ```
+///
+/// Of the shared options it has only [`Configure`]'s, in scope through the
+/// [`prelude`](crate::prelude): the table's name, and classes and a
+/// tooltip on its grid.
 #[must_use = "a table is not added until you call `.rows(..).add()`"]
 pub struct Chain<'a, 'f, A, S = Unselectable> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
-    name: Option<String>,
+    opts: Options,
     columns: Vec<Column>,
     header: Option<Build<'a, 'f, A>>,
     footer: Option<Build<'a, 'f, A>>,
@@ -237,17 +243,13 @@ pub struct Chain<'a, 'f, A, S = Unselectable> {
     selection: S,
 }
 
+impl<A, S> Configure for Chain<'_, '_, A, S> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
 impl<'a, 'f, A, S> Chain<'a, 'f, A, S> {
-    /// TODO(prose): the chain through `then`, when `condition` holds.
-    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
-        crate::owned::options::when(self, condition, then)
-    }
-
-    /// TODO(prose): the chain through `then` with the value, when there is one.
-    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
-        crate::owned::options::when_some(self, value, then)
-    }
-
     /// TODO(prose): every part of the table says the attribute `name` is
     /// `value`, for rules that style one kind of table:
     /// `When::always().attr(name, value)`.
@@ -262,7 +264,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         Self {
             slot: b.slot(&key),
             b,
-            name: None,
+            opts: Options::new(),
             columns: Vec::new(),
             header: None,
             footer: None,
@@ -490,12 +492,6 @@ impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
         self
     }
 
-    /// TODO(prose): the table's accessible name.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
     /// TODO(prose): stripes every second body row, `Stripes::None` by default.
     pub fn stripes(mut self, stripes: Stripes) -> Self {
         self.stripes = stripes;
@@ -506,7 +502,7 @@ impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
         let Self {
             b,
             slot,
-            name,
+            opts,
             columns,
             header,
             footer,
@@ -518,7 +514,7 @@ impl<'a, 'f, A: 'static, S> Chain<'a, 'f, A, S> {
         Chain {
             b,
             slot,
-            name,
+            opts,
             columns,
             header,
             footer,
@@ -534,6 +530,15 @@ impl<'a, 'f, A: 'static, K> Chain<'a, 'f, A, Selected<K>> {
     pub fn on_select(
         self,
         select: impl Fn(&mut A, K) + 'static,
+    ) -> Chain<'a, 'f, A, Selectable<A, K>> {
+        self.on_select_with(move |app, _, key| select(app, key))
+    }
+
+    /// Like [`on_select`](Self::on_select), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_select_with(
+        self,
+        select: impl Fn(&mut A, &Context, K) + 'static,
     ) -> Chain<'a, 'f, A, Selectable<A, K>> {
         self.with_selection(|Selected(current)| Selectable {
             current,
@@ -629,7 +634,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let Self {
             mut b,
             slot,
-            name,
+            opts,
             columns,
             header,
             footer,
@@ -642,10 +647,19 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();
+        let Resolved {
+            name,
+            classes,
+            tooltip,
+            ..
+        } = opts.resolve(&mut b, slot.id);
         let classes = b.part(
             Part::Root,
             &attrs,
-            tw().grid().grid_cols_tracks(&tracks).sense_hover(),
+            tw().grid()
+                .grid_cols_tracks(&tracks)
+                .sense_hover()
+                .merge(classes),
         );
         let table_id = slot.id;
         let mut built = Built::default();
@@ -686,6 +700,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             None => handle,
         };
         handle.draw(move |_, ui| {
+            tipped_whole(ui, &tooltip);
             let id = ui.node_response().id;
             ui.ctx().accesskit_node_builder(id, |node| {
                 node.set_row_count(built.row_count);
@@ -941,7 +956,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
                 if let Some(picking) = picking
                     && response.clicked()
                 {
-                    (picking.select)(app, picking.key);
+                    (picking.select)(app, ui.ctx(), picking.key);
                 }
             });
         self.b.move_last_to(at);

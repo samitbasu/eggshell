@@ -416,6 +416,24 @@ pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     response
 }
 
+/// The draw of a control's one focusable node: its tooltip, its focus
+/// request and its response hook.
+#[cfg_attr(
+    not(feature = "disclosure"),
+    expect(dead_code, reason = "only the disclosure and the section draw with it")
+)]
+pub(crate) fn hooked<A: 'static>(
+    tooltip: Tip,
+    autofocus: crate::focus::Autofocus,
+    on_response: OnResponse<A>,
+) -> impl FnOnce(&mut A, &mut Ui) + 'static {
+    move |app, ui| {
+        let response = tipped(ui, ui.node_response(), &tooltip);
+        autofocus.apply(ui.ctx(), &response);
+        on_response.run(app, &response);
+    }
+}
+
 /// `tip` shown while the pointer is anywhere over the node of `ui` or focus
 /// is on anything inside it, anchored to the node: a control's own tooltip,
 /// whatever part of it is hovered or focused.
@@ -427,9 +445,9 @@ pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
 
 /// `response`, a part of a control [`tipped_whole`], described by the
 /// control's `tip`, which it does not trigger.
-pub(crate) fn tip_describes(ui: &Ui, response: &Response, tip: &Tip) {
+pub(crate) fn tip_describes(response: &Response, tip: &Tip) {
     if let Some(tip) = tip {
-        crate::owned::tooltip::describes(ui, response, tip);
+        crate::owned::tooltip::describes(response, tip);
     }
 }
 

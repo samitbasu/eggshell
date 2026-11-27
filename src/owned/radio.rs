@@ -188,7 +188,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
                         validity.describe(ui.ctx(), response.id);
                         autofocus.apply(ui.ctx(), &response);
                         if tooltip.is_none() {
-                            tip_describes(ui, &response, &group_tip);
+                            tip_describes(&response, &group_tip);
                         }
                         if response.clicked() || crate::nav::take_activation(ui, response.id) {
                             on_circle(app, ui.ctx(), value);

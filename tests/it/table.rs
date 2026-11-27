@@ -3,6 +3,7 @@
 //! selection, and the accessibility tree.
 
 use eggshell_ui::owned::table::{self, Align, Column, Stripes};
+use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::{Shadcn, Tokens};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};

@@ -299,7 +299,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
                 let response = described(ui, Role::RadioButton, Some(mark), &name, &tooltip);
                 autofocus.apply(ui.ctx(), &response);
                 if tooltip.is_none() {
-                    tip_describes(ui, &response, &control_tip);
+                    tip_describes(&response, &control_tip);
                 }
                 on_response.run(app, &response);
                 response.clicked()

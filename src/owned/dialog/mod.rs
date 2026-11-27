@@ -40,10 +40,11 @@ use crate::contract::{Size, Variant};
 use crate::focus::Autofocus;
 use crate::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
 use crate::owned::button::{self, Face};
-use crate::owned::options::Configure as _;
+use crate::owned::options::{Configure, Options, Resolved};
+use crate::owned::tipped;
 use crate::sheet::Key as SheetKey;
 use crate::theme::{size, variant};
-use crate::{Builder, Icon, Scope, Tw, icons, tw};
+use crate::{Builder, Icon, NodeUi as _, Scope, Tw, icons, tw};
 use egui::Role;
 
 /// The keys of a dialog's parts, under the overlay's key: tests and
@@ -78,13 +79,24 @@ enum CloseButton {
 /// TODO(prose): what a dialog says of itself: its title, which names the
 /// overlay, an optional description, which describes it, and classes merged
 /// over the style's box.
-#[derive(Clone, Debug)]
+///
+/// Of the shared options it has only [`Configure`]'s, in scope through the
+/// [`prelude`](crate::prelude): [`named`](Configure::named) names the
+/// overlay in place of the title, and the classes and the tooltip are the
+/// box's.
+#[derive(Clone)]
 #[must_use]
 pub struct Dialog {
     title: String,
     description: Option<String>,
-    classes: Tw,
+    opts: Options,
     close: CloseButton,
+}
+
+impl Configure for Dialog {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
 }
 
 impl Dialog {
@@ -93,7 +105,7 @@ impl Dialog {
         Self {
             title: title.into(),
             description: None,
-            classes: tw(),
+            opts: Options::new(),
             close: CloseButton::Shown,
         }
     }
@@ -103,14 +115,6 @@ impl Dialog {
     pub fn description(self, description: impl Into<String>) -> Self {
         Self {
             description: Some(description.into()),
-            ..self
-        }
-    }
-
-    /// Classes merged over the style's box, such as its width.
-    pub fn classes(self, classes: Tw) -> Self {
-        Self {
-            classes: self.classes.merge(classes),
             ..self
         }
     }
@@ -271,7 +275,8 @@ fn surface<'c, 'f, A: 'static, M>(
     content: impl FnOnce(&mut Content<'c, 'f, A>),
 ) {
     let modal = chain.presentation();
-    let chain = chain.named(dialog.title.clone());
+    let name = dialog.opts.name().unwrap_or(&dialog.title).to_owned();
+    let chain = chain.named(name);
     let chain = match &dialog.description {
         Some(description) => chain.description(description.clone()),
         None => chain,
@@ -283,11 +288,15 @@ fn surface<'c, 'f, A: 'static, M>(
     content(&mut parts);
     chain.children(move |s| {
         let shape = Shape::of(modal, kind);
-        let classes = shape.part(
-            s,
-            Slot::Content,
-            tw().relative().merge(dialog.classes.clone()),
-        );
+        let trigger = s.id_of(Node::Box);
+        let Resolved {
+            classes, tooltip, ..
+        } = dialog.opts.clone().resolve(s, trigger);
+        let own = match tooltip {
+            Some(_) => tw().relative().sense_hover(),
+            None => tw().relative(),
+        };
+        let classes = shape.part(s, Slot::Content, own.merge(classes));
         s.div_id(Node::Box, classes, |s| {
             header(s, shape, &dialog);
             if let Some(body) = parts.body {
@@ -310,6 +319,11 @@ fn surface<'c, 'f, A: 'static, M>(
                         .add();
                 });
             }
+        })
+        // A dialog opens with the focus inside it, so its tooltip is the
+        // pointer's alone, not its whole box's.
+        .draw(move |_, ui| {
+            tipped(ui, ui.node_response(), &tooltip);
         });
     });
 }
