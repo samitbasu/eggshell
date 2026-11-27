@@ -42,7 +42,7 @@ fn main() -> eframe::Result {
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 layout_state
-                    .build(ui.ctx(), |b| view(b, &app))
+                    .build(ui.ctx(), |b| common::page(b, |b| view(b, &app)))
                     .layout(area)
                     .draw(&mut app, ui);
             });

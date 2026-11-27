@@ -301,7 +301,10 @@ fn main() -> eframe::Result {
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
                 let area = ui.max_rect();
-                layout.build(&ctx, window).layout(area).draw(&mut (), ui);
+                layout
+                    .build(&ctx, |b| common::page(b, window))
+                    .layout(area)
+                    .draw(&mut (), ui);
             });
     })
 }

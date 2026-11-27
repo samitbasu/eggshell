@@ -231,7 +231,7 @@ fn main() -> eframe::Result {
             .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
             .show(ui, |ui| {
                 let area = ui.max_rect();
-                let built = layout_state.build(ui.ctx(), |b| view(b, &state));
+                let built = layout_state.build(ui.ctx(), |b| common::page(b, |b| view(b, &state)));
                 built.layout(area).draw(&mut state, ui);
             });
     })
