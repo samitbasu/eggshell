@@ -5,8 +5,7 @@ use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use egui::epaint::Shape;
 use egui::vec2;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/todo.rs"]

@@ -9,8 +9,7 @@
 //! Tab visits the controls top to bottom, skipping what is inert; Enter or
 //! Space presses a focused toggle or swatch.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::owned::text_field::Field;

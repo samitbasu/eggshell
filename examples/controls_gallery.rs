@@ -14,8 +14,7 @@
 //! eggshell nodes, which have no size computation to check, and the labels
 //! section the alerts, badges, chips, spinners and skeletons of `eggshell-ui-extras`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use std::collections::BTreeMap;

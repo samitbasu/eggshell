@@ -7,8 +7,7 @@
 //! height does; the list measures each item when it is first built and
 //! counts it at the estimate until then.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 

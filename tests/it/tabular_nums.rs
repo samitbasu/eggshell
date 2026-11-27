@@ -9,8 +9,7 @@ use egui_kittest::kittest::Queryable;
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 /// egui's own fonts give every digit one width, so the tests bring a font whose digits differ.
 const PROPORTIONAL_DIGITS: &[u8] = include_bytes!("../fixtures/fonts/Inter-subset.ttf");

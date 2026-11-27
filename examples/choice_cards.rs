@@ -2,8 +2,7 @@
 //! label holds the control after a title and a description, and which a
 //! click anywhere on chooses or toggles.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::{Enablement, choice::Choice};
 use eggshell_ui::{Builder, tw};

@@ -1,8 +1,7 @@
 //! The Markdown widget's test page: a fixed sample with every construct the
 //! widget shows, and the ones it shows as their source.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use std::sync::Arc;

@@ -11,8 +11,7 @@
 //! made up rather than copied. A new message arrives every two seconds
 //! until the last of them.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, Tw, tw};
 

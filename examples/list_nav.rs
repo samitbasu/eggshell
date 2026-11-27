@@ -2,8 +2,7 @@
 //! list once, the arrow, Home, End, PageUp and PageDown keys move the
 //! highlight over every row, and Enter or Space activates it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{Builder, tw};

@@ -6,8 +6,7 @@ use eggshell_ui::ClipboardError;
 use eggshell_ui::testing::{Driver, FakeClipboard, Target};
 use egui::{ColorImage, Event, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/clipboard.rs"]
 mod example;

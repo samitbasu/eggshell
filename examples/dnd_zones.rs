@@ -7,8 +7,7 @@
 //! zone, so it lights none. A file no zone takes falls to the page, which
 //! refuses it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use std::any::Any;
 

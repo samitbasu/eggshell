@@ -15,8 +15,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, Rig};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Faq {

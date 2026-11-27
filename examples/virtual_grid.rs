@@ -10,8 +10,7 @@
 //! need every row's content, and the header sits above the scrolled rows
 //! rather than sticking at the top of them. The buttons are placeholders.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 

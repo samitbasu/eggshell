@@ -8,8 +8,7 @@ use egui::accesskit::Role;
 use egui::{ImageSource, Rect, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/kaolin/main.rs"]

@@ -8,8 +8,7 @@
 //! and within a panel, Down on a trigger opens it and goes in, and Esc
 //! closes it and puts the focus back on the trigger.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, tw};

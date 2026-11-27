@@ -11,8 +11,7 @@ use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[path = "../../examples/kaolin/layouts.rs"]
 mod layouts;

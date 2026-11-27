@@ -11,8 +11,7 @@ pub mod button;
 use core::time::Duration;
 use std::sync::Arc;
 
-#[path = "../../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame};

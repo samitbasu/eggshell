@@ -10,8 +10,7 @@
 //! it is shown with. The tags wrap at the card's width, which the scroll
 //! container gives the page. Clicking a tag selects it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Tw, tw};

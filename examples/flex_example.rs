@@ -9,8 +9,7 @@
 //! width their flex item grows to. The "toggle my size" button changes its
 //! label and so its estimate, and the row re-wraps around it.
 
-#[path = "common/mod.rs"]
-pub mod common;
+pub use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use std::convert::identity;

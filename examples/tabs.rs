@@ -5,8 +5,7 @@
 //! The list is one Tab stop. The arrow keys move along it and wrap, and Home
 //! and End go to the ends. Only the selected tab's panel is built.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::{Enablement, choice::Choice};

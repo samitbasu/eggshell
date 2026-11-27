@@ -7,8 +7,7 @@
 //! with icon buttons, or icons alone. Resize the window to watch both change.
 //! The buttons are placeholders.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::button::Face;

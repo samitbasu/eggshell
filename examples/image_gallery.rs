@@ -10,8 +10,7 @@
 //! each is a tile of the size the original's index gives it (48 of its 100),
 //! with its id on it. Clicking one selects it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::Color32;

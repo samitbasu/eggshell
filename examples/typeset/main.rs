@@ -6,8 +6,7 @@
 //! cannot say is left as HTML, which the widget names and does not show: the
 //! docs' MathML. The article's figure captions are dropped.
 
-#[path = "../common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::markdown::Typeset;
 use eggshell_ui::prelude::*;

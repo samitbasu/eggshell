@@ -2,8 +2,7 @@
 //! button among them, and a 2×2 picker of cards. Both are one `toggle_group::Group`
 //! whose members sit wherever the layout puts them.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;

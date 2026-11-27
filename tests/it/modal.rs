@@ -13,8 +13,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, focused_node, id_of};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]

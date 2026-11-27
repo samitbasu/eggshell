@@ -3,8 +3,7 @@
 //! readout types past its track, and a number edited the same way with no
 //! track.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::number::Step;
 use eggshell_ui::prelude::*;

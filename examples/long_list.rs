@@ -8,8 +8,7 @@
 //! window: the tags wrap anew and the heights are measured again. The buttons
 //! scroll to a row with `vlist::scroll_to`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::theme::Tokens;

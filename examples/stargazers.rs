@@ -8,8 +8,7 @@
 //! needs no network, draws each avatar as an initial, and leaves the
 //! reordering out (drag and drop is not part of this port).
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 

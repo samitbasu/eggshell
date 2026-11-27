@@ -1,8 +1,7 @@
 //! Text fields with a leading or trailing icon at the default, `sm` and `xs`
 //! sizes.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::theme::size;

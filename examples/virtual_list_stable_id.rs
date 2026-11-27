@@ -8,8 +8,7 @@
 //! are the same whichever rows are built around it, and whatever egui keeps
 //! for its widgets is there when it comes back.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 

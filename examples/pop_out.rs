@@ -3,8 +3,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
 use eggshell_ui::{Builder, Scope, tw};

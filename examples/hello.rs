@@ -2,8 +2,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 fn main() -> eframe::Result {
     let mut theme_bar = common::ThemeBar::new(&common::shared_style());

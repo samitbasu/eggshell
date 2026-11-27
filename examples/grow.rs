@@ -6,8 +6,7 @@
 //! padding sliders are stock egui sliders in leaves of the same tree, in
 //! spacing units.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;

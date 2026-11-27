@@ -6,8 +6,7 @@
 //! The order in `State` does not change until the drop: the view previews it
 //! from where the drag is over the list, so cancelling needs no undo.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 

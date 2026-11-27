@@ -13,8 +13,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, Rig, click_node, focused_path, rect_of};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 const SCREEN: egui::Vec2 = vec2(800.0, 600.0);
 

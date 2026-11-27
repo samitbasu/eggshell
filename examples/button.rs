@@ -7,8 +7,7 @@
 //! build time, so it is base paint. The reset button is a stock egui button in
 //! a leaf of the same tree.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::theme::Tokens;

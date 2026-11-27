@@ -2,8 +2,7 @@
 //! beside every control with a track, a plain one, and a labelled row outside
 //! any section.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, Progress, tw};

@@ -12,8 +12,7 @@
 //! they follow the window.
 //! Guide: https://css-tricks.com/snippets/css/a-guide-to-flexbox/
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::{mono, sized};
 use eggshell_ui::owned::segmented::Cell;

@@ -9,8 +9,7 @@ use eggshell_ui::{Builder, tw};
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
 
-#[path = "../../examples/common/mod.rs"]
-pub mod common;
+pub use eggshell_examples::common;
 
 use crate::support::{self, Rig, sweep};
 

@@ -6,8 +6,7 @@
 //!
 //! TODO(prose): Rename also selects the name, so typing replaces it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::text_field::{Enter, Select};
 use eggshell_ui::prelude::*;

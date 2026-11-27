@@ -6,8 +6,7 @@
 //! focus inside. "Post notice" pushes a notice top-right with two actions and a
 //! ×; the newest sits nearest the top and three show at once.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 use eggshell_ui::prelude::*;

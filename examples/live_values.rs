@@ -6,8 +6,7 @@
 //! `tabular-nums` keeps that content the same width whatever the digits.
 //! The styling is plain shadcn.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::FontFamily;

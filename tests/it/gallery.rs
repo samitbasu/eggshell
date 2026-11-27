@@ -12,8 +12,7 @@ mod controls_gallery;
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use controls_gallery::{
     CellWidth, Control, Interact, Label, Padding, State, TextSize, layout, prepare,

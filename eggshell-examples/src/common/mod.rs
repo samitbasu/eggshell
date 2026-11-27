@@ -5,10 +5,6 @@
 //! F12 toggles the layout debug overlay and its frame-timing readout
 //! ([`eggshell_ui::Debug`]) in every example
 //! that shows a [`ThemeBar`] or calls [`toggle_debug`].
-#![allow(
-    dead_code,
-    reason = "each crate that includes this file uses a subset of it"
-)]
 
 use eggshell_ui::prelude::*;
 use std::fmt::Debug;
@@ -33,7 +29,7 @@ pub mod glyphs;
 const PANEL_WIDTH: f32 = 240.0;
 
 /// The most segments a track keeps on one row.
-const MAX_ONE_ROW: usize = 3;
+pub const MAX_ONE_ROW: usize = 3;
 
 /// The theme colour of the examples that use one: the forms' primary button
 /// and focus.

@@ -1,8 +1,7 @@
 //! Rich inline text: paragraphs of styled spans, each one wrapping node,
 //! with links, weights, italics and inline code.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, FontStyle, Span, Weight, tw};

@@ -9,8 +9,7 @@
 //! control, a stock egui checkbox and a select), and the labels are text boxes
 //! that egui_flex draws with `Label`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::{Builder, Tw, tw};

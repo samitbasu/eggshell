@@ -10,8 +10,7 @@
 //! under its field, on a line reserved for it, so the form does not move. Two-column rows are
 //! wrapping flex rows, which stack when the window is narrow.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::prelude::*;

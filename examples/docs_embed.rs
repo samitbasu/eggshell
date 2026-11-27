@@ -5,8 +5,7 @@
 //! the top switches the theme colour, which colours the selected example's
 //! ring.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::owned::markdown::{Directive, Directives, Typeset};

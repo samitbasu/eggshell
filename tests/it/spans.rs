@@ -12,8 +12,7 @@ use egui::{
 
 use crate::support::{self, press_and_release};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[path = "../../examples/rich_text.rs"]
 mod rich_text;

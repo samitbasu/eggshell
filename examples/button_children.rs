@@ -1,8 +1,7 @@
 //! A row of icon toggles where the active one shows an accent bar under its
 //! icon, built as the toggle's `.children(..)`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::theme::size;

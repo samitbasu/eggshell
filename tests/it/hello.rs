@@ -6,8 +6,7 @@ use eggshell_ui::testing::{Driver, Target};
 use egui::{Rect, Vec2, vec2};
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/flex_demos.rs"]

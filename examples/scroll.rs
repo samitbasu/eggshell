@@ -10,8 +10,7 @@
 //! pane gives its bar a style of its own. The buttons above the first
 //! pane use the programmatic API.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::scroll::{Axis, EdgeFade};

@@ -8,8 +8,7 @@
 //! border on hover, the buttons add a ring instead. The box size slider is a
 //! stock egui slider in a leaf of the same tree.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;

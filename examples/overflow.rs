@@ -8,8 +8,7 @@
 //! padding scrolls with its content and whose borders stay put. The original
 //! sizes the columns by their labels; here each is 140 points wide. The count is a slider in the same tree.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::scroll::Axis;

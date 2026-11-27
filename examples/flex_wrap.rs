@@ -6,8 +6,7 @@
 //! egui slider and the wrap choice a segmented control, both inside the tree.
 //! The original's stock egui labels and buttons are text boxes here.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;

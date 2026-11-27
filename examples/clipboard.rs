@@ -10,8 +10,7 @@
 //! Native only: the browser's clipboard read is asynchronous and a build for
 //! the web answers `Unavailable`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Chord, ClipboardError, Command, Commands, Paste, Via, tw};
 use egui::{Color32, ColorImage, Key, Modifiers};

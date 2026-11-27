@@ -13,8 +13,7 @@ use egui::{Color32, FontFamily, Key, Pos2, pos2, vec2};
 
 use crate::support::{self, focused_node, id_of, press_and_release};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]

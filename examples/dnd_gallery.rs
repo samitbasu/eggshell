@@ -10,8 +10,7 @@
 //! The gallery is a scroll container (`b.scroll`), which scrolls itself when a
 //! drag is near its edge.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 use eggshell_ui::prelude::*;

@@ -8,8 +8,7 @@
 //! its fill under the pointer. The entries are placeholders for the original's
 //! routes.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::Color32;

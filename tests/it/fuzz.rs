@@ -194,7 +194,7 @@ fn todo_session() -> impl Strategy<Value = Vec<TodoAction>> {
 fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
     let mut harness = support::harness(
         vec2(520.0, 320.0),
-        crate::sweep::common::base_text(egui::Theme::Light),
+        eggshell_examples::common::base_text(egui::Theme::Light),
         todo::State::default(),
         todo::layout,
     );
@@ -503,7 +503,7 @@ fn gallery_hand() -> (Hand<'static>, Session) {
     state.panels.truncate(Grid::MOST_PANELS);
     let mut harness = support::frame_harness(
         vec2(GALLERY_WIDTH, GALLERY_HEIGHT),
-        crate::sweep::common::base_text(egui::Theme::Light),
+        eggshell_examples::common::base_text(egui::Theme::Light),
         state,
         |ui, app, layout| {
             gallery::window(

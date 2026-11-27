@@ -4,8 +4,7 @@
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
 //! rebuilt with eggshell: taffy places, egui draws. The demo has no controls.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Track, Tw, tw};
 use egui::Color32;

@@ -1,8 +1,7 @@
 //! The standard icons at 12, 16, 20 and 24 pt,
 //! and in a button, a segmented cell and a menu trigger.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Icon, icons, tw};
 use egui::ImageSource;

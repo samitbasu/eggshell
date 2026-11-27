@@ -13,8 +13,7 @@
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
 pub mod centre;
-#[path = "../common/mod.rs"]
-pub mod common;
+pub use eggshell_examples::common;
 pub mod details;
 pub mod icons;
 pub mod sidebar;

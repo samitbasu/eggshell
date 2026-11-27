@@ -5,8 +5,7 @@
 //! the pointer crosses into it. Tab to a handle: it opens after the same
 //! delay, and focus stays on the handle. Esc, or a press outside, closes it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 use eggshell_ui::prelude::*;

@@ -6,8 +6,7 @@
 //! plain boxes here, and its rows scroll where these are clipped. The demo has
 //! no controls.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;

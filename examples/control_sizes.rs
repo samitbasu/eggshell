@@ -1,8 +1,7 @@
 //! Every owned control at the default, `sm` and `xs` sizes, side by side:
 //! each column is a subtree under `tw().control_size(..)`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::theme::size;
