@@ -86,6 +86,7 @@ mod invalid;
 mod invisible;
 mod kaolin_sidebar;
 mod known_gaps_demo;
+mod label_for;
 mod layout;
 mod layout_animation;
 mod layout_dnd;
