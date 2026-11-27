@@ -4,13 +4,13 @@
 use std::ops::{Bound, RangeBounds};
 use std::rc::Rc;
 
-use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, StrokeKind, Ui, Vec2, pos2};
+use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, Ui, Vec2, pos2};
 use taffy::FlexDirection;
 
 use super::options::{Configure, Interactive, Options, Resolved, Respond};
 use super::{Enablement, OnResponse, number, tipped};
 use crate::builder::Slot;
-use crate::contract::{Focus, SplitterStyle};
+use crate::contract::SplitterStyle;
 use crate::draw::pane_rect;
 use crate::plane::Axis;
 use crate::{Builder, Easing, NodeUi as _, Progress, transition, tw};
@@ -363,7 +363,8 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             Axis::Y => tw().h_px(thickness).self_stretch(),
         }
         .shrink_0()
-        .sense_click_drag();
+        .sense_click_drag()
+        .focus(|p| p.ring(ring.width, ring.color));
         let classes = match enablement {
             Enablement::Enabled => classes,
             Enablement::Disabled => classes.inert(),
@@ -376,7 +377,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             limits,
             reset,
             style,
-            ring,
         };
         if b.ctx().is_being_dragged(slot.id) {
             b.size_in_flight();
@@ -422,7 +422,6 @@ struct Handle {
     limits: Limits,
     reset: Option<PaneSize>,
     style: SplitterStyle,
-    ring: Focus,
 }
 
 impl Handle {
@@ -459,14 +458,6 @@ impl Handle {
             Heat::Rest
         };
         self.paint(ui, response.rect, heat);
-        if response.has_focus() {
-            ui.painter().rect_stroke(
-                response.rect,
-                0.0,
-                Stroke::new(self.ring.width, self.ring.color),
-                StrokeKind::Inside,
-            );
-        }
         let (min, max) = (self.limits.min, self.limits.max);
         ui.ctx().accesskit_node_builder(response.id, |node| {
             node.set_numeric_value(f64::from(f32::from(self.size)));
