@@ -56,9 +56,7 @@ mod command_palette;
 #[path = "../../examples/dialog.rs"]
 mod dialog;
 
-#[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../../examples/menu.rs"]
-mod menu;
+use eggshell_examples::menu;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/accordion.rs"]

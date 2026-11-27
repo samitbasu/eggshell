@@ -1,15 +1,10 @@
 //! A window with a label; the smallest thing `cargo xtask example` can run.
+//! The example is `eggshell_examples::hello`.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-use eggshell_examples::common;
+use eggshell_examples::{common, hello};
 
 fn main() -> eframe::Result {
-    let mut theme_bar = common::ThemeBar::new(&common::shared_style());
-    common::launch("hello", None, move |ui| {
-        theme_bar.show(ui);
-        egui::CentralPanel::default().show(ui, |ui| {
-            ui.label("Hello, eggshell");
-        });
-    })
+    common::run("hello", (), hello::view)
 }

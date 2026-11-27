@@ -17,9 +17,7 @@ use proptest::prelude::*;
 
 use eggshell_examples::common;
 
-#[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../../examples/menu.rs"]
-mod menu;
+use eggshell_examples::menu;
 
 fn body() -> TextStyle {
     TextStyle::new(

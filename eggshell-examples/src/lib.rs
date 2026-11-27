@@ -3,3 +3,6 @@
 //! documentation site embed the same views.
 
 pub mod common;
+pub mod counter;
+pub mod hello;
+pub mod menu;

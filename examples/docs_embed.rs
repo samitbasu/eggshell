@@ -5,7 +5,7 @@
 //! the top switches the theme colour, which colours the selected example's
 //! ring.
 
-use eggshell_examples::common;
+use eggshell_examples::{common, counter};
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::owned::markdown::{Directive, Directives, Typeset};
@@ -49,11 +49,6 @@ const THEMES: [(ThemeColor, &str); 3] = [
 ];
 
 #[derive(Default)]
-pub struct Counter {
-    pub count: u32,
-}
-
-#[derive(Default)]
 pub struct Menu {
     pub grid: bool,
     pub chosen: Option<&'static str>,
@@ -82,7 +77,7 @@ impl Default for List {
 #[derive(Default)]
 pub struct State {
     pub theme: ThemeColor,
-    pub clicks: Counter,
+    pub clicks: counter::State,
     pub menu: Menu,
     pub form: Form,
     pub list: List,
@@ -101,8 +96,6 @@ pub enum Part {
     Caption,
     Mock,
     Frame,
-    Add,
-    Count,
     Actions,
     Grid,
     Hint,
@@ -145,14 +138,6 @@ fn form_commands() -> Commands<Form> {
         })
         .shortcut(SAVE),
     )
-}
-
-pub fn counter<'f>(b: &mut Builder<'_, 'f, Counter>, counter: &'f Counter) {
-    b.div(tw().flex().flex_row().items_center().gap(3.0), |b| {
-        b.button(Part::Add, "Add one")
-            .on_click(|counter: &mut Counter| counter.count += 1);
-        b.span(Part::Count, tw(), format!("Counted {}", counter.count));
-    });
 }
 
 pub fn menu<'f>(b: &mut Builder<'_, 'f, Menu>, menu: &'f Menu) {
@@ -246,7 +231,7 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
                 tw(),
                 &state.clicks,
                 |s: &mut State| &mut s.clicks,
-                counter,
+                counter::view,
             ),
             caption,
         ),

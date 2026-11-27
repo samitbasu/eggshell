@@ -56,6 +56,7 @@ mod driver;
 mod duplicate_key;
 mod edits;
 mod egui_look;
+mod embeddable;
 mod escape_field;
 mod expanded;
 mod field_box;
