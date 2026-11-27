@@ -6,17 +6,24 @@
 
 use core::time::Duration;
 
+use eggshell_ui::overlay::Shown;
+use eggshell_ui::owned::accordion::Single;
 use eggshell_ui::owned::options::{Configure, Interactive, Respond};
 use eggshell_ui::owned::splitter::PaneSize;
+use eggshell_ui::owned::table::Column;
 use eggshell_ui::owned::{Enablement, Mark, toggle_group};
 use eggshell_ui::prelude::*;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::theme::Tokens;
-use eggshell_ui::{Style, TextStyle};
-use egui::{Context, Id, Shape, Theme, vec2};
+use eggshell_ui::{Style, TextStyle, Track};
+use egui::{Context, Id, Role, Shape, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 
 use crate::support;
+
+/// The size two `classes` calls give a control's node between them: taller
+/// than any control's content, which a flex item does not shrink below.
+const SIZED: (f32, f32) = (173.0, 61.0);
 
 const CHOICES: [(u8, &str); 3] = [(0, "Zero"), (1, "One"), (2, "Two")];
 
@@ -36,9 +43,16 @@ enum Control {
     Custom,
     Number,
     Dropdown,
+    Disclosure,
+    Section,
+    AccordionItem,
+    Tabs,
+    CommandList,
+    Combobox,
+    Autosuggest,
 }
 
-const ALL: [Control; 14] = [
+const ALL: [Control; 21] = [
     Control::Button,
     Control::Toggle,
     Control::Checkbox,
@@ -53,6 +67,13 @@ const ALL: [Control; 14] = [
     Control::Custom,
     Control::Number,
     Control::Dropdown,
+    Control::Disclosure,
+    Control::Section,
+    Control::AccordionItem,
+    Control::Tabs,
+    Control::CommandList,
+    Control::Combobox,
+    Control::Autosuggest,
 ];
 
 impl Control {
@@ -67,6 +88,11 @@ impl Control {
             Self::Slider => r#""target"/Track/Thumb"#,
             Self::Stepper => r#""target"/Box/Field"#,
             Self::Number => r#""target"/Readout"#,
+            Self::Section => r#""target"/Header"#,
+            Self::AccordionItem => r#""item"/Header"#,
+            Self::Tabs => r#""target"/List/Tab(1)"#,
+            Self::CommandList => "/Search/Query",
+            Self::Combobox | Self::Autosuggest => "Field)",
             _ => r#""target""#,
         }
     }
@@ -83,8 +109,28 @@ impl Control {
     /// the control is: a group's option, or the control itself.
     fn input_label(self) -> &'static str {
         match self {
-            Self::RadioGroup | Self::Segmented => "Zero",
+            Self::RadioGroup | Self::Segmented | Self::Tabs => "Zero",
             _ => self.label(),
+        }
+    }
+
+    /// The role of the node named [`label`](Self::label) that takes input,
+    /// where another node of the control shares the name: a section's
+    /// region, a command list's listbox.
+    fn input_role(self) -> Option<Role> {
+        match self {
+            Self::Section | Self::AccordionItem => Some(Role::Button),
+            Self::CommandList => Some(Role::ComboBox),
+            _ => None,
+        }
+    }
+
+    /// The node assistive technology reads as the control named "Target"
+    /// (`label`), or as the node disabled with it (`input_label`).
+    fn node<'d>(self, d: &'d Driver<App>, label: &'d str) -> egui_kittest::Node<'d> {
+        match self.input_role() {
+            Some(role) if label == self.label() => d.harness().get_by_role_and_label(role, label),
+            _ => d.harness().get_by_label(label),
         }
     }
 }
@@ -144,8 +190,8 @@ impl App {
 fn shared<C: Interactive + Respond<App = App>>(chain: C, app: &App) -> C {
     let chain = chain
         .named("Target")
-        .classes(tw().w_px(173.0))
-        .classes(tw().h_px(41.0))
+        .classes(tw().w_px(SIZED.0))
+        .classes(tw().h_px(SIZED.1))
         .tooltip("Tip")
         .on_response(|app: &mut App, _| app.responses += 1);
     match app.gate {
@@ -206,6 +252,41 @@ fn control(b: &mut Builder<'_, '_, App>, app: &App) {
                 m.item("copy", "Copy").on_click(|_| {});
             });
         }
+        Control::Disclosure => {
+            shared(b.disclosure("target", Shown::Closed), app).on_change(|_, _| {})
+        }
+        Control::Section => {
+            shared(
+                b.section("target", "Press", Shown::Open)
+                    .on_change(|_, _| {}),
+                app,
+            )
+            .children(|b| b.text(tw(), "Body"));
+        }
+        Control::AccordionItem => {
+            b.accordion("target", Single::collapsible(None::<&str>))
+                .on_change(|_, _| {})
+                .items(|items| {
+                    shared(items.item("item", "Press"), app).children(|b| b.text(tw(), "Body"));
+                });
+        }
+        Control::Tabs => {
+            shared(b.tabs("target", 1u8, CHOICES), app)
+                .on_change(|_, _| {})
+                .panel(|b, _| b.text(tw(), "Panel"));
+        }
+        Control::CommandList => {
+            shared(b.command_list("target"), app).items(|items| {
+                items.item("alpha", "Alpha").on_pick(|_| {});
+            });
+        }
+        Control::Combobox => {
+            let options = CHOICES.map(|(value, label)| (value, label.to_owned()));
+            shared(b.combobox("target", Some(1u8), options), app).on_change(|_, _| {});
+        }
+        Control::Autosuggest => {
+            shared(b.autosuggest("target", "Text", ["Texts".to_owned()]), app).on_change(|_, _| {});
+        }
     }
 }
 
@@ -222,6 +303,11 @@ fn quick_tooltips(style: &mut Style) {
 }
 
 fn driver(app: App) -> Driver<App> {
+    rig(app, view)
+}
+
+/// `view` of `app`, with quick tooltips, settled.
+fn rig<A: 'static>(app: A, view: support::View<A>) -> Driver<A> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut d = support::driver(
         vec2(500.0, 400.0),
@@ -237,7 +323,7 @@ fn driver(app: App) -> Driver<App> {
     d
 }
 
-fn painted(d: &Driver<App>, text: &str) -> bool {
+fn painted<A>(d: &Driver<A>, text: &str) -> bool {
     support::shapes(d).iter().any(|shape| match shape {
         Shape::Text(shape) => shape.galley.text() == text,
         _ => false,
@@ -249,7 +335,10 @@ fn named_is_the_accessible_name_of_every_chain() {
     for control in ALL {
         let d = driver(App::new(control, Gate::Open));
         assert!(
-            d.harness().query_by_label(control.label()).is_some(),
+            !d.harness()
+                .query_all_by_label(control.label())
+                .collect::<Vec<_>>()
+                .is_empty(),
             "{control:?}"
         );
     }
@@ -262,12 +351,12 @@ fn classes_merge_across_calls_on_every_chain() {
         let nodes = support::nodes(&d);
         let own: Vec<_> = nodes
             .iter()
-            .filter(|(path, _)| path.starts_with(r#"/"target""#))
+            .filter(|(path, _)| path.contains(r#""target""#))
             .collect();
         assert!(!own.is_empty(), "precondition: {control:?} is built");
         assert!(
             own.iter()
-                .any(|(_, rect)| (rect.width(), rect.height()) == (173.0, 41.0)),
+                .any(|(_, rect)| (rect.width(), rect.height()) == SIZED),
             "{control:?}: both calls' classes hold on one node: {own:?}"
         );
     }
@@ -279,9 +368,8 @@ fn enablement_refused_when_and_when_some_gate_every_chain() {
     for control in ALL {
         for gate in GATES {
             let d = driver(App::new(control, gate));
-            let disabled = d
-                .harness()
-                .get_by_label(control.input_label())
+            let disabled = control
+                .node(&d, control.input_label())
                 .accesskit_node()
                 .is_disabled();
             assert_eq!(disabled, !gate.enabled(), "{control:?} {gate:?}");
@@ -310,9 +398,8 @@ fn the_refusal_is_the_accessible_description_of_every_chain() {
     use egui_kittest::kittest::NodeT as _;
     for control in ALL {
         let d = driver(App::new(control, Gate::Refused));
-        let description = d
-            .harness()
-            .get_by_label(control.label())
+        let description = control
+            .node(&d, control.label())
             .accesskit_node()
             .description();
         assert_eq!(description.as_deref(), Some("Busy"), "{control:?}");
@@ -349,9 +436,15 @@ mod with {
         MenuCheckbox,
         Node,
         Disclosure,
+        Tabs,
+        ChipClick,
+        ChipRemove,
+        TableSelect,
+        Section,
+        Accordion,
     }
 
-    const TERMINATORS: [Terminator; 15] = [
+    const TERMINATORS: [Terminator; 21] = [
         Terminator::Button,
         Terminator::Toggle,
         Terminator::ToggleItem,
@@ -367,6 +460,12 @@ mod with {
         Terminator::MenuCheckbox,
         Terminator::Node,
         Terminator::Disclosure,
+        Terminator::Tabs,
+        Terminator::ChipClick,
+        Terminator::ChipRemove,
+        Terminator::TableSelect,
+        Terminator::Section,
+        Terminator::Accordion,
     ];
 
     fn mark() -> Id {
@@ -468,6 +567,31 @@ mod with {
                         .named("More")
                         .on_change_with(|app, ctx, _| ran(app, ctx));
                 }
+                Terminator::Tabs => {
+                    b.tabs("target", 0u8, CHOICES)
+                        .on_change_with(|app, ctx, _| ran(app, ctx))
+                        .panel(|b, _| b.text(tw(), "Panel"));
+                }
+                Terminator::ChipClick => b.chip("target", "Rust").on_click_with(ran).add(),
+                Terminator::ChipRemove => b.chip("target", "Rust").on_remove_with(ran).add(),
+                Terminator::TableSelect => {
+                    b.table("target")
+                        .columns([Column::new(Track::auto())])
+                        .selected(None)
+                        .on_select_with(|app, ctx, _: u8| ran(app, ctx))
+                        .rows(&[1u8], |n| *n, |row, n| row.cell_text(n.to_string()))
+                        .add();
+                }
+                Terminator::Section => {
+                    b.section("target", "Press", Shown::Closed)
+                        .on_change_with(|app, ctx, _| ran(app, ctx))
+                        .children(|_| {});
+                }
+                Terminator::Accordion => {
+                    b.accordion("target", Single::collapsible(None::<&str>))
+                        .on_change_with(|app, ctx, _| ran(app, ctx))
+                        .items(|items| items.item("item", "Press").children(|_| {}));
+                }
             },
         );
     }
@@ -490,6 +614,21 @@ mod with {
             Terminator::Segmented => {
                 d.click(Target::suffix(r#""target"/2"#));
             }
+            Terminator::Tabs => {
+                d.click(Target::suffix(r#""target"/List/Tab(2)"#));
+            }
+            Terminator::ChipRemove => {
+                d.click(Target::suffix(r#""target"/"remove""#));
+            }
+            Terminator::TableSelect => {
+                d.click(Target::suffix("Row(1)"));
+            }
+            Terminator::Section => {
+                d.click(Target::suffix(r#""target"/Header"#));
+            }
+            Terminator::Accordion => {
+                d.click(Target::suffix(r#""item"/Header"#));
+            }
             Terminator::TextField => {
                 d.type_text("x");
             }
@@ -504,7 +643,11 @@ mod with {
                 d.frames(4);
                 d.click(Target::suffix(r#""target""#));
             }
-            Terminator::Button | Terminator::Toggle | Terminator::Node | Terminator::Disclosure => {
+            Terminator::Button
+            | Terminator::Toggle
+            | Terminator::Node
+            | Terminator::Disclosure
+            | Terminator::ChipClick => {
                 d.click(Target::suffix(r#""target""#));
             }
         }
@@ -632,5 +775,257 @@ mod others {
                 .is_disabled()
         );
         assert_eq!(support::rect_of(&d, r#"/"box""#).width(), 200.0);
+    }
+}
+
+/// What the converted chains with several parts do with their options
+/// beyond the table's checks.
+mod parts {
+    use super::*;
+    use eggshell_ui::owned::choice::Choice;
+
+    struct Picks {
+        enablement: Enablement,
+        picks: u32,
+    }
+
+    fn palette(b: &mut Builder<'_, '_, Picks>, app: &Picks) {
+        b.command_list("palette")
+            .named("Commands")
+            .enablement(app.enablement)
+            .items(|items| {
+                items
+                    .item("alpha", "Alpha")
+                    .on_pick(|app: &mut Picks| app.picks += 1);
+            });
+    }
+
+    #[test]
+    fn a_disabled_command_list_takes_no_pick() {
+        for (enablement, picks) in [(Enablement::Enabled, 1), (Enablement::Disabled, 0)] {
+            let mut d = rig(
+                Picks {
+                    enablement,
+                    picks: 0,
+                },
+                palette,
+            );
+            assert!(
+                painted(&d, "Alpha"),
+                "precondition: {enablement:?} shows its item"
+            );
+            d.click(Target::Text("Alpha".to_owned()));
+            d.frames(4);
+            assert_eq!(d.app().picks, picks, "{enablement:?}");
+        }
+    }
+
+    fn fruit(b: &mut Builder<'_, '_, Picks>, app: &Picks) {
+        let options = CHOICES.map(|(value, label)| (value, label.to_owned()));
+        b.combobox("fruit", None, options)
+            .named("Fruit")
+            .tooltip("Tip")
+            .enablement(app.enablement)
+            .on_change(|_, _: u8| {});
+    }
+
+    #[test]
+    fn a_disabled_combobox_does_not_open() {
+        for (enablement, opens) in [(Enablement::Enabled, true), (Enablement::Disabled, false)] {
+            let mut d = rig(
+                Picks {
+                    enablement,
+                    picks: 0,
+                },
+                fruit,
+            );
+            assert!(
+                !painted(&d, "Zero"),
+                "precondition: {enablement:?} starts closed"
+            );
+            d.click(Target::role(Role::Button, "Show options"));
+            d.frames(6);
+            assert_eq!(painted(&d, "Zero"), opens, "{enablement:?}");
+        }
+    }
+
+    #[test]
+    fn a_combobox_s_tooltip_shows_over_its_whole_box() {
+        let mut d = rig(
+            Picks {
+                enablement: Enablement::Enabled,
+                picks: 0,
+            },
+            fruit,
+        );
+        d.hover(Target::role(Role::Button, "Show options"));
+        support::rest_for_tooltip(&mut d);
+        assert!(painted(&d, "Tip"));
+    }
+
+    fn tabs(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.tabs(
+            "tabs",
+            0u8,
+            [
+                Choice::new(0u8, "Zero"),
+                Choice::new(1u8, "One").tooltip("Own"),
+            ],
+        )
+        .tooltip("Tip")
+        .on_change(|_, _| {})
+        .panel(|b, _| b.text(tw(), "Panel"));
+    }
+
+    #[test]
+    fn a_tab_s_own_tooltip_shows_instead_of_the_tabs() {
+        for (tab, shown, hidden) in [("Zero", "Tip", "Own"), ("One", "Own", "Tip")] {
+            let mut d = rig((), tabs);
+            d.hover(Target::role(Role::Tab, tab));
+            support::rest_for_tooltip(&mut d);
+            assert!(painted(&d, shown), "{tab}: {shown} shows");
+            assert!(!painted(&d, hidden), "{tab}: {hidden} does not");
+        }
+    }
+}
+
+/// The chains that take no input of their own, which have only
+/// `Configure`'s options: a table, an accordion's column and a dialog.
+mod configure_only {
+    use super::*;
+    use eggshell_ui::overlay::Modal;
+    use eggshell_ui::owned::dialog::Dialog;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Chain {
+        Table,
+        Accordion,
+        Dialog,
+    }
+
+    /// Taller than a dialog's header and body.
+    const BOX: (f32, f32) = (173.0, 141.0);
+
+    const CHAINS: [Chain; 3] = [Chain::Table, Chain::Accordion, Chain::Dialog];
+
+    impl Chain {
+        /// The role assistive technology reads the named chain as.
+        fn role(self) -> Role {
+            match self {
+                Self::Table => Role::Table,
+                Self::Accordion => Role::Group,
+                Self::Dialog => Role::Dialog,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Naming {
+        Named,
+        Unnamed,
+    }
+
+    struct Page {
+        chain: Chain,
+        naming: Naming,
+    }
+
+    fn configured<C: Configure>(chain: C, naming: Naming) -> C {
+        chain
+            .when(naming == Naming::Named, |chain| chain.named("Target"))
+            .classes(tw().w_px(BOX.0))
+            .classes(tw().h_px(BOX.1))
+            .when_some(Some("Tip"), |chain, tip| chain.tooltip(tip))
+            .when_some(None::<&str>, |chain, tip| chain.tooltip(tip))
+    }
+
+    fn view(b: &mut Builder<'_, '_, Page>, app: &Page) {
+        b.div(tw().flex().flex_col().items_start().p(8.0), |b| {
+            match app.chain {
+                Chain::Table => {
+                    configured(b.table("target"), app.naming)
+                        .columns([Column::new(Track::auto())])
+                        .rows(&[1u8], |n| *n, |row, n| row.cell_text(n.to_string()))
+                        .add();
+                }
+                Chain::Accordion => {
+                    configured(
+                        b.accordion("target", Single::collapsible(None::<&str>)),
+                        app.naming,
+                    )
+                    .on_change(|_, _| {})
+                    .items(|items| items.item("item", "Press").children(|_| {}));
+                }
+                Chain::Dialog => {
+                    b.overlay("target")
+                        .modal(Modal::Center)
+                        .shown(Shown::Open)
+                        .on_dismiss(|_| {})
+                        .dialog(configured(Dialog::new("Title"), app.naming), |d| {
+                            d.body(|s| s.text(tw(), "Body"));
+                        });
+                }
+            }
+        });
+    }
+
+    fn driver(chain: Chain, naming: Naming) -> Driver<Page> {
+        rig(Page { chain, naming }, view)
+    }
+
+    /// The rect of the one node both `classes` calls sized.
+    fn sized(d: &Driver<Page>) -> Option<egui::Rect> {
+        support::nodes(d)
+            .into_iter()
+            .map(|(_, rect)| rect)
+            .find(|rect| (rect.width(), rect.height()) == BOX)
+    }
+
+    #[test]
+    fn named_names_the_chain_in_its_role() {
+        for chain in CHAINS {
+            let d = driver(chain, Naming::Named);
+            assert!(
+                d.harness()
+                    .query_by_role_and_label(chain.role(), "Target")
+                    .is_some(),
+                "{chain:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unnamed_accordion_is_no_group_and_an_unnamed_dialog_is_named_by_its_title() {
+        let d = driver(Chain::Accordion, Naming::Unnamed);
+        assert!(d.harness().query_by_role(Role::Group).is_none());
+        let d = driver(Chain::Dialog, Naming::Unnamed);
+        assert!(
+            d.harness()
+                .query_by_role_and_label(Role::Dialog, "Title")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn classes_merge_across_calls_on_the_chain_s_box() {
+        for chain in CHAINS {
+            let d = driver(chain, Naming::Named);
+            assert!(sized(&d).is_some(), "{chain:?}: {:?}", support::nodes(&d));
+        }
+    }
+
+    #[test]
+    fn the_tooltip_shows_over_the_chain_s_box() {
+        for chain in CHAINS {
+            let mut d = driver(chain, Naming::Named);
+            assert!(
+                !painted(&d, "Tip"),
+                "precondition: {chain:?} shows no tip at rest"
+            );
+            let at = sized(&d).expect("precondition: the box is sized").center();
+            d.hover(Target::Point(at));
+            support::rest_for_tooltip(&mut d);
+            assert!(painted(&d, "Tip"), "{chain:?}");
+        }
     }
 }

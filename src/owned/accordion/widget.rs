@@ -2,13 +2,15 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::overlay::{Nav, Shown, Wrap};
-use crate::owned::{Enablement, button::Face};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
+use crate::owned::{OnResponse, announce_group, button::Face, tipped_whole};
 use crate::{Builder, Key, Scope, Tw, tw};
+use egui::{Context, Role};
 
 use crate::owned::disclosure::SectionExt;
 
 /// What an accordion runs with what a header asked for.
-type OnItems<A, C> = Rc<dyn Fn(&mut A, C)>;
+type OnItems<A, C> = Rc<dyn Fn(&mut A, &Context, C)>;
 
 /// TODO(prose): an accordion item's value: its key under the accordion's.
 pub trait Value: Key + Copy + PartialEq {}
@@ -117,27 +119,32 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
             b: self,
             key,
             mode,
-            classes: tw(),
+            opts: Options::new(),
         }
     }
 }
 
 /// TODO(prose): an accordion not yet given its `on_change`.
+///
+/// Of the shared options it has only [`Configure`]'s, in scope through the
+/// [`prelude`](crate::prelude), which are the column's: a named accordion
+/// is announced as a [`Group`](Role::Group) of that name. Each item's are
+/// its header's, set on the chain [`Items::item`] returns.
 #[must_use = "an accordion is built by `.on_change(..).items(..)`"]
 pub struct Chain<'s, 'b, 'f, A, K, M> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     mode: M,
-    classes: Tw,
+    opts: Options,
+}
+
+impl<A, K, M> Configure for Chain<'_, '_, '_, A, K, M> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, M> Chain<'s, 'b, 'f, A, K, M> {
-    /// TODO(prose): classes merged over the column's styled ones.
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
-        self
-    }
-
     /// TODO(prose): `on_change` is handed what the mode says a header asked
     /// for.
     pub fn on_change<T: Value, C>(
@@ -147,11 +154,23 @@ impl<'s, 'b, 'f, A: 'static, K: Key, M> Chain<'s, 'b, 'f, A, K, M> {
     where
         M: Mode<T, Change = C>,
     {
+        self.on_change_with(move |app, _, change| on_change(app, change))
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_change_with<T: Value, C>(
+        self,
+        on_change: impl Fn(&mut A, &Context, C) + 'static,
+    ) -> BoundAccordion<'s, 'b, 'f, A, K, M, T, C>
+    where
+        M: Mode<T, Change = C>,
+    {
         BoundAccordion {
             b: self.b,
             key: self.key,
             mode: self.mode,
-            classes: self.classes,
+            opts: self.opts,
             on_change: Rc::new(on_change),
             value: PhantomData,
         }
@@ -165,9 +184,15 @@ pub struct BoundAccordion<'s, 'b, 'f, A, K, M, T, C> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     mode: M,
-    classes: Tw,
+    opts: Options,
     on_change: OnItems<A, C>,
     value: PhantomData<fn(T)>,
+}
+
+impl<A, K, M, T, C> Configure for BoundAccordion<'_, '_, '_, A, K, M, T, C> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
 }
 
 impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
@@ -179,24 +204,38 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             b,
             key,
             mode,
-            classes,
+            opts,
             on_change,
             value: _,
         } = self;
-        let column = b.part(
-            super::Part::Root,
-            &[],
-            tw().flex().flex_col().merge(classes),
-        );
-        b.div_id(key, column, |b| {
-            items(&mut Items {
-                b,
-                mode: Rc::new(mode),
-                on_change,
-                value: PhantomData,
-            });
-        })
-        .nav(Nav::Column(Wrap::Around));
+        let slot = b.slot(&key);
+        let Resolved {
+            name,
+            classes,
+            tooltip,
+            ..
+        } = opts.resolve(b, slot.id);
+        let own = match tooltip {
+            Some(_) => tw().flex().flex_col().sense_hover(),
+            None => tw().flex().flex_col(),
+        };
+        let column = b.part(super::Part::Root, &[], own.merge(classes));
+        let handle = b
+            .div_id_with(&slot, column, |b| {
+                items(&mut Items {
+                    b,
+                    mode: Rc::new(mode),
+                    on_change,
+                    value: PhantomData,
+                });
+            })
+            .nav(Nav::Column(Wrap::Around));
+        handle.draw(move |_, ui| {
+            tipped_whole(ui, &tooltip);
+            if name.is_some() {
+                announce_group(ui, Role::Group, name.as_deref());
+            }
+        });
     }
 }
 
@@ -220,18 +259,18 @@ impl<'i, 'b, 'f, A: 'static, M: Mode<T, Change = C>, T: Value, C: Clone + 'stati
         let closed = self.mode.change(value, Shown::Closed);
         let pinned = shown.is_open() && closed.is_none();
         let on_change = Rc::clone(&self.on_change);
-        let section = self
-            .b
-            .section(value, face, shown)
-            .on_change(move |app: &mut A, to| {
-                let change = match to {
-                    Shown::Open => opened.clone(),
-                    Shown::Closed => closed.clone(),
-                };
-                if let Some(change) = change {
-                    on_change(app, change);
-                }
-            });
+        let section =
+            self.b
+                .section(value, face, shown)
+                .on_change_with(move |app: &mut A, ctx, to| {
+                    let change = match to {
+                        Shown::Open => opened.clone(),
+                        Shown::Closed => closed.clone(),
+                    };
+                    if let Some(change) = change {
+                        on_change(app, ctx, change);
+                    }
+                });
         let section = section.in_column();
         ItemChain {
             section: if pinned { section.pinned() } else { section },
@@ -240,7 +279,9 @@ impl<'i, 'b, 'f, A: 'static, M: Mode<T, Change = C>, T: Value, C: Clone + 'stati
 }
 
 /// TODO(prose): an accordion item: the options of a
-/// [`section`](crate::owned::disclosure::SectionExt::section).
+/// [`section`](crate::owned::disclosure::SectionExt::section). Its shared
+/// options, from [`Configure`], [`Interactive`] and [`Respond`], are its
+/// header's; a disabled item is faded and the arrow keys pass it by.
 #[must_use = "an item is built by `.children(..)`"]
 pub struct ItemChain<'s, 'b, 'f, A, T> {
     section: crate::owned::disclosure::SectionChain<
@@ -253,26 +294,27 @@ pub struct ItemChain<'s, 'b, 'f, A, T> {
     >,
 }
 
-impl<'f, A: 'static, T: Value> ItemChain<'_, '_, 'f, A, T> {
-    /// TODO(prose): classes merged over the header's styled ones.
-    pub fn classes(self, classes: Tw) -> Self {
-        Self {
-            section: self.section.classes(classes),
-        }
+impl<A, T> Configure for ItemChain<'_, '_, '_, A, T> {
+    fn options(&mut self) -> &mut Options {
+        self.section.options()
     }
+}
 
+impl<A, T> Interactive for ItemChain<'_, '_, '_, A, T> {}
+
+impl<A, T> Respond for ItemChain<'_, '_, '_, A, T> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        self.section.responses()
+    }
+}
+
+impl<'f, A: 'static, T: Value> ItemChain<'_, '_, 'f, A, T> {
     /// TODO(prose): classes merged over the content block's styled ones.
     pub fn content(self, content: Tw) -> Self {
         Self {
             section: self.section.content(content),
-        }
-    }
-
-    /// TODO(prose): whether the header takes input; a disabled item is
-    /// faded and skipped.
-    pub fn enablement(self, enablement: impl Into<Enablement>) -> Self {
-        Self {
-            section: self.section.enablement(enablement),
         }
     }
 

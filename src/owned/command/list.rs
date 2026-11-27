@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::owned::options::Configure as _;
-use crate::owned::{Enablement, Mark, input, menu};
+use crate::owned::options::{Configure as _, Options as Shared, Respond as _};
+use crate::owned::{Enablement, Mark, OnResponse, input, menu};
 use crate::sheet::Key as SheetKey;
 use crate::vlist::{ListNav, RowKind};
 use crate::{
@@ -469,14 +469,19 @@ pub(crate) fn show<'f, A: 'static>(
     };
     let Options {
         placeholder,
-        name,
+        mut shared,
+        on_response,
         filter,
         filtering,
         on_query,
         empty,
-        classes,
         error: _,
     } = options;
+    let name = shared.name().map(str::to_owned);
+    let classes = match shared.enablement_in(b) {
+        Enablement::Enabled => shared.take_classes(),
+        Enablement::Disabled => shared.take_classes().inert(),
+    };
     let picker = b.ctx().clone();
     let listing = Rc::new(Listing::filtered(items, &query, filter.as_ref(), filtering));
     let looks = shape.looks;
@@ -489,7 +494,13 @@ pub(crate) fn show<'f, A: 'static>(
     b.div_id(key, root, |s| {
         let field = match field {
             Some(field) => field,
-            None => search_field(s, key, &query, placeholder, name.clone(), on_query),
+            None => search_field(
+                s,
+                (key, &query),
+                placeholder,
+                (shared, on_response),
+                on_query,
+            ),
         };
         let rows = listing.rows.clone();
         if rows.is_empty() {
@@ -619,10 +630,9 @@ pub(crate) fn show<'f, A: 'static>(
 
 fn search_field<A: 'static>(
     s: &mut Scope<'_, '_, A>,
-    list: Id,
-    query: &str,
+    (list, query): (Id, &str),
     placeholder: Option<String>,
-    name: Option<String>,
+    (shared, on_response): (Shared, OnResponse<A>),
     on_query: Option<super::Heard<A>>,
 ) -> Id {
     let wrapper = s.part(Part::InputWrapper, &[], tw());
@@ -659,15 +669,16 @@ fn search_field<A: 'static>(
             if let Some(placeholder) = placeholder {
                 chain = chain.hint(placeholder);
             }
-            if let Some(name) = name {
-                chain = chain.named(name);
-            }
-            chain.on_change(move |app, query| {
-                if let Some(on_query) = &on_query {
-                    on_query(app, &query);
-                }
-                Query::set(&ctx, list, query);
-            });
+            let options = chain.options();
+            *options = std::mem::take(options).merge(shared);
+            chain
+                .on_response(move |app, response| on_response.run(app, response))
+                .on_change(move |app, query| {
+                    if let Some(on_query) = &on_query {
+                        on_query(app, &query);
+                    }
+                    Query::set(&ctx, list, query);
+                });
         });
     });
     field

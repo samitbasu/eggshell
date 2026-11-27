@@ -319,7 +319,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                         .announces(Role::Button)
                         .draw(move |app, ui| {
                             let response = described(ui, Role::Button, None, name.trim(), &None);
-                            tip_describes(ui, &response, &spec.tooltip);
+                            tip_describes(&response, &spec.tooltip);
                             if response.clicked() {
                                 spec.edits.once(app, |app| {
                                     let value = spec.step.moved(spec.value, steps, spec.range);
@@ -439,7 +439,7 @@ impl<A> Spec<A> {
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
-        tip_describes(ui, &response, &self.tooltip);
+        tip_describes(&response, &self.tooltip);
         self.validity.describe(ui.ctx(), response.id);
         let asked = self.autofocus.apply(ui.ctx(), &response);
         let opening = text_field::Opening::of_number(&response, asked);

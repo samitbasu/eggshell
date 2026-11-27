@@ -32,8 +32,9 @@ use crate::owned::accordion;
 use std::rc::Rc;
 
 use crate::overlay::Shown;
-use crate::owned::{Enablement, button::Face};
-use crate::{Builder, Key, NodeUi as _, Problem, Progress, Tw, tw};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
+use crate::owned::{Enablement, OnResponse, button::Face, hooked};
+use crate::{Builder, Key, NodeUi as _, Problem, Progress, tw};
 use egui::{Color32, Role};
 
 pub use section::SectionChain;
@@ -46,7 +47,7 @@ pub struct Unset;
 pub struct OnChange<A>(ChangeFn<A>);
 
 /// What a section runs with the state its header asks for.
-type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
+type ChangeFn<A> = Rc<dyn Fn(&mut A, &egui::Context, Shown)>;
 
 /// TODO(prose): writes the looks the user chose where they differ from
 /// shadcn's accordion (#350, #384) over a preset's generated sheet: the
@@ -147,14 +148,6 @@ fn progress_of(shown: Shown) -> Progress {
     }
 }
 
-/// Disabled if the place it is built in, or its own setting, is.
-fn enablement_in<A>(b: &Builder<'_, '_, A>, own: Enablement) -> Enablement {
-    match (b.enablement(), own) {
-        (Enablement::Enabled, Enablement::Enabled) => Enablement::Enabled,
-        _ => Enablement::Disabled,
-    }
-}
-
 /// The accessible name a face gives.
 fn name_of(face: &Face) -> &str {
     match face {
@@ -200,7 +193,7 @@ impl<'b, 'f, A: 'static> SectionExt<'b, 'f, A> for Builder<'b, 'f, A> {
 pub trait Ext<'b, 'f, A> {
     /// TODO(prose): a disclosure button, a chevron that says whether what it
     /// folds is open as `current` says, for a tree row. It snaps. Name it
-    /// with [`named`](Chain::named): an unnamed one is reported
+    /// with [`named`](Configure::named): an unnamed one is reported
     /// as [`Unnamed`](Problem::Unnamed). It is added by
     /// [`on_change`](Chain::on_change).
     fn disclosure<'s, K: Key>(&'s mut self, key: K, current: Shown) -> Chain<'s, 'b, 'f, A, K>;
@@ -212,47 +205,45 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
             b: self,
             key,
             current,
-            name: None,
-            classes: tw(),
-            enablement: Enablement::Enabled,
+            opts: Options::new(),
+            on_response: OnResponse::default(),
         }
     }
 }
 
 /// TODO(prose): a disclosure button: see
 /// [`Ext::disclosure`].
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude), and are
+/// all the button's. Its name is the row's label, the same open or closed;
+/// `expanded` says which.
 #[must_use = "a disclosure button is added by `.on_change(..)`"]
 pub struct Chain<'s, 'b, 'f, A, K> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     current: Shown,
-    name: Option<String>,
-    classes: Tw,
-    enablement: Enablement,
+    opts: Options,
+    on_response: OnResponse<A>,
+}
+
+impl<A, K> Configure for Chain<'_, '_, '_, A, K> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, K> Interactive for Chain<'_, '_, '_, A, K> {}
+
+impl<A, K> Respond for Chain<'_, '_, '_, A, K> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
 }
 
 impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
-    /// TODO(prose): the accessible name: the row's label. It stays the same
-    /// open or closed; `expanded` says which.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// TODO(prose): classes merged over the styled ones; the later class
-    /// wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
-        self
-    }
-
-    /// TODO(prose): whether the button takes input. Inside an inert
-    /// subtree it is disabled either way.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
-        self
-    }
-
     /// TODO(prose): adds the button; `on_change` runs with the state a
     /// click, Enter or Space asks for.
     #[track_caller]
@@ -268,13 +259,19 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
             b,
             key,
             current,
+            opts,
+            on_response,
+        } = self;
+        let slot = b.slot(&key);
+        let Resolved {
             name,
             classes,
             enablement,
-        } = self;
-        let _ctx = b.ctx().clone();
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(b, slot.id);
         let style = b.style().disclosure.clone();
-        let enablement = enablement_in(b, enablement);
         let mut keys = vec![];
         if current.is_open() {
             keys.push(crate::sheet::Key::Aria(crate::Aria::Expanded));
@@ -299,9 +296,10 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
         let glyph = style.tree.at(progress_of(current));
         let glyph_classes = b.part(CollapsiblePart::TriggerIcon, &keys, tw().shrink_0());
         let button = b
-            .div_id(key, box_classes, |b| b.glyph(glyph_classes, glyph))
+            .div_id_with(&slot, box_classes, |b| b.glyph(glyph_classes, glyph))
             .role(Role::Button)
-            .expanded(current.is_open());
+            .expanded(current.is_open())
+            .open_focus(autofocus.open_focus());
         let button = match name {
             Some(name) => button.named(name),
             None => button.draw(|_, ui| {
@@ -316,6 +314,7 @@ impl<A: 'static, K: Key> Chain<'_, '_, '_, A, K> {
                 );
             }),
         };
+        let button = button.draw(hooked(tooltip, autofocus, on_response));
         if enablement == Enablement::Enabled {
             button.on_click_with(move |app: &mut A, ctx| on_change(app, ctx, toggled(current)));
         }

@@ -25,14 +25,16 @@ use std::rc::Rc;
 
 use crate::contract::Size;
 use crate::overlay::{Nav, Wrap};
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
 use crate::owned::{
-    Enablement, Mark,
-    choice::{Choice, IntoChoice},
+    Enablement, Mark, OnResponse,
+    choice::{self, Choice, IntoChoice},
     segmented::{self, Cell},
     tabs::Part,
+    tip_describes, tipped, tipped_whole,
 };
-use crate::{Builder, Key, Tw, tw};
-use egui::Role;
+use crate::{Builder, Key, NodeUi as _, Tw, child_id, tw};
+use egui::{Context, Role};
 
 /// TODO(prose): adds [`tabs`](Self::tabs) to the builder.
 pub trait Ext<'b, 'f, A> {
@@ -58,14 +60,14 @@ impl<'b, 'f, A: 'static> Ext<'b, 'f, A> for Builder<'b, 'f, A> {
             b: self,
             key,
             current,
-            options: options.into_iter().map(IntoChoice::into_choice).collect(),
-            name: None,
+            options: choice::collect(options),
+            opts: Options::new(),
             size: None,
-            enablement: Enablement::Enabled,
             activation: Activation::OnFocus,
             list: tw(),
             panel: tw(),
             handler: Unset,
+            on_response: OnResponse::default(),
         }
     }
 }
@@ -76,7 +78,7 @@ pub struct Unset;
 /// TODO(prose): what [`on_change`](Chain::on_change) gave the tabs.
 pub struct Changes<A, T>(OnChange<A, T>);
 
-type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
+type OnChange<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
 /// When the keyboard selects the tab it reaches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,39 +98,51 @@ enum Node {
 }
 
 /// TODO(prose): tabs being declared; [`panel`](Self::panel) adds them.
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude). Its name
+/// is the tab list's, its classes the whole control's, holding the list and
+/// the panel ([`list_classes`](Self::list_classes) and
+/// [`panel_classes`](Self::panel_classes) style those), and its tooltip
+/// and refusal the list's; a tab's own tooltip shows instead. Focus goes to
+/// the selected tab, and the response is each tab's.
 #[must_use = "tabs are not added until you call `.on_change(..)` and `.panel(..)`"]
 pub struct Chain<'s, 'b, 'f, A, K, T, H> {
     b: &'s mut Builder<'b, 'f, A>,
     key: K,
     current: T,
     options: Vec<Choice<T>>,
-    name: Option<String>,
+    opts: Options,
     size: Option<Size>,
-    enablement: Enablement,
     activation: Activation,
     list: Tw,
     panel: Tw,
     handler: H,
+    on_response: OnResponse<A>,
+}
+
+impl<A, K, T, H> Configure for Chain<'_, '_, '_, A, K, T, H> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
+    }
+}
+
+impl<A, K, T, H> Interactive for Chain<'_, '_, '_, A, K, T, H> {}
+
+impl<A, K, T, H> Respond for Chain<'_, '_, '_, A, K, T, H> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
 }
 
 impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static, H>
     Chain<'s, 'b, 'f, A, K, T, H>
 {
-    /// TODO(prose): the tab list's accessible name, as `aria-label` is.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
-        self
-    }
-
-    /// TODO(prose): whether the tabs take input, on top of the subtree's.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
         self
     }
 
@@ -162,18 +176,27 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
         self,
         on_change: impl Fn(&mut A, T) + 'static,
     ) -> Chain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
+        self.on_change_with(move |app, _, value| on_change(app, value))
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_change_with(
+        self,
+        on_change: impl Fn(&mut A, &Context, T) + 'static,
+    ) -> Chain<'s, 'b, 'f, A, K, T, Changes<A, T>> {
         Chain {
             b: self.b,
             key: self.key,
             current: self.current,
             options: self.options,
-            name: self.name,
+            opts: self.opts,
             size: self.size,
-            enablement: self.enablement,
             activation: self.activation,
             list: self.list,
             panel: self.panel,
             handler: Changes(Rc::new(on_change)),
+            on_response: self.on_response,
         }
     }
 }
@@ -190,33 +213,40 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
             key,
             current,
             options,
-            name,
+            opts,
             size,
-            enablement,
             activation,
             list,
             panel,
             handler: Changes(on_change),
+            on_response,
         } = self;
         let size = Part::size_key(b, size.unwrap_or(b.control_size()));
-        let enablement = enablement.and(b.enablement());
+        let slot = b.slot(&key);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            refused,
+            autofocus,
+        } = opts.resolve(b, child_id(slot.id, &Node::List));
         let selected = options.iter().position(|option| option.value == current);
+        let target = choice::focus_target(&options, &current, enablement);
         let rows = segmented::Rows::One;
-        let root = b.part(Part::Root, &[], tw());
-        b.div_id(key, root, |b| {
+        let root = b.part(Part::Root, &[], classes);
+        b.div_id_with(&slot, root, |b| {
             let panel_id = selected.map(|index| b.id_of(Node::Panel(index)));
             let track = b.part(
                 Part::List,
                 &Part::list_keys(size, rows, enablement),
                 tw().sense_hover().merge(list),
             );
+            let control_tip = tooltip.clone();
             let tabs = b
                 .div_id(Node::List, track, |b| {
                     for (index, option) in options.iter().enumerate() {
-                        let own = enablement.and(option.enablement).and(match option.refusal {
-                            Some(_) => Enablement::Disabled,
-                            None => Enablement::Enabled,
-                        });
+                        let (own, tip) = option.gated(enablement, refused);
                         let cell = if Some(index) == selected {
                             Cell::Pressed
                         } else {
@@ -237,25 +267,36 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                                 b.text(tw(), option.label.clone());
                             }),
                         };
+                        let autofocus = match Some(index) == target {
+                            true => autofocus,
+                            false => crate::focus::Autofocus::Never,
+                        };
                         let tab = tab
                             .role(Role::Tab)
                             .named(option.label.clone())
-                            .selected(Mark::from(cell == Cell::Pressed));
+                            .selected(Mark::from(cell == Cell::Pressed))
+                            .open_focus(autofocus.open_focus());
                         let tab = match (Some(index) == selected, panel_id) {
                             (true, Some(panel)) => tab.controls(panel),
                             _ => tab,
                         };
-                        let tab = match option.refusal.clone().or_else(|| option.tooltip.clone()) {
-                            Some(tip) => tab.tooltip(tip),
-                            None => tab,
-                        };
+                        let (control_tip, on_response) = (control_tip.clone(), on_response.clone());
+                        let tab = tab.draw(move |app, ui| {
+                            let response = tipped(ui, ui.node_response(), &tip);
+                            autofocus.apply(ui.ctx(), &response);
+                            if tip.is_none() {
+                                tip_describes(&response, &control_tip);
+                            }
+                            on_response.run(app, &response);
+                        });
                         let value = option.value;
                         let on_change = Rc::clone(&on_change);
-                        tab.on_click(move |app: &mut A| on_change(app, value));
+                        tab.on_click_with(move |app: &mut A, ctx| on_change(app, ctx, value));
                     }
                 })
                 .role(Role::TabList)
-                .nav(Nav::Row(Wrap::Around));
+                .nav(Nav::Row(Wrap::Around))
+                .draw(move |_, ui| tipped_whole(ui, &tooltip));
             let tabs = match &name {
                 Some(name) => tabs.named(name.clone()),
                 None => tabs,

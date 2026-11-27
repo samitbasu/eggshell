@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::contract::{Look, Variant};
 use crate::owned::Enablement;
 use crate::{Builder, Icon, Key, NodeUi as _, Tw, icons, tw};
-use egui::{Modifiers, Role};
+use egui::{Context, Modifiers, Role};
 
 use super::{Face, Options, Style};
 
@@ -14,7 +14,9 @@ pub struct Unset;
 
 /// TODO(prose): a chip handler given with [`on_click`](ChipChain::on_click)
 /// or [`on_remove`](ChipChain::on_remove).
-pub struct Handler<A>(Rc<dyn Fn(&mut A)>);
+pub struct Handler<A>(Rc<ChipFn<A>>);
+
+type ChipFn<A> = dyn Fn(&mut A, &Context);
 
 /// What a chip does: a chip that does nothing is a badge.
 enum Actions<A> {
@@ -134,6 +136,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key, R> ChipChain<'s, 'b, 'f, A, K, Unset, R> {
         self,
         on_click: impl Fn(&mut A) + 'static,
     ) -> ChipChain<'s, 'b, 'f, A, K, Handler<A>, R> {
+        self.on_click_with(move |app, _| on_click(app))
+    }
+
+    /// Like [`on_click`](Self::on_click), with a handler that also gets the
+    /// egui context, for an effect the context performs.
+    pub fn on_click_with(
+        self,
+        on_click: impl Fn(&mut A, &Context) + 'static,
+    ) -> ChipChain<'s, 'b, 'f, A, K, Handler<A>, R> {
         ChipChain {
             parts: self.parts,
             click: Handler(Rc::new(on_click)),
@@ -148,6 +159,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key, C> ChipChain<'s, 'b, 'f, A, K, C, Unset> {
     pub fn on_remove(
         self,
         on_remove: impl Fn(&mut A) + 'static,
+    ) -> ChipChain<'s, 'b, 'f, A, K, C, Handler<A>> {
+        self.on_remove_with(move |app, _| on_remove(app))
+    }
+
+    /// Like [`on_remove`](Self::on_remove), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_remove_with(
+        self,
+        on_remove: impl Fn(&mut A, &Context) + 'static,
     ) -> ChipChain<'s, 'b, 'f, A, K, C, Handler<A>> {
         ChipChain {
             parts: self.parts,
@@ -233,7 +253,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             let node = node
                 .role(Role::Button)
                 .named(name)
-                .on_click(move |app| click(app));
+                .on_click_with(move |app, ctx| click(app, ctx));
             if let Some(remove) = removes {
                 let _ = node.draw(removes_on_key(remove));
             }
@@ -259,7 +279,7 @@ fn remove_button<A: 'static>(
     style: &Style,
     name: &str,
     stop: Stop,
-    remove: Rc<dyn Fn(&mut A)>,
+    remove: Rc<ChipFn<A>>,
 ) {
     let classes = tw()
         .flex()
@@ -281,7 +301,7 @@ fn remove_button<A: 'static>(
         })
         .role(Role::Button)
         .named(format!("Remove {name}"))
-        .on_click(move |app| clicked(app));
+        .on_click_with(move |app, ctx| clicked(app, ctx));
     if stop == Stop::Remove {
         let _ = node.draw(removes_on_key(remove));
     }
@@ -290,7 +310,7 @@ fn remove_button<A: 'static>(
 /// Runs `remove` when Backspace or Delete is pressed while the node has
 /// focus.
 fn removes_on_key<A: 'static>(
-    remove: Rc<dyn Fn(&mut A)>,
+    remove: Rc<ChipFn<A>>,
 ) -> impl FnOnce(&mut A, &mut egui::Ui) + 'static {
     move |app, ui| {
         if !ui.node_response().has_focus() {
@@ -301,7 +321,7 @@ fn removes_on_key<A: 'static>(
                 || input.consume_key(Modifiers::NONE, egui::Key::Delete)
         });
         if pressed {
-            remove(app);
+            remove(app, ui.ctx());
         }
     }
 }

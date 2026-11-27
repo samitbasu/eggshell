@@ -391,7 +391,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                             .draw(move |app, ui| {
                                 let response = ui.node_response();
                                 autofocus.apply(ui.ctx(), &response);
-                                tip_describes(ui, &response, &thumb_tip);
+                                tip_describes(&response, &thumb_tip);
                                 let track = ui.ctx().read_response(track).map(|r| r.rect);
                                 let pointer = response
                                     .interact_pointer_pos()

@@ -9,8 +9,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::overlay::{Anchor, DismissOn, Dismissed, Focus, MatchWidth, Modal, Placement};
-use crate::owned::Mark;
-use crate::owned::options::{Configure as _, Interactive as _, Respond as _};
+use crate::owned::options::{Configure, Interactive, Options as Shared, Resolved, Respond};
+use crate::owned::{Enablement, Mark, OnResponse, tip_describes, tipped_whole};
 
 use crate::pipeline::DismissFn;
 use crate::sheet::Key as SheetKey;
@@ -118,6 +118,12 @@ enum Shape<A> {
 }
 
 /// TODO(prose): a command list, started with [`Ext::command_list`] or [`Ext::command_dialog`] and finished with [`items`](Self::items).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude). Its name
+/// is the search field's, the list's and the dialog's, its classes the
+/// list's box's, and the rest the search field's. A disabled list takes no
+/// query and no pick.
 #[must_use = "a command list is not added until you call `.items(..)`"]
 pub struct List<'s, 'b, 'f, A> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -129,25 +135,73 @@ pub struct List<'s, 'b, 'f, A> {
 /// What a command list, a combobox and an autosuggest all take.
 struct Options<'f, A> {
     placeholder: Option<String>,
-    name: Option<String>,
+    shared: Shared,
+    on_response: OnResponse<A>,
     filter: Option<Filter>,
     filtering: Filtering,
     on_query: Option<Heard<A>>,
     empty: Option<Empty<'f, A>>,
-    classes: Tw,
     error: Option<String>,
+}
+
+impl<A> Configure for List<'_, '_, '_, A> {
+    fn options(&mut self) -> &mut Shared {
+        &mut self.options.shared
+    }
+}
+
+impl<A> Interactive for List<'_, '_, '_, A> {}
+
+impl<A> Respond for List<'_, '_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.options.on_response
+    }
+}
+
+impl<A, V> Configure for ComboboxChain<'_, '_, '_, A, V> {
+    fn options(&mut self) -> &mut Shared {
+        &mut self.options.shared
+    }
+}
+
+impl<A, V> Interactive for ComboboxChain<'_, '_, '_, A, V> {}
+
+impl<A, V> Respond for ComboboxChain<'_, '_, '_, A, V> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.options.on_response
+    }
+}
+
+impl<A> Configure for AutosuggestChain<'_, '_, '_, A> {
+    fn options(&mut self) -> &mut Shared {
+        &mut self.options.shared
+    }
+}
+
+impl<A> Interactive for AutosuggestChain<'_, '_, '_, A> {}
+
+impl<A> Respond for AutosuggestChain<'_, '_, '_, A> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.options.on_response
+    }
 }
 
 impl<A> Default for Options<'_, A> {
     fn default() -> Self {
         Self {
             placeholder: None,
-            name: None,
+            shared: Shared::new(),
+            on_response: OnResponse::default(),
             filter: None,
             filtering: Filtering::Ours,
             on_query: None,
             empty: None,
-            classes: tw(),
             error: None,
         }
     }
@@ -157,12 +211,6 @@ impl<'f, A: 'static> List<'_, '_, 'f, A> {
     /// TODO(prose): greyed text in the empty search field.
     pub fn placeholder(mut self, text: impl Into<String>) -> Self {
         self.options.placeholder = Some(text.into());
-        self
-    }
-
-    /// TODO(prose): the accessible name of the list, and of the dialog.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.options.name = Some(name.into());
         self
     }
 
@@ -190,12 +238,6 @@ impl<'f, A: 'static> List<'_, '_, 'f, A> {
     /// TODO(prose): what shows when nothing matches.
     pub fn empty(mut self, body: impl FnOnce(&mut Scope<'_, 'f, A>) + 'f) -> Self {
         self.options.empty = Some(Box::new(body));
-        self
-    }
-
-    /// TODO(prose): classes of the list's box, such as its width.
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.options.classes = classes;
         self
     }
 
@@ -240,7 +282,7 @@ impl<'f, A: 'static> List<'_, '_, 'f, A> {
                 dismiss_on,
                 on_dismiss,
             } => {
-                let name = options.name.clone().unwrap_or_default();
+                let name = options.shared.name().unwrap_or_default().to_owned();
                 let on_dismiss = on_dismiss.unwrap_or_else(|| {
                     let close = Rc::clone(&close);
                     Box::new(move |app, _| close(app))
@@ -372,6 +414,13 @@ impl Typing {
 }
 
 /// TODO(prose): a combobox, started with [`Ext::combobox`] and finished with [`on_change`](Self::on_change).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude). Its name
+/// is the field's and the list's, its classes the box's, and its tooltip
+/// and refusal show over the whole box, the refusal also describing the
+/// field. Focus and the response are the field's. A disabled combobox does
+/// not open.
 #[must_use = "a combobox is not added until you call `.on_change(..)`"]
 pub struct ComboboxChain<'s, 'b, 'f, A, V> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -389,12 +438,6 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         self
     }
 
-    /// TODO(prose): the accessible name of the field and of the list.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.options.name = Some(name.into());
-        self
-    }
-
     /// TODO(prose): ranks the options by `filter` instead of [`word_prefix`].
     pub fn filter(
         mut self,
@@ -407,12 +450,6 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
     /// TODO(prose): what shows when nothing matches.
     pub fn empty(mut self, body: impl FnOnce(&mut Scope<'_, 'f, A>) + 'f) -> Self {
         self.options.empty = Some(Box::new(body));
-        self
-    }
-
-    /// TODO(prose): classes of the field's box, such as its width.
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.options.classes = classes;
         self
     }
 
@@ -460,13 +497,27 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         let _style = Arc::clone(b.style());
         let group_id = b.id_of((key, Node::Group));
         let mut field_id = Id::NULL;
-        let caller = std::mem::replace(&mut options.classes, tw());
+        let Resolved {
+            name,
+            classes: caller,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = std::mem::take(&mut options.shared).resolve(b, group_id);
+        let caller = match (enablement, &tooltip) {
+            (Enablement::Disabled, _) => caller.inert().sense_hover(),
+            (Enablement::Enabled, Some(_)) => caller.sense_hover(),
+            (Enablement::Enabled, None) => caller,
+        };
         let group_classes = b.part(ComboboxPart::Input, &[], caller);
-        let (placeholder, name) = (options.placeholder.clone(), options.name.clone());
+        let placeholder = options.placeholder.clone();
         let error = options.error.take();
-        let open = state.open;
+        let open = state.open && enablement == Enablement::Enabled;
         let clearing = clear.filter(|_| value.is_some());
-        b.div_id((key, Node::Group), group_classes, |s| {
+        let on_response = std::mem::take(&mut options.on_response);
+        let described = tooltip.clone();
+        let group = b.div_id((key, Node::Group), group_classes, |s| {
             field_id = s.id_of((key, Node::Field));
             let mut field = s
                 .text_field((key, Node::Field), text.clone())
@@ -480,9 +531,10 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             if let Some(placeholder) = placeholder {
                 field = field.hint(placeholder);
             }
-            if let Some(name) = name {
+            if let Some(name) = name.clone() {
                 field = field.named(name);
             }
+            field.options().set_autofocus(autofocus);
             if state.focus {
                 Typing {
                     focus: false,
@@ -492,7 +544,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 field = field.focus_now();
             }
             let (handled, shown) = (ctx.clone(), text.clone());
-            field = field.on_response(move |_, response| {
+            field = field.on_response(move |app, response| {
                 let (escape, down, tab) = response.ctx.input(|input| {
                     (
                         input.key_pressed(egui::Key::Escape),
@@ -512,6 +564,8 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                     node.set_expanded(open);
                     node.set_value(shown.as_str());
                 });
+                tip_describes(response, &described);
+                on_response.run(app, response);
             });
             let typed = ctx.clone();
             field.on_change(move |_, text| {
@@ -561,6 +615,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 }
             }
         });
+        group.draw(move |_, ui| tipped_whole(ui, &tooltip));
         if !open {
             return;
         }
@@ -606,6 +661,10 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
 }
 
 /// TODO(prose): an autosuggest, started with [`Ext::autosuggest`] and finished with [`on_change`](Self::on_change).
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude), and are
+/// its field's; its name is also the suggestions'.
 #[must_use = "an autosuggest is not added until you call `.on_change(..)`"]
 pub struct AutosuggestChain<'s, 'b, 'f, A> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -646,12 +705,6 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         self
     }
 
-    /// TODO(prose): the accessible name of the field and of the suggestions.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.options.name = Some(name.into());
-        self
-    }
-
     /// TODO(prose): ranks the suggestions by `filter` instead of [`word_prefix`].
     pub fn filter(
         mut self,
@@ -664,12 +717,6 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
     /// TODO(prose): who filters; see [`List::filtering`].
     pub fn filtering(mut self, filtering: Filtering) -> Self {
         self.options.filtering = filtering;
-        self
-    }
-
-    /// TODO(prose): classes of the field, such as its width.
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.options.classes = classes;
         self
     }
 
@@ -690,26 +737,25 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         } = self;
         let ctx = b.ctx().clone();
         let on_change: Typed<A> = Rc::new(on_change);
-        let classes = std::mem::replace(&mut options.classes, tw());
         let field_id = b.id_of((key, Node::Field));
         let mut field = b
             .text_field((key, Node::Field), text.clone())
-            .role(Role::ComboBox)
-            .classes(classes);
+            .role(Role::ComboBox);
+        let field_options = field.options();
+        *field_options = std::mem::take(field_options).merge(options.shared.clone());
+        options.shared.take_classes();
         if let Some(placeholder) = options.placeholder.take() {
             field = field.hint(placeholder);
         }
-        if let Some(name) = options.name.clone() {
-            field = field.named(name);
-        }
-        let escaped = ctx.clone();
-        field = field.on_response(move |_, response| {
+        let (escaped, on_response) = (ctx.clone(), std::mem::take(&mut options.on_response));
+        field = field.on_response(move |app, response| {
             let escape = response
                 .ctx
                 .input(|input| input.key_pressed(egui::Key::Escape));
             if escape && (response.has_focus() || response.lost_focus()) {
                 Suggesting::Dismissed.store(&escaped, field_id);
             }
+            on_response.run(app, response);
         });
         let (typed, reset) = (Rc::clone(&on_change), ctx.clone());
         field.on_change_with(move |app, ctx, text| {

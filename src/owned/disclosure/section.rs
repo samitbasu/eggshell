@@ -3,14 +3,16 @@
 use crate::owned::accordion;
 use std::rc::Rc;
 
+use crate::focus::Autofocus;
 use crate::overlay::Shown;
-use crate::owned::{Enablement, button::Face};
-use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
-use egui::Role;
+use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond};
+use crate::owned::{Enablement, OnResponse, Tip, button::Face, hooked};
+use crate::{Builder, Key, NodeUi as _, Progress, Scope, Tw, child_id, tw};
+use egui::{Context, Role};
 
 use crate::sheet::Key as SheetKey;
 
-use super::{ChangeFn, OnChange, Style, Unset, enablement_in, name_of, toggled};
+use super::{ChangeFn, OnChange, Style, Unset, name_of, toggled};
 
 /// The parts of a section, under its key.
 #[derive(Clone, Copy, Debug, Hash)]
@@ -58,6 +60,12 @@ type HeaderChildren<'f, A> = Box<dyn for<'s> FnOnce(&mut Builder<'s, 'f, A>) + '
 /// other state. The region is a [`Region`](Role::Region) named as the header
 /// is, and opens and closes by its height; the chevron turns with it, and
 /// both snap when the style has no animation time.
+///
+/// Its shared options come from [`Configure`], [`Interactive`] and
+/// [`Respond`], in scope through the [`prelude`](crate::prelude), and are
+/// the header's: [`named`](Configure::named) names the header and the
+/// region in place of the face, and [`classes`](Configure::classes) are
+/// merged over the header's styled ones.
 #[must_use = "a section is built by `.children(..)`"]
 pub struct SectionChain<'s, 'b, 'f, A, K, H> {
     b: &'s mut Builder<'b, 'f, A>,
@@ -65,9 +73,9 @@ pub struct SectionChain<'s, 'b, 'f, A, K, H> {
     face: Face,
     current: Shown,
     on_change: H,
-    classes: Tw,
+    opts: Options,
+    on_response: OnResponse<A>,
     content: Tw,
-    enablement: Enablement,
     toggle: Toggle,
     membership: Membership,
     header_children: Option<HeaderChildren<'f, A>>,
@@ -81,9 +89,9 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
             face,
             current,
             on_change: Unset,
-            classes: tw(),
+            opts: Options::new(),
+            on_response: OnResponse::default(),
             content: tw(),
-            enablement: Enablement::Enabled,
             toggle: Toggle::Free,
             membership: Membership::Alone,
             header_children: None,
@@ -97,15 +105,24 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
         self,
         on_change: impl Fn(&mut A, Shown) + 'static,
     ) -> SectionChain<'s, 'b, 'f, A, K, OnChange<A>> {
+        self.on_change_with(move |app, _, shown| on_change(app, shown))
+    }
+
+    /// Like [`on_change`](Self::on_change), with a handler that also gets
+    /// the egui context, for an effect the context performs.
+    pub fn on_change_with(
+        self,
+        on_change: impl Fn(&mut A, &Context, Shown) + 'static,
+    ) -> SectionChain<'s, 'b, 'f, A, K, OnChange<A>> {
         SectionChain {
             b: self.b,
             key: self.key,
             face: self.face,
             current: self.current,
             on_change: OnChange(Rc::new(on_change)),
-            classes: self.classes,
+            opts: self.opts,
+            on_response: self.on_response,
             content: self.content,
-            enablement: self.enablement,
             toggle: self.toggle,
             membership: self.membership,
             header_children: self.header_children,
@@ -113,25 +130,27 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
     }
 }
 
-impl<'f, A: 'static, K: Key, H> SectionChain<'_, '_, 'f, A, K, H> {
-    /// TODO(prose): classes merged over the header's styled ones; the later
-    /// class wins ([`Tw::merge`]).
-    pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = std::mem::replace(&mut self.classes, tw()).merge(classes);
-        self
+impl<A, K, H> Configure for SectionChain<'_, '_, '_, A, K, H> {
+    fn options(&mut self) -> &mut Options {
+        &mut self.opts
     }
+}
 
+impl<A, K, H> Interactive for SectionChain<'_, '_, '_, A, K, H> {}
+
+impl<A, K, H> Respond for SectionChain<'_, '_, '_, A, K, H> {
+    type App = A;
+
+    fn responses(&mut self) -> &mut OnResponse<A> {
+        &mut self.on_response
+    }
+}
+
+impl<'f, A: 'static, K: Key, H> SectionChain<'_, '_, 'f, A, K, H> {
     /// TODO(prose): classes merged over the content block's styled ones:
     /// see [`CollapsibleChain::content`](crate::CollapsibleChain::content).
     pub fn content(mut self, content: Tw) -> Self {
         self.content = std::mem::replace(&mut self.content, tw()).merge(content);
-        self
-    }
-
-    /// TODO(prose): whether the header takes input. Inside an inert subtree
-    /// it is disabled either way.
-    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
-        self.enablement = enablement.into();
         self
     }
 
@@ -172,22 +191,33 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             face,
             current,
             on_change: OnChange(on_change),
-            classes,
+            opts,
+            on_response,
             content,
-            enablement,
             toggle,
             membership,
             header_children,
         } = self;
         let style = b.style().disclosure.clone();
-        let enablement = enablement_in(b, enablement);
-        let name = name_of(&face).to_owned();
+        let slot = b.slot(&key);
+        let trigger = child_id(slot.id, &Node::Header);
+        let Resolved {
+            name,
+            classes,
+            enablement,
+            tooltip,
+            autofocus,
+            ..
+        } = opts.resolve(b, trigger);
+        let name = name.unwrap_or_else(|| name_of(&face).to_owned());
         let header = Header {
             style: &style,
             face,
+            name: name.clone(),
             header_children,
             classes,
             enablement,
+            hooks: (tooltip, autofocus, on_response),
             toggle,
             membership,
             current,
@@ -196,7 +226,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
         let keys = keys_of(enablement);
         let content = b.part(accordion::Part::ContentInner, &[], content);
         let item = b.part(accordion::Part::Item, keys, tw().flex().flex_col());
-        b.div_id(key, item, |b| {
+        b.div_id_with(&slot, item, |b| {
             let region = b.id_of(Node::Region);
             let region_classes = if current.is_open() {
                 tw().sense_hover().focusable_none()
@@ -218,9 +248,11 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
 struct Header<'a, 'f, A> {
     style: &'a Style,
     face: Face,
+    name: String,
     header_children: Option<HeaderChildren<'f, A>>,
     classes: Tw,
     enablement: Enablement,
+    hooks: (Tip, Autofocus, OnResponse<A>),
     toggle: Toggle,
     membership: Membership,
     current: Shown,
@@ -232,9 +264,11 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         let Self {
             style,
             face,
+            name,
             header_children,
             classes,
             enablement,
+            hooks: (tooltip, autofocus, on_response),
             toggle,
             membership,
             current,
@@ -246,7 +280,6 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         };
         let keys = keys_of(enablement);
         let box_classes = b.part(accordion::Part::Trigger, keys, sense);
-        let name = name_of(&face).to_owned();
         let glyph = style.section.at(open);
         let glyph_classes = b.part(accordion::Part::TriggerIcon, keys, tw());
         let handle = b
@@ -268,7 +301,9 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             })
             .role(Role::Button)
             .named(name)
-            .expanded(current.is_open());
+            .expanded(current.is_open())
+            .open_focus(autofocus.open_focus())
+            .draw(hooked(tooltip, autofocus, on_response));
         let handle = match membership {
             Membership::Item => handle.nav_item(),
             Membership::Alone => handle,
@@ -281,7 +316,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         };
         match (enablement, toggle) {
             (Enablement::Enabled, Toggle::Free) => {
-                handle.on_click(move |app: &mut A| on_change(app, toggled(current)));
+                handle.on_click_with(move |app: &mut A, ctx| on_change(app, ctx, toggled(current)));
             }
             (Enablement::Enabled, Toggle::Pinned) => {
                 handle.draw(|_, ui| {

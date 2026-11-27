@@ -175,7 +175,7 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     let pointer = over(ui, response).then_some(Cause::Pointer);
     let pressed = pressed(ui, response, tip);
     request(ui, tip, [focus, pointer, pressed], response.rect);
-    describes(ui, response, tip);
+    describes(response, tip);
 }
 
 /// Says that the node of the draw closure `ui` is the one trigger for `tip`
@@ -187,7 +187,7 @@ pub(crate) fn register_whole(ui: &Ui, tip: &Tooltip) {
     let pointer = over(ui, &response).then_some(Cause::Pointer);
     let pressed = pressed(ui, &response, tip);
     request(ui, tip, [focus, pointer, pressed], response.rect);
-    describes(ui, &response, tip);
+    describes(&response, tip);
 }
 
 /// [`Cause::Pressed`] when the pointer was pressed on `response`'s widget
@@ -210,9 +210,9 @@ fn over(ui: &Ui, response: &egui::Response) -> bool {
 
 /// Describes `response`'s widget to assistive technology by `tip`'s text,
 /// without making it a trigger.
-pub(crate) fn describes(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
+pub(crate) fn describes(response: &egui::Response, tip: &Tooltip) {
     if let Some(description) = &tip.description {
-        ui.ctx().accesskit_node_builder(response.id, |node| {
+        response.ctx.accesskit_node_builder(response.id, |node| {
             node.set_description(description.as_str());
         });
     }
