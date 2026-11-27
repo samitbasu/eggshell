@@ -46,7 +46,7 @@ pub enum Part {
 /// </article>
 /// </main>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(4.0).p(6.0), |b| {
         b.div(tw().flex().items_center().gap(2.0).w_px(320.0), |b| {
@@ -110,10 +110,7 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
     });
 }
 
-#[allow(
-    dead_code,
-    reason = "the snapshot tests include this file for `layout`"
-)]
+#[allow(dead_code, reason = "the snapshot tests include this file for `view`")]
 fn main() -> eframe::Result {
-    common::run_app("rich_text", State::default(), layout)
+    common::run_app("rich_text", State::default(), view)
 }

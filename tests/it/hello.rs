@@ -42,7 +42,7 @@ mod demos {
     use flex_demos::{ALIGNS, Align, Direction, Part, State};
 
     fn demos(state: State) -> Driver<State> {
-        harness(vec2(1280.0, 900.0), state, flex_demos::layout)
+        harness(vec2(1280.0, 900.0), state, flex_demos::view)
     }
 
     fn rect(d: &Driver<State>, part: Part) -> Rect {
@@ -171,7 +171,7 @@ mod example {
     use flex_example::State;
 
     fn example(width: f32) -> Driver<State> {
-        harness(vec2(width, 700.0), State::default(), flex_example::layout)
+        harness(vec2(width, 700.0), State::default(), flex_example::view)
     }
 
     /// The distinct tops of the boxes of the wrapping row.
@@ -245,7 +245,7 @@ mod signup {
     use signup_form::{Part, Progress, State};
 
     fn signup(width: f32) -> Driver<State> {
-        harness(vec2(width, 900.0), State::default(), signup_form::layout)
+        harness(vec2(width, 900.0), State::default(), signup_form::view)
     }
 
     fn fill<A>(d: &mut Driver<A>, part: Part, text: &str) {
@@ -305,7 +305,7 @@ mod signup {
             shown.iter().any(|(_, invalid)| *invalid) && shown.iter().any(|(_, invalid)| !invalid),
             "precondition: some fields are invalid and some are not: {shown:?}"
         );
-        let d = light(harness(vec2(640.0, 900.0), state, signup_form::layout));
+        let d = light(harness(vec2(640.0, 900.0), state, signup_form::view));
         let destructive = common::tokens(d.ctx()).destructive;
         for (part, invalid) in shown {
             let border = support::box_at(&d, d.rect(Target::suffix(&look_of(part))))
@@ -322,7 +322,7 @@ mod signup {
     #[test]
     fn a_rejected_forms_labels_turn_destructive_only_where_a_field_is_invalid() {
         let state = rejected();
-        let d = light(harness(vec2(640.0, 900.0), rejected(), signup_form::layout));
+        let d = light(harness(vec2(640.0, 900.0), rejected(), signup_form::view));
         let destructive = common::tokens(d.ctx()).destructive;
         let page = d.ctx().content_rect();
         for (part, label) in [

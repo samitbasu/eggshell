@@ -96,7 +96,7 @@ pub const ROW_HEIGHT: f32 = 28.0;
 ///   <div> <button>List</button> </div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.commands(&commands(), state);
     b.div_id(
         Part::Page,
@@ -261,5 +261,5 @@ fn list(b: &mut Builder<'_, '_, State>) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("menu", State::default(), layout)
+    common::run_app("menu", State::default(), view)
 }

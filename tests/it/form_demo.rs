@@ -13,15 +13,14 @@ mod form;
 
 use crate::support;
 
-use form::{Footer, Mark, Notifications, Preferences, Profile, Section, State, Theme, layout};
+use form::{Footer, Mark, Notifications, Preferences, Profile, Section, State, Theme, view};
 use std::fmt::Debug;
 use support::focused_node;
 
 const WINDOW: Vec2 = vec2(760.0, 900.0);
 
 fn harness_with(state: State) -> Driver<State> {
-    let mut d =
-        support::driver(WINDOW, common::base_text(egui::Theme::Light), state, layout).build();
+    let mut d = support::driver(WINDOW, common::base_text(egui::Theme::Light), state, view).build();
     d.frames(3);
     d
 }

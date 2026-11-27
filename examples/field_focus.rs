@@ -37,7 +37,7 @@ pub struct State {
 ///   <div class="flex gap-2"> <input value="Name"/> <button>Rename</button> </div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     let t = common::tokens(b.ctx());
     b.div_id(Part::Page, tw().flex().flex_col().gap(3.0).p(4.0), |s| {
         s.div_id(
@@ -79,5 +79,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("field_focus", State::default(), layout)
+    common::run_app("field_focus", State::default(), view)
 }

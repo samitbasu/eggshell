@@ -98,7 +98,7 @@ fn row<A>(b: &mut B<'_, '_, A>, name: &str, justify: Tw, grow: f32) {
 ///   <!-- seven rows -->
 /// </div>
 /// ```
-pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
+pub fn view<A>(b: &mut B<'_, '_, A>, _: &()) {
     b.div(
         tw().flex()
             .flex_col()
@@ -115,5 +115,5 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("flex", (), layout)
+    common::run("flex", (), view)
 }

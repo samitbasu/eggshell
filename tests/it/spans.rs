@@ -345,7 +345,7 @@ fn the_example_width_slider_reflows_its_paragraphs() {
         vec2(720.0, 600.0),
         common::base_text(Theme::Light),
         rich_text::State::default(),
-        rich_text::layout,
+        rich_text::view,
     )
     .build();
     d.frames(4);

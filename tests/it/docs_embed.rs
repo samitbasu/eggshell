@@ -18,7 +18,7 @@ fn harness() -> Driver<page::State> {
         vec2(720.0, 900.0),
         common::base_text(Theme::Light),
         page::State::default(),
-        page::layout,
+        page::view,
     )
     .build();
     d.frames(4);

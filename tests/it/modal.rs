@@ -452,7 +452,7 @@ mod actions {
 /// The dialog example: a dialog, a confirmation opened from it, a role menu
 /// nested in it, and a sheet, over a page that scrolls.
 mod example {
-    use super::dialog::{Part, State, layout};
+    use super::dialog::{Part, State, view};
     use super::*;
 
     fn harness(state: State) -> Driver<State> {
@@ -460,7 +460,7 @@ mod example {
             SCREEN,
             common::base_text(egui::Theme::Light),
             state,
-            layout,
+            view,
             common::use_accent,
         )
         .build();
@@ -556,7 +556,7 @@ mod example {
                     sheet: Shown::Open,
                     ..State::default()
                 };
-                layout(b, &open);
+                view(b, &open);
             });
         assert_eq!(
             placed.expect_overlay(Part::Dialog).modal(),
@@ -881,7 +881,7 @@ mod two_frames {
             .layout(top)
             .draw(&mut (), ui);
         page.set_base_text(Some(common::base_text(egui::Theme::Light)));
-        page.build(&ctx, |b| dialog::layout(b, &shell.state))
+        page.build(&ctx, |b| dialog::view(b, &shell.state))
             .layout(area)
             .draw(&mut shell.state, ui)
     }

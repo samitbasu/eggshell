@@ -495,7 +495,7 @@ fn save(s: &mut S<'_, '_>, state: &State) {
 ///   <form class="flex flex-col gap-5 w-full max-w-[560px]">…</form>
 /// </main>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
@@ -528,5 +528,5 @@ pub fn prepare(ctx: &egui::Context, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("form", State::default(), prepare, layout)
+    common::run_app_styled("form", State::default(), prepare, view)
 }

@@ -72,7 +72,7 @@ fn handle(b: &mut Builder<'_, '_, State>, key: &'static str, text: &str) {
         .on_click(|_: &mut State| {});
 }
 
-fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(6.0).p(8.0).items_start(), |b| {
         b.text(tw().font_semibold(), "shadcn's demo");
@@ -189,5 +189,5 @@ fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("hover card", State::default(), layout)
+    common::run_app("hover card", State::default(), view)
 }

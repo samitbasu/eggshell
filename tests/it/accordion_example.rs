@@ -29,7 +29,7 @@ fn harness() -> Driver<State> {
         vec2(500.0, 500.0),
         common::base_text(egui::Theme::Light),
         State::default(),
-        example::layout,
+        example::view,
     )
     .step(Duration::from_millis(10))
     .settle_within(Duration::from_millis(40))

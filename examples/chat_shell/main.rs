@@ -25,7 +25,7 @@ use eggshell_ui::LayoutState;
 use theme::{Theme, Tok};
 
 use state::App;
-use view::layout;
+use view::view;
 
 fn main() -> eframe::Result {
     let mut app = App::default();
@@ -42,7 +42,7 @@ fn main() -> eframe::Result {
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 layout_state
-                    .build(ui.ctx(), |b| layout(b, &app))
+                    .build(ui.ctx(), |b| view(b, &app))
                     .layout(area)
                     .draw(&mut app, ui);
             });

@@ -57,7 +57,7 @@ pub struct State {
 ///   <main class="overflow-y-auto grow p-6"><article class="typeset max-w-[37em]">…</article></main>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     let tokens = common::tokens(b.ctx());
     b.div(tw().flex().flex_col().size_full(), |b| {
         b.div_id(
@@ -84,5 +84,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("typeset", State::default(), layout)
+    common::run_app("typeset", State::default(), view)
 }

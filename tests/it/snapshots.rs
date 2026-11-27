@@ -439,7 +439,7 @@ fn glass_card_shadows() {
 
 #[test]
 fn port_flex() {
-    light_snapshot("port_flex", SIZE, (), flex::layout);
+    light_snapshot("port_flex", SIZE, (), flex::view);
 }
 
 #[test]
@@ -447,7 +447,7 @@ fn port_flex_wrap() {
     snapshot_controlled(
         "port_flex_wrap",
         flex_wrap::State::default(),
-        flex_wrap::layout,
+        flex_wrap::view,
     );
 }
 
@@ -456,25 +456,25 @@ fn port_flex_grid() {
     snapshot_controlled(
         "port_flex_grid",
         flex_grid::State::default(),
-        flex_grid::layout,
+        flex_grid::view,
     );
 }
 
 #[test]
 fn port_grow() {
-    snapshot_controlled("port_grow", grow::State::default(), grow::layout);
+    snapshot_controlled("port_grow", grow::State::default(), grow::view);
 }
 
 #[test]
 fn port_holy_grail() {
-    light_snapshot("port_holy_grail", SIZE, (), holy_grail::layout);
+    light_snapshot("port_holy_grail", SIZE, (), holy_grail::view);
 }
 
 fn guide(name: &str, title: &str, choice: usize) {
     snapshot_controlled(
         name,
         flexbox_guide::State::showing(title, choice),
-        flexbox_guide::layout,
+        flexbox_guide::view,
     );
 }
 
@@ -597,7 +597,7 @@ fn rich_text_in(name: &str, theme: egui::Theme) {
         Vec2::new(460.0, 280.0),
         (
             rich_text::State::default(),
-            rich_text::layout,
+            rich_text::view,
             common::base_text(theme),
         ),
         None,
@@ -623,7 +623,7 @@ fn markdown_in(name: &str, theme: egui::Theme) {
         Vec2::new(720.0, 1840.0),
         (
             markdown::State::default(),
-            markdown::layout,
+            markdown::view,
             common::base_text(theme),
         ),
         None,
@@ -674,7 +674,7 @@ fn typeset_at(name: &str, fixture: typeset::Fixture, size: Vec2) {
         size,
         (
             typeset::State { fixture },
-            typeset::layout,
+            typeset::view,
             common::base_text(theme),
         ),
         None,
@@ -699,7 +699,7 @@ fn button_children_in(name: &str, theme: egui::Theme) {
         Vec2::new(200.0, 80.0),
         (
             button_children::State::default(),
-            button_children::layout,
+            button_children::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         None,
@@ -724,7 +724,7 @@ fn toggle_group_in(name: &str, theme: egui::Theme) {
         Vec2::new(380.0, 420.0),
         (
             toggle_group::State::default(),
-            toggle_group::layout,
+            toggle_group::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         None,
@@ -748,7 +748,7 @@ fn choice_cards_in(name: &str, theme: egui::Theme) {
         Vec2::new(420.0, 560.0),
         (
             choice_cards::State::default(),
-            choice_cards::layout,
+            choice_cards::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         None,
@@ -774,7 +774,7 @@ fn todo_hovered(name: &str, theme: egui::Theme) {
         Vec2::new(520.0, 260.0),
         (
             todo::State::default(),
-            todo::layout,
+            todo::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         Some(egui::pos2(200.0, 88.0)),
@@ -794,7 +794,7 @@ fn debug_overlay_todo() {
         Vec2::new(520.0, 260.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         todo::State::default(),
-        todo::layout,
+        todo::view,
         |ctx, _| eggshell_ui::Debug::set(ctx, eggshell_ui::Debug::Outlines),
     );
     harness.state_mut().page = support::Page::Themed;
@@ -830,7 +830,7 @@ fn port_custom_background() {
         Vec2::new(1640.0, 700.0),
         custom_background::State::default(),
         TextStyle::new(layouts::BODY, Color32::BLACK),
-        custom_background::layout,
+        custom_background::view,
         Some(egui::pos2(1150.0, 490.0)),
     );
 }
@@ -855,7 +855,7 @@ fn port_button_in(name: &str, theme: egui::Theme) {
                 clicks: 3,
                 selected: true,
             },
-            button::layout,
+            button::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         Some(egui::pos2(440.0, 120.0)),
@@ -874,7 +874,7 @@ fn port_sidebar() {
         Vec2::new(640.0, 760.0),
         state,
         TextStyle::new(layouts::BODY, Color32::BLACK),
-        sidebar::layout,
+        sidebar::view,
         Some(egui::pos2(60.0, 560.0)),
     );
 }
@@ -892,7 +892,7 @@ fn chat_shell_in(
     snapshot_themed(
         name,
         Vec2::new(1200.0, 760.0),
-        (app, chat_shell::view::layout, base),
+        (app, chat_shell::view::view, base),
         pointer,
         (theme, chat_shell::view::prepare),
     );
@@ -988,7 +988,7 @@ fn gallery_styled(style: ShadcnStyle, name: &str, width: f32, theme: egui::Theme
         Vec2::new(1400.0, 800.0),
         common::base_text_styled(theme, style),
         state,
-        controls_gallery::layout,
+        controls_gallery::view,
         controls_gallery::prepare,
     );
     common::set_style(&harness.ctx, style);
@@ -1063,7 +1063,7 @@ fn owned_section_in(
         controls_gallery::WINDOW,
         common::base_text_styled(theme, style),
         state,
-        controls_gallery::layout,
+        controls_gallery::view,
         controls_gallery::prepare,
     );
     common::set_style(&harness.ctx, style);
@@ -1195,7 +1195,7 @@ fn form() {
         Vec2::new(760.0, 900.0),
         (
             state,
-            form::layout,
+            form::view,
             TextStyle::new(layouts::BODY, Color32::BLACK),
         ),
         None,
@@ -1209,7 +1209,7 @@ fn signup_snapshot(name: &str, size: Vec2, state: signup_form::State) {
         size,
         (
             state,
-            signup_form::layout,
+            signup_form::view,
             TextStyle::new(layouts::BODY, Color32::BLACK),
         ),
         None,
@@ -1235,7 +1235,7 @@ fn flex_demos_horizontal() {
         "flex_demos_horizontal",
         Vec2::new(1280.0, 700.0),
         flex_demos::State::default(),
-        flex_demos::layout,
+        flex_demos::view,
     );
 }
 
@@ -1251,7 +1251,7 @@ fn flex_demos_vertical_grow() {
             grow: true,
             anchor: 8,
         },
-        flex_demos::layout,
+        flex_demos::view,
     );
 }
 
@@ -1261,7 +1261,7 @@ fn flex_example() {
         "flex_example",
         Vec2::new(900.0, 700.0),
         flex_example::State::default(),
-        flex_example::layout,
+        flex_example::view,
     );
 }
 
@@ -1418,7 +1418,7 @@ mod lyra {
             Vec2::new(760.0, 900.0),
             (
                 state,
-                form::layout,
+                form::view,
                 common::base_text_styled(theme, ShadcnStyle::Lyra),
             ),
             None,
@@ -1444,7 +1444,7 @@ mod lyra {
             Vec2::new(1200.0, 760.0),
             (
                 chat_shell::state::App::default(),
-                chat_shell::view::layout,
+                chat_shell::view::view,
                 base,
             ),
             None,
@@ -1565,7 +1565,7 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
         Vec2::new(1360.0, 640.0),
         common::base_text(theme),
         scroll_example::State::default(),
-        scroll_example::layout,
+        scroll_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -1595,7 +1595,7 @@ fn long_list_in(name: &str, theme: egui::Theme, scrolled: bool) {
         Vec2::new(560.0, 640.0),
         common::base_text(theme),
         long_list::State::default(),
-        long_list::layout,
+        long_list::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -1653,7 +1653,7 @@ fn virtual_grid_light() {
         "virtual_grid_light",
         Vec2::new(480.0, 400.0),
         egui::Theme::Light,
-        virtual_grid::layout,
+        virtual_grid::view,
     );
 }
 
@@ -1663,7 +1663,7 @@ fn virtual_grid_dark() {
         "virtual_grid_dark",
         Vec2::new(480.0, 400.0),
         egui::Theme::Dark,
-        virtual_grid::layout,
+        virtual_grid::view,
     );
 }
 
@@ -1673,7 +1673,7 @@ fn virtual_list_example_light() {
         "virtual_list_example_light",
         Vec2::new(480.0, 400.0),
         egui::Theme::Light,
-        virtual_list_example::layout,
+        virtual_list_example::view,
     );
 }
 
@@ -1683,7 +1683,7 @@ fn virtual_list_example_dark() {
         "virtual_list_example_dark",
         Vec2::new(480.0, 400.0),
         egui::Theme::Dark,
-        virtual_list_example::layout,
+        virtual_list_example::view,
     );
 }
 
@@ -1693,7 +1693,7 @@ fn virtual_list_stable_id_light() {
         "virtual_list_stable_id_light",
         Vec2::new(560.0, 400.0),
         egui::Theme::Light,
-        virtual_list_stable_id::layout,
+        virtual_list_stable_id::view,
     );
 }
 
@@ -1703,7 +1703,7 @@ fn virtual_list_stable_id_dark() {
         "virtual_list_stable_id_dark",
         Vec2::new(560.0, 400.0),
         egui::Theme::Dark,
-        virtual_list_stable_id::layout,
+        virtual_list_stable_id::view,
     );
 }
 
@@ -1713,7 +1713,7 @@ fn stargazers_light() {
         "stargazers_light",
         Vec2::new(480.0, 400.0),
         egui::Theme::Light,
-        stargazers::layout,
+        stargazers::view,
     );
 }
 
@@ -1723,7 +1723,7 @@ fn stargazers_dark() {
         "stargazers_dark",
         Vec2::new(480.0, 400.0),
         egui::Theme::Dark,
-        stargazers::layout,
+        stargazers::view,
     );
 }
 
@@ -1733,7 +1733,7 @@ fn chat_light() {
         "chat_light",
         Vec2::new(560.0, 560.0),
         egui::Theme::Light,
-        chat::layout,
+        chat::view,
     );
 }
 
@@ -1743,7 +1743,7 @@ fn chat_dark() {
         "chat_dark",
         Vec2::new(560.0, 560.0),
         egui::Theme::Dark,
-        chat::layout,
+        chat::view,
     );
 }
 
@@ -1754,7 +1754,7 @@ fn overflow_light() {
         "overflow_light",
         Vec2::new(620.0, 360.0),
         overflow::State::default(),
-        overflow::layout,
+        overflow::view,
     );
 }
 
@@ -1764,7 +1764,7 @@ fn flex_scroll_light() {
         "flex_scroll_light",
         Vec2::new(900.0, 700.0),
         flex_scroll::flex_example::State::default(),
-        flex_scroll::layout,
+        flex_scroll::view,
     );
 }
 
@@ -1774,7 +1774,7 @@ fn image_gallery_light() {
         "image_gallery_light",
         Vec2::new(900.0, 700.0),
         image_gallery::State::default(),
-        image_gallery::layout,
+        image_gallery::view,
     );
 }
 
@@ -1784,7 +1784,7 @@ fn crate_ui_light() {
         "crate_ui_light",
         Vec2::new(800.0, 700.0),
         crate_ui::State::default(),
-        crate_ui::layout,
+        crate_ui::view,
     );
 }
 
@@ -1800,7 +1800,7 @@ fn dialog_in(name: &str, theme: egui::Theme, state: dialog::State) {
         SIZE,
         (
             state,
-            dialog::layout,
+            dialog::view,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         Some(egui::pos2(2.0, 2.0)),
@@ -1883,7 +1883,7 @@ fn menu_after(
             grid: true,
             ..menu::State::default()
         },
-        menu::layout,
+        menu::view,
         common::use_accent::<menu::State>,
     );
     common::set_style(&harness.ctx, style);
@@ -2126,7 +2126,7 @@ mod motion {
                 name: "Pedro Duarte".to_owned(),
                 ..state
             },
-            dialog::layout,
+            dialog::view,
         );
         common::set_style(&harness.ctx, style);
         harness.state_mut().page = support::Page::Themed;
@@ -2178,7 +2178,7 @@ mod motion {
                 grid: true,
                 ..menu::State::default()
             },
-            menu::layout,
+            menu::view,
         );
         common::set_style(&harness.ctx, style);
         harness.state_mut().page = support::Page::Themed;
@@ -2524,7 +2524,7 @@ fn swatch_picker_in(name: &str, theme: egui::Theme, picker: Picker) {
         Vec2::new(320.0, 200.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         swatch_picker::State::with(swatch_picker::Choice::Colour(8)),
-        swatch_picker::layout,
+        swatch_picker::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2575,7 +2575,7 @@ fn clipboard_example_in(name: &str, theme: egui::Theme) {
         Vec2::new(360.0, 140.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         clipboard_example::State::default(),
-        clipboard_example::layout,
+        clipboard_example::view,
         |_, _| {},
     );
     harness
@@ -2608,7 +2608,7 @@ fn control_sizes_in(name: &str, theme: egui::Theme) {
         Vec2::new(640.0, 520.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         (),
-        control_sizes_example::layout,
+        control_sizes_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2635,7 +2635,7 @@ fn icons_in(name: &str, theme: egui::Theme, open_menu: bool) {
         Vec2::new(620.0, 360.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         (),
-        icons_example::layout,
+        icons_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2676,7 +2676,7 @@ fn field_icons_in(name: &str, theme: egui::Theme, focused: bool) {
         Vec2::new(320.0, 240.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         field_icons_example::State::default(),
-        field_icons_example::layout,
+        field_icons_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2717,7 +2717,7 @@ fn slider_header_in(name: &str, theme: egui::Theme) {
         Vec2::new(360.0, 260.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         slider_header_example::Levels::default(),
-        slider_header_example::layout,
+        slider_header_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2734,7 +2734,7 @@ fn form_sections_in(name: &str, theme: egui::Theme) {
         Vec2::new(460.0, 600.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         form_sections_example::Settings::default(),
-        form_sections_example::layout,
+        form_sections_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2762,7 +2762,7 @@ fn table_in(name: &str, theme: egui::Theme) {
         Vec2::new(820.0, 1160.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         table_example::Invoices::default(),
-        table_example::layout,
+        table_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2799,7 +2799,7 @@ fn list_nav_in(name: &str, theme: egui::Theme) {
         Vec2::new(300.0, 320.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         list_nav_example::State::default(),
-        list_nav_example::layout,
+        list_nav_example::view,
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
@@ -2835,7 +2835,7 @@ fn combobox_open(name: &str, theme: egui::Theme) {
         Vec2::new(800.0, 700.0),
         common::base_text_styled(theme, style),
         command_palette::State::default(),
-        command_palette::layout,
+        command_palette::view,
     );
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
@@ -2879,7 +2879,7 @@ fn palette_open(name: &str, theme: egui::Theme) {
         Vec2::new(800.0, 700.0),
         common::base_text_styled(theme, style),
         command_palette::State::default(),
-        command_palette::layout,
+        command_palette::view,
     );
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
@@ -2941,7 +2941,7 @@ mod child_rules {
         let state = accordion_example::State { open: Some(0) };
         let mut h = harness(
             Vec2::new(380.0, 280.0),
-            (state, accordion_example::layout),
+            (state, accordion_example::view),
             theme,
         );
         h.run_steps(12);
@@ -3046,7 +3046,7 @@ mod child_rules {
     fn choice_card_focused(theme: egui::Theme) {
         let mut h = harness(
             Vec2::new(420.0, 560.0),
-            (choice_cards::State::default(), choice_cards::layout),
+            (choice_cards::State::default(), choice_cards::view),
             theme,
         );
         h.key_press(egui::Key::Tab);
@@ -3385,7 +3385,7 @@ mod menubar {
             Vec2::new(520.0, 300.0),
             (
                 state,
-                menubar_example::layout,
+                menubar_example::view,
                 common::base_text_styled(theme, style),
             ),
             (theme, |_, _| {}),

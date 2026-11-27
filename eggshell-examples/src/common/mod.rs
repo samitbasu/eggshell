@@ -218,16 +218,16 @@ pub fn base_text_in(ctx: &Context) -> TextStyle {
     TextStyle::new(body(&tokens), tokens.foreground)
 }
 
-/// Builds one frame of a layout from the example's state.
-pub type Layout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
+/// An example's view: builds one frame from the example's state.
+pub type View<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
 
-/// Builds one frame of a layout from the example's state, which is also the
-/// application its draw closures act on. The state is borrowed for the frame
-/// (`'f`), so a layout may hand it to a region or a virtual list.
-pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
+/// An example's view of its state, which is also the application its draw
+/// closures act on. The state is borrowed for the frame (`'f`), so a view may
+/// hand it to a region or a virtual list.
+pub type AppView<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
 
-/// Runs `layout` over the whole window.
-pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {
+/// Runs `view` over the whole window.
+pub fn run<S: 'static>(title: &str, state: S, view: View<S>) -> eframe::Result {
     shell(
         title,
         None,
@@ -235,7 +235,7 @@ pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Resu
         |_, _| {},
         move |state, built_in, area, ui| {
             built_in
-                .build(ui.ctx(), |b| layout(b, state))
+                .build(ui.ctx(), |b| view(b, state))
                 .layout(area)
                 .draw(&mut (), ui);
         },
@@ -244,8 +244,8 @@ pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Resu
 
 /// [`run`] for examples whose state is the application: their nodes sense
 /// pointer events and their draw closures change the state.
-pub fn run_app<S: 'static>(title: &str, state: S, layout: AppLayout<S>) -> eframe::Result {
-    run_app_styled(title, state, |_, _| {}, layout)
+pub fn run_app<S: 'static>(title: &str, state: S, view: AppView<S>) -> eframe::Result {
+    run_app_styled(title, state, |_, _| {}, view)
 }
 
 /// [`run_app`] for examples whose state also sets egui's style, which
@@ -254,9 +254,9 @@ pub fn run_app_styled<S: 'static>(
     title: &str,
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
+    view: AppView<S>,
 ) -> eframe::Result {
-    run_styled_in(title, None, state, prepare, layout)
+    run_styled_in(title, None, state, prepare, view)
 }
 
 /// [`run_app_styled`] in a native window of `inner_size`.
@@ -265,9 +265,9 @@ pub fn run_app_sized<S: 'static>(
     inner_size: egui::Vec2,
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
+    view: AppView<S>,
 ) -> eframe::Result {
-    run_styled_in(title, Some(inner_size), state, prepare, layout)
+    run_styled_in(title, Some(inner_size), state, prepare, view)
 }
 
 fn run_styled_in<S: 'static>(
@@ -275,7 +275,7 @@ fn run_styled_in<S: 'static>(
     inner_size: Option<egui::Vec2>,
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
+    view: AppView<S>,
 ) -> eframe::Result {
     shell(
         title,
@@ -284,7 +284,7 @@ fn run_styled_in<S: 'static>(
         prepare,
         move |state, layout_state, area, ui| {
             layout_state
-                .build(ui.ctx(), |b| layout(b, state))
+                .build(ui.ctx(), |b| view(b, state))
                 .layout(area)
                 .draw(state, ui);
         },

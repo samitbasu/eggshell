@@ -155,10 +155,10 @@ pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 /// The controls beside the demo.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, controls, |b| demo(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("button", State::default(), layout)
+    common::run_app("button", State::default(), view)
 }

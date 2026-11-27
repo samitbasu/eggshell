@@ -47,7 +47,7 @@ impl Default for State {
 ///   <label data-slot="field-label">… <button role="switch" aria-checked="true"></button></label>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     b.div(tw().flex().flex_col().gap(6.0).p(4.0).w_px(380.0), |b| {
         b.radio_group(
             "compute",
@@ -76,5 +76,5 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("choice_cards", State::default(), layout)
+    common::run_app("choice_cards", State::default(), view)
 }

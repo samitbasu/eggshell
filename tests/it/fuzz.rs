@@ -196,7 +196,7 @@ fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
         vec2(520.0, 320.0),
         eggshell_examples::common::base_text(egui::Theme::Light),
         todo::State::default(),
-        todo::layout,
+        todo::view,
     );
     let session = Session::start(&harness.ctx);
     let mut width = 520.0;

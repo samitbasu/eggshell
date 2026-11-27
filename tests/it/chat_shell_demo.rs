@@ -13,7 +13,7 @@ use crate::support;
 use chat_shell::sidebar::Link;
 use chat_shell::state::{App, Message, Pane, Session, SessionKey};
 use chat_shell::theme::{Theme, Tok};
-use chat_shell::view::{Part, layout, prepare};
+use chat_shell::view::{Part, prepare, view};
 use support::fill_of;
 
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
@@ -25,8 +25,8 @@ fn harness_with(app: App) -> Driver<App> {
 /// A harness showing `theme`, which the tests pick so that they do not depend
 /// on the machine's theme.
 fn harness_in(theme: egui::Theme, app: App) -> Driver<App> {
-    let d = support::prepared_driver(WINDOW, Theme::new(theme).base_text(), app, layout, prepare)
-        .build();
+    let d =
+        support::prepared_driver(WINDOW, Theme::new(theme).base_text(), app, view, prepare).build();
     d.ctx().set_theme(theme);
     d
 }
@@ -571,7 +571,7 @@ mod composer_growth {
             WINDOW,
             Theme::new(egui::Theme::Dark).base_text(),
             App::default(),
-            layout,
+            view,
             prepare,
         )
         .pixels_per_point(PixelsPerPoint::new(pixels_per_point))

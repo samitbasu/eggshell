@@ -27,7 +27,7 @@ fn place(width: f32) -> Placed<()> {
             },
             Color32::BLACK,
         ))
-        .layout(&(), |b, _| example::layout(b, &()))
+        .layout(&(), |b, _| example::view(b, &()))
 }
 
 fn pane(placed: &Placed<()>, index: usize) -> eggshell_ui::testing::Query<'_> {

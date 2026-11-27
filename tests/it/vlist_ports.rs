@@ -82,11 +82,11 @@ fn seen<A>(d: &Driver<A>, list: &str) -> Vec<String> {
 
 mod grid {
     use super::*;
-    use virtual_grid::{ROWS, Row, State, layout};
+    use virtual_grid::{ROWS, Row, State, view};
 
     #[test]
     fn it_shows_its_first_rows_and_builds_only_a_screenful() {
-        let d = driver(State::default(), layout);
+        let d = driver(State::default(), view);
         let seen = seen(&d, "/Grid");
         assert_eq!(seen.first().map(String::as_str), Some("Row(0)"));
         assert!(seen.len() > 5, "a screenful: {seen:?}");
@@ -96,7 +96,7 @@ mod grid {
 
     #[test]
     fn odd_rows_have_two_cells_and_even_ones_one_that_spans_both() {
-        let d = driver(State::default(), layout);
+        let d = driver(State::default(), view);
         let cells = |row: u32| {
             support::nodes(&d)
                 .into_iter()
@@ -111,7 +111,7 @@ mod grid {
 
     #[test]
     fn a_row_far_down_is_shown_where_its_index_puts_it() {
-        let mut d = driver(State::default(), layout);
+        let mut d = driver(State::default(), view);
         let list = support::id_of(&d, "/Grid");
         d.shell().scroll_to_row(list, Row(60_001), Some(Align::Min));
         d.frames(3);
@@ -122,11 +122,11 @@ mod grid {
 
 mod items {
     use super::*;
-    use virtual_list_example::{ITEMS, Item, State, extra, layout};
+    use virtual_list_example::{ITEMS, Item, State, extra, view};
 
     #[test]
     fn each_item_is_as_tall_as_its_index_makes_it() {
-        let d = driver(State::default(), layout);
+        let d = driver(State::default(), view);
         let rows = rows(&d, "/List");
         assert!(rows.len() > 3, "precondition: items built");
         let base = rows[0].1.height() - extra(Item(0));
@@ -146,7 +146,7 @@ mod items {
 
     #[test]
     fn the_last_of_a_hundred_thousand_items_can_be_scrolled_to() {
-        let mut d = driver(State::default(), layout);
+        let mut d = driver(State::default(), view);
         let list = support::id_of(&d, "/List");
         let last = Item(ITEMS - 1);
         d.shell().scroll_to_row(list, last, Some(Align::Max));
@@ -162,7 +162,7 @@ mod items {
 
 mod stable_ids {
     use super::*;
-    use virtual_list_stable_id::{Row, State, layout};
+    use virtual_list_stable_id::{Row, State, view};
 
     /// The id the button of row `row` registered, and the label beside it.
     fn hello(d: &Driver<State>, row: u32) -> (egui::Id, String) {
@@ -183,7 +183,7 @@ mod stable_ids {
 
     #[test]
     fn a_row_keeps_its_ids_when_scrolled_away_and_back() {
-        let mut d = driver(State::default(), layout);
+        let mut d = driver(State::default(), view);
         let before = hello(&d, 3);
         assert!(
             before.1.contains(&format!("{:016X}", before.0.value())),
@@ -205,11 +205,11 @@ mod stable_ids {
 
 mod people {
     use super::*;
-    use stargazers::{PEOPLE, State, layout};
+    use stargazers::{PEOPLE, State, view};
 
     #[test]
     fn it_shows_the_first_people_and_builds_only_a_screenful() {
-        let d = driver(State::default(), layout);
+        let d = driver(State::default(), view);
         let seen = seen(&d, "/List");
         assert_eq!(seen.first().map(String::as_str), Some("Person(0)"));
         let built = rows(&d, "/List").len();
@@ -219,7 +219,7 @@ mod people {
 
 mod messages {
     use super::*;
-    use chat::{ARRIVAL, HISTORY, State, layout};
+    use chat::{ARRIVAL, HISTORY, State, view};
 
     fn last_seen(d: &Driver<State>) -> Option<String> {
         seen(d, "/List").last().cloned()
@@ -227,7 +227,7 @@ mod messages {
 
     #[test]
     fn it_opens_on_the_last_message() {
-        let d = driver(State::default(), layout);
+        let d = driver(State::default(), view);
         let view = viewport(&d, "/List").rect;
         let rows = rows(&d, "/List");
         let (last, rect) = rows.last().expect("messages built");
@@ -240,7 +240,7 @@ mod messages {
 
     #[test]
     fn arriving_messages_show_at_the_bottom() {
-        let mut d = driver(State::default(), layout);
+        let mut d = driver(State::default(), view);
         let steps = (ARRIVAL / 0.05).ceil() as usize + 2;
         d.frames(steps);
         d.frames(4);

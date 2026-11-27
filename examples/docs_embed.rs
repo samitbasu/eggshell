@@ -297,7 +297,7 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[37em]">…</article></main>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     common::use_theme_color(b.ctx(), state.theme);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
@@ -343,5 +343,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 
 #[allow(dead_code, reason = "the tests mount the page without running it")]
 fn main() -> eframe::Result {
-    common::run_app("docs_embed", State::default(), layout)
+    common::run_app("docs_embed", State::default(), view)
 }

@@ -63,7 +63,7 @@ impl State {
 ///   <div class="flex flex-col gap-1"> <div>Row 1</div> … </div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.div_id(
         Part::Page,
         tw().flex().flex_col().gap(4.0).w_px(360.0).p(4.0),
@@ -87,5 +87,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("accordion", State::default(), layout)
+    common::run_app("accordion", State::default(), view)
 }

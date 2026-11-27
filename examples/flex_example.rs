@@ -129,7 +129,7 @@ fn stacked(b: &mut B<'_, '_>) {
 ///        more buttons and a checkbox -->
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     b.div(tw().p(2.0).w_full(), |b| row(b, state));
 }
 
@@ -194,5 +194,5 @@ fn items(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flex_example", State::default(), layout)
+    common::run_app("flex_example", State::default(), view)
 }

@@ -670,7 +670,7 @@ mod example {
             vec2(760.0, 520.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             table_example::Invoices::default(),
-            table_example::layout,
+            table_example::view,
         )
         .build();
         d.frames(3);

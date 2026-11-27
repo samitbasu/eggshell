@@ -21,7 +21,7 @@ fn harness() -> Driver<State> {
         vec2(520.0, 320.0),
         common::base_text(egui::Theme::Light),
         State::default(),
-        todo::layout,
+        todo::view,
     )
     .build()
 }

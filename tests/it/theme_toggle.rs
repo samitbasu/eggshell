@@ -122,9 +122,10 @@ fn no_example_in_the_crate_pins_a_theme() {
 
 #[test]
 fn the_shared_runner_shows_the_bar() {
-    let text =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("eggshell-examples/src/common/mod.rs"))
-            .unwrap();
+    let text = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("eggshell-examples/src/common/mod.rs"),
+    )
+    .unwrap();
     let from = text.find("fn shell<").unwrap();
     let shell = &text[from..from + text[from..].find("\n}\n").unwrap()];
     assert!(shell.contains("theme_bar.show(ui)"));

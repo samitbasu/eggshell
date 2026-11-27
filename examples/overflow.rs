@@ -84,7 +84,7 @@ fn column(b: &B<'_, '_>) -> Tw {
 ///   <div class="flex items-center gap-4"> four columns </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     let count = state.count;
     b.div(
@@ -133,5 +133,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("overflow", State::default(), layout)
+    common::run_app("overflow", State::default(), view)
 }

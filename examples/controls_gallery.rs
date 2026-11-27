@@ -721,7 +721,7 @@ fn legend(b: &mut B<'_, '_>) {
 ///   <div class="flex flex-wrap content-start gap-3 p-3 grow">…one cell per control…</div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     common::with_panel(
         b,
         PANEL_WIDTH,
@@ -1148,11 +1148,5 @@ pub fn base_text() -> TextStyle {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_sized(
-        "controls_gallery",
-        WINDOW,
-        State::default(),
-        prepare,
-        layout,
-    )
+    common::run_app_sized("controls_gallery", WINDOW, State::default(), prepare, view)
 }

@@ -37,7 +37,7 @@ fn area<A>(b: &mut B<'_, '_, A>, place: Tw, fill: Color32, text: Color32, label:
 ///   <div class="row-start-3 col-span-3 ...">footer</div>
 /// </div>
 /// ```
-pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
+pub fn view<A>(b: &mut B<'_, '_, A>, _: &()) {
     let edge = Track::px(100.0);
     let middle = Track::fr(1.0);
     b.div(
@@ -59,5 +59,5 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("holy_grail", (), layout)
+    common::run("holy_grail", (), view)
 }

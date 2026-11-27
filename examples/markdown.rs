@@ -230,7 +230,7 @@ fn example(s: &mut Scope<'_, '_, State>, _: &State, directive: &Directive<'_>) {
 ///   <a href="…">Back</a> …
 /// </article></main>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     install_swatches(b.ctx());
     let directives = directives();
     let muted = common::tokens(b.ctx()).muted_foreground;
@@ -314,7 +314,7 @@ impl ImageLoader for Swatches {
     }
 }
 
-#[allow(dead_code, reason = "the tests include this file for `layout`")]
+#[allow(dead_code, reason = "the tests include this file for `view`")]
 fn main() -> eframe::Result {
-    common::run_app("markdown", State::default(), layout)
+    common::run_app("markdown", State::default(), view)
 }

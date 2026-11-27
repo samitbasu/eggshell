@@ -174,7 +174,7 @@ fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
     );
 }
 
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(3.0).p(4.0), |b| {
         b.text(tw().text(muted), "Tools");
@@ -185,5 +185,5 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("toggle_group", State::default(), layout)
+    common::run_app("toggle_group", State::default(), view)
 }

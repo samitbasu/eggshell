@@ -31,7 +31,7 @@ fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
         size,
         common::base_text(Theme::Light),
         page::State::default(),
-        page::layout,
+        page::view,
     )
     .build();
     d.frames(4);
@@ -539,7 +539,7 @@ fn headless_places_the_table_where_the_frame_draws_it() {
     let placed = Headless::new(vec2(720.0, 1700.0) - vec2(16.0, 16.0))
         .base_text(common::base_text(Theme::Light))
         .style(&eggshell_ui::SharedStyle::new(crate::support::shadcn()))
-        .layout(&page::State::default(), page::layout);
+        .layout(&page::State::default(), page::view);
     let drawn: Vec<_> = support::nodes(&d)
         .into_iter()
         .filter(|(path, _)| path.starts_with(TABLE))

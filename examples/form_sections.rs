@@ -34,7 +34,7 @@ impl Default for Settings {
 ///   <div role="group">Version <span class="text-muted-foreground">0.1.0</span></div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
     // shadcn's `FieldGroup`: `gap-6`, `gap-4` in Lyra.
     let gap = match b.style().tokens.style {
         eggshell_ui::theme::ShadcnStyle::Vega => 6.0,
@@ -87,5 +87,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
 
 fn main() -> eframe::Result {
     common::trace_input();
-    common::run_app("form_sections", Settings::default(), layout)
+    common::run_app("form_sections", Settings::default(), view)
 }

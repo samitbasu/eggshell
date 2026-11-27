@@ -507,7 +507,7 @@ mod example {
             SCREEN,
             common::base_text(egui::Theme::Light),
             State::default(),
-            dialog::layout,
+            dialog::view,
             common::use_accent,
         )
         .build();

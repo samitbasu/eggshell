@@ -108,7 +108,7 @@ fn commands() -> Commands<State> {
         )
 }
 
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     let table = commands();
     b.commands(&table, state);
     b.div_id(
@@ -159,7 +159,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     });
 }
 
-#[allow(dead_code, reason = "the tests include this file for `layout`")]
+#[allow(dead_code, reason = "the tests include this file for `view`")]
 fn main() -> eframe::Result {
-    common::run_app("command_palette", State::default(), layout)
+    common::run_app("command_palette", State::default(), view)
 }

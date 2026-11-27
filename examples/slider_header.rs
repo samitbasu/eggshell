@@ -38,7 +38,7 @@ impl Default for Levels {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
     b.div_id(
         "Page",
         tw().flex()
@@ -99,5 +99,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
 
 fn main() -> eframe::Result {
     common::trace_input();
-    common::run_app("slider_header", Levels::default(), layout)
+    common::run_app("slider_header", Levels::default(), view)
 }

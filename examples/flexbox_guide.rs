@@ -566,10 +566,10 @@ pub fn three_columns<A>(b: &mut B<'_, '_, A>) {
 }
 
 /// The selector beside the guide.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, |b| controls(b, state), |b| guide(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flexbox_guide", State::default(), layout)
+    common::run_app("flexbox_guide", State::default(), view)
 }

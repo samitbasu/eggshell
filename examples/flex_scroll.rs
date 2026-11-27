@@ -29,7 +29,7 @@ const ROWS: u32 = 50;
 ///   </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.scroll("rows", tw().size_full().p(2.0)).children(|s| {
         s.div(tw().flex().flex_col().gap(2.0).text(t.foreground), |s| {
@@ -44,5 +44,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flex_scroll", State::default(), layout)
+    common::run_app("flex_scroll", State::default(), view)
 }

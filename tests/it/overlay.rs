@@ -1206,7 +1206,7 @@ mod menu_example {
             SIZE,
             common::base_text(egui::Theme::Light),
             State::default(),
-            menu::layout,
+            menu::view,
         )
         .build();
         d.frames(3);

@@ -18,7 +18,7 @@ pub struct State {
 ///   <input class="pl-8" placeholder="Search">
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.div_id(
         "Page",
         tw().flex().flex_col().gap(4.0).p(4.0).w_px(280.0),
@@ -45,5 +45,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("field_icons", State::default(), layout)
+    common::run_app("field_icons", State::default(), view)
 }

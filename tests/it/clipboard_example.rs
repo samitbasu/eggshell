@@ -21,7 +21,7 @@ fn harness() -> (Driver<example::State>, FakeClipboard) {
         vec2(360.0, 240.0),
         common::base_text(egui::Theme::Light),
         example::State::default(),
-        example::layout,
+        example::view,
         |_, _| {},
     )
     .build();

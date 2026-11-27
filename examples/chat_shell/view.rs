@@ -67,7 +67,7 @@ pub fn prepare(ctx: &egui::Context, app: &App) {
 ///   <aside/> <div class="splitter"/> <main/> <div class="splitter"/> <aside/>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, app: &'f App) {
+pub fn view<'f>(b: &mut B<'_, 'f>, app: &'f App) {
     b.region(Part::Frame, tw().size_full(), move |b, room| {
         frame(b, app, Panes::fitting(room));
     });

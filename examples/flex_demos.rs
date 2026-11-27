@@ -352,7 +352,7 @@ fn header(b: &mut B<'_, '_>, state: &State) {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     b.div(tw().flex().flex_col().gap(2.0).p(2.0).size_full(), |b| {
         header(b, state);
         b.div(
@@ -377,5 +377,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flex_demos", State::default(), layout)
+    common::run_app("flex_demos", State::default(), view)
 }

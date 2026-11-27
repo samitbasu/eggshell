@@ -31,7 +31,7 @@ mod buttons {
             vec2(400.0, 520.0),
             common::base_text(egui::Theme::Light),
             State::default(),
-            button::layout,
+            button::view,
         )
         .build()
     }
@@ -101,7 +101,7 @@ mod backgrounds {
             vec2(1400.0, 700.0),
             common::base_text(egui::Theme::Light),
             State::default(),
-            custom_background::layout,
+            custom_background::view,
         )
         .build()
     }
@@ -156,7 +156,7 @@ mod navigation {
             vec2(800.0, 800.0),
             common::base_text(egui::Theme::Light),
             State::default(),
-            sidebar::layout,
+            sidebar::view,
         )
         .build()
     }

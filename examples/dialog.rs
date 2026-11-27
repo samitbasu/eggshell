@@ -79,7 +79,7 @@ fn field<'f>(
 ///   <p>Row 0</p> …
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let t = common::tokens(b.ctx());
     b.scroll(Part::Page, tw().w_full().h_full())
         .axis(Axis::Y)
@@ -254,5 +254,5 @@ fn sheet(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("dialog", State::default(), common::use_accent, layout)
+    common::run_app_styled("dialog", State::default(), common::use_accent, view)
 }

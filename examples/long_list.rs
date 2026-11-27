@@ -192,7 +192,7 @@ fn jumps(b: &mut B<'_, '_>, state: &State) {
 ///   <div class="grow min-h-0 overflow-y-auto rounded-md border bg-card">rows</div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     let t = common::tokens(b.ctx());
     b.div(tw().flex().flex_col().gap(3.0).size_full().p(4.0), |b| {
         jumps(b, state);
@@ -212,5 +212,5 @@ pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("long_list", State::default(), layout)
+    common::run_app("long_list", State::default(), view)
 }

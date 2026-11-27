@@ -14,7 +14,7 @@ use eggshell_ui::{Builder, tw};
 ///   <div class="flex flex-col gap-3"> xs </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
+pub fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id("Page", tw().flex().gap(6.0).p(4.0), |s| {
         for (name, size) in [
             ("default", eggshell_ui::contract::Size::DEFAULT),
@@ -62,5 +62,5 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("control_sizes", (), layout)
+    common::run("control_sizes", (), view)
 }

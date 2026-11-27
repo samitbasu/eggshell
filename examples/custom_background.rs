@@ -271,10 +271,10 @@ fn buttons(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 /// The controls beside the demo.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("custom_background", State::default(), layout)
+    common::run_app("custom_background", State::default(), view)
 }

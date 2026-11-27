@@ -197,24 +197,24 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
     let mut found = Vec::new();
     found.extend(overflow(
         "button",
-        &place(&ctx, |b| button::layout(b, &button::State::default())),
+        &place(&ctx, |b| button::view(b, &button::State::default())),
     ));
     found.extend(overflow(
         "todo",
-        &place(&ctx, |b| todo::layout(b, &todo::State::default())),
+        &place(&ctx, |b| todo::view(b, &todo::State::default())),
     ));
     found.extend(overflow(
         "live_values",
-        &place(&ctx, |b| live_values::layout(b, &())),
+        &place(&ctx, |b| live_values::view(b, &())),
     ));
     found.extend(overflow(
         "form",
-        &place(&ctx, |b| form::layout(b, &form::State::default())),
+        &place(&ctx, |b| form::view(b, &form::State::default())),
     ));
     found.extend(overflow(
         "signup_form",
         &place(&ctx, |b| {
-            signup_form::layout(b, &signup_form::State::default())
+            signup_form::view(b, &signup_form::State::default())
         }),
     ));
     for section in [
@@ -229,13 +229,13 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
         };
         found.extend(overflow(
             "controls_gallery",
-            &place(&ctx, |b| controls_gallery::layout(b, &state)),
+            &place(&ctx, |b| controls_gallery::view(b, &state)),
         ));
     }
     let app = chat_shell::state::App::default();
     found.extend(overflow(
         "chat_shell",
-        &place_borrowing(&ctx, &app, chat_shell::view::layout),
+        &place_borrowing(&ctx, &app, chat_shell::view::view),
     ));
     found
 }
@@ -259,7 +259,7 @@ fn a_harness_switched_to_lyra_draws_lyra() {
         controls_gallery::WINDOW,
         common::base_text_styled(Theme::Light, ShadcnStyle::Lyra),
         controls_gallery::State::default(),
-        controls_gallery::layout,
+        controls_gallery::view,
         controls_gallery::prepare,
     )
     .build();

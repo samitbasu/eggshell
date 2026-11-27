@@ -68,7 +68,7 @@ fn size(size: PaneSize) -> String {
 ///   <splitter/> <aside style="width: 240px"/>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
+pub fn view(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
     let t = common::tokens(b.ctx());
     let heading = || tw().font_medium().text(t.foreground);
     let muted = || tw().text(t.muted_foreground);
@@ -163,5 +163,5 @@ pub fn layout(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("split_panes", Panes::default(), layout)
+    common::run_app("split_panes", Panes::default(), view)
 }

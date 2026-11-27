@@ -34,7 +34,7 @@ fn harness() -> Harness<'static, Rig<State>> {
         vec2(640.0, 480.0),
         common::base_text(egui::Theme::Light),
         State::default(),
-        example::layout,
+        example::view,
     );
     harness.ctx.set_theme(egui::Theme::Light);
     harness.run_steps(6);

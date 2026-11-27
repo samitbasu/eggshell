@@ -31,7 +31,7 @@ impl Default for State {
 ///   <li role="option" id="row-3" class="data-[active]:bg-accent">Row 3</li>
 /// </ul>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     let t = common::tokens(b.ctx());
     let accent = t.accent;
     b.div_id(
@@ -66,5 +66,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("list_nav", State::default(), layout)
+    common::run_app("list_nav", State::default(), view)
 }

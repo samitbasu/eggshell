@@ -98,7 +98,7 @@ fn links(
     }
 }
 
-fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let current = state.page;
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(6.0).p(8.0).items_start(), |b| {
@@ -142,5 +142,5 @@ fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("navigation menu", State::default(), layout)
+    common::run_app("navigation menu", State::default(), view)
 }
