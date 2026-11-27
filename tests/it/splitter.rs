@@ -295,28 +295,36 @@ mod keys {
         }
     }
 
+    /// The focus ring a splitter paints around `rect`, outside it.
+    fn ring_around(d: &Driver<App>, rect: egui::Rect) -> Option<(usize, egui::epaint::RectShape)> {
+        d.harness()
+            .output()
+            .shapes
+            .iter()
+            .enumerate()
+            .find_map(|(at, clipped)| match &clipped.shape {
+                Shape::Rect(ring)
+                    if support::same(ring.rect, rect)
+                        && ring.stroke.width > 0.0
+                        && ring.stroke_kind == egui::StrokeKind::Outside =>
+                {
+                    Some((at, ring.clone()))
+                }
+                _ => None,
+            })
+    }
+
     #[test]
     fn a_focused_splitter_shows_the_focus_ring_and_lights_its_band() {
         let mut d = harness();
         let rect = d.rect(Target::suffix(LEFT));
-        let ring_at = |d: &Driver<App>| {
-            support::shapes(d)
-                .into_iter()
-                .find_map(|shape| match shape {
-                    Shape::Rect(ring)
-                        if support::same(ring.rect, rect)
-                            && ring.stroke.width > 0.0
-                            && ring.stroke_kind == egui::StrokeKind::Inside =>
-                    {
-                        Some(ring.clone())
-                    }
-                    _ => None,
-                })
-        };
-        assert!(ring_at(&d).is_none(), "precondition: no ring at rest");
+        assert!(
+            ring_around(&d, rect).is_none(),
+            "precondition: no ring at rest"
+        );
         tab_to(&mut d, LEFT);
         d.frames(12);
-        let ring = ring_at(&d).expect("a ring inside the hit area");
+        let (_, ring) = ring_around(&d, rect).expect("a ring outside the hit area");
         let focus = Shadcn::for_theme(Theme::Light).style().tokens.focus();
         assert_eq!(
             (ring.stroke.width, ring.stroke.color),
@@ -330,6 +338,69 @@ mod keys {
                 Shape::Rect(band) if band.rect == rect && band.fill == hot
             )),
             "the band fills the hit area"
+        );
+    }
+
+    #[test]
+    fn the_next_panes_fill_does_not_cover_the_ring() {
+        let mut d = harness();
+        let rect = d.rect(Target::suffix(LEFT));
+        let editor = d.rect(Target::suffix(EDITOR_PATH));
+        tab_to(&mut d, LEFT);
+        d.frames(12);
+        let (ring_at, ring) = ring_around(&d, rect).expect("a ring outside the hit area");
+        let fill_at = d
+            .harness().output()
+            .shapes
+            .iter()
+            .position(|clipped| {
+                matches!(&clipped.shape, Shape::Rect(pane) if pane.fill == EDITOR && support::same(pane.rect, editor))
+            })
+            .expect("precondition: the editor pane is filled");
+        assert!(
+            ring.rect.expand(ring.stroke.width).intersects(editor),
+            "precondition: the ring reaches over the editor pane: {:?} and {editor:?}",
+            ring.rect
+        );
+        assert!(fill_at < ring_at, "the ring is painted over the next pane");
+    }
+
+    #[test]
+    fn a_callers_focus_ring_replaces_the_splitters() {
+        const OWN: Color32 = Color32::from_rgb(220, 30, 60);
+        fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+            b.div_id("frame", tw().flex().size_full(), |b| {
+                b.div_id("sidebar", tw().w_px(app.sidebar.into()), |_| {});
+                b.splitter("left")
+                    .before(app.sidebar)
+                    .named("Sidebar")
+                    .classes(tw().focus(|p| p.ring(2.0, OWN)))
+                    .on_resize(|app: &mut App, size| app.sidebar = size);
+                b.div_id("editor", tw().flex_1().bg(EDITOR), |_| {});
+            });
+        }
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut d = support::driver(
+            WINDOW,
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::default(),
+            view,
+        )
+        .build();
+        d.ctx().set_theme(Theme::Light);
+        d.frames(4);
+        let rect = d.rect(Target::suffix(LEFT));
+        tab_to(&mut d, LEFT);
+        d.frames(12);
+        let (_, ring) = ring_around(&d, rect).expect("a ring outside the hit area");
+        assert_eq!((ring.stroke.width, ring.stroke.color), (2.0, OWN));
+        let focus = Shadcn::for_theme(Theme::Light).style().tokens.focus();
+        assert!(
+            !support::shapes(&d).into_iter().any(|shape| matches!(
+                shape,
+                Shape::Rect(other) if other.stroke.color == focus.color && other.stroke.width > 0.0
+            )),
+            "and no other ring"
         );
     }
 
