@@ -614,8 +614,6 @@ struct Pass {
     blur: Blur,
     /// The items of groups on the page that are not their group's Tab stop.
     off_tab: std::collections::HashSet<Id>,
-    /// The relations between the pass's nodes, announced once it has drawn.
-    relations: Vec<crate::relation::Relation>,
 }
 
 /// The id of the blocker of the node at `index`: the widget an overlay's
@@ -722,9 +720,10 @@ impl<A> Walk<'_, A> {
             own
         });
         if let Some(target) = node.description().and_then(|d| d.controls) {
-            self.pass
-                .relations
-                .push(crate::relation::Relation::Controls { node: id, target });
+            crate::relation::note(
+                self.ui.ctx(),
+                crate::relation::Relation::Controls { node: id, target },
+            );
         }
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
@@ -2095,7 +2094,6 @@ impl<A> Painting<A> {
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
             off_tab: std::collections::HashSet::new(),
-            relations: Vec::new(),
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
@@ -2120,6 +2118,7 @@ impl<A> Painting<A> {
         crate::web::ClaimedChords::of(&ctx).record(&ctx, claimed);
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
+        let relations = crate::relation::Collecting::enter(&ctx);
         let mut walk = Walk {
             app,
             ui,
@@ -2152,14 +2151,9 @@ impl<A> Painting<A> {
             dismiss,
             app,
         );
-        pass.relations.extend(popups);
-        pass.relations.extend(nav::relations(&ctx, kept));
-        pass.relations.extend(crate::vlist::relations(
-            kept,
-            &shell,
-            ctx.cumulative_pass_nr(),
+        relations.announce(popups.into_iter().chain(nav::relations(&ctx, kept)).chain(
+            crate::vlist::relations(kept, &shell, ctx.cumulative_pass_nr()),
         ));
-        crate::relation::announce(&ctx, &pass.relations);
         finish.finish(&ctx, kept, nodes, drag, app);
         let quiet = crate::hover::end(crate::hover::Frame {
             ctx: &ctx,
@@ -2567,10 +2561,13 @@ impl NodeUi for Ui {
     fn label_for(&self, control: egui::Id, text: &str) -> bool {
         let response = self.node_response();
         response.widget_info(|| WidgetInfo::labeled(Role::Label, self.is_enabled(), text));
-        self.ctx().accesskit_node_builder(control, |node| {
-            node.clear_label();
-            node.push_labelled_by(response.id.accesskit_id());
-        });
+        crate::relation::note(
+            self.ctx(),
+            crate::relation::Relation::LabelledBy {
+                node: control,
+                target: response.id,
+            },
+        );
         response.clicked()
     }
 
