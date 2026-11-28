@@ -198,9 +198,10 @@ impl Found {
 ///    presses ends the walk, but for the overlays it is nested in: the press
 ///    went to it and no further. A modal ends the walk whatever it is nested
 ///    in: the press landed on its scrim, which is its outside.
-/// 3. Esc goes to the topmost overlay that takes it: one that dismisses on
-///    Esc, or that has a cancel button. The cancel button answers it, and the
-///    overlay is not otherwise dismissed.
+/// 3. Esc goes to the topmost overlay that takes it (one that dismisses on
+///    Esc, or that has a cancel button), but never past the overlay that
+///    holds the focus: see [`esc_target`]. The cancel button answers it, and
+///    the overlay is not otherwise dismissed.
 /// 4. Focus moving from inside an overlay to a widget outside it dismisses
 ///    it; focus becoming none does not. A hidden overlay is dismissed by
 ///    focus arriving at a widget elsewhere from nowhere as well, since no
@@ -253,7 +254,7 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
             press_outside(layers, press, &mut found);
         }
         if input.escape
-            && let Some(at) = esc_target(layers)
+            && let EscTo::Overlay(at) = esc_target(layers)
         {
             let cause = if layers.get(at).is_some_and(|layer| layer.cancel.is_some()) {
                 Cause::Cancel
@@ -272,16 +273,44 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
     found
 }
 
-/// The overlay Esc goes to: the topmost that dismisses on Esc or has a
-/// cancel button. With none, Esc is the page's.
-pub(crate) fn esc_target(layers: &[Layer]) -> Option<usize> {
-    layers
+/// Who Esc belongs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EscTo {
+    /// The overlay at this index: its dismissal, or its cancel button.
+    Overlay(usize),
+    /// The widgets of an overlay that holds the focus and takes no Esc, such
+    /// as a notice: the overlays below and the page do not see it.
+    Held,
+    /// The page: its cancel button, or the application.
+    Page,
+}
+
+/// Who Esc belongs to: walking top-down, the first overlay that dismisses on
+/// Esc or has a cancel button, unless an overlay that holds the focus (in
+/// it, in one nested in it, or on its anchor) comes first and takes none.
+/// With focus on the page, the topmost overlay that takes Esc has it, as
+/// Radix's `DismissableLayer` does. A tooltip on the focused trigger holds
+/// nothing: it takes no input.
+///
+/// Focus is held as of the last pass too: egui drops it when Esc is pressed,
+/// before anything else runs.
+pub(crate) fn esc_target(layers: &[Layer]) -> EscTo {
+    for (at, layer) in layers
         .iter()
         .enumerate()
         .rev()
         .filter(|(_, layer)| layer.lookup == AnchorLookup::Found && layer.seen == Seen::Drawn)
-        .find(|(_, layer)| layer.dismiss_on.esc() || layer.cancel.is_some())
-        .map(|(at, _)| at)
+    {
+        if layer.dismiss_on.esc() || layer.cancel.is_some() {
+            return EscTo::Overlay(at);
+        }
+        let holds_focus =
+            layer.focus_before == FocusAt::Inside || layer.focus_now == FocusAt::Inside;
+        if holds_focus && layer.band.senses_input() {
+            return EscTo::Held;
+        }
+    }
+    EscTo::Page
 }
 
 /// A modal traps focus, so focus leaving it, or the window losing focus, is
@@ -1158,8 +1187,55 @@ mod tests {
             dismiss_on: DismissOn::Never,
             ..popover(0.0)
         };
-        assert_eq!(esc_target(&[]), None);
-        assert_eq!(esc_target(&[never]), None);
-        assert_eq!(esc_target(&[popover(0.0), never]), Some(0));
+        assert_eq!(esc_target(&[]), EscTo::Page);
+        assert_eq!(esc_target(&[never]), EscTo::Page);
+        assert_eq!(esc_target(&[popover(0.0), never]), EscTo::Overlay(0));
+    }
+
+    #[test]
+    fn esc_never_passes_the_overlay_that_holds_the_focus() {
+        let notice = |focus_before| Layer {
+            dismiss_on: DismissOn::Never,
+            focus_before,
+            ..popover(0.0)
+        };
+        let below = modal(0.0);
+        assert_eq!(
+            esc_target(&[below, notice(FocusAt::Inside)]),
+            EscTo::Held,
+            "the notice's widgets have it"
+        );
+        assert_eq!(
+            closed(&[below, notice(FocusAt::Inside)], &ESC),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            esc_target(&[below, notice(FocusAt::Elsewhere)]),
+            EscTo::Overlay(0),
+            "with focus elsewhere it passes the notice by"
+        );
+        let held_now = Layer {
+            focus_now: FocusAt::Inside,
+            ..notice(FocusAt::Nowhere)
+        };
+        assert_eq!(esc_target(&[below, held_now]), EscTo::Held);
+        let tooltip = Layer {
+            band: Band::Tooltip,
+            ..notice(FocusAt::Inside)
+        };
+        assert_eq!(
+            esc_target(&[below, tooltip]),
+            EscTo::Overlay(0),
+            "a tooltip on the focused trigger is passed by"
+        );
+    }
+
+    #[test]
+    fn esc_goes_to_an_overlay_above_the_focus_that_takes_it() {
+        let dialog = Layer {
+            focus_before: FocusAt::Inside,
+            ..modal(0.0)
+        };
+        assert_eq!(esc_target(&[dialog, popover(150.0)]), EscTo::Overlay(1));
     }
 }
