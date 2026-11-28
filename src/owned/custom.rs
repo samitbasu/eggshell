@@ -99,7 +99,8 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
         let mut node = b
             .leaf_with(&slot, classes, measure)
-            .open_focus(autofocus.open_focus());
+            .open_focus(autofocus.open_focus())
+            .senses_for(&tooltip);
         if role != Role::Unknown {
             node = node.role(role);
             if let Some(name) = &name {

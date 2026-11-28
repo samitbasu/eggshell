@@ -129,10 +129,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
         let metrics = *radio.sizes.lookup(b.ctx(), size);
         let size = radio.sizes.key_for(size);
         let group = b.part(Part::Root, &[], classes);
-        let group = match &group_tip {
-            Some(_) => group.sense_hover(),
-            None => group,
-        };
         let whole_tip = group_tip.clone();
         let target = choice::focus_target(&options, &current, enablement);
         b.div_id_with(&slot, group, |b| {
@@ -227,6 +223,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> Chain<'a, 'f, A, T> {
         })
         .nav(Nav::Radio(Wrap::Around))
         .selection_follows_focus()
+        .senses_for(&whole_tip)
         .draw(move |_, ui| {
             tipped_whole(ui, &whole_tip);
             announce_group(ui, Role::RadioGroup, name.as_deref());

@@ -213,11 +213,6 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
             Enablement::Enabled => own,
             Enablement::Disabled => own.inert(),
         };
-        let own = if spec.tooltip.is_some() {
-            own.sense_hover()
-        } else {
-            own
-        };
         let group = b.part(input::GroupPart::Root, &keys, own.merge(classes));
         let tooltip = spec.tooltip.clone();
         let field_box = centered(text_sized(&b, metrics.text))
@@ -330,6 +325,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                     }
                 });
             })
+            .senses_for(&tooltip)
             .draw(move |_, ui| tipped_whole(ui, &tooltip));
         });
     }

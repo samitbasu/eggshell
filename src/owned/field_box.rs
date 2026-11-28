@@ -103,13 +103,10 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                 .merge(text_sized(&b, metrics.text))
                 .merge(classes),
         );
-        let classes = match tooltip {
-            Some(_) => classes.sense_hover(),
-            None => classes,
-        };
         let node = b
             .div_id_with(&slot, classes, body)
-            .open_focus(autofocus.open_focus());
+            .open_focus(autofocus.open_focus())
+            .senses_for(&tooltip);
         let node = match name {
             Some(name) => node.named(name),
             None => node,

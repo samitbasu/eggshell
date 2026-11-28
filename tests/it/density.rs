@@ -124,7 +124,10 @@ fn a_dense_vega_input_has_6_point_corners_and_draws_13_point_text() {
 fn a_dense_small_field_is_a_unit_shorter_and_padded_in_units() {
     let d = driver(ShadcnStyle::Vega, dense);
     assert_eq!(rect(&d, "/\"small\"").height(), 28.0, "h-8 at 3.5 a unit");
-    let (boxed, icon) = (rect(&d, "/\"found\""), rect(&d, "/\"found\"/Leading"));
+    let (boxed, icon) = (
+        rect(&d, "/\"found\""),
+        rect(&d, "/\"found\"/LeadingAddon/Leading"),
+    );
     assert_eq!(boxed.height(), 28.0, "the box is the field's height");
     let border = 1.0;
     assert_eq!(

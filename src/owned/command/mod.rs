@@ -505,10 +505,9 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             autofocus,
             ..
         } = std::mem::take(&mut options.shared).resolve(b, group_id);
-        let caller = match (enablement, &tooltip) {
-            (Enablement::Disabled, _) => caller.inert().sense_hover(),
-            (Enablement::Enabled, Some(_)) => caller.sense_hover(),
-            (Enablement::Enabled, None) => caller,
+        let caller = match enablement {
+            Enablement::Disabled => caller.inert().sense_hover(),
+            Enablement::Enabled => caller,
         };
         let group_classes = b.part(ComboboxPart::Input, &[], caller);
         let placeholder = options.placeholder.clone();
@@ -615,7 +614,9 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 }
             }
         });
-        group.draw(move |_, ui| tipped_whole(ui, &tooltip));
+        group
+            .senses_for(&tooltip)
+            .draw(move |_, ui| tipped_whole(ui, &tooltip));
         if !open {
             return;
         }

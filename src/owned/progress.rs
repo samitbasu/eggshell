@@ -145,6 +145,7 @@ impl<'a, 'f, A: 'static> Chain<'a, 'f, A> {
                 paint_fill(painter, rect, radius, progress, fill)
             });
         })
+        .senses_for(&tooltip)
         .draw(move |_, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
             response.widget_info(|| WidgetInfo {

@@ -8,7 +8,7 @@ use eggshell_ui::prelude::*;
 use eggshell_ui::owned::{Enablement, button::Face, choice::Choice, tooltip};
 use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use eggshell_ui::theme::Tokens;
-use eggshell_ui::{Builder, Style, TextStyle, tw};
+use eggshell_ui::{Builder, Progress, Style, TextStyle, Tw, tw};
 use egui::{Key, KeyboardShortcut, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -974,9 +974,12 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
 
 /// ```html
 /// <div class="flex flex-col items-start gap-4 p-4 pt-10">
-///   <canvas title="Tip for a custom" class="w-[60px] h-[30px]"></canvas>  <!-- senses hover -->
-///   <canvas class="w-[60px] h-[30px]"></canvas>  <!-- senses hover -->  <!-- tooltip: Zoom <kbd>Z</kbd> -->
+///   <canvas title="Tip for a custom" class="w-[60px] h-[30px]"></canvas>
+///   <canvas class="w-[60px] h-[30px]"></canvas>  <!-- tooltip: Zoom <kbd>Z</kbd> -->
 ///   <button aria-pressed="false">Pin</button>  <!-- tooltip: Pin it <kbd>Ctrl+P</kbd> -->
+///   <div role="progressbar" title="Half done" class="w-[60px]"></div>
+///   <canvas class="w-[60px] h-[30px]"></canvas>
+///   <div role="progressbar" class="w-[60px]"></div>
 /// </div>
 /// ```
 fn chain_view(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -988,10 +991,10 @@ fn chain_view(b: &mut Builder<'_, '_, App>, _: &App) {
             .p(4.0)
             .pt(10.0),
         |b| {
-            b.custom("plot", tw().sense_hover().w_px(60.0).h_px(30.0))
+            b.custom("plot", custom_classes())
                 .tooltip("Tip for a custom")
                 .ui(|_, _| {});
-            b.custom("zoom", tw().sense_hover().w_px(60.0).h_px(30.0))
+            b.custom("zoom", custom_classes())
                 .tooltip_with(|s| {
                     s.text(tw(), "Zoom");
                     s.kbd("Z");
@@ -1003,8 +1006,40 @@ fn chain_view(b: &mut Builder<'_, '_, App>, _: &App) {
                     s.kbd("Ctrl+P");
                 })
                 .on_change(|_, _| {});
+            b.progress("done", Progress::new(0.5))
+                .classes(tw().w_px(60.0))
+                .tooltip("Half done")
+                .add();
+            b.custom("bare", custom_classes()).ui(|_, _| {});
+            b.progress("bare-done", Progress::new(0.5))
+                .classes(tw().w_px(60.0))
+                .add();
         },
     );
+}
+
+fn custom_classes() -> Tw {
+    tw().w_px(60.0).h_px(30.0)
+}
+
+/// Whether the node whose path ends in `suffix` senses anything.
+fn senses(d: &Driver<App>, suffix: &str) -> bool {
+    d.frame()
+        .nodes()
+        .find(|node| node.path().ends_with(suffix))
+        .unwrap_or_else(|| panic!("no node {suffix}"))
+        .senses()
+}
+
+/// Hovers `path` in [`chain_view`], whose node would sense nothing without
+/// its tooltip as its twin `bare` shows, as [`chain_hover_shows`] does.
+fn bare_hover_shows(path: &str, bare: &str, texts: &[&str]) {
+    let d = harness_of(chain_view);
+    assert!(
+        !senses(&d, bare),
+        "precondition: {bare}, {path} without its tooltip, senses nothing"
+    );
+    chain_hover_shows(path, texts);
 }
 
 /// Hovers `path` in [`chain_view`]: no tooltip before the delay, and after it
@@ -1031,12 +1066,17 @@ fn chain_hover_shows(path: &str, texts: &[&str]) {
 
 #[test]
 fn a_custom_node_shows_its_text_tooltip() {
-    chain_hover_shows("/\"plot\"", &["Tip for a custom"]);
+    bare_hover_shows("/\"plot\"", "/\"bare\"", &["Tip for a custom"]);
 }
 
 #[test]
 fn a_custom_node_shows_its_built_tooltip() {
-    chain_hover_shows("/\"zoom\"", &["Zoom", "Z"]);
+    bare_hover_shows("/\"zoom\"", "/\"bare\"", &["Zoom", "Z"]);
+}
+
+#[test]
+fn a_progress_bar_shows_its_tooltip() {
+    bare_hover_shows("/\"done\"", "/\"bare-done\"", &["Half done"]);
 }
 
 #[test]

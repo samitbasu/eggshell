@@ -151,9 +151,11 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Node {
+    LeadingAddon,
     Leading,
     Field,
     Trailing,
+    TrailingAddon,
 }
 
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
@@ -421,17 +423,18 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
             let size_key = SheetKey::Size(style.input.sizes.key_for(size));
-            let put = |s: &mut Scope<'_, '_, A>, part, side, icon| {
+            let field_id = slot.id;
+            let put = |s: &mut Scope<'_, '_, A>, (addon_key, part), side, icon| {
                 let mut keys = vec![size_key, SheetKey::Attr("align", side)];
                 if enablement == Enablement::Disabled {
                     keys.push(SheetKey::Aria(crate::Aria::Disabled));
                 }
                 let addon = s.part(input::GroupPart::Addon, &keys, tw().attr("align", side));
-                s.div(addon, |s| {
+                input::addon(s, addon_key, addon, field_id, |s| {
                     s.icon(part, tw().shrink_0(), icon);
                 });
             };
-            let field = field.bare();
+            let field = field.inset();
             let measured = field.clone();
             let tip = tooltip.clone();
             let validity = validity.clone();
@@ -441,7 +444,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 .classes(classes)
                 .children(|s| {
                     if let Some(icon) = leading {
-                        put(s, Node::Leading, INLINE_START, icon);
+                        put(s, (Node::LeadingAddon, Node::Leading), INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
                         let control = b.part(
@@ -455,6 +458,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                 let mut edited = text;
                                 let shown = show(ui, &mut edited, &field);
                                 let response = tipped(ui, shown, &tip);
+                                input::focus_from_addon(ui, field_id, &response);
                                 validity.describe(ui.ctx(), response.id);
                                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                                     Opening::from(select).open(ui, &response, &edited);
@@ -466,7 +470,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                             });
                     });
                     if let Some(icon) = trailing {
-                        put(s, Node::Trailing, INLINE_END, icon);
+                        put(s, (Node::TrailingAddon, Node::Trailing), INLINE_END, icon);
                     }
                 });
             return;
@@ -489,12 +493,14 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         };
         let field = field.aria(invalid);
         let classes = enablement.apply(classes);
+        let field_id = slot.id;
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .open_focus(autofocus.open_focus())
             .draw_widgets(move |app, ui| {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
                 let response = tipped(ui, shown, &tooltip);
+                input::focus_from_addon(ui, field_id, &response);
                 validity.describe(ui.ctx(), response.id);
                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                     Opening::from(select).open(ui, &response, &edited);

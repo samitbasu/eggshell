@@ -215,11 +215,11 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             tooltip,
             ..
         } = opts.resolve(b, slot.id);
-        let own = match tooltip {
-            Some(_) => tw().flex().flex_col().sense_hover(),
-            None => tw().flex().flex_col(),
-        };
-        let column = b.part(super::Part::Root, &[], own.merge(classes));
+        let column = b.part(
+            super::Part::Root,
+            &[],
+            tw().flex().flex_col().merge(classes),
+        );
         let handle = b
             .div_id_with(&slot, column, |b| {
                 items(&mut Items {
@@ -229,7 +229,8 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
                     value: PhantomData,
                 });
             })
-            .nav(Nav::Column(Wrap::Around));
+            .nav(Nav::Column(Wrap::Around))
+            .senses_for(&tooltip);
         handle.draw(move |_, ui| {
             tipped_whole(ui, &tooltip);
             if name.is_some() {

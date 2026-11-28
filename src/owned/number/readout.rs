@@ -170,9 +170,13 @@ impl Readout {
                 let leaf = s.part(
                     crate::owned::input::GroupPart::Input,
                     &keys,
-                    // The field is inset by egui's margin already, so its
-                    // text stays where the readout drew it.
-                    tw().w_full().h_full().p(0.0).text_right(),
+                    // The box leaves its side padding to the leaf, which the
+                    // inset field spans; the text stays where the readout drew it.
+                    tw().w_full()
+                        .h_full()
+                        .p(0.0)
+                        .px_px(frame.padding.x)
+                        .text_right(),
                 );
                 s.leaf(Node::Field, leaf, move |m| {
                     text_field::measure(m, &measured)
@@ -391,11 +395,8 @@ impl<A: 'static> Chain<'_, '_, A> {
             autofocus,
         };
         let wrapper = tw().flex().items_center().merge(classes);
-        let wrapper = match tooltip {
-            Some(_) => wrapper.sense_hover(),
-            None => wrapper,
-        };
         b.div_id_with(&slot, wrapper, |b| readout.show(b, set, edits, on_response))
+            .senses_for(&tooltip)
             .draw(move |_, ui| tipped_whole(ui, &tooltip));
     }
 }

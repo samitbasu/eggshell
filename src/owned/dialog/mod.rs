@@ -292,11 +292,7 @@ fn surface<'c, 'f, A: 'static, M>(
         let Resolved {
             classes, tooltip, ..
         } = dialog.opts.clone().resolve(s, trigger);
-        let own = match tooltip {
-            Some(_) => tw().relative().sense_hover(),
-            None => tw().relative(),
-        };
-        let classes = shape.part(s, Slot::Content, own.merge(classes));
+        let classes = shape.part(s, Slot::Content, tw().relative().merge(classes));
         s.div_id(Node::Box, classes, |s| {
             header(s, shape, &dialog);
             if let Some(body) = parts.body {
@@ -320,6 +316,7 @@ fn surface<'c, 'f, A: 'static, M>(
                 });
             }
         })
+        .senses_for(&tooltip)
         // A dialog opens with the focus inside it, so its tooltip is the
         // pointer's alone, not its whole box's.
         .draw(move |_, ui| {
