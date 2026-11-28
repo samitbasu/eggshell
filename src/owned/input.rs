@@ -136,6 +136,51 @@ fn addon_icon(k: &Tokens, size: Size) -> (f32, f32) {
     }
 }
 
+/// An input group's addon holding what `body` builds: shadcn's
+/// `InputGroupAddon`, `cursor-text`, whose click focuses the group's text
+/// field `field` (its slot's id) with its caret kept, as `input.focus()`
+/// does. An addon of buttons leaves the clicks to them and is not built
+/// with this.
+pub(crate) fn addon<'f, A: 'static, K: crate::Key>(
+    b: &mut crate::Builder<'_, 'f, A>,
+    key: K,
+    classes: Tw,
+    field: egui::Id,
+    body: impl FnOnce(&mut crate::builder::Scope<'_, 'f, A>),
+) {
+    use crate::NodeUi as _;
+    let classes = classes.sense_click().focusable_none();
+    b.div_id(key, classes, body).draw(move |_, ui| {
+        let response = ui.node_response();
+        if response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+        }
+        if response.clicked() {
+            ui.data_mut(|data| data.insert_temp(clicked_key(field), AddonClicked));
+            ui.ctx().request_repaint();
+        }
+    });
+}
+
+/// Gives the text field `field` the focus if an [`addon`] of its group was
+/// clicked. Called after the field is shown: a request before would lose
+/// to the press, which egui counts as a click elsewhere.
+pub(crate) fn focus_from_addon(ui: &egui::Ui, field: egui::Id, response: &egui::Response) {
+    let clicked = ui.data_mut(|data| data.remove_temp::<AddonClicked>(clicked_key(field)));
+    if clicked.is_some() {
+        response.request_focus();
+    }
+}
+
+fn clicked_key(field: egui::Id) -> egui::Id {
+    field.with("addon-clicked")
+}
+
+/// An addon of a text field's group was clicked, and the field is to take
+/// the focus.
+#[derive(Clone, Copy, Default)]
+struct AddonClicked;
+
 /// Where an addon sits in its group, and so the side of the control it is
 /// on, as shadcn's `data-align` says.
 pub(crate) const INLINE_START: &str = "inline-start";

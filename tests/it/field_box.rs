@@ -689,3 +689,51 @@ fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
         "the addon fades with its group, not again on its own"
     );
 }
+
+/// A command list, whose search box is an input group with the search icon
+/// in its addon.
+fn command_list(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id("Page", tw().p(4.0).w_px(300.0), |s| {
+        s.command_list("commands").named("Commands").items(|items| {
+            items.item("alpha", "Alpha").on_pick(|_| {});
+        });
+    });
+}
+
+#[test]
+fn a_click_on_the_command_search_icon_focuses_the_query_field() {
+    let mut d = support::driver(
+        vec2(340.0, 300.0),
+        TextStyle::new(
+            TextSpec {
+                size: 14.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            Color32::BLACK,
+        ),
+        (),
+        command_list,
+    )
+    .build();
+    d.frames(6);
+    let query = "/Wrapper/Search/Query";
+    let (icon, field) = (
+        d.rect(Target::suffix(r#"/Search/SearchIcon/"icon""#)),
+        d.rect(Target::suffix(query)),
+    );
+    let at = icon.center();
+    assert!(
+        icon.contains(at) && !field.contains(at),
+        "precondition: {at:?} is on the icon {icon:?}, not the field {field:?}"
+    );
+    let on_query =
+        |d: &Driver<()>| support::focused_node(d).is_some_and(|path| path.ends_with(query));
+    assert!(
+        !on_query(&d),
+        "precondition: the query field does not have focus"
+    );
+    d.click(at).frames(4);
+    assert!(on_query(&d), "focused: {:?}", support::focused_node(&d));
+}

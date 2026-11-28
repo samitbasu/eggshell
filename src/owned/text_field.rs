@@ -19,7 +19,7 @@ use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond, 
 use crate::owned::{Enablement, FieldHooks, OnResponse, field_box, input, text_sized, tipped};
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
-use crate::{Builder, Icon, Key, Measure, NodeUi as _, tw};
+use crate::{Builder, Icon, Key, Measure, tw};
 
 pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
@@ -157,11 +157,6 @@ enum Node {
     Trailing,
     TrailingAddon,
 }
-
-/// An addon of a field with icons was clicked, and the field is to take the
-/// focus.
-#[derive(Clone, Copy, Default)]
-struct AddonClicked;
 
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
 /// with [`on_change`](Self::on_change).
@@ -428,28 +423,15 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
             let size_key = SheetKey::Size(style.input.sizes.key_for(size));
-            let asked = slot.id.with("addon-clicked");
-            // shadcn's addon is `cursor-text` and focuses its input on a
-            // click, keeping the caret, as `input.focus()` does.
+            let field_id = slot.id;
             let put = |s: &mut Scope<'_, '_, A>, (addon_key, part), side, icon| {
                 let mut keys = vec![size_key, SheetKey::Attr("align", side)];
                 if enablement == Enablement::Disabled {
                     keys.push(SheetKey::Aria(crate::Aria::Disabled));
                 }
-                let own = tw().attr("align", side).sense_click().focusable_none();
-                let addon = s.part(input::GroupPart::Addon, &keys, own);
-                s.div_id(addon_key, addon, |s| {
+                let addon = s.part(input::GroupPart::Addon, &keys, tw().attr("align", side));
+                input::addon(s, addon_key, addon, field_id, |s| {
                     s.icon(part, tw().shrink_0(), icon);
-                })
-                .draw(move |_, ui| {
-                    let response = ui.node_response();
-                    if response.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                    }
-                    if response.clicked() {
-                        ui.data_mut(|data| data.insert_temp(asked, AddonClicked));
-                        ui.ctx().request_repaint();
-                    }
                 });
             };
             let field = field.inset();
@@ -476,15 +458,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                 let mut edited = text;
                                 let shown = show(ui, &mut edited, &field);
                                 let response = tipped(ui, shown, &tip);
-                                // The field takes the focus after it is shown: a
-                                // request before would lose to the press, which
-                                // egui counts as a click elsewhere.
-                                if ui
-                                    .data_mut(|data| data.remove_temp::<AddonClicked>(asked))
-                                    .is_some()
-                                {
-                                    response.request_focus();
-                                }
+                                input::focus_from_addon(ui, field_id, &response);
                                 validity.describe(ui.ctx(), response.id);
                                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                                     Opening::from(select).open(ui, &response, &edited);
@@ -519,12 +493,14 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         };
         let field = field.aria(invalid);
         let classes = enablement.apply(classes);
+        let field_id = slot.id;
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .open_focus(autofocus.open_focus())
             .draw_widgets(move |app, ui| {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
                 let response = tipped(ui, shown, &tooltip);
+                input::focus_from_addon(ui, field_id, &response);
                 validity.describe(ui.ctx(), response.id);
                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                     Opening::from(select).open(ui, &response, &edited);

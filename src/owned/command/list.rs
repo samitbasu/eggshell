@@ -294,6 +294,7 @@ impl<A> ListOptions<A> {
 enum Node {
     Wrapper,
     Search,
+    SearchIcon,
     Query,
     Results,
     Empty,
@@ -658,7 +659,7 @@ fn search_field<A: 'static>(
     s.div_id(Node::Wrapper, wrapper, |s| {
         s.div_id(Node::Search, classes, |s| {
             field = s.id_of(Node::Query);
-            s.div(addon, |s| {
+            input::addon(s, Node::SearchIcon, addon, field, |s| {
                 s.icon("icon", icon, Icon::new(icons::SEARCH));
             });
             let mut chain = s
