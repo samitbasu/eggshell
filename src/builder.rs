@@ -2290,6 +2290,15 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         })
     }
 
+    /// The node, sensing hover if it senses nothing else while it shows a
+    /// `tip`, as the node of every tooltip does.
+    pub(crate) fn senses_for(mut self, tip: &crate::owned::Tip) -> Self {
+        if tip.is_some() {
+            self.senses_hover_for_tip();
+        }
+        self
+    }
+
     fn senses_hover_for_tip(&mut self) {
         self.edit(|context| {
             let interaction = &mut context.interaction;

@@ -391,11 +391,8 @@ impl<A: 'static> Chain<'_, '_, A> {
             autofocus,
         };
         let wrapper = tw().flex().items_center().merge(classes);
-        let wrapper = match tooltip {
-            Some(_) => wrapper.sense_hover(),
-            None => wrapper,
-        };
         b.div_id_with(&slot, wrapper, |b| readout.show(b, set, edits, on_response))
+            .senses_for(&tooltip)
             .draw(move |_, ui| tipped_whole(ui, &tooltip));
     }
 }

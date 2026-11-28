@@ -266,11 +266,6 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
         autofocus,
     } = group;
     let target = choice::focus_target(&options, &current, enablement);
-    let container = if tooltip.is_some() {
-        container.sense_hover()
-    } else {
-        container
-    };
     let control_tip = tooltip.clone();
     let handle = b.div_id_with(&slot, container, |b| {
         for (index, option) in options.into_iter().enumerate() {
@@ -326,7 +321,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             }
         }
     });
-    handle.tile_hits().draw(move |_, ui| {
+    handle.tile_hits().senses_for(&tooltip).draw(move |_, ui| {
         tipped_whole(ui, &tooltip);
         announce_group(ui, Role::RadioGroup, name.as_deref());
     });
