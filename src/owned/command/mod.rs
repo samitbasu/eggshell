@@ -545,16 +545,15 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             }
             let (handled, shown) = (ctx.clone(), text.clone());
             field = field.on_response(move |app, response| {
-                let (escape, down, tab) = response.ctx.input(|input| {
+                let (down, tab) = response.ctx.input(|input| {
                     (
-                        input.key_pressed(egui::Key::Escape),
                         input.key_pressed(egui::Key::ArrowDown),
                         input.key_pressed(egui::Key::Tab),
                     )
                 });
                 let focused = response.has_focus();
                 let tabbed_away = tab && response.lost_focus();
-                if (escape && (focused || response.lost_focus())) || tabbed_away {
+                if tabbed_away {
                     Typing::CLOSED.store(&handled, key);
                 } else if (down && focused && !open) || response.clicked() {
                     Typing::opened().store(&handled, key);
@@ -674,12 +673,16 @@ pub struct AutosuggestChain<'s, 'b, 'f, A> {
     options: Options<'f, A>,
 }
 
-/// Whether Escape or a pick put an autosuggest's suggestions away until the
-/// next edit.
+/// Whether an autosuggest's suggestions show.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Suggesting {
+    /// While the field has focus.
     #[default]
     Yes,
+    /// Until they are dismissed: the frame Esc is pressed in, egui has
+    /// already taken the field's focus, and the Esc is theirs.
+    Shown,
+    /// Not until the next edit: put away by Esc, a pick or a press outside.
     Dismissed,
 }
 
@@ -747,24 +750,26 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         if let Some(placeholder) = options.placeholder.take() {
             field = field.hint(placeholder);
         }
-        let (escaped, on_response) = (ctx.clone(), std::mem::take(&mut options.on_response));
-        field = field.on_response(move |app, response| {
-            let escape = response
-                .ctx
-                .input(|input| input.key_pressed(egui::Key::Escape));
-            if escape && (response.has_focus() || response.lost_focus()) {
-                Suggesting::Dismissed.store(&escaped, field_id);
-            }
-            on_response.run(app, response);
-        });
+        let on_response = std::mem::take(&mut options.on_response);
+        field = field.on_response(move |app, response| on_response.run(app, response));
         let (typed, reset) = (Rc::clone(&on_change), ctx.clone());
         field.on_change_with(move |app, ctx, text| {
             Suggesting::Yes.store(&reset, field_id);
             typed(app, ctx, text);
         });
         let suggesting = Suggesting::load(&ctx, field_id);
-        let focused = b.has_focus_within((key, Node::Field));
-        if !focused || suggesting == Suggesting::Dismissed || text.trim().is_empty() {
+        let hide = || {
+            if suggesting == Suggesting::Shown {
+                Suggesting::Yes.store(&ctx, field_id);
+            }
+        };
+        let shows = match suggesting {
+            Suggesting::Yes => b.has_focus_within((key, Node::Field)),
+            Suggesting::Shown => true,
+            Suggesting::Dismissed => false,
+        };
+        if !shows || text.trim().is_empty() {
+            hide();
             return;
         }
         let mut items = Items::new(b);
@@ -778,8 +783,10 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         if !items.any_match(&text, options.filter.as_ref(), options.filtering)
             && options.filtering == Filtering::Ours
         {
+            hide();
             return;
         }
+        Suggesting::Shown.store(&ctx, field_id);
         let (close, dismiss) = (ctx.clone(), ctx.clone());
         let after: Rc<dyn Fn(&mut A)> =
             Rc::new(move |_| Suggesting::Dismissed.store(&close, field_id));
@@ -790,7 +797,13 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
             .placement(Placement::below().gap(style.menu.offset))
             .match_width(MatchWidth::Anchor)
             .focus(Focus::Stay)
-            .on_dismiss(move |_| Suggesting::Dismissed.store(&dismiss, field_id))
+            .on_dismiss_with(move |_, why| {
+                let next = match why {
+                    Dismissed::FocusOut => Suggesting::Yes,
+                    _ => Suggesting::Dismissed,
+                };
+                next.store(&dismiss, field_id);
+            })
             .children(|s| {
                 let content = s.part(ComboboxPart::Content, &[], tw().flex().flex_col().min_h_0());
                 s.div_id(Node::Box, content, |s| {

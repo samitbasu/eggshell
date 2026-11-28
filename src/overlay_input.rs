@@ -13,7 +13,8 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Closer, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals, esc_target,
+    Boundary, Closer, EscTo, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals,
+    esc_target,
 };
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
@@ -211,11 +212,19 @@ fn box_of(nodes: &Nodes, roots: &[PlacedRoot], root: usize) -> egui::Rect {
 }
 
 /// What an open overlay's past frames left for dismissal to judge it by.
-#[derive(Default)]
 struct Remembered {
     focus_before: FocusAt,
     focus_now: FocusAt,
     window_focus: WindowFocus,
+}
+
+fn remembered(stack: &mut Stack, shell: &Shell, open: &Open<'_>) -> Remembered {
+    let entry = stack.get_mut(open.overlay.id);
+    Remembered {
+        focus_before: entry.as_ref().map(|entry| entry.focus).unwrap_or_default(),
+        focus_now: focus::at(shell, open.overlay.id, &open.nested, open.anchor_node()),
+        window_focus: entry.map(|entry| entry.window_focus).unwrap_or_default(),
+    }
 }
 
 /// The layers dismissal judges; `remembered` says, for each, where focus was
@@ -308,21 +317,23 @@ enum EscapeGoes {
     Overlay,
     /// To the window's cancel button.
     Window(Id),
-    /// To nobody: the application's own.
+    /// To nobody: the widgets that have the focus, or the application.
     Nobody,
 }
 
-/// The one place Esc's destination is decided: the topmost overlay that takes
-/// it (`dismissals` then dismisses it or presses its cancel button), else the
-/// window's cancel button.
+/// Esc's destination, from [`esc_target`]: an overlay (`dismissals` then
+/// dismisses it or presses its cancel button), else the window's cancel
+/// button.
 fn escape_goes(layers: &[Layer], nodes: &Nodes, input: &Input) -> EscapeGoes {
     if !input.escape || input.drag_live {
         return EscapeGoes::Nobody;
     }
-    if esc_target(layers).is_some() {
-        return EscapeGoes::Overlay;
+    match esc_target(layers) {
+        EscTo::Overlay(_) => EscapeGoes::Overlay,
+        EscTo::Held => EscapeGoes::Nobody,
+        EscTo::Page => actions::button_in(nodes, 0, Action::Cancel)
+            .map_or(EscapeGoes::Nobody, EscapeGoes::Window),
     }
-    actions::button_in(nodes, 0, Action::Cancel).map_or(EscapeGoes::Nobody, EscapeGoes::Window)
 }
 
 /// Whether a text input of this layout had focus at the end of the last pass,
@@ -416,12 +427,13 @@ pub(crate) fn claim_keys(
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
+    let (mut stack, shell) = (Stack::load(kept, ctx.viewport_id()), Shell::new(ctx, kept));
     let layers = layers_of(
         ctx,
         (&judged_overlays(roots, here), &[]),
         nodes,
         roots,
-        |_| Remembered::default(),
+        |open| remembered(&mut stack, &shell, open),
     );
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
         EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx, kept),
@@ -504,12 +516,7 @@ pub(crate) fn judge<A>(
     let judged = judged_overlays(roots, here);
     let closers = actions::take_closers(ctx, kept);
     let layers = layers_of(ctx, (&judged, &closers), nodes, roots, |open| {
-        let entry = stack.get_mut(open.overlay.id);
-        Remembered {
-            focus_before: entry.as_ref().map(|entry| entry.focus).unwrap_or_default(),
-            focus_now: focus::at(&shell, open.overlay.id, &open.nested, open.anchor_node()),
-            window_focus: entry.map(|entry| entry.window_focus).unwrap_or_default(),
-        }
+        remembered(&mut stack, &shell, open)
     });
     let input = Input {
         press: press_origin(ctx),
