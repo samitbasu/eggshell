@@ -4,8 +4,7 @@
 
 use egui::{Vec2, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/button.rs"]
@@ -48,7 +47,7 @@ fn drag_to_the_end<A>(d: &mut Driver<A>, path: &str) {
 
 #[test]
 fn a_slider_in_the_tree_drives_the_demo_it_sits_beside() {
-    let mut d = harness(grow::State::default(), grow::layout);
+    let mut d = harness(grow::State::default(), grow::view);
     let before = d.app().gap;
     let item = |d: &Driver<grow::State>| {
         support::nodes(d)
@@ -67,10 +66,7 @@ fn a_slider_in_the_tree_drives_the_demo_it_sits_beside() {
 
 #[test]
 fn the_box_size_slider_resizes_the_boxes() {
-    let mut d = harness(
-        custom_background::State::default(),
-        custom_background::layout,
-    );
+    let mut d = harness(custom_background::State::default(), custom_background::view);
     let before = d.app().size;
     drag_to_the_end(&mut d, "/\"size\"/Track");
     assert!(d.app().size > before);
@@ -79,7 +75,7 @@ fn the_box_size_slider_resizes_the_boxes() {
 
 #[test]
 fn a_segmented_choice_changes_the_wrapping() {
-    let mut d = harness(flex_wrap::State::default(), flex_wrap::layout);
+    let mut d = harness(flex_wrap::State::default(), flex_wrap::view);
     let wraps = |d: &Driver<flex_wrap::State>| {
         let rows: Vec<f32> = support::nodes(d)
             .iter()
@@ -99,7 +95,7 @@ fn a_segmented_choice_changes_the_wrapping() {
 
 #[test]
 fn the_reset_button_is_a_stock_widget_that_clears_the_demo() {
-    let mut d = harness(button::State::default(), button::layout);
+    let mut d = harness(button::State::default(), button::view);
     d.click(Target::suffix("/\"button\""));
     d.click(Target::suffix("/\"selectable\""));
     assert_eq!(d.app().clicks, 1);
@@ -112,7 +108,7 @@ fn the_reset_button_is_a_stock_widget_that_clears_the_demo() {
 
 #[test]
 fn the_guide_selector_switches_demo_and_value() {
-    let mut d = harness(flexbox_guide::State::default(), flexbox_guide::layout);
+    let mut d = harness(flexbox_guide::State::default(), flexbox_guide::view);
     assert_eq!(d.app().demo, 0);
 
     d.click(Target::suffix("/\"flex-wrap\"")).frames(3);

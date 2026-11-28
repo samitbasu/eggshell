@@ -3,8 +3,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::splitter::PaneSize;
 use eggshell_ui::prelude::*;
@@ -69,7 +68,7 @@ fn size(size: PaneSize) -> String {
 ///   <splitter/> <aside style="width: 240px"/>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
+pub fn view(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
     let t = common::tokens(b.ctx());
     let heading = || tw().font_medium().text(t.foreground);
     let muted = || tw().text(t.muted_foreground);
@@ -164,5 +163,5 @@ pub fn layout(b: &mut Builder<'_, '_, Panes>, panes: &Panes) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("split_panes", Panes::default(), layout)
+    common::run_app("split_panes", Panes::default(), view)
 }

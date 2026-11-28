@@ -32,7 +32,7 @@ fn harness() -> Harness<'static, Rig<State>> {
         vec2(800.0, 700.0),
         base_text(),
         State::default(),
-        example::layout,
+        example::view,
     );
     harness.run_steps(4);
     harness
@@ -530,7 +530,7 @@ fn palette_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing:
         vec2(800.0, 700.0),
         base_text(),
         State::default(),
-        example::layout,
+        example::view,
     )
     .style(&eggshell_ui::SharedStyle::new(support::shadcn_with(edit)))
     .theme(egui::Theme::Light)

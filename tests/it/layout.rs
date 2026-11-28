@@ -1396,7 +1396,7 @@ fn every_guide_demo_builds_for_every_value() {
 
 #[test]
 fn flex_stretch_with_grow_fills_the_row_and_without_it_packs_at_the_start() {
-    let divs = divs(&place(|b| flex::layout(b, &())));
+    let divs = divs(&place(|b| flex::view(b, &())));
     let row = |index: usize| {
         let first = 1 + index * 7;
         (divs[first + 2], divs[first + 3..first + 7].to_vec())
@@ -1464,7 +1464,7 @@ fn grow_shares_the_free_space_by_factor() {
 
 #[test]
 fn holy_grail_areas_fill_the_grid_around_the_content() {
-    let divs = divs(&place(|b| holy_grail::layout(b, &())));
+    let divs = divs(&place(|b| holy_grail::view(b, &())));
     assert_eq!(AREA.size(), vec2(800.0, 600.0));
     assert_rect(divs[1], [0.0, 0.0, 800.0, 100.0]);
     assert_rect(divs[2], [0.0, 100.0, 100.0, 500.0]);

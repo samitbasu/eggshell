@@ -8,8 +8,7 @@ use egui_kittest::kittest::{AccessKitNode, NodeT as _, Queryable as _};
 
 use crate::support::{self, Rig, click_node, focused_path, hover_node};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/menubar.rs"]
@@ -35,7 +34,7 @@ fn harness() -> Harness<'static, Rig<State>> {
         vec2(640.0, 480.0),
         common::base_text(egui::Theme::Light),
         State::default(),
-        example::layout,
+        example::view,
     );
     harness.ctx.set_theme(egui::Theme::Light);
     harness.run_steps(6);

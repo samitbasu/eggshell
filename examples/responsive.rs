@@ -7,8 +7,7 @@
 //! with icon buttons, or icons alone. Resize the window to watch both change.
 //! The buttons are placeholders.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::button::Face;
@@ -197,7 +196,7 @@ fn pane<A: 'static>(b: &mut B<'_, '_, A>, index: usize) {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout<A: 'static>(b: &mut B<'_, '_, A>, _: &()) {
+pub fn view<A: 'static>(b: &mut B<'_, '_, A>, _: &()) {
     b.region("grid", tw().size_full(), |b, room| {
         b.scroll("panes", tw().size_full())
             .axis(Axis::Y)
@@ -218,5 +217,5 @@ pub fn layout<A: 'static>(b: &mut B<'_, '_, A>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("responsive", (), layout)
+    common::run("responsive", (), view)
 }

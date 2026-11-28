@@ -889,7 +889,7 @@ mod example_cards {
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             example::State::default(),
-            example::layout,
+            example::view,
         )
         .build();
         support::set_companion(&h, support::Companion::Alone);
@@ -924,7 +924,7 @@ mod example_cards {
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             example::State::default(),
-            example::layout,
+            example::view,
         )
         .build();
         support::set_companion(&h, support::Companion::Alone);

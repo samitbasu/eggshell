@@ -7,8 +7,7 @@
 //! zone, so it lights none. A file no zone takes falls to the page, which
 //! refuses it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use std::any::Any;
 
@@ -153,7 +152,7 @@ fn zone(b: &mut B<'_, '_, State>, state: &State, which: Zone, title: &str) {
     }
 }
 
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     b.div_id("page", tw().flex().gap(3.0).p(3.0).size_full(), |b| {
         b.div(tw().flex().flex_col().gap(1.0).w_px(120.0), |b| {
             for &card in &state.cards {
@@ -183,7 +182,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout_state
-        .build(&ui.ctx().clone(), |b| layout(b, app))
+        .build(&ui.ctx().clone(), |b| view(b, app))
         .layout(area)
         .draw(app, ui)
 }

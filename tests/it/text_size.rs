@@ -8,8 +8,7 @@ use egui::{Theme, Vec2};
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div(tw().flex().flex_col().items_start().p(4.0), |b| {

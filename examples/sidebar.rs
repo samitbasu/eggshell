@@ -8,8 +8,7 @@
 //! its fill under the pointer. The entries are placeholders for the original's
 //! routes.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::Color32;
@@ -140,7 +139,7 @@ fn pill(b: &mut B<'_, '_, State>, state: &State, name: &'static str) {
 /// </nav>
 /// <main class="grow p-4"><h1 class="text-2xl">Example: Flex</h1></main>
 /// ```
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     b.div(tw().flex().size_full(), |b| {
         b.div(
             tw().flex()
@@ -194,5 +193,5 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("sidebar", State::default(), layout)
+    common::run_app("sidebar", State::default(), view)
 }

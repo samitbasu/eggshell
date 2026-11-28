@@ -7,8 +7,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 
@@ -183,7 +182,7 @@ impl Position {
 ///   <li class="py-2 text-center text-muted-foreground">Nothing to do</li>
 /// </ul>
 /// ```
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(
         tw().flex()
@@ -232,7 +231,7 @@ fn main() -> eframe::Result {
             .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
             .show(ui, |ui| {
                 let area = ui.max_rect();
-                let built = layout_state.build(ui.ctx(), |b| layout(b, &state));
+                let built = layout_state.build(ui.ctx(), |b| common::page(b, |b| view(b, &state)));
                 built.layout(area).draw(&mut state, ui);
             });
     })

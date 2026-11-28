@@ -8,8 +8,7 @@ use eggshell_ui::{Problem, Report};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Event, Modifiers, PointerButton, Pos2, Rect, Ui, Vec2, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use crate::support;
 

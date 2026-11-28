@@ -7,8 +7,7 @@ use eggshell_ui::{Builder, Placed, Reserve, Tw, tw};
 use egui::vec2;
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 const LINK: [&str; 4] = ["Not connected", "Listening", "Live 00.0 kHz", "Lost 000 s"];
 

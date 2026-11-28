@@ -14,8 +14,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::prelude::*;
@@ -142,7 +141,7 @@ fn commands() -> Commands<State> {
 ///   <p>Last: …</p>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.commands(&commands(), state);
     b.div_id(
         Part::Page,
@@ -191,5 +190,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("menubar", State::default(), layout)
+    common::run_app("menubar", State::default(), view)
 }

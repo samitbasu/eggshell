@@ -5,8 +5,7 @@
 //! the top switches the theme colour, which colours the selected example's
 //! ring.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::{common, counter};
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::owned::markdown::{Directive, Directives, Typeset};
@@ -50,11 +49,6 @@ const THEMES: [(ThemeColor, &str); 3] = [
 ];
 
 #[derive(Default)]
-pub struct Counter {
-    pub count: u32,
-}
-
-#[derive(Default)]
 pub struct Menu {
     pub grid: bool,
     pub chosen: Option<&'static str>,
@@ -83,7 +77,7 @@ impl Default for List {
 #[derive(Default)]
 pub struct State {
     pub theme: ThemeColor,
-    pub clicks: Counter,
+    pub clicks: counter::State,
     pub menu: Menu,
     pub form: Form,
     pub list: List,
@@ -102,8 +96,6 @@ pub enum Part {
     Caption,
     Mock,
     Frame,
-    Add,
-    Count,
     Actions,
     Grid,
     Hint,
@@ -146,14 +138,6 @@ fn form_commands() -> Commands<Form> {
         })
         .shortcut(SAVE),
     )
-}
-
-pub fn counter<'f>(b: &mut Builder<'_, 'f, Counter>, counter: &'f Counter) {
-    b.div(tw().flex().flex_row().items_center().gap(3.0), |b| {
-        b.button(Part::Add, "Add one")
-            .on_click(|counter: &mut Counter| counter.count += 1);
-        b.span(Part::Count, tw(), format!("Counted {}", counter.count));
-    });
 }
 
 pub fn menu<'f>(b: &mut Builder<'_, 'f, Menu>, menu: &'f Menu) {
@@ -247,7 +231,7 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
                 tw(),
                 &state.clicks,
                 |s: &mut State| &mut s.clicks,
-                counter,
+                counter::view,
             ),
             caption,
         ),
@@ -298,7 +282,7 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[37em]">…</article></main>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     common::use_theme_color(b.ctx(), state.theme);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
@@ -344,5 +328,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 
 #[allow(dead_code, reason = "the tests mount the page without running it")]
 fn main() -> eframe::Result {
-    common::run_app("docs_embed", State::default(), layout)
+    common::run_app("docs_embed", State::default(), view)
 }

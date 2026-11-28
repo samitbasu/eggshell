@@ -6,8 +6,7 @@
 //! The order in `State` does not change until the drop: the view previews it
 //! from where the drag is over the list, so cancelling needs no undo.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 
@@ -120,7 +119,7 @@ fn move_with_keys(app: &mut State, response: &Response, key: ItemKey) {
     }
 }
 
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     let carried = b.dragging::<ItemKey>();
     b.on_drag_end::<ItemKey>(|app, key, end| app.status = format!("{key:?}: {end:?}"));
     b.div_id(
@@ -153,7 +152,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout_state
-        .build(&ui.ctx().clone(), |b| layout(b, app))
+        .build(&ui.ctx().clone(), |b| view(b, app))
         .layout(area)
         .draw(app, ui)
 }

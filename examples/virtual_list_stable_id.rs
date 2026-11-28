@@ -8,8 +8,7 @@
 //! are the same whichever rows are built around it, and whatever egui keeps
 //! for its widgets is there when it comes back.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 
@@ -53,11 +52,11 @@ fn row(s: &mut Scope<'_, '_, State>, Row(index): Row) {
 /// ```html
 /// <div class="size-full px-2 overflow-y-auto">rows</div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     b.virtual_list(Part::List, tw().size_full().px(2.0), &state.rows)
         .items(row);
 }
 
 fn main() -> eframe::Result {
-    common::run_app("virtual_list_stable_id", State::default(), layout)
+    common::run_app("virtual_list_stable_id", State::default(), view)
 }

@@ -12,8 +12,7 @@ use egui::{FontFamily, Theme, Vec2};
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 fn geist(weight: Weight) -> FontFamily {
     match weight {

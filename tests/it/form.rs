@@ -198,7 +198,7 @@ fn the_example_passes_kittests_accessibility_check() {
         vec2(460.0, 560.0),
         base(),
         form_sections_example::Settings::default(),
-        form_sections_example::layout,
+        form_sections_example::view,
     );
     harness.state_mut().companion = support::Companion::Alone;
     harness.run();

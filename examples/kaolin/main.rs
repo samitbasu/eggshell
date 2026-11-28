@@ -2,8 +2,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "../common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 mod layouts;
 
 use eggshell_ui::prelude::*;
@@ -98,7 +97,9 @@ fn main() -> eframe::Result {
             .show(ui, |ui| {
                 let (area, selected) = (ui.max_rect(), gallery.selected);
                 layout
-                    .build(ui.ctx(), |b| window(b, selected, source))
+                    .build(ui.ctx(), |b| {
+                        common::page(b, |b| window(b, selected, source))
+                    })
                     .layout(area)
                     .draw(&mut gallery, ui);
             });

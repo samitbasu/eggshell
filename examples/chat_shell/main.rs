@@ -13,8 +13,7 @@
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
 pub mod centre;
-#[path = "../common/mod.rs"]
-pub mod common;
+pub use eggshell_examples::common;
 pub mod details;
 pub mod icons;
 pub mod sidebar;
@@ -26,7 +25,7 @@ use eggshell_ui::LayoutState;
 use theme::{Theme, Tok};
 
 use state::App;
-use view::layout;
+use view::view;
 
 fn main() -> eframe::Result {
     let mut app = App::default();
@@ -43,7 +42,7 @@ fn main() -> eframe::Result {
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 layout_state
-                    .build(ui.ctx(), |b| layout(b, &app))
+                    .build(ui.ctx(), |b| common::page(b, |b| view(b, &app)))
                     .layout(area)
                     .draw(&mut app, ui);
             });

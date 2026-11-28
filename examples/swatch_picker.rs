@@ -10,8 +10,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::overlay::{Anchor, Distance, Nav, Placement};
 use eggshell_ui::{Builder, Scope, tw};
@@ -97,7 +96,7 @@ impl State {
 ///   <span>Blue</span>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.div_id(
         Part::Page,
         tw().flex().items_center().gap(3.0).p(4.0),
@@ -208,5 +207,5 @@ fn no_colour(colour: Color32) -> impl Fn(&egui::Painter, egui::Rect, Color32) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("swatch_picker", State::default(), layout)
+    common::run_app("swatch_picker", State::default(), view)
 }

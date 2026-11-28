@@ -5,8 +5,7 @@
 //! rebuilt with eggshell: taffy places, egui draws. The gap slider is a stock
 //! egui slider in a leaf of the same tree.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Track, Tw, tw};
 use egui::Color32;
@@ -135,10 +134,10 @@ pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
 }
 
 /// The controls beside the demo.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flex_grid", State::default(), layout)
+    common::run_app("flex_grid", State::default(), view)
 }

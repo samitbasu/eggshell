@@ -590,7 +590,7 @@ mod example {
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             split_panes::Panes::default(),
-            split_panes::layout,
+            split_panes::view,
         )
         .build();
         d.frames(4);

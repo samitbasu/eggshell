@@ -6,8 +6,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::table::{Align, Column, Stripes};
@@ -98,7 +97,7 @@ fn dollars(cents: u64) -> String {
 ///   <p class="text-muted-foreground">Selected: INV-003</p>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
+pub fn view(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
     let t = common::tokens(b.ctx());
     let total: u64 = app.invoices.iter().map(|invoice| invoice.cents).sum();
     b.div_id(
@@ -297,6 +296,6 @@ fn main() -> eframe::Result {
         egui::vec2(820.0, 1160.0),
         Invoices::default(),
         |_, _| {},
-        layout,
+        view,
     )
 }

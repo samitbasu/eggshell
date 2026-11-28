@@ -1144,12 +1144,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "eggshell-examples"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "eggshell-ui",
+ "egui",
+ "log",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "eggshell-ui"
 version = "0.1.0"
 dependencies = [
  "arboard",
  "criterion",
  "eframe",
+ "eggshell-examples",
  "eggshell-ui",
  "egui",
  "egui-wgpu",
@@ -1165,7 +1177,6 @@ dependencies = [
  "trybuild",
  "unicode-normalization",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
  "web-time",
 ]

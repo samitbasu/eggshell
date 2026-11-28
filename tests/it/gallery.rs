@@ -12,24 +12,18 @@ mod controls_gallery;
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use controls_gallery::{
-    CellWidth, Control, Interact, Label, Padding, State, TextSize, layout, prepare,
+    CellWidth, Control, Interact, Label, Padding, State, TextSize, prepare, view,
 };
 
 const WINDOW: Vec2 = vec2(1500.0, 1100.0);
 
 fn driver(state: State) -> Driver<State> {
-    let mut d = support::prepared_driver(
-        WINDOW,
-        controls_gallery::base_text(),
-        state,
-        layout,
-        prepare,
-    )
-    .build();
+    let mut d =
+        support::prepared_driver(WINDOW, controls_gallery::base_text(), state, view, prepare)
+            .build();
     d.frames(4);
     d
 }

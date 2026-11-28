@@ -268,7 +268,7 @@ fn painted_icons(d: &Driver<()>) -> Vec<egui::Rect> {
 
 #[test]
 fn icons_keep_their_aspect_in_a_narrow_portrait_window() {
-    let mut d = support::driver(vec2(390.0, 844.0), base_text(), (), demo::layout).build();
+    let mut d = support::driver(vec2(390.0, 844.0), base_text(), (), demo::view).build();
     d.frames(4);
     let row = d.rect(Target::suffix(r#"/"Page"/24"#));
     assert!(

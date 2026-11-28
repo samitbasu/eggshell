@@ -10,8 +10,7 @@
 //! Native only: the browser's clipboard read is asynchronous and a build for
 //! the web answers `Unavailable`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Chord, ClipboardError, Command, Commands, Paste, Via, tw};
 use egui::{Color32, ColorImage, Key, Modifiers};
@@ -100,7 +99,7 @@ fn thumbnail(image: &ColorImage) -> (usize, usize, Vec<Color32>) {
 ///   <p class="text-destructive">the clipboard is not available</p>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.commands(&commands(), state);
     let t = common::tokens(b.ctx());
     b.div_id(Part::Page, tw().flex().flex_col().gap(3.0).p(4.0), |s| {
@@ -150,5 +149,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("clipboard", State::default(), layout)
+    common::run_app("clipboard", State::default(), view)
 }

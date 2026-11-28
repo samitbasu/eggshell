@@ -6,8 +6,7 @@ use eggshell_ui::ClipboardError;
 use eggshell_ui::testing::{Driver, FakeClipboard, Target};
 use egui::{ColorImage, Event, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/clipboard.rs"]
 mod example;
@@ -22,7 +21,7 @@ fn harness() -> (Driver<example::State>, FakeClipboard) {
         vec2(360.0, 240.0),
         common::base_text(egui::Theme::Light),
         example::State::default(),
-        example::layout,
+        example::view,
         |_, _| {},
     )
     .build();

@@ -5,10 +5,6 @@
 //! F12 toggles the layout debug overlay and its frame-timing readout
 //! ([`eggshell_ui::Debug`]) in every example
 //! that shows a [`ThemeBar`] or calls [`toggle_debug`].
-#![allow(
-    dead_code,
-    reason = "each crate that includes this file uses a subset of it"
-)]
 
 use eggshell_ui::prelude::*;
 use std::fmt::Debug;
@@ -19,6 +15,7 @@ use std::sync::Arc;
 use eggshell_ui::contract::{Themed, Variant};
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::owned::{menu, segmented::Cell};
+use eggshell_ui::scroll::Axis;
 use eggshell_ui::sheet::Key as SheetKey;
 use eggshell_ui::theme::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use eggshell_ui::{
@@ -33,7 +30,7 @@ pub mod glyphs;
 const PANEL_WIDTH: f32 = 240.0;
 
 /// The most segments a track keeps on one row.
-const MAX_ONE_ROW: usize = 3;
+pub const MAX_ONE_ROW: usize = 3;
 
 /// The theme colour of the examples that use one: the forms' primary button
 /// and focus.
@@ -222,24 +219,41 @@ pub fn base_text_in(ctx: &Context) -> TextStyle {
     TextStyle::new(body(&tokens), tokens.foreground)
 }
 
-/// Builds one frame of a layout from the example's state.
-pub type Layout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
+/// An example's view: builds one frame from the example's state.
+pub type View<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
 
-/// Builds one frame of a layout from the example's state, which is also the
-/// application its draw closures act on. The state is borrowed for the frame
-/// (`'f`), so a layout may hand it to a region or a virtual list.
-pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
+/// An example's view of its state, which is also the application its draw
+/// closures act on. The state is borrowed for the frame (`'f`), so a view may
+/// hand it to a region or a virtual list.
+pub type AppView<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
 
-/// Runs `layout` over the whole window.
-pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {
+/// The page every example's view is shown on: a vertical scroll the size of
+/// the window, so a view taller than the window (on a phone) scrolls. Like
+/// every scroll container it reserves its gutter; a view that fits is laid
+/// out again at the viewport's height, so one that fills the window still
+/// does.
+pub fn page<'f, A: 'static>(
+    b: &mut Builder<'_, 'f, A>,
+    view: impl FnOnce(&mut Builder<'_, 'f, A>),
+) {
+    b.scroll("example-page", tw().size_full())
+        .axis(Axis::Y)
+        .children(|s| view(s));
+}
+
+/// Runs `view` over the whole window.
+pub fn run<S: 'static>(title: &str, state: S, view: View<S>) -> eframe::Result {
+    launch(title, None, unit_frame(state, view))
+}
+
+/// One frame of [`run`]'s window: the theme bar and `view` on the page.
+pub fn unit_frame<S: 'static>(state: S, view: View<S>) -> impl FnMut(&mut egui::Ui) + 'static {
     shell(
-        title,
-        None,
         state,
         |_, _| {},
         move |state, built_in, area, ui| {
             built_in
-                .build(ui.ctx(), |b| layout(b, state))
+                .build(ui.ctx(), |b| page(b, |b| view(b, state)))
                 .layout(area)
                 .draw(&mut (), ui);
         },
@@ -248,8 +262,8 @@ pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Resu
 
 /// [`run`] for examples whose state is the application: their nodes sense
 /// pointer events and their draw closures change the state.
-pub fn run_app<S: 'static>(title: &str, state: S, layout: AppLayout<S>) -> eframe::Result {
-    run_app_styled(title, state, |_, _| {}, layout)
+pub fn run_app<S: 'static>(title: &str, state: S, view: AppView<S>) -> eframe::Result {
+    run_app_styled(title, state, |_, _| {}, view)
 }
 
 /// [`run_app`] for examples whose state also sets egui's style, which
@@ -258,9 +272,9 @@ pub fn run_app_styled<S: 'static>(
     title: &str,
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
+    view: AppView<S>,
 ) -> eframe::Result {
-    run_styled_in(title, None, state, prepare, layout)
+    launch(title, None, app_frame(state, prepare, view))
 }
 
 /// [`run_app_styled`] in a native window of `inner_size`.
@@ -269,43 +283,35 @@ pub fn run_app_sized<S: 'static>(
     inner_size: egui::Vec2,
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
+    view: AppView<S>,
 ) -> eframe::Result {
-    run_styled_in(title, Some(inner_size), state, prepare, layout)
+    launch(title, Some(inner_size), app_frame(state, prepare, view))
 }
 
-fn run_styled_in<S: 'static>(
-    title: &str,
-    inner_size: Option<egui::Vec2>,
+/// One frame of [`run_app_styled`]'s window: the theme bar and `view` on the
+/// page.
+pub fn app_frame<S: 'static>(
     state: S,
     prepare: fn(&egui::Context, &S),
-    layout: AppLayout<S>,
-) -> eframe::Result {
-    shell(
-        title,
-        inner_size,
-        state,
-        prepare,
-        move |state, layout_state, area, ui| {
-            layout_state
-                .build(ui.ctx(), |b| layout(b, state))
-                .layout(area)
-                .draw(state, ui);
-        },
-    )
+    view: AppView<S>,
+) -> impl FnMut(&mut egui::Ui) + 'static {
+    shell(state, prepare, move |state, layout_state, area, ui| {
+        layout_state
+            .build(ui.ctx(), |b| page(b, |b| view(b, state)))
+            .layout(area)
+            .draw(state, ui);
+    })
 }
 
 fn shell<S: 'static>(
-    title: &str,
-    inner_size: Option<egui::Vec2>,
     mut state: S,
     prepare: fn(&egui::Context, &S),
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
-) -> eframe::Result {
+) -> impl FnMut(&mut egui::Ui) + 'static {
     let shared = shared_style();
     let mut layout_state = LayoutState::new(&shared);
     let mut theme_bar = ThemeBar::new(&shared);
-    launch(title, inner_size, move |ui| {
+    move |ui| {
         let ctx = ui.ctx().clone();
         adopt(&ctx, &shared);
         prepare(&ctx, &state);
@@ -317,7 +323,7 @@ fn shell<S: 'static>(
                 let area = ui.max_rect();
                 frame(&mut state, &mut layout_state, area, ui);
             });
-    })
+    }
 }
 
 /// The id of the `<canvas>` element the web build draws into.
