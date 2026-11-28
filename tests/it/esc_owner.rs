@@ -383,3 +383,59 @@ fn esc_closes_the_stock_autosuggest_and_keeps_the_field() {
         "and they stay away until the next edit"
     );
 }
+
+/// The border the last frame painted `field`'s box with.
+fn border(d: &Driver<App>, field: egui::Rect) -> Option<egui::Stroke> {
+    fn find(shape: &egui::Shape, field: egui::Rect) -> Option<egui::Stroke> {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| find(shape, field)),
+            egui::Shape::Rect(drawn) if drawn.rect == field => Some(drawn.stroke),
+            _ => None,
+        }
+    }
+    d.harness()
+        .output()
+        .shapes
+        .iter()
+        .find_map(|clipped| find(&clipped.shape, field))
+}
+
+#[test]
+fn esc_that_blurs_the_stock_autosuggest_leaves_its_box_drawn() {
+    let mut d = driver(App {
+        field: Field::Autosuggest,
+        ..App::default()
+    });
+    let city = || Target::role(Role::ComboBox, "City");
+    let field = d.rect(city());
+    let rest = border(&d, field).expect("precondition: the field's box is drawn");
+    assert_ne!(
+        rest.color,
+        Color32::TRANSPARENT,
+        "precondition: it has a border"
+    );
+    d.click(city()).frames(4);
+    d.type_text("City").frames(4);
+    assert_eq!(focused_path(&d).as_deref(), Some(TYPING), "precondition");
+    assert!(
+        !open(&d, Role::ListBoxOption, "Paris") && !open(&d, Role::ListBoxOption, "Porto"),
+        "precondition: no suggestion matches, so none show"
+    );
+    d.press(Key::Escape).settle();
+    assert_eq!(
+        focused_path(&d),
+        None,
+        "precondition: Esc unfocused the field"
+    );
+    assert!(
+        d.ctx()
+            .pointer_hover_pos()
+            .is_some_and(|at| field.contains(at)),
+        "precondition: the pointer is still over the field"
+    );
+    assert_eq!(
+        border(&d, field),
+        Some(rest),
+        "the hovered field keeps its border"
+    );
+}

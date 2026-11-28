@@ -141,7 +141,8 @@ fn addon_icon(k: &Tokens, size: Size) -> (f32, f32) {
 pub(crate) const INLINE_START: &str = "inline-start";
 pub(crate) const INLINE_END: &str = "inline-end";
 
-/// What a text field's own frame is drawn with, read from the sheet.
+/// What a text field's own frame is drawn with, read from the sheet. A
+/// state the sheet gives no border keeps the rest border.
 pub(crate) struct Frame {
     pub fill: Option<Color32>,
     pub rest: Option<Color32>,
@@ -161,6 +162,7 @@ impl Frame {
         use crate::tw::State;
         let width = classes.style().border.left.into_raw();
         let layout = classes.style_at(spacing);
+        let rest = classes.paint.border_colors.top;
         Self {
             height: length_px(layout.size.height.into_raw()),
             padding: Vec2::new(
@@ -168,9 +170,9 @@ impl Frame {
                 length_px(layout.padding.top.into_raw()),
             ),
             fill: classes.paint.background,
-            rest: classes.paint.border_colors.top,
-            hover: classes.variant_border(State::Hover),
-            focused: classes.variant_border(State::Focus),
+            rest,
+            hover: classes.variant_border(State::Hover).or(rest),
+            focused: classes.variant_border(State::Focus).or(rest),
             text: classes.text.color,
             border_width: width.value(),
             radius: classes.paint.radius.nw,
