@@ -34,7 +34,7 @@ Status: spike, 2026-11-10. Spike code is not for merge as-is. Everything below w
 | 3 OS files on zones, hint, accept/refuse by extension | `examples/dnd_zones.rs` | `dnd_zones.rs` (2 of 5) |
 | 4 Gallery: 1/2/3 columns, 2D reorder, scroll, live drag image, outside drop | `examples/dnd_gallery.rs` | `dnd_gallery.rs` (13) |
 
-Shared: `examples/common/dnd.rs` (`insertion_index`, `paint_chip`, and the superseded `capture` / `paint_ghost`, still used by `dnd_reorder`) and `FrameRig` / `frame_harness` in `tests/it/support/mod.rs` (a harness whose frame body is the example's own `frame`, needed because the stock `Rig` draws `Placed` itself and cannot run work after the draw or inside a scroll area).
+Shared: `eggshell-examples/src/common/dnd.rs` (`insertion_index`, `paint_chip`, and the superseded `capture` / `paint_ghost`, still used by `dnd_reorder`) and `FrameRig` / `frame_harness` in `tests/it/support/mod.rs` (a harness whose frame body is the example's own `frame`, needed because the stock `Rig` draws `Placed` itself and cannot run work after the draw or inside a scroll area).
 
 No file under `src/` changed. Every experiment ran on today's public API.
 

@@ -7,8 +7,7 @@ use eggshell_ui::testing::{Driver, Timeline};
 use egui::epaint::Shape;
 use egui::{Color32, Event, Pos2, Rect, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dnd_zones.rs"]

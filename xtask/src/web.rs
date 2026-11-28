@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn index_names_the_canvas_the_examples_look_for() {
-        let canvas_id = include_str!("../../examples/common/mod.rs")
+        let canvas_id = include_str!("../../eggshell-examples/src/common/mod.rs")
             .lines()
             .find_map(|l| l.strip_prefix("pub const WEB_CANVAS_ID: &str = \""))
             .and_then(|l| l.strip_suffix("\";"))

@@ -20,7 +20,7 @@ fn harness() -> Driver<State> {
         vec2(480.0, 640.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         State::default(),
-        example::layout,
+        example::view,
     )
     .build();
     support::set_companion(&d, support::Companion::Alone);

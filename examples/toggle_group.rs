@@ -2,8 +2,7 @@
 //! button among them, and a 2×2 picker of cards. Both are one `toggle_group::Group`
 //! whose members sit wherever the layout puts them.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::contract::Size;
@@ -175,7 +174,7 @@ fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
     );
 }
 
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(3.0).p(4.0), |b| {
         b.text(tw().text(muted), "Tools");
@@ -186,5 +185,5 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("toggle_group", State::default(), layout)
+    common::run_app("toggle_group", State::default(), view)
 }

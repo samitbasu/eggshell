@@ -10,8 +10,7 @@
 //! under its field, on a line reserved for it, so the form does not move. Two-column rows are
 //! wrapping flex rows, which stack when the window is narrow.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::text_field::Field;
 use eggshell_ui::prelude::*;
@@ -414,7 +413,7 @@ fn thanks(s: &mut S<'_, '_>, state: &State) {
 ///   <div class="flex flex-col gap-3 w-full max-w-[480px]">…</div>
 /// </main>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
@@ -445,5 +444,5 @@ pub fn prepare(ctx: &egui::Context, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("signup_form", State::default(), prepare, layout)
+    common::run_app_styled("signup_form", State::default(), prepare, view)
 }

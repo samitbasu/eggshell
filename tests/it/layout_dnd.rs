@@ -6,8 +6,7 @@ use eggshell_ui::testing::{Driver, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, tw};
 use egui::{Color32, Ui, vec2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use crate::support;
 

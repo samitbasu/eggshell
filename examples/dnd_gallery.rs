@@ -10,8 +10,7 @@
 //! The gallery is a scroll container (`b.scroll`), which scrolls itself when a
 //! drag is near its edge.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 use eggshell_ui::prelude::*;
@@ -267,7 +266,7 @@ fn placeholder(b: &mut B<'_, '_, State>, cols: usize) {
 
 pub const GRID: &str = "/\"page\"/\"grid\"";
 
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     let carried = b.dragging::<PanelKey>();
     let arriving = b.dragging::<Files>();
     b.on_drag_end::<PanelKey>(|app, key, end| app.status = format!("{key:?}: {end:?}"));
@@ -321,7 +320,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) -> PlacedFrame {
     let ctx = ui.ctx().clone();
     let placed = layout_state
-        .build(&ctx, |b| layout(b, app))
+        .build(&ctx, |b| view(b, app))
         .layout(ui.max_rect());
     if let Some(key) = app.reveal.take() {
         let name = format!("/{key:?}");

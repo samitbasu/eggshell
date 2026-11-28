@@ -6,8 +6,7 @@
 //! focus inside. "Post notice" pushes a notice top-right with two actions and a
 //! ×; the newest sits nearest the top and three show at once.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use core::time::Duration;
 use eggshell_ui::prelude::*;
@@ -37,7 +36,7 @@ impl State {
     }
 }
 
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     b.div(tw().flex().flex_col().gap(4.0).p(8.0).items_start(), |b| {
         b.text(tw().font_semibold(), "Notifications");
         b.div(tw().flex().gap(2.0), |b| {
@@ -81,5 +80,5 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("notify", State::default(), layout)
+    common::run_app("notify", State::default(), view)
 }

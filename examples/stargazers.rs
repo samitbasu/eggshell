@@ -8,8 +8,7 @@
 //! needs no network, draws each avatar as an initial, and leaves the
 //! reordering out (drag and drop is not part of this port).
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 
@@ -98,7 +97,7 @@ fn person<'f>(state: &'f State) -> impl FnMut(&mut Scope<'_, 'f, State>, Person)
 ///   <div class="grow min-h-0 overflow-y-auto rounded-md border">rows</div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     let t = common::tokens(b.ctx());
     b.div(tw().flex().flex_col().gap(2.0).size_full().p(4.0), |b| {
         b.text(
@@ -120,5 +119,5 @@ pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("stargazers", State::default(), layout)
+    common::run_app("stargazers", State::default(), view)
 }

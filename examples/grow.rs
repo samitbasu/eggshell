@@ -6,8 +6,7 @@
 //! padding sliders are stock egui sliders in leaves of the same tree, in
 //! spacing units.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
@@ -122,10 +121,10 @@ pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
 }
 
 /// The controls beside the demo.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("grow", State::default(), layout)
+    common::run_app("grow", State::default(), view)
 }

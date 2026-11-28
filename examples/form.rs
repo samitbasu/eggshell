@@ -9,8 +9,7 @@
 //! Tab visits the controls top to bottom, skipping what is inert; Enter or
 //! Space presses a focused toggle or swatch.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::owned::text_field::Field;
@@ -496,7 +495,7 @@ fn save(s: &mut S<'_, '_>, state: &State) {
 ///   <form class="flex flex-col gap-5 w-full max-w-[560px]">…</form>
 /// </main>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
@@ -529,5 +528,5 @@ pub fn prepare(ctx: &egui::Context, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("form", State::default(), prepare, layout)
+    common::run_app_styled("form", State::default(), prepare, view)
 }

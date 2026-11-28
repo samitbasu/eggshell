@@ -5,8 +5,7 @@
 //! The list is one Tab stop. The arrow keys move along it and wrap, and Home
 //! and End go to the ends. Only the selected tab's panel is built.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::{Enablement, choice::Choice};
@@ -220,7 +219,7 @@ fn reports(b: &mut B<'_, '_>, state: &State) {
     });
 }
 
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(6.0).p(6.0), |b| {
         b.text(tw().text(muted), "Account and password");
@@ -235,5 +234,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("tabs", State::default(), layout)
+    common::run_app("tabs", State::default(), view)
 }

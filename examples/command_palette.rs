@@ -2,8 +2,7 @@
 //! on macOS) opens a palette over the app's command table and a page list;
 //! the combobox (an input group: type in it, or press its chevron) picks a framework, the autosuggest a city as typed.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::owned::command::Open;
@@ -109,7 +108,7 @@ fn commands() -> Commands<State> {
         )
 }
 
-pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+pub fn view<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     let table = commands();
     b.commands(&table, state);
     b.div_id(
@@ -160,7 +159,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     });
 }
 
-#[allow(dead_code, reason = "the tests include this file for `layout`")]
+#[allow(dead_code, reason = "the tests include this file for `view`")]
 fn main() -> eframe::Result {
-    common::run_app("command_palette", State::default(), layout)
+    common::run_app("command_palette", State::default(), view)
 }

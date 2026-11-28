@@ -6,8 +6,7 @@
 //! egui slider and the wrap choice a segmented control, both inside the tree.
 //! The original's stock egui labels and buttons are text boxes here.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
@@ -162,10 +161,10 @@ pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
 }
 
 /// The controls beside the demo.
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn view(b: &mut B<'_, '_, State>, state: &State) {
     common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
 }
 
 fn main() -> eframe::Result {
-    common::run_app("flex_wrap", State::default(), layout)
+    common::run_app("flex_wrap", State::default(), view)
 }

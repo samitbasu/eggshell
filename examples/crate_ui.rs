@@ -10,8 +10,7 @@
 //! it is shown with. The tags wrap at the card's width, which the scroll
 //! container gives the page. Clicking a tag selects it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::theme::Tokens;
 use eggshell_ui::{Builder, Tw, tw};
@@ -180,7 +179,7 @@ fn card(
 ///   <div class="flex flex-col gap-4 w-full max-w-[1000px] mx-auto"> eleven cards </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.scroll(Part::Page, tw().size_full().p(4.0)).children(|s| {
         s.div(
@@ -201,5 +200,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("crate_ui", State::default(), layout)
+    common::run_app("crate_ui", State::default(), view)
 }

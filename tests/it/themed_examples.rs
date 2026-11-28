@@ -5,8 +5,7 @@ use eggshell_ui::{Builder, LayoutState, NodeKind, Placed, PlacedNode};
 use eggshell_ui::theme::{Palette, Shadcn, ThemeColor, Tokens};
 use egui::{Color32, Context, ImageSource, Rect, Theme, pos2};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/button.rs"]
@@ -80,7 +79,7 @@ fn assert_themes_differ(light: Color32, dark: Color32) {
 fn button_takes_the_themes_tokens() {
     let mut seen = Vec::new();
     for theme in THEMES {
-        let (placed_off, t) = place(theme, |b| button::layout(b, &button::State::default()));
+        let (placed_off, t) = place(theme, |b| button::view(b, &button::State::default()));
         let placed = &placed_off;
         let fills = button::Fills::of(&t);
         let button = node(placed, "/\"button\"");
@@ -94,7 +93,7 @@ fn button_takes_the_themes_tokens() {
         seen.push(fills.rest);
 
         let (placed, _) = place(theme, |b| {
-            button::layout(
+            button::view(
                 b,
                 &button::State {
                     clicks: 0,
@@ -116,7 +115,7 @@ fn button_takes_the_themes_tokens() {
 fn todo_takes_the_themes_tokens() {
     let mut seen = Vec::new();
     for theme in THEMES {
-        let (placed, t) = place(theme, |b| todo::layout(b, &todo::State::default()));
+        let (placed, t) = place(theme, |b| todo::view(b, &todo::State::default()));
         let state = todo::State::default();
         let row = node(&placed, &format!("/{:?}", state.items[0].key));
         assert_eq!(row.paint().background, Some(t.muted), "{theme:?}");
@@ -128,7 +127,7 @@ fn todo_takes_the_themes_tokens() {
 
         let mut cleared = todo::State::default();
         cleared.items.clear();
-        let (placed, _) = place(theme, |b| todo::layout(b, &cleared));
+        let (placed, _) = place(theme, |b| todo::view(b, &cleared));
         let empty = placed
             .nodes()
             .find(|node| node.kind() == NodeKind::Text)

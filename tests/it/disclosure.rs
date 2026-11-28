@@ -13,8 +13,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use crate::support::{self, Rig, rect_of};
 use eggshell_ui::testing::{Animation, Target};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 const TITLE: &str = "Environment";
 const HEADER: &str = r#"/"env"/Header"#;

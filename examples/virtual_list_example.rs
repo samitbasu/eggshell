@@ -7,8 +7,7 @@
 //! height does; the list measures each item when it is first built and
 //! counts it at the estimate until then.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 
@@ -67,12 +66,12 @@ fn item(s: &mut Scope<'_, '_, State>, item: Item) {
 /// ```html
 /// <div class="size-full p-2 overflow-y-auto">items</div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     b.virtual_list(Part::List, tw().size_full().p(2.0), &state.items)
         .estimate_px(70.0)
         .items(item);
 }
 
 fn main() -> eframe::Result {
-    common::run_app("virtual_list_example", State::default(), layout)
+    common::run_app("virtual_list_example", State::default(), view)
 }

@@ -88,6 +88,8 @@ egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
+# The examples' shared code and their embeddable views.
+eggshell-examples = { path = "eggshell-examples" }
 # eggshell's own tests drive views through `testing::Driver`.
 eggshell-ui = { path = ".", features = [
     "driver",
@@ -119,11 +121,8 @@ criterion = { version = "0.5", default-features = false, features = ["cargo_benc
 name = "frame"
 harness = false
 
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-futures = "0.4"
-
 [workspace]
-members = ["xtask"]
+members = ["eggshell-examples", "xtask"]
 
 # clippy.toml's disallowed macros and methods are denied in library code by
 # each library's crate attributes; tests, examples and benches may use them.

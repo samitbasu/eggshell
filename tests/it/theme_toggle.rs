@@ -8,8 +8,7 @@ use egui::ThemePreference;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 fn preference(harness: &Harness<'_, common::ThemeBar>) -> ThemePreference {
     harness.ctx.options(|options| options.theme_preference)
@@ -109,10 +108,24 @@ fn every_example_shows_the_toggle_and_none_pins_a_theme() {
 }
 
 #[test]
+fn no_example_in_the_crate_pins_a_theme() {
+    let examples = sources(&Path::new(env!("CARGO_MANIFEST_DIR")).join("eggshell-examples/src"));
+    assert!(!examples.is_empty(), "precondition: the crate has sources");
+    for (file, text) in examples {
+        assert!(
+            !text.contains("set_theme("),
+            "{} pins the theme instead of following the system",
+            file.display()
+        );
+    }
+}
+
+#[test]
 fn the_shared_runner_shows_the_bar() {
-    let text =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/common/mod.rs"))
-            .unwrap();
+    let text = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("eggshell-examples/src/common/mod.rs"),
+    )
+    .unwrap();
     let from = text.find("fn shell<").unwrap();
     let shell = &text[from..from + text[from..].find("\n}\n").unwrap()];
     assert!(shell.contains("theme_bar.show(ui)"));

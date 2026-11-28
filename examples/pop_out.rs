@@ -3,8 +3,7 @@
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
 use eggshell_ui::{Builder, Scope, tw};
@@ -37,7 +36,7 @@ pub struct State {
 ///   <div class="text-sm text-muted-foreground"> each window's frame </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let t = common::tokens(b.ctx());
     b.div(tw().flex().flex_col().gap(3.0).p(4.0), |b| {
         b.div_id(Part::Grid, tw().grid().grid_cols(2).gap(3.0), |s| {
@@ -122,5 +121,5 @@ fn card(s: &mut Scope<'_, '_, State>, state: &State, at: usize, title: &'static 
 }
 
 fn main() -> eframe::Result {
-    common::run_app("pop_out", State::default(), layout)
+    common::run_app("pop_out", State::default(), view)
 }

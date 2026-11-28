@@ -10,8 +10,7 @@
 //! pane gives its bar a style of its own. The buttons above the first
 //! pane use the programmatic API.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::prelude::*;
 use eggshell_ui::scroll::{Axis, EdgeFade};
@@ -299,7 +298,7 @@ fn jumps(b: &mut B<'_, '_>) {
 ///   <div class="flex gap-4 grow min-h-0">four panes</div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
@@ -329,5 +328,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("scroll", State::default(), layout)
+    common::run_app("scroll", State::default(), view)
 }

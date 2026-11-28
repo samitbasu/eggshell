@@ -11,8 +11,7 @@
 //! made up rather than copied. A new message arrives every two seconds
 //! until the last of them.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, Tw, tw};
 
@@ -165,7 +164,7 @@ fn message<'f>(state: &'f State) -> impl FnMut(&mut Scope<'_, 'f, State>, Messag
 ///   <div class="grow min-h-0 overflow-y-auto rounded-md border">messages</div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     let t = common::tokens(b.ctx());
     b.div(tw().flex().flex_col().size_full().p(4.0), |b| {
         b.custom(Part::Clock, tw().size_px(0.0))
@@ -191,5 +190,5 @@ pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("chat", State::default(), layout)
+    common::run_app("chat", State::default(), view)
 }

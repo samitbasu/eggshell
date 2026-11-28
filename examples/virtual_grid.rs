@@ -10,8 +10,7 @@
 //! need every row's content, and the header sits above the scrolled rows
 //! rather than sticking at the top of them. The buttons are placeholders.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Scope, tw};
 
@@ -110,7 +109,7 @@ fn row(s: &mut Scope<'_, '_, State>, Row(index): Row) {
 ///   <div class="grow min-h-0 overflow-y-auto">rows</div>
 /// </div>
 /// ```
-pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
+pub fn view<'f>(b: &mut B<'_, 'f>, state: &'f State) {
     b.div(tw().flex().flex_col().size_full(), |b| {
         header(b);
         b.virtual_list(Part::Grid, tw().grow().min_h_0(), &state.rows)
@@ -120,5 +119,5 @@ pub fn layout<'f>(b: &mut B<'_, 'f>, state: &'f State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("virtual_grid", State::default(), layout)
+    common::run_app("virtual_grid", State::default(), view)
 }

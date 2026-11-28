@@ -10,8 +10,7 @@
 //! each is a tile of the size the original's index gives it (48 of its 100),
 //! with its id on it. Clicking one selects it.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::Color32;
@@ -99,7 +98,7 @@ fn tint(id: u32) -> Color32 {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, state: &State) {
+pub fn view(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     b.scroll(Part::Gallery, tw().size_full().p(4.0))
         .children(|s| {
@@ -140,5 +139,5 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("image_gallery", State::default(), layout)
+    common::run_app("image_gallery", State::default(), view)
 }

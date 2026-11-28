@@ -6,8 +6,7 @@ use eggshell_ui::{Builder, Placed, Tw, tw};
 use egui::{Color32, FontFamily, FontId, vec2};
 use proptest::prelude::*;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 const DIGITS: u32 = 7;
 

@@ -15,12 +15,9 @@ use egui::{
 use egui_kittest::Harness;
 use proptest::prelude::*;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
-#[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../../examples/menu.rs"]
-mod menu;
+use eggshell_examples::menu;
 
 fn body() -> TextStyle {
     TextStyle::new(
@@ -1207,7 +1204,7 @@ mod menu_example {
             SIZE,
             common::base_text(egui::Theme::Light),
             State::default(),
-            menu::layout,
+            menu::view,
         )
         .build();
         d.frames(3);

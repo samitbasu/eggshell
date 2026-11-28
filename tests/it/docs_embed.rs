@@ -7,8 +7,7 @@ use egui_kittest::kittest::Queryable as _;
 
 use crate::support;
 
-#[path = "../../examples/common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/docs_embed.rs"]
@@ -19,7 +18,7 @@ fn harness() -> Driver<page::State> {
         vec2(720.0, 900.0),
         common::base_text(Theme::Light),
         page::State::default(),
-        page::layout,
+        page::view,
     )
     .build();
     d.frames(4);

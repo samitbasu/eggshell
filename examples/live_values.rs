@@ -6,8 +6,7 @@
 //! `tabular-nums` keeps that content the same width whatever the digits.
 //! The styling is plain shadcn.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, tw};
 use egui::FontFamily;
@@ -61,7 +60,7 @@ fn elapsed(frame: u64) -> String {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_>, _: &()) {
+pub fn view(b: &mut B<'_, '_>, _: &()) {
     let muted = common::tokens(b.ctx()).muted_foreground;
     let frame = b.ctx().cumulative_pass_nr();
     b.ctx().request_repaint();
@@ -99,5 +98,5 @@ pub fn layout(b: &mut B<'_, '_>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("live_values", (), layout)
+    common::run("live_values", (), view)
 }

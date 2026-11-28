@@ -1,8 +1,7 @@
 //! The standard icons at 12, 16, 20 and 24 pt,
 //! and in a button, a segmented cell and a menu trigger.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use eggshell_ui::{Builder, Icon, icons, tw};
 use egui::ImageSource;
@@ -34,7 +33,7 @@ const SIZES: [f32; 4] = [12.0, 16.0, 20.0, 24.0];
 ///   <div class="flex gap-3"> button, segmented, menu </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
+pub fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id("Page", tw().flex().flex_col().gap(3.0).p(4.0), |s| {
         for size in SIZES {
             s.div_id(size as u32, tw().flex().gap(3.0).items_center(), |s| {
@@ -74,5 +73,5 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("icons", (), layout)
+    common::run("icons", (), view)
 }

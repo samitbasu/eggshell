@@ -16,7 +16,7 @@ use crate::support::{self, focused_path};
 #[path = "../../examples/swatch_picker.rs"]
 mod example;
 
-use example::{COLOURS, Choice, State, layout};
+use example::{COLOURS, Choice, State, view};
 
 const TRIGGER: &str = "/Page/Trigger";
 
@@ -26,7 +26,7 @@ fn harness(choice: Choice) -> Driver<State> {
         vec2(400.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         State::with(choice),
-        layout,
+        view,
     )
     .build();
     support::set_companion(&d, support::Companion::Alone);

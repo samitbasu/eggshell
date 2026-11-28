@@ -1,8 +1,7 @@
 //! A row of icon toggles where the active one shows an accent bar under its
 //! icon, built as the toggle's `.children(..)`.
 
-#[path = "common/mod.rs"]
-mod common;
+use eggshell_examples::common;
 
 use common::glyphs::{self, Glyph};
 use eggshell_ui::theme::size;
@@ -39,7 +38,7 @@ impl Default for State {
 ///   …
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn view(b: &mut Builder<'_, '_, State>, state: &State) {
     let accent = common::tokens(b.ctx()).primary;
     b.div(tw().flex().gap(2.0).p(4.0), |b| {
         for (tool, glyph, name) in TOOLS {
@@ -69,5 +68,5 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("button_children", State::default(), layout)
+    common::run_app("button_children", State::default(), view)
 }
