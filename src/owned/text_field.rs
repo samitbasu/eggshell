@@ -19,7 +19,7 @@ use crate::owned::options::{Configure, Interactive, Options, Resolved, Respond, 
 use crate::owned::{Enablement, FieldHooks, OnResponse, field_box, input, text_sized, tipped};
 use crate::sheet::{Key as SheetKey, Part as _};
 use crate::widget::Stock as _;
-use crate::{Builder, Icon, Key, Measure, tw};
+use crate::{Builder, Icon, Key, Measure, NodeUi as _, tw};
 
 pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
@@ -151,10 +151,17 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Node {
+    LeadingAddon,
     Leading,
     Field,
     Trailing,
+    TrailingAddon,
 }
+
+/// An addon of a field with icons was clicked, and the field is to take the
+/// focus.
+#[derive(Clone, Copy, Default)]
+struct AddonClicked;
 
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
 /// with [`on_change`](Self::on_change).
@@ -421,14 +428,28 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
             let size_key = SheetKey::Size(style.input.sizes.key_for(size));
-            let put = |s: &mut Scope<'_, '_, A>, part, side, icon| {
+            let asked = slot.id.with("addon-clicked");
+            // shadcn's addon is `cursor-text` and focuses its input on a
+            // click, keeping the caret, as `input.focus()` does.
+            let put = |s: &mut Scope<'_, '_, A>, (addon_key, part), side, icon| {
                 let mut keys = vec![size_key, SheetKey::Attr("align", side)];
                 if enablement == Enablement::Disabled {
                     keys.push(SheetKey::Aria(crate::Aria::Disabled));
                 }
-                let addon = s.part(input::GroupPart::Addon, &keys, tw().attr("align", side));
-                s.div(addon, |s| {
+                let own = tw().attr("align", side).sense_click().focusable_none();
+                let addon = s.part(input::GroupPart::Addon, &keys, own);
+                s.div_id(addon_key, addon, |s| {
                     s.icon(part, tw().shrink_0(), icon);
+                })
+                .draw(move |_, ui| {
+                    let response = ui.node_response();
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                    }
+                    if response.clicked() {
+                        ui.data_mut(|data| data.insert_temp(asked, AddonClicked));
+                        ui.ctx().request_repaint();
+                    }
                 });
             };
             let field = field.inset();
@@ -441,7 +462,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 .classes(classes)
                 .children(|s| {
                     if let Some(icon) = leading {
-                        put(s, Node::Leading, INLINE_START, icon);
+                        put(s, (Node::LeadingAddon, Node::Leading), INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
                         let control = b.part(
@@ -455,6 +476,15 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                 let mut edited = text;
                                 let shown = show(ui, &mut edited, &field);
                                 let response = tipped(ui, shown, &tip);
+                                // The field takes the focus after it is shown: a
+                                // request before would lose to the press, which
+                                // egui counts as a click elsewhere.
+                                if ui
+                                    .data_mut(|data| data.remove_temp::<AddonClicked>(asked))
+                                    .is_some()
+                                {
+                                    response.request_focus();
+                                }
                                 validity.describe(ui.ctx(), response.id);
                                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                                     Opening::from(select).open(ui, &response, &edited);
@@ -466,7 +496,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                             });
                     });
                     if let Some(icon) = trailing {
-                        put(s, Node::Trailing, INLINE_END, icon);
+                        put(s, (Node::TrailingAddon, Node::Trailing), INLINE_END, icon);
                     }
                 });
             return;

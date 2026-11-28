@@ -192,7 +192,7 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
         let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
         let (boxed, icon, field) = (
             d.rect(Target::suffix(SEARCH)),
-            d.rect(Target::suffix(&format!("{SEARCH}/Leading"))),
+            d.rect(Target::suffix(&format!("{SEARCH}/LeadingAddon/Leading"))),
             d.rect(Target::suffix(&format!("{SEARCH}/Field"))),
         );
         let (edge, gap) = spacing(size);
@@ -222,7 +222,7 @@ fn a_trailing_icon_sits_inside_the_box_after_the_field() {
     let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
     let (boxed, icon, field) = (
         d.rect(Target::suffix(CLEAR)),
-        d.rect(Target::suffix(&format!("{CLEAR}/Trailing"))),
+        d.rect(Target::suffix(&format!("{CLEAR}/TrailingAddon/Trailing"))),
         d.rect(Target::suffix(&format!("{CLEAR}/Field"))),
     );
     let (edge, gap) = spacing(Size::DEFAULT);
@@ -257,8 +257,8 @@ fn a_field_may_have_both_icons() {
     let d = driver(Size::DEFAULT);
     let (boxed, lead, trail) = (
         d.rect(Target::suffix(BOTH)),
-        d.rect(Target::suffix(&format!("{BOTH}/Leading"))),
-        d.rect(Target::suffix(&format!("{BOTH}/Trailing"))),
+        d.rect(Target::suffix(&format!("{BOTH}/LeadingAddon/Leading"))),
+        d.rect(Target::suffix(&format!("{BOTH}/TrailingAddon/Trailing"))),
     );
     assert!(lead.right() < trail.left());
     assert!(boxed.contains_rect(lead) && boxed.contains_rect(trail));
@@ -370,6 +370,114 @@ fn a_click_in_the_padding_before_the_text_of_a_field_with_a_trailing_icon_focuse
 #[test]
 fn a_click_in_the_padding_between_the_text_and_a_trailing_icon_focuses_the_field() {
     a_click_in_the_padding_focuses(CLEAR, "inline-end", Side::Right);
+}
+
+/// Where `at` lies in the field of `path` with its icon on `side`: inside
+/// the addon, and outside the field's leaf.
+fn in_the_addon(d: &Driver<App>, path: &str, side: &str, at: egui::Pos2) {
+    let (addon, field) = (
+        d.rect(Target::suffix(&format!("{path}/{side}Addon"))),
+        d.rect(Target::suffix(&format!("{path}/Field"))),
+    );
+    assert!(
+        addon.contains(at) && !field.contains(at),
+        "precondition: {at:?} is in the addon {addon:?}, not the field {field:?}"
+    );
+}
+
+/// Clicks `at`, in the addon on `side` of the field of `path`: the click
+/// focuses the field.
+fn a_click_in_the_addon_focuses(mut d: Driver<App>, path: &str, side: &str, at: egui::Pos2) {
+    in_the_addon(&d, path, side, at);
+    assert_eq!(
+        support::focused_node(&d),
+        None,
+        "precondition: nothing has focus"
+    );
+    d.click(at).frames(4);
+    assert_eq!(
+        support::focused_node(&d),
+        Some(format!("{path}/Field")),
+        "a click at {at:?} in the {side} addon of {path}"
+    );
+}
+
+#[test]
+fn a_click_on_a_leading_icon_focuses_the_field() {
+    let d = driver(Size::DEFAULT);
+    let icon = d.rect(Target::suffix(&format!("{SEARCH}/LeadingAddon/Leading")));
+    a_click_in_the_addon_focuses(d, SEARCH, "Leading", icon.center());
+}
+
+#[test]
+fn a_click_on_a_trailing_icon_focuses_the_field() {
+    let d = driver(Size::DEFAULT);
+    let icon = d.rect(Target::suffix(&format!("{CLEAR}/TrailingAddon/Trailing")));
+    a_click_in_the_addon_focuses(d, CLEAR, "Trailing", icon.center());
+}
+
+/// A point in the leading addon's padding of [`SEARCH`], between the box's
+/// border and the icon.
+fn in_the_leading_padding(d: &Driver<App>) -> egui::Pos2 {
+    let border = support::input_border(&Shadcn::for_theme(Theme::Light).style()).0;
+    let (boxed, icon) = (
+        d.rect(Target::suffix(SEARCH)),
+        d.rect(Target::suffix(&format!("{SEARCH}/LeadingAddon/Leading"))),
+    );
+    let at = egui::pos2((boxed.left() + border + icon.left()) / 2.0, icon.center().y);
+    assert!(
+        !icon.contains(at) && at.x > boxed.left() + border,
+        "precondition: {at:?} is between the border of {boxed:?} and the icon {icon:?}"
+    );
+    at
+}
+
+#[test]
+fn a_click_in_an_addons_padding_focuses_the_field() {
+    let d = driver(Size::DEFAULT);
+    let at = in_the_leading_padding(&d);
+    a_click_in_the_addon_focuses(d, SEARCH, "Leading", at);
+}
+
+#[test]
+fn a_click_on_an_icon_keeps_the_fields_caret() {
+    let mut d = driver(Size::DEFAULT);
+    d.click(Target::suffix(&format!("{SEARCH}/Field")))
+        .frames(4);
+    d.type_text("abc").frames(3);
+    d.press(egui::Key::Home).frames(3);
+    let page = d.rect(Target::suffix(r#"/"Page""#));
+    d.click(egui::pos2(page.center().x, page.bottom() - 2.0))
+        .frames(4);
+    assert_eq!(
+        support::focused_node(&d),
+        None,
+        "precondition: the field gave up focus"
+    );
+    let icon = d.rect(Target::suffix(&format!("{SEARCH}/LeadingAddon/Leading")));
+    d.click(icon.center()).frames(4);
+    d.type_text("Z").frames(3);
+    assert_eq!(d.app().text, "Zabc", "typed at the caret Home left");
+}
+
+#[test]
+fn the_pointer_is_a_text_cursor_over_an_addon() {
+    let mut d = driver(Size::DEFAULT);
+    let at = in_the_leading_padding(&d);
+    in_the_addon(&d, SEARCH, "Leading", at);
+    let page = d.rect(Target::suffix(r#"/"Page""#));
+    d.hover(egui::pos2(page.center().x, page.bottom() - 2.0))
+        .frames(2);
+    assert_ne!(
+        d.harness().output().platform_output.cursor_icon,
+        egui::CursorIcon::Text,
+        "precondition: not a text cursor over the page"
+    );
+    d.hover(at).frames(2);
+    assert_eq!(
+        d.harness().output().platform_output.cursor_icon,
+        egui::CursorIcon::Text
+    );
 }
 
 #[test]
