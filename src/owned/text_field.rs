@@ -431,7 +431,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                     s.icon(part, tw().shrink_0(), icon);
                 });
             };
-            let field = field.bare();
+            let field = field.inset();
             let measured = field.clone();
             let tip = tooltip.clone();
             let validity = validity.clone();

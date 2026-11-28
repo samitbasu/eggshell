@@ -286,6 +286,104 @@ fn typing_in_a_field_with_an_icon_changes_the_text() {
     assert_eq!(d.app().text, "abc");
 }
 
+/// The left and right padding the style gives a default-size field with an
+/// icon on the `addon` side.
+fn control_padding(addon: &'static str) -> (f32, f32) {
+    let style = Shadcn::for_theme(Theme::Light).style();
+    let padding = style
+        .sheet
+        .resolve(
+            eggshell_ui::owned::input::GroupPart::Input,
+            &[
+                eggshell_ui::sheet::Key::Size(Size::DEFAULT),
+                eggshell_ui::sheet::Key::Attr("addon", addon),
+            ],
+            &style.tokens,
+        )
+        .style_at(style.tokens.spacing)
+        .padding;
+    (
+        padding.left.into_raw().value(),
+        padding.right.into_raw().value(),
+    )
+}
+
+/// Which side of a field a click lands on.
+#[derive(Clone, Copy, Debug)]
+enum Side {
+    Left,
+    Right,
+}
+
+/// Clicks in the padding on `side` of the field of `path`, whose icon is on
+/// the `addon` side: the click focuses the field.
+fn a_click_in_the_padding_focuses(path: &str, addon: &'static str, side: Side) {
+    let mut d = driver(Size::DEFAULT);
+    let (left, right) = control_padding(addon);
+    let (boxed, field) = (
+        d.rect(Target::suffix(path)),
+        d.rect(Target::suffix(&format!("{path}/Field"))),
+    );
+    let y = field.center().y;
+    let at = match side {
+        Side::Left => egui::pos2(field.left() + left / 2.0, y),
+        Side::Right => egui::pos2(field.right() - right / 2.0, y),
+    };
+    let text =
+        egui::Rect::from_x_y_ranges(field.left() + left..=field.right() - right, field.y_range());
+    assert!(
+        left > 0.0 && right > 0.0,
+        "precondition: the input pads both sides: {left}, {right}"
+    );
+    assert!(
+        boxed.contains(at) && field.contains(at) && !text.contains(at),
+        "precondition: {at:?} is in the box {boxed:?} and the field {field:?}, in its padding outside {text:?}"
+    );
+    assert_eq!(
+        support::focused_node(&d),
+        None,
+        "precondition: nothing has focus"
+    );
+    d.click(at).frames(4);
+    assert_eq!(
+        support::focused_node(&d),
+        Some(format!("{path}/Field")),
+        "{side:?} padding of {path}"
+    );
+}
+
+#[test]
+fn a_click_in_the_padding_between_a_leading_icon_and_the_text_focuses_the_field() {
+    a_click_in_the_padding_focuses(SEARCH, "inline-start", Side::Left);
+}
+
+#[test]
+fn a_click_in_the_padding_after_the_text_of_a_field_with_a_leading_icon_focuses_it() {
+    a_click_in_the_padding_focuses(SEARCH, "inline-start", Side::Right);
+}
+
+#[test]
+fn a_click_in_the_padding_before_the_text_of_a_field_with_a_trailing_icon_focuses_it() {
+    a_click_in_the_padding_focuses(CLEAR, "inline-end", Side::Left);
+}
+
+#[test]
+fn a_click_in_the_padding_between_the_text_and_a_trailing_icon_focuses_the_field() {
+    a_click_in_the_padding_focuses(CLEAR, "inline-end", Side::Right);
+}
+
+#[test]
+fn a_field_with_an_icon_keeps_its_text_inside_its_padding() {
+    let d = driver(Size::DEFAULT);
+    let field = d.rect(Target::suffix(&format!("{SEARCH}/Field")));
+    let (left, _) = control_padding("inline-start");
+    let text = support::text_left(&d, field, "Search");
+    assert!(
+        (text - field.left() - left).abs() < 0.6,
+        "the hint sits the field's padding in: {text} in {field:?}"
+    );
+}
+
 #[test]
 fn a_focused_field_with_an_icon_rings_its_box() {
     let mut d = driver(Size::DEFAULT);

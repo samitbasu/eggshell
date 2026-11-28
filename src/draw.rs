@@ -1345,6 +1345,7 @@ impl<A> Walk<'_, A> {
                     data.insert_temp(scope, PaneTag(pane));
                     data.insert_temp(scope, BlurTag(blur));
                     data.insert_temp(scope, TextTag(text.clone()));
+                    data.insert_temp(scope, PaddingTag(boxes.padding));
                     data.insert_temp(scope, StyleTag(node.style.clone()));
                     if let Some(response) = bubbled {
                         data.insert_temp(scope, BubbledTag(response.clone()));
@@ -2343,6 +2344,18 @@ struct BlurTag(Blur);
 
 #[derive(Clone)]
 struct TextTag(TextStyle);
+
+/// The padding box of the node whose draw closure is running.
+#[derive(Clone, Copy)]
+struct PaddingTag(Rect);
+
+/// The padding box of the node whose draw closure is running, or the
+/// `Ui`'s rect for a `Ui` that is not a draw closure's.
+pub(crate) fn padding_box(ui: &Ui) -> Rect {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<PaddingTag>(scope))
+        .map_or_else(|| ui.max_rect(), |tag| tag.0)
+}
 
 #[derive(Clone)]
 struct StyleTag(Arc<Style>);

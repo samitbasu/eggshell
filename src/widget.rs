@@ -22,7 +22,9 @@
 //! `tests/it/sizing.rs` asserts that the size equals what egui allocates when
 //! it draws the widget.
 
-use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
+use egui::{
+    Context, Frame, Margin, NumExt as _, Rect, Response, RichText, TextWrapMode, Ui, Vec2, vec2,
+};
 use std::sync::Arc;
 use taffy::Size;
 
@@ -74,8 +76,11 @@ fn announce_role(response: &Response, role: Option<egui::Role>) {
     }
 }
 
-fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
-    ui.put(ui.max_rect(), widget)
+/// Where a field is put in its leaf's `Ui`, and the margin around its text
+/// there that its framing does not draw.
+struct Placed {
+    rect: Rect,
+    margin: Margin,
 }
 
 /// How many lines a text edit shows.
@@ -108,7 +113,8 @@ pub enum Enter {
 enum Framing {
     Framed,
     Bare,
-    /// Bare, with the input's side padding inside the field.
+    /// Bare, over its node's padding box, with the node's side padding as
+    /// its own margin.
     Inset,
 }
 
@@ -242,9 +248,10 @@ impl TextEdit {
         self
     }
 
-    /// Draws no frame or background, like [`bare`](Self::bare), and pads its
-    /// own text by the input's side padding: the box it sits in leaves that
-    /// padding to the field, so a press there lands in the field.
+    /// Draws no frame or background, like [`bare`](Self::bare), and spans
+    /// its leaf's side padding, with that padding inside the field: a press
+    /// there lands in the field, as a press in an HTML input's padding does.
+    /// The text sits where a bare field's would.
     pub(crate) fn inset(mut self) -> Self {
         self.framing = Framing::Inset;
         self
@@ -308,13 +315,12 @@ impl TextEdit {
             Lines::Multi { .. } => egui::TextEdit::multiline(text).desired_rows(self.rows()),
         }
         .id(id)
-        .password(self.masked)
-        .desired_width(rect.width());
+        .password(self.masked);
+        let placed = self.placed(ui);
+        edit = edit.desired_width(placed.rect.width());
         match (self.framing, self.lines) {
             (Framing::Bare, _) => edit = edit.frame(Frame::NONE),
-            (Framing::Inset, _) => {
-                edit = edit.frame(Self::inset_frame(&Sizer::for_ui(ui), self.size))
-            }
+            (Framing::Inset, _) => edit = edit.frame(Frame::NONE.inner_margin(placed.margin)),
             (Framing::Framed, _) => {
                 let frame = crate::owned::input_frame(&Sizer::for_ui(ui).contract, self.size);
                 edit = edit.margin(Margin::from(frame.padding));
@@ -340,7 +346,7 @@ impl TextEdit {
         }
         let response = match self.lines {
             Lines::Multi { max: Some(_), .. } if before.scrolls() => {
-                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                ui.scope_builder(egui::UiBuilder::new().max_rect(placed.rect), |ui| {
                     egui::ScrollArea::vertical()
                         .id_salt(id.with("scroll"))
                         .auto_shrink(false)
@@ -350,7 +356,7 @@ impl TextEdit {
                 })
                 .inner
             }
-            _ => place(ui, edit),
+            _ => ui.put(placed.rect, edit),
         };
         announce(&response, self.name.as_deref());
         announce_role(&response, self.role);
@@ -369,17 +375,34 @@ impl TextEdit {
         response
     }
 
+    fn placed(&self, ui: &Ui) -> Placed {
+        let content = ui.max_rect();
+        match self.framing {
+            Framing::Framed | Framing::Bare => Placed {
+                rect: content,
+                margin: Margin::ZERO,
+            },
+            Framing::Inset => {
+                let padding = crate::draw::padding_box(ui);
+                let margin = egui::epaint::MarginF32 {
+                    left: (content.left() - padding.left()).round(),
+                    right: (padding.right() - content.right()).round(),
+                    ..egui::epaint::MarginF32::ZERO
+                };
+                Placed {
+                    rect: Rect::from_x_y_ranges(padding.x_range(), content.y_range()),
+                    margin: margin.into(),
+                }
+            }
+        }
+    }
+
     /// An unframed field is as tall as its text.
     fn unframed_floor(&self, sizer: &Sizer<'_>) -> f32 {
         match self.lines {
             Lines::Single => sizer.role_line_height.unwrap_or(0.0),
             Lines::Multi { .. } => 0.0,
         }
-    }
-
-    fn inset_frame(sizer: &Sizer<'_>, size: ControlSize) -> Frame {
-        let padding = crate::owned::input_frame(&sizer.contract, size).padding;
-        Frame::NONE.inner_margin(Margin::from(vec2(padding.x, 0.0)))
     }
 
     /// The size the field takes with `text` in it, and how tall its text
@@ -392,11 +415,7 @@ impl TextEdit {
                 Frame::new().inner_margin(Margin::from(input.padding)),
                 input.height,
             ),
-            Framing::Bare => (Frame::NONE, self.unframed_floor(sizer)),
-            Framing::Inset => (
-                Self::inset_frame(sizer, self.size),
-                self.unframed_floor(sizer),
-            ),
+            Framing::Bare | Framing::Inset => (Frame::NONE, self.unframed_floor(sizer)),
         };
         let margin = frame.total_margin().sum();
         let line = sizer.line_height();
